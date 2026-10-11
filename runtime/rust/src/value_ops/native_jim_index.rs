@@ -74,6 +74,7 @@ pub struct RuntimeJimIndexScope(OriginalArguments);
 pub struct RuntimeIndexOperation(OriginalArguments);
 impl NativeIndexOps for Interp {
     type IndexOperation = RuntimeIndexOperation;
+    type IndexBinaryReceipt = Option<obj::NativePrimaryReceipt>;
     type IndexKeyOwner = RuntimeIndexKey;
     fn index_borrowed_key(&mut self, original: &*mut TclObj) -> Result<RuntimeIndexKey, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
@@ -198,6 +199,161 @@ impl NativeIndexOps for Interp {
             .map_err(|_| ValueError::CommandProtocolUnavailable("original C Index length width"))?
             - 1;
         tcl_cmd_core::native_list_index::original_index(self, original, end, true)
+    }
+    fn index_c_select_binary(
+        &mut self,
+        original: &*mut TclObj,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Option<(Option<obj::NativePrimaryReceipt>, Rc<[u8]>)>, CmdError> {
+        let arguments = OriginalArguments::enter(self, &[*original])?;
+        arguments.check_original_for(self, 0, *original)?;
+        if self.index_c_version() != Some(version) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C binary selection release",
+            )
+            .into());
+        }
+        let snapshot = obj::native_object_snapshot(*original)?;
+        let tcl_syntax::native_object::NativeObjectCacheSnapshot::ByteArray { bytes, proper } =
+            snapshot.cache
+        else {
+            return Ok(None);
+        };
+        let eligible = match version {
+            tcl_dialect::TclVersion::V8_4 => true,
+            tcl_dialect::TclVersion::V8_5 | tcl_dialect::TclVersion::V8_6 => {
+                snapshot.resident.is_none()
+            }
+            tcl_dialect::TclVersion::V9_0 | tcl_dialect::TclVersion::V9_1 => proper,
+        };
+        if !eligible {
+            return Ok(None);
+        }
+        if crate::bytearray::native_string_protocol(*original)
+            != self.native_invocation_dialect().native_string_protocol()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C binary selection issuer",
+            )
+            .into());
+        }
+        Ok(Some((
+            (version == tcl_dialect::TclVersion::V8_4)
+                .then(|| obj::NativePrimaryReceipt::capture(*original))
+                .transpose()?,
+            bytes,
+        )))
+    }
+    fn index_c_check_binary_storage(
+        &mut self,
+        original: &*mut TclObj,
+        receipt: &Option<obj::NativePrimaryReceipt>,
+    ) -> Result<(), CmdError> {
+        let arguments = OriginalArguments::enter(self, &[*original])?;
+        arguments.check_original_for(self, 0, *original)?;
+        receipt
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "unselected C84 binary storage receipt",
+            ))?
+            .check(*original)
+            .map_err(|error| arguments.retain_refusal(CmdError::from(error)))
+    }
+    fn index_c_binary_bytes(&mut self, original: &*mut TclObj) -> Result<Rc<[u8]>, CmdError> {
+        let arguments = OriginalArguments::enter(self, &[*original])?;
+        let dialect = self.native_invocation_dialect();
+        let recipe = dialect.byte_array_string_recipe(None).ok_or(
+            ValueError::CommandProtocolUnavailable("original C binary getter issuer"),
+        )?;
+        let policy =
+            dialect
+                .binary_data_conversion()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original C binary getter conversion",
+                ))?;
+        crate::bytearray::native_binary_bytes_checked(
+            *original,
+            policy,
+            recipe,
+            &mut || arguments.check_original_for(self, 0, *original),
+            &mut || arguments.bytes(0).map(|bytes| bytes.to_vec()),
+        )
+        .map(Rc::from)
+    }
+    fn index_c_string_storage(
+        &mut self,
+        original: &*mut TclObj,
+    ) -> Result<tcl_cmd_core::string::NativeCStringStorage, CmdError> {
+        let arguments = OriginalArguments::enter(self, &[*original])?;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C String storage issuer",
+            ))?;
+        obj::native_c_string_storage_checked(
+            *original,
+            protocol,
+            &mut || arguments.check_original_for(self, 0, *original),
+            &mut || arguments.bytes(0),
+        )
+    }
+    fn index_c_plain_char(
+        &mut self,
+    ) -> Result<tcl_syntax::native_tcl_utf::NativeCPlainChar, CmdError> {
+        let arguments = OriginalArguments::enter(self, &[])?;
+        arguments.check_for(self)?;
+        if self.index_c_version().is_none() {
+            return Err(
+                ValueError::CommandProtocolUnavailable("original C String ABI issuer").into(),
+            );
+        }
+        Ok(tcl_runtime_api::native_c_string_abi::supported_backend_plain_char())
+    }
+    fn index_c_counted_string_result(
+        &mut self,
+        bytes: Rc<[u8]>,
+        count: usize,
+    ) -> Result<*mut TclObj, CmdError> {
+        if count != bytes.len() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original counted C String slice extent",
+            )
+            .into());
+        }
+        let arguments = OriginalArguments::enter(self, &[])?;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original counted C String constructor",
+            ))?;
+        arguments.check_for(self)?;
+        let created = obj::new_string_bytes(&bytes);
+        let reached = obj::set_native_append_string_checked(
+            created,
+            protocol,
+            Some((
+                bytes,
+                tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+            )),
+            Some(count),
+            None,
+            &mut || {
+                arguments.check_for(self)?;
+                obj::check_native_liveness(created).map_err(CmdError::from)
+            },
+        );
+        match reached {
+            Ok(()) => Ok(created),
+            Err(error) => {
+                arguments.retain_refusal(error.clone());
+                crate::interp::drop_fresh(created);
+                Err(error)
+            }
+        }
     }
     fn index_c_unicode_units(&mut self, original: &*mut TclObj) -> Result<Rc<[u32]>, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
@@ -1312,5 +1468,269 @@ mod parsed_empty_duplicate_control {
         let duplicate = obj::Owned::fresh(duplicate);
         assert_eq!(obj::bytes_of(duplicate.as_ptr()), b"a\0b");
         assert_eq!(unsafe { (*subject.as_ptr()).ref_count }, 1);
+    }
+}
+
+#[cfg(all(test, have_tommath))]
+mod original_index_range_native_rows635 {
+    use super::*;
+    include!("../../tests/data/native_original_index_range635/software_controls.rs");
+    fn type_name(value: *mut TclObj) -> &'static str {
+        let kind = obj::obj_type_ptr(value);
+        if kind.is_null() {
+            "none"
+        } else {
+            unsafe { std::ffi::CStr::from_ptr((*kind).name) }
+                .to_str()
+                .unwrap()
+        }
+    }
+    #[test]
+    fn original_index_and_range_project_exact_measured_public_predicates() {
+        // naming.string.original-counted-index-range-storage-and-results
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-index-range-storage-and-results.md
+        // Direct API provides its own original owners. We compare public type,
+        // residency, deterministic byte and alias predicates, not EvalObjv
+        // temporary refcounts or unobserved native private Unicode caches.
+        assert_eq!(ROWS.len(), 116);
+        for row in ROWS {
+            let mut ops = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(row.dialect),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let dialect = ops.native_invocation_dialect();
+            let inputs = row.input.map(unhex);
+            let subject = obj::Owned::fresh(match row.producer {
+                0 => obj::new_string_bytes(&inputs[0]),
+                1 => crate::bytearray::new_byte_array(
+                    &inputs[0],
+                    dialect.byte_array_string_recipe(None).unwrap(),
+                ),
+                2 => obj::new_native_unicode_obj(Rc::from([0x41, 0xd83d, 0xde00, 0x5a]), dialect)
+                    .unwrap(),
+                _ => unreachable!(),
+            });
+            let first =
+                (!row.alias_first).then(|| obj::Owned::fresh(obj::new_string_bytes(&inputs[1])));
+            let first = first.as_ref().unwrap_or(&subject);
+            let last =
+                (!row.alias_last).then(|| obj::Owned::fresh(obj::new_string_bytes(&inputs[2])));
+            let last = last.as_ref().unwrap_or(first);
+            let extra = row.shared.then(|| obj::Owned::retain(subject.as_ptr()));
+            if row.materialise {
+                ops.index_operand_bytes(&subject.as_ptr()).unwrap();
+            }
+            let args = [subject.as_ptr(), first.as_ptr(), last.as_ptr()];
+            let reached = if row.range {
+                tcl_cmd_core::string::range(&mut ops, &args[0], &args[1], &args[2])
+            } else {
+                tcl_cmd_core::string::index(&mut ops, &args[0], &args[1])
+            };
+            let label = (row.dialect, row.case, row.stream_sha);
+            for (argument, expected) in args.iter().zip(row.argument_types) {
+                assert_eq!(type_name(*argument), expected, "{label:?}");
+            }
+            if row.code == 0 {
+                let result = obj::Owned::fresh(reached.unwrap());
+                assert_eq!(type_name(result.as_ptr()), row.result_type, "{label:?}");
+                assert_eq!(
+                    obj::has_string_rep(result.as_ptr()),
+                    row.resident,
+                    "{label:?}"
+                );
+                assert_eq!(
+                    result.as_ptr() == subject.as_ptr(),
+                    row.alias_subject,
+                    "{label:?}"
+                );
+                assert_eq!(
+                    ops.index_operand_bytes(&result.as_ptr()).unwrap().as_ref(),
+                    unhex(row.output),
+                    "{label:?}"
+                );
+            } else {
+                let error = reached.unwrap_err();
+                assert!(error.native_execution_refusal().is_none(), "{label:?}");
+                assert_eq!(error.message_bytes(), unhex(row.output), "{label:?}");
+            }
+            assert_eq!(
+                ops.index_operand_bytes(&subject.as_ptr()).unwrap().as_ref(),
+                unhex(row.subject_output),
+                "{label:?}"
+            );
+            drop(extra);
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_c_string_stage_controls637 {
+    use super::*;
+    use std::cell::Cell;
+    thread_local! {
+        static TARGET: Cell<*mut TclObj> = const { Cell::new(core::ptr::null_mut()) };
+        static REFS: Cell<obj::TclSize> = const { Cell::new(-1) };
+        static INDEX_CALLS: Cell<usize> = const { Cell::new(0) };
+    }
+    struct Current;
+    impl Drop for Current {
+        fn drop(&mut self) {
+            crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
+        }
+    }
+    static REPLACED: TclObjType = TclObjType {
+        name: c"originalStringSelectedBackingControl".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    extern "C" fn index_update(original: *mut TclObj) {
+        INDEX_CALLS.with(|calls| calls.set(calls.get() + 1));
+        let subject = TARGET.with(Cell::get);
+        if !subject.is_null() {
+            REFS.with(|refs| refs.set(unsafe { (*subject).ref_count }));
+            obj::change_type(subject, &REPLACED, 0);
+            unsafe { obj::set_native_updater_string_rep(subject, b"XY", false) };
+        }
+        unsafe { obj::set_native_updater_string_rep(original, b"0", false) };
+    }
+    static INDEX: TclObjType = TclObjType {
+        name: c"originalStringIndexStageControl".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(index_update),
+        set_from_any_proc: None,
+    };
+    extern "C" fn subject_update(original: *mut TclObj) {
+        unsafe { obj::set_native_updater_string_rep(original, b"A\xc3\xa9Z", false) };
+    }
+    extern "C" fn subject_free(original: *mut TclObj) {
+        REFS.with(|refs| refs.set(unsafe { (*original).ref_count }));
+        let mut actual = unsafe { crate::codegen_abi::current_interp().as_ref() }
+            .unwrap()
+            .clone();
+        actual.refuse_host_command("original String primary retirement");
+    }
+    static SUBJECT: TclObjType = TclObjType {
+        name: c"originalStringSubjectStageControl".as_ptr(),
+        free_int_rep_proc: Some(subject_free),
+        dup_int_rep_proc: None,
+        update_string_proc: Some(subject_update),
+        set_from_any_proc: None,
+    };
+    fn actual(profile: &str) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect(profile),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+    #[test]
+    fn original_c_binary_pointer_and_reread_stages_use_actual_header_and_no_protective_reference() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // naming.string.original-counted-index-range-storage-and-results
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-index-range-storage-and-results.md
+        // Real software extension updater mutates the selected subject during
+        // its original index getter. Native635 public rows do not observe this
+        // callback; pinned command branches bound the captured/reread schedule.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut ops = actual(profile);
+            let subject = obj::Owned::fresh(crate::bytearray::new_byte_array(
+                b"ABC",
+                ops.native_invocation_dialect()
+                    .byte_array_string_recipe(None)
+                    .unwrap(),
+            ));
+            let operand = obj::Owned::fresh(obj::alloc_typed(&INDEX, 0));
+            TARGET.with(|target| target.set(subject.as_ptr()));
+            INDEX_CALLS.with(|calls| calls.set(0));
+            crate::codegen_abi::tcl_runtime_set_current_interp(&mut ops);
+            let _current = Current;
+            let reached =
+                tcl_cmd_core::string::index(&mut ops, &subject.as_ptr(), &operand.as_ptr());
+            assert_eq!(INDEX_CALLS.with(Cell::get), 1);
+            assert_eq!(REFS.with(Cell::get), 1);
+            if profile == "tcl8.4" {
+                let error = reached.unwrap_err();
+                assert!(matches!(error.native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("retired original C binary storage")))));
+                assert_eq!(
+                    error.native_execution_refusal(),
+                    ops.native_execution_refusal().as_ref()
+                );
+                assert!(core::ptr::eq(
+                    obj::obj_type_ptr(subject.as_ptr()),
+                    &REPLACED
+                ));
+            } else {
+                let result = obj::Owned::fresh(reached.unwrap());
+                assert_eq!(
+                    ops.index_operand_bytes(&result.as_ptr()).unwrap().as_ref(),
+                    b"X"
+                );
+                if profile == "tcl8.5" {
+                    assert!(crate::bytearray::native_cache_snapshot(subject.as_ptr()).is_some());
+                } else {
+                    assert!(matches!(
+                        obj::native_object_snapshot(subject.as_ptr()).unwrap().cache,
+                        tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+                            num_chars: Some(2),
+                            ..
+                        }
+                    ));
+                }
+            }
+            assert_eq!(unsafe { (*subject.as_ptr()).ref_count }, 1);
+            assert_eq!(unsafe { (*operand.as_ptr()).ref_count }, 1);
+            TARGET.with(|target| target.set(core::ptr::null_mut()));
+        }
+    }
+    #[test]
+    fn original_count_free_callback_preserves_first_cause_before_any_index_getter_or_string_cache_adoption()
+     {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual original extension free callback, not native adversarial evidence.
+        for profile in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            let mut ops = actual(profile);
+            let subject = obj::Owned::fresh(obj::alloc_typed(&SUBJECT, 0));
+            let operand = obj::Owned::fresh(obj::alloc_typed(&INDEX, 0));
+            INDEX_CALLS.with(|calls| calls.set(0));
+            TARGET.with(|target| target.set(core::ptr::null_mut()));
+            ops.set_result_bytes(b"PRIOR");
+            let prior = ops.get_obj_result();
+            crate::codegen_abi::tcl_runtime_set_current_interp(&mut ops);
+            let _current = Current;
+            let error = tcl_cmd_core::string::index(&mut ops, &subject.as_ptr(), &operand.as_ptr())
+                .unwrap_err();
+            assert_eq!(
+                error.native_execution_refusal(),
+                ops.native_execution_refusal().as_ref()
+            );
+            assert_eq!(REFS.with(Cell::get), 1);
+            assert_eq!(INDEX_CALLS.with(Cell::get), 0);
+            assert_eq!(ops.get_obj_result(), prior);
+            assert!(!matches!(
+                obj::native_object_snapshot(subject.as_ptr()).unwrap().cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::String { .. }
+            ));
+        }
+    }
+    #[test]
+    fn original_primary_receipt_refuses_scalar_change_and_restore() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software epoch control; no native private-epoch observation.
+        let value = obj::Owned::fresh(obj::alloc_typed(&REPLACED, 7));
+        let receipt = obj::NativePrimaryReceipt::capture(value.as_ptr()).unwrap();
+        obj::change_type(value.as_ptr(), &REPLACED, 8);
+        obj::change_type(value.as_ptr(), &REPLACED, 7);
+        assert!(receipt.check(value.as_ptr()).is_err());
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
     }
 }

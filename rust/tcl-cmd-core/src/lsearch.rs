@@ -958,6 +958,7 @@ mod tests {
 
     impl crate::index::NativeIndexOps for StrOps {
         type IndexOperation = ();
+        type IndexBinaryReceipt = ();
         type IndexKeyOwner = Self::Value;
         fn index_borrowed_key(
             &mut self,

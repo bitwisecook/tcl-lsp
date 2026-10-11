@@ -201,8 +201,8 @@ fn native_character_count_using<E: From<tcl_syntax::value::ValueError>>(
     value: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
     representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
-    current: &mut impl FnMut() -> Result<(), E>,
-    original_string: &mut impl FnMut() -> Result<std::rc::Rc<[u8]>, E>,
+    current: &mut dyn FnMut() -> Result<(), E>,
+    original_string: &mut dyn FnMut() -> Result<std::rc::Rc<[u8]>, E>,
 ) -> Result<usize, E> {
     use tcl_syntax::value::ValueError;
     current()?;
@@ -245,7 +245,7 @@ fn native_character_count_using<E: From<tcl_syntax::value::ValueError>>(
     check_native_liveness(value)?;
     let bytes = reached?;
     let count = if protocol.is_jim084() {
-        tcl_syntax::raw_string::RawString::from_bytes(bytes)
+        tcl_syntax::raw_string::RawString::from_bytes(bytes.clone())
             .jim084_characters()
             .count()
     } else {
@@ -266,10 +266,23 @@ fn native_character_count_using<E: From<tcl_syntax::value::ValueError>>(
             current,
         )?;
     } else {
+        let unicode = protocol
+            .tcl_version()
+            .filter(|version| *version <= tcl_dialect::TclVersion::V8_5)
+            .filter(|_| count != bytes.len())
+            .map(|version| {
+                std::rc::Rc::from(
+                    tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+                        .decode_storage_units(
+                            &bytes,
+                            tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+                        ),
+                )
+            });
         let mut backing = Box::new(NativeStringRep {
             protocol,
             count: Some(count),
-            unicode: None,
+            unicode,
         });
         let representation = u64::try_from(core::ptr::from_mut(backing.as_mut()) as usize)
             .expect("native pointer fits u64");
@@ -279,6 +292,88 @@ fn native_character_count_using<E: From<tcl_syntax::value::ValueError>>(
     current()?;
     check_native_liveness(value)?;
     Ok(count)
+}
+
+/// Allocation-only receipt for an already selected original C84 primary.
+/// Capturing it acquires no native reference and does not keep a backing alive.
+pub struct NativePrimaryReceipt {
+    header: NativeObjectLifetime,
+    epoch: u64,
+    kind: *const TclObjType,
+    representation: u64,
+}
+impl NativePrimaryReceipt {
+    pub(crate) fn capture(value: *mut TclObj) -> Result<Self, tcl_syntax::value::ValueError> {
+        check_native_liveness(value)?;
+        let epoch = auxiliary(value).primary_epoch.get().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original primary epoch capacity",
+            ),
+        )?;
+        Ok(Self {
+            header: NativeObjectLifetime::retain(value),
+            epoch,
+            kind: obj_type_ptr(value),
+            representation: internal_rep(value),
+        })
+    }
+    pub(crate) fn check(&self, value: *mut TclObj) -> Result<(), tcl_syntax::value::ValueError> {
+        check_native_liveness(value)?;
+        if self.header.as_ptr() != value
+            || auxiliary(value).primary_epoch.get() != Some(self.epoch)
+            || obj_type_ptr(value) != self.kind
+            || internal_rep(value) != self.representation
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retired original C binary storage",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Reach SetStringFromAny/count on the original header, without a public
+/// character-length shortcut. Unit/range consumers select this purpose only
+/// after their original index getters, independently of ByteArray count rules.
+pub(crate) fn native_c_string_storage_checked<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    current: &mut dyn FnMut() -> Result<(), E>,
+    original_string: &mut dyn FnMut() -> Result<std::rc::Rc<[u8]>, E>,
+) -> Result<tcl_cmd_core::string::NativeCStringStorage, E> {
+    // The same count/adoption kernel supplies eager C84/85 Unicode and lazy
+    // C86+ counts. String representation explicitly disables length shortcuts.
+    let count = native_character_count_using(
+        value,
+        protocol,
+        tcl_registry::native_string_length::NativeStringLengthRepresentation::String,
+        current,
+        original_string,
+    )?;
+    current()?;
+    let snapshot = native_object_snapshot(value)?;
+    let tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+        protocol: origin,
+        unicode,
+        ..
+    } = snapshot.cache
+    else {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original C String storage primary",
+        )
+        .into());
+    };
+    if origin != protocol {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original C String storage issuer",
+        )
+        .into());
+    }
+    Ok(tcl_cmd_core::string::NativeCStringStorage {
+        count,
+        bytes: snapshot.resident,
+        unicode,
+    })
 }
 
 /// Install an actual Jim string result's native cached count without changing bytes.

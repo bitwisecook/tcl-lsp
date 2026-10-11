@@ -260,27 +260,83 @@ pub(crate) fn native_binary_bytes(
     cache: bool,
     recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
 ) -> Result<Vec<u8>, tcl_registry::native_binary_value::NativeBinaryByteError> {
+    native_binary_bytes_using::<tcl_syntax::value::ValueError>(
+        value,
+        policy,
+        cache,
+        recipe,
+        &mut None,
+        &mut || Ok(obj::bytes_of(value)),
+    )
+    .expect("neutral binary conversion has no checked stages")
+}
+
+/// Same actual byte getter/cache kernel with original currency/header checks.
+/// Adoption retains the resident String and retires the old primary exactly
+/// once; a guest byte error leaves it unchanged and preserves full Host causes.
+pub(crate) fn native_binary_bytes_checked(
+    value: *mut TclObj,
+    policy: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+    original_string: &mut dyn FnMut() -> Result<Vec<u8>, tcl_cmd_core::CmdError>,
+) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+    native_binary_bytes_using(
+        value,
+        policy,
+        true,
+        recipe,
+        &mut Some(current),
+        original_string,
+    )?
+    .map_err(|error| tcl_cmd_core::CmdError::with_error_code(error.message(), "TCL VALUE BYTES"))
+}
+
+fn native_binary_bytes_using<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    policy: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+    cache: bool,
+    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    original_string: &mut dyn FnMut() -> Result<Vec<u8>, E>,
+) -> Result<Result<Vec<u8>, tcl_registry::native_binary_value::NativeBinaryByteError>, E> {
+    if let Some(check) = current.as_deref_mut() {
+        check()?;
+        obj::check_native_liveness(value)?;
+    }
     use tcl_registry::native_binary_value::NativeBinaryByteConversion;
     if policy == NativeBinaryByteConversion::Utf8 {
-        return Ok(obj::bytes_of(value));
+        return Ok(Ok(original_string()?));
     }
     if obj::obj_type_ptr(value) == &TCL_BYTE_ARRAY_TYPE {
         // SAFETY: the exact type pointer owns this backing allocation.
         let backing = unsafe { byte_array_ref(value) };
+        if current.is_some() && backing.recipe.protocol() != recipe.protocol() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original binary getter cache issuer",
+            )
+            .into());
+        }
         if (backing.conversion.is_none() || backing.conversion == Some(policy))
             && (backing.proper || policy != NativeBinaryByteConversion::CheckedLatin1)
         {
-            return Ok(backing.bytes.clone());
+            return Ok(Ok(backing.bytes.clone()));
         }
     }
-    let original = obj::bytes_of(value);
+    let original = original_string()?;
+    if let Some(check) = current.as_deref_mut() {
+        check()?;
+    }
     let units = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(
         recipe
             .protocol()
             .tcl_version()
             .expect("sealed C byte-array recipe"),
     );
-    let bytes = policy.convert_native(&original, units)?;
+    let bytes = match policy.convert_native(&original, units) {
+        Ok(bytes) => bytes,
+        Err(error) => return Ok(Err(error)),
+    };
     if cache {
         let backing = Box::new(TclByteArray {
             bytes: bytes.clone(),
@@ -292,13 +348,21 @@ pub(crate) fn native_binary_bytes(
         });
         // SAFETY: native conversion replaces the live representation while
         // preserving its existing string bytes, including on shared objects.
-        obj::change_type(
-            value,
-            &TCL_BYTE_ARRAY_TYPE,
-            Box::into_raw(backing) as usize as u64,
-        );
+        if let Some(check) = current.as_deref_mut() {
+            let mut backing = backing;
+            let rep = core::ptr::from_mut(backing.as_mut()) as usize as u64;
+            obj::change_type_with_stage_check(value, &TCL_BYTE_ARRAY_TYPE, rep, check)?;
+            let _ = Box::into_raw(backing);
+            check()?;
+        } else {
+            obj::change_type(
+                value,
+                &TCL_BYTE_ARRAY_TYPE,
+                Box::into_raw(backing) as usize as u64,
+            );
+        }
     }
-    Ok(bytes)
+    Ok(Ok(bytes))
 }
 
 /// Select decoder input from its actual object representation, before any

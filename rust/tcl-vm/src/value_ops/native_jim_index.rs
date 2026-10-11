@@ -69,6 +69,7 @@ pub struct VmJimIndexScope {
 pub struct VmIndexOperation(NativeOperationScope);
 impl NativeIndexOps for Vm {
     type IndexOperation = VmIndexOperation;
+    type IndexBinaryReceipt = Option<crate::value::NativeBinaryStorageReceipt>;
     type IndexKeyOwner = VmIndexKey;
     fn index_borrowed_key(&mut self, original: &Value) -> Result<VmIndexKey, CmdError> {
         let scope = NativeOperationScope::enter(self)?;
@@ -187,6 +188,166 @@ impl NativeIndexOps for Vm {
             .map_err(|_| ValueError::CommandProtocolUnavailable("original C Index length width"))?
             - 1;
         tcl_cmd_core::native_list_index::original_index(self, original, end, true)
+    }
+    fn index_c_select_binary(
+        &mut self,
+        original: &Value,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Option<(Option<crate::value::NativeBinaryStorageReceipt>, Rc<[u8]>)>, CmdError>
+    {
+        let operation = NativeOperationScope::enter(self)?;
+        operation.check(self)?;
+        original.check_native_header()?;
+        if self.index_c_version() != Some(version) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C binary selection release",
+            )
+            .into());
+        }
+        let snapshot = original.native_object_snapshot();
+        let tcl_syntax::native_object::NativeObjectCacheSnapshot::ByteArray { bytes, proper } =
+            snapshot.cache
+        else {
+            return Ok(None);
+        };
+        let eligible = match version {
+            tcl_dialect::TclVersion::V8_4 => true,
+            tcl_dialect::TclVersion::V8_5 | tcl_dialect::TclVersion::V8_6 => {
+                snapshot.resident.is_none()
+            }
+            tcl_dialect::TclVersion::V9_0 | tcl_dialect::TclVersion::V9_1 => proper,
+        };
+        if !eligible {
+            return Ok(None);
+        }
+        if original.native_byte_array_protocol()
+            != self
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C binary selection issuer",
+            )
+            .into());
+        }
+        Ok(Some((
+            (version == tcl_dialect::TclVersion::V8_4)
+                .then(|| original.capture_native_binary_storage())
+                .transpose()?,
+            bytes,
+        )))
+    }
+    fn index_c_check_binary_storage(
+        &mut self,
+        original: &Value,
+        receipt: &Option<crate::value::NativeBinaryStorageReceipt>,
+    ) -> Result<(), CmdError> {
+        let operation = NativeOperationScope::enter(self)?;
+        let numeric = OriginalNumericOps::in_original_scope(self, &operation)?;
+        numeric.current_for_value(original)?;
+        receipt
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "unselected C84 binary storage receipt",
+            ))?
+            .check(original)
+            .map_err(|error| {
+                let error = CmdError::from(error);
+                numeric.retain_failure(&error);
+                error
+            })
+    }
+    fn index_c_binary_bytes(&mut self, original: &Value) -> Result<Rc<[u8]>, CmdError> {
+        let operation = NativeOperationScope::enter(self)?;
+        let numeric = OriginalNumericOps::in_original_scope(self, &operation)?;
+        let dialect = numeric.dialect();
+        let protocol = dialect
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C binary getter issuer",
+            ))?;
+        let policy =
+            dialect
+                .binary_data_conversion()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original C binary getter conversion",
+                ))?;
+        original.as_native_byte_array_checked(
+            policy,
+            protocol,
+            &mut || numeric.current_for_value(original),
+            &mut || numeric.string(original, protocol),
+        )
+    }
+    fn index_c_string_storage(
+        &mut self,
+        original: &Value,
+    ) -> Result<tcl_cmd_core::string::NativeCStringStorage, CmdError> {
+        let operation = NativeOperationScope::enter(self)?;
+        let numeric = OriginalNumericOps::in_original_scope(self, &operation)?;
+        let protocol = numeric
+            .dialect()
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C String storage issuer",
+            ))?;
+        original.native_c_string_storage_checked(
+            protocol,
+            &mut || numeric.current_for_value(original),
+            &mut || numeric.string(original, protocol),
+        )
+    }
+    fn index_c_plain_char(
+        &mut self,
+    ) -> Result<tcl_syntax::native_tcl_utf::NativeCPlainChar, CmdError> {
+        let operation = NativeOperationScope::enter(self)?;
+        operation.check(self)?;
+        if self.index_c_version().is_none() {
+            return Err(
+                ValueError::CommandProtocolUnavailable("original C String ABI issuer").into(),
+            );
+        }
+        Ok(tcl_runtime_api::native_c_string_abi::supported_backend_plain_char())
+    }
+    fn index_c_counted_string_result(
+        &mut self,
+        bytes: Rc<[u8]>,
+        count: usize,
+    ) -> Result<Value, CmdError> {
+        if count != bytes.len() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original counted C String slice extent",
+            )
+            .into());
+        }
+        let operation = NativeOperationScope::enter(self)?;
+        operation.check(self)?;
+        let protocol = self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original counted C String constructor",
+            ))?;
+        let created = Value::new_native_allocated_string_bytes(bytes.clone());
+        let numeric = OriginalNumericOps::in_original_scope(self, &operation)?;
+        let reached = created.native_append_string_checked(
+            protocol,
+            Some((
+                bytes,
+                tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+            )),
+            Some(count),
+            None,
+            &mut || numeric.current_for_value(&created),
+        );
+        if let Err(error) = reached {
+            numeric.retain_failure(&error);
+            return Err(error);
+        }
+        Ok(created)
     }
     fn index_c_unicode_units(&mut self, original: &Value) -> Result<Rc<[u32]>, CmdError> {
         let operation = NativeOperationScope::enter(self)?;
@@ -944,5 +1105,160 @@ mod parsed_empty_duplicate_control {
         assert!(!duplicate.is_same_object(&subject));
         assert_eq!(subject.native_object_reference_count(), 1);
         assert_eq!(duplicate.resident_string_bytes().unwrap().as_ref(), b"a\0b");
+    }
+}
+
+#[cfg(all(test, have_tommath))]
+mod original_index_range_native_rows635 {
+    use super::*;
+    include!(
+        "../../../../runtime/rust/tests/data/native_original_index_range635/software_controls.rs"
+    );
+    #[test]
+    fn original_index_and_range_project_exact_measured_public_predicates() {
+        // naming.string.original-counted-index-range-storage-and-results
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-index-range-storage-and-results.md
+        // Direct API provides its own original owners. We compare public type,
+        // residency, deterministic byte and alias predicates, not EvalObjv
+        // temporary refcounts or unobserved native private Unicode caches.
+        assert_eq!(ROWS.len(), 116);
+        for row in ROWS {
+            let mut ops =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(row.dialect));
+            let dialect = ops.actual_native_invocation_dialect();
+            let inputs = row.input.map(unhex);
+            let subject = match row.producer {
+                0 => Value::new_native_string_bytes(inputs[0].as_slice()),
+                1 => {
+                    Value::from_native_byte_array(Rc::from(inputs[0].as_slice()), dialect).unwrap()
+                }
+                2 => Value::from_native_unicode_units(
+                    Rc::from([0x41, 0xd83d, 0xde00, 0x5a]),
+                    dialect,
+                )
+                .unwrap(),
+                _ => unreachable!(),
+            };
+            let first =
+                (!row.alias_first).then(|| Value::new_native_string_bytes(inputs[1].as_slice()));
+            let first = first.as_ref().unwrap_or(&subject);
+            let last =
+                (!row.alias_last).then(|| Value::new_native_string_bytes(inputs[2].as_slice()));
+            let last = last.as_ref().unwrap_or(first);
+            let extra = row.shared.then(|| subject.clone());
+            if row.materialise {
+                ops.index_operand_bytes(&subject).unwrap();
+            }
+            let args =
+                [&subject, first, last].map(|value| value.native_lifetime_lease().into_value());
+            let reached = if row.range {
+                tcl_cmd_core::string::range(&mut ops, &args[0], &args[1], &args[2])
+            } else {
+                tcl_cmd_core::string::index(&mut ops, &args[0], &args[1])
+            };
+            let label = (row.dialect, row.case, row.stream_sha);
+            for (argument, expected) in args.iter().zip(row.argument_types) {
+                assert_eq!(argument.native_object_type_name(), expected, "{label:?}");
+            }
+            if row.code == 0 {
+                let result = reached.unwrap();
+                assert_eq!(
+                    result.native_object_type_name(),
+                    row.result_type,
+                    "{label:?}"
+                );
+                assert_eq!(
+                    result.native_object_snapshot().resident.is_some(),
+                    row.resident,
+                    "{label:?}"
+                );
+                assert_eq!(
+                    result.is_same_object(&subject),
+                    row.alias_subject,
+                    "{label:?}"
+                );
+                assert_eq!(
+                    ops.index_operand_bytes(&result).unwrap().as_ref(),
+                    unhex(row.output),
+                    "{label:?}"
+                );
+            } else {
+                let error = reached.unwrap_err();
+                assert!(error.native_execution_refusal().is_none(), "{label:?}");
+                assert_eq!(error.message_bytes(), unhex(row.output), "{label:?}");
+            }
+            assert_eq!(
+                ops.index_operand_bytes(&subject).unwrap().as_ref(),
+                unhex(row.subject_output),
+                "{label:?}"
+            );
+            drop(extra);
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_c_string_cache_controls637 {
+    use super::*;
+    #[test]
+    fn original_c_count_retains_source_backed_eager_and_lazy_unicode_caches() {
+        // naming.string.original-counted-index-range-storage-and-results
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-index-range-storage-and-results.md
+        // Private cache shape is a pinned-source/software control, not a public
+        // field in the native635 streams. Getter/result bytes have separate rows.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(profile));
+            let subject = Value::new_native_string_bytes(b"A\xc3\xa9Z".as_slice());
+            assert_eq!(vm.index_character_count(&subject).unwrap(), 3);
+            let tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+                unicode,
+                num_chars,
+                ..
+            } = subject.native_object_snapshot().cache
+            else {
+                panic!("original String count");
+            };
+            assert_eq!(num_chars, Some(3));
+            assert_eq!(unicode.is_some(), matches!(profile, "tcl8.4" | "tcl8.5"));
+            let storage = vm.index_c_string_storage(&subject).unwrap();
+            assert_eq!(storage.count, 3);
+            assert_eq!(storage.bytes.unwrap().as_ref(), b"A\xc3\xa9Z");
+            assert_eq!(subject.native_object_reference_count(), 1);
+        }
+    }
+    #[test]
+    fn original_c_binary_backing_receipt_does_not_keep_a_replaced_backing_alive() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual Weak backing/header control. This grants no VM general primary
+        // epoch or native C84 adversarial pointer-lifetime observation.
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+        let subject = Value::from_native_byte_array(
+            Rc::from(b"ABC".as_slice()),
+            vm.actual_native_invocation_dialect(),
+        )
+        .unwrap();
+        let version = tcl_dialect::TclVersion::V8_4;
+        let (receipt, _) = vm
+            .index_c_select_binary(&subject, version)
+            .unwrap()
+            .unwrap();
+        vm.index_c_binary_splice(&subject, Rc::from(b"XYZ".as_slice()))
+            .unwrap();
+        let error = vm
+            .index_c_check_binary_storage(&subject, &receipt)
+            .unwrap_err();
+        assert_eq!(
+            error.native_execution_refusal(),
+            vm.execution_refusal.as_ref()
+        );
+        assert_eq!(subject.native_object_reference_count(), 1);
+        let tcl_syntax::native_object::NativeObjectCacheSnapshot::ByteArray { bytes, .. } =
+            subject.native_object_snapshot().cache
+        else {
+            panic!("replacement backing");
+        };
+        assert_eq!(bytes.as_ref(), b"XYZ");
     }
 }

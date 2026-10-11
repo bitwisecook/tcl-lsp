@@ -79,6 +79,61 @@ pub trait NativeIndexOps: ValueOps {
     /// The actual entered operation. Neutral adapters explicitly use `()`.
     type IndexOperation;
 
+    /// Allocation-only selected C84 original primary/backing receipt. Neutral
+    /// adapters use (); later C branches do not borrow this captured-pointer role.
+    type IndexBinaryReceipt;
+
+    /// Inspect actual ByteArray eligibility without invoking a String getter.
+    /// The release is the actual selected C producer, not neutral grammar.
+    fn index_c_select_binary(
+        &mut self,
+        _original: &Self::Value,
+        _version: TclVersion,
+    ) -> Result<Option<(Self::IndexBinaryReceipt, std::rc::Rc<[u8]>)>, CmdError> {
+        Ok(None)
+    }
+
+    /// Check C84's original captured storage immediately before pointer use.
+    fn index_c_check_binary_storage(
+        &mut self,
+        _original: &Self::Value,
+        _receipt: &Self::IndexBinaryReceipt,
+    ) -> Result<(), CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C binary storage receipt").into())
+    }
+
+    /// Reread the same original binary header at C85's reached getter stage.
+    fn index_c_binary_bytes(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<std::rc::Rc<[u8]>, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C binary getter").into())
+    }
+
+    /// Reach the original String representation/count without length shortcuts.
+    fn index_c_string_storage(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<crate::string::NativeCStringStorage, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C String storage").into())
+    }
+
+    /// Actual local backend promotion after selected original String admission.
+    fn index_c_plain_char(
+        &mut self,
+    ) -> Result<tcl_syntax::native_tcl_utf::NativeCPlainChar, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C String ABI").into())
+    }
+
+    /// Fresh counted String constructor for GetRange's raw byte-slice branch.
+    fn index_c_counted_string_result(
+        &mut self,
+        _bytes: std::rc::Rc<[u8]>,
+        _count: usize,
+    ) -> Result<Self::Value, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C counted String constructor").into())
+    }
+
     /// Capture the original operation before any operand getter or length.
     /// This entry grants no String, numeric, name or cache purpose.
     ///

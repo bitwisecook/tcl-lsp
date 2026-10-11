@@ -28,33 +28,35 @@ fn require_protocol<O: ValueOps>(ops: &O, version: TclVersion) -> Result<(), Cmd
 /// Returns actual original getter or selected native-protocol failures.
 // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
 // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
-pub fn compiled_find<O: ValueOps>(
+pub fn compiled_find<O: NativeIndexOps>(
     ops: &mut O,
     needle: &O::Value,
     subject: &O::Value,
     version: TclVersion,
     reverse: bool,
 ) -> Result<i64, CmdError> {
-    require_protocol(ops, version)?;
-    let haystack = ops.native_unicode_units(subject)?;
-    let needle = ops.native_unicode_units(needle)?;
-    if needle.is_empty() || needle.len() > haystack.len() {
-        return Ok(-1);
-    }
-    let mut windows = haystack.windows(needle.len());
-    let found = if reverse {
-        windows.rposition(|window| window == needle.as_ref())
-    } else {
-        windows.position(|window| window == needle.as_ref())
-    };
-    found.map_or(Ok(-1), |index| {
-        i64::try_from(index).map_err(|_| {
-            ValueError::CommandProtocolUnavailable("compiled string coordinate width").into()
+    index::run_index_metadata(ops, |ops| {
+        require_protocol(ops, version)?;
+        let haystack = ops.index_c_unicode_units(subject)?;
+        let needle = ops.index_c_unicode_units(needle)?;
+        if needle.is_empty() || needle.len() > haystack.len() {
+            return Ok(-1);
+        }
+        let mut windows = haystack.windows(needle.len());
+        let found = if reverse {
+            windows.rposition(|window| window == needle.as_ref())
+        } else {
+            windows.position(|window| window == needle.as_ref())
+        };
+        found.map_or(Ok(-1), |index| {
+            i64::try_from(index).map_err(|_| {
+                ValueError::CommandProtocolUnavailable("compiled string coordinate width").into()
+            })
         })
     })
 }
 
-fn reached_range<O: ValueOps>(
+fn reached_range<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
     first: i64,
@@ -79,17 +81,10 @@ fn reached_range<O: ValueOps>(
         )
         .into());
     }
-    let first = usize::try_from(first.max(0))
-        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled range coordinate width"))?;
-    let Ok(last) = usize::try_from(last) else {
-        return Ok(ops.new_bytes(&[]));
-    };
-    if first >= units.len() || first > last {
-        return Ok(ops.new_bytes(&[]));
-    }
-    let last = last.min(units.len() - 1);
-    ops.native_unicode_string_result(units[first..=last].into(), version)
-        .map_err(Into::into)
+    // The already reached original Unicode receipt remains required; the
+    // same C GetRange constructor/storage owner performs the actual slicing.
+    let _ = units;
+    super::native_c::parsed_range(ops, subject, first, last, version)
 }
 
 /// Execute the range after the original search has retained Unicode backing.
@@ -122,27 +117,29 @@ pub fn compiled_range<O: NativeIndexOps>(
 /// Propagates original getter, range and native result-constructor failures.
 // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
 // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
-pub fn compiled_tail<O: ValueOps>(
+pub fn compiled_tail<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
     separator: &O::Value,
     version: TclVersion,
 ) -> Result<O::Value, CmdError> {
-    let found = compiled_find(ops, separator, subject, version, true)?;
-    let first = if found < 0 {
-        found
-    } else {
-        found
-            .checked_add(2)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "compiled Tail coordinate width",
-            ))?
-    };
-    let length = ops.native_char_len(subject)?;
-    let last = i64::try_from(length)
-        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled Tail character width"))?
-        - 1;
-    reached_range(ops, subject, first, last, version)
+    index::run_created_index_result(ops, |ops| {
+        let found = compiled_find(ops, separator, subject, version, true)?;
+        let first = if found < 0 {
+            found
+        } else {
+            found
+                .checked_add(2)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "compiled Tail coordinate width",
+                ))?
+        };
+        let length = ops.native_char_len(subject)?;
+        let last = i64::try_from(length)
+            .map_err(|_| ValueError::CommandProtocolUnavailable("compiled Tail character width"))?
+            - 1;
+        reached_range(ops, subject, first, last, version)
+    })
 }
 
 /// Execute the reached original character-index branch. Counted one-byte
@@ -161,8 +158,6 @@ pub fn compiled_index<O: NativeIndexOps>(
 ) -> Result<O::Value, CmdError> {
     index::run_created_index_result(ops, |ops| {
         require_protocol(ops, version)?;
-        let length = ops.index_character_count(subject)?;
-        let index = index::resolve_value(ops, index, length)?;
         let snapshot = ops.native_object_snapshot(subject)?;
         let NativeObjectCacheSnapshot::String {
             protocol,
@@ -181,21 +176,8 @@ pub fn compiled_index<O: NativeIndexOps>(
             )
             .into());
         }
-        let Ok(index) = usize::try_from(index) else {
-            return Ok(ops.new_bytes(&[]));
-        };
-        let Some(&unit) = units.get(index) else {
-            return Ok(ops.new_bytes(&[]));
-        };
-        if let Some(bytes) = snapshot.resident.filter(|bytes| bytes.len() == length) {
-            return Ok(ops.new_bytes(&bytes[index..=index]));
-        }
-        let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
-            .encode_units(&[unit])
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "compiled index selected unit width",
-            ))?;
-        Ok(ops.new_bytes(&bytes))
+        let _ = (units, snapshot.resident);
+        super::native_c::original_index(ops, subject, index, version)
     })
 }
 
@@ -206,41 +188,43 @@ pub fn compiled_index<O: NativeIndexOps>(
 /// Propagates the original search, backing and range result-constructor refusal.
 // Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
 // docs/design/analysis/name-resolution-proofs/original-counted-qualifiers-compiler-and-runtime.md
-pub fn compiled_qualifiers<O: ValueOps>(
+pub fn compiled_qualifiers<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
     separator: &O::Value,
     version: TclVersion,
 ) -> Result<O::Value, CmdError> {
-    let found = compiled_find(ops, separator, subject, version, true)?;
-    let NativeObjectCacheSnapshot::String {
-        protocol,
-        unicode: Some(units),
-        ..
-    } = ops.native_object_snapshot(subject)?.cache
-    else {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "compiled Qualifiers reached Unicode backing",
-        )
-        .into());
-    };
-    if protocol != NativeStringProtocol::C(version) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "compiled Qualifiers original Unicode protocol",
-        )
-        .into());
-    }
-    let mut last = found
-        .checked_sub(1)
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "compiled Qualifiers coordinate width",
-        ))?;
-    while usize::try_from(last)
-        .ok()
-        .and_then(|index| units.get(index))
-        .is_some_and(|unit| *unit == u32::from(b':'))
-    {
-        last -= 1;
-    }
-    reached_range(ops, subject, 0, last, version)
+    index::run_created_index_result(ops, |ops| {
+        let found = compiled_find(ops, separator, subject, version, true)?;
+        let NativeObjectCacheSnapshot::String {
+            protocol,
+            unicode: Some(units),
+            ..
+        } = ops.native_object_snapshot(subject)?.cache
+        else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "compiled Qualifiers reached Unicode backing",
+            )
+            .into());
+        };
+        if protocol != NativeStringProtocol::C(version) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "compiled Qualifiers original Unicode protocol",
+            )
+            .into());
+        }
+        let mut last = found
+            .checked_sub(1)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "compiled Qualifiers coordinate width",
+            ))?;
+        while usize::try_from(last)
+            .ok()
+            .and_then(|index| units.get(index))
+            .is_some_and(|unit| *unit == u32::from(b':'))
+        {
+            last -= 1;
+        }
+        reached_range(ops, subject, 0, last, version)
+    })
 }

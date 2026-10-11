@@ -766,6 +766,28 @@ impl OriginalNativeDictionaryCursor {
     }
 }
 
+/// Allocation-only header/immutable-backing receipt for C84's captured pointer.
+/// An independently existing shallow owner can keep this exact allocation live;
+/// this receipt itself does not provide that owner or a general primary epoch.
+pub struct NativeBinaryStorageReceipt {
+    header: NativeObjectLifetimeLease,
+    backing: std::rc::Weak<ByteArrayRep>,
+}
+impl NativeBinaryStorageReceipt {
+    pub(crate) fn check(&self, value: &Value) -> Result<(), ValueError> {
+        value.check_native_header()?;
+        let original = value.0.intrep.borrow();
+        if self.header.value().native_object_identity() != value.native_object_identity()
+            || !matches!(&*original, IntRep::ByteArray(backing) if std::rc::Weak::ptr_eq(&Rc::downgrade(backing), &self.backing))
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "retired original C binary storage",
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Failure of a native byte-array object conversion, separate from guest
 /// conversion errors and checked host Unicode access.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1804,43 +1826,87 @@ impl Value {
         conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Rc<[u8]>, ByteArrayAccessError> {
+        self.as_native_byte_array_using::<ValueError>(conversion, protocol, &mut None, &mut || {
+            Ok(self
+                .native_string_bytes(protocol)
+                .map_err(ByteArrayAccessError::Unavailable))
+        })
+        .expect("neutral native binary conversion has no checked stages")
+    }
+
+    pub(crate) fn as_native_byte_array_checked(
+        &self,
+        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        protocol: NativeStringProtocol,
+        current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+    ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.as_native_byte_array_using(conversion, protocol, &mut Some(current), &mut || {
+            original_string().map(Ok)
+        })?
+        .map_err(Into::into)
+    }
+
+    fn as_native_byte_array_using<E: From<ValueError>>(
+        &self,
+        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        protocol: NativeStringProtocol,
+        current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        original_string: &mut dyn FnMut() -> Result<Result<Rc<[u8]>, ByteArrayAccessError>, E>,
+    ) -> Result<Result<Rc<[u8]>, ByteArrayAccessError>, E> {
+        Self::native_stage_check(current)?;
         use tcl_registry::native_binary_value::NativeBinaryByteConversion;
         if conversion == NativeBinaryByteConversion::Utf8 {
-            return self
-                .native_string_bytes(protocol)
-                .map_err(ByteArrayAccessError::Unavailable);
+            return original_string();
         }
-        let version = protocol
-            .tcl_version()
-            .ok_or(ByteArrayAccessError::Unavailable(
+        let Some(version) = protocol.tcl_version() else {
+            return Ok(Err(ByteArrayAccessError::Unavailable(
                 tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
-            ))?;
+            )));
+        };
+        if current.is_some()
+            && let IntRep::ByteArray(rep) = &*self.0.intrep.borrow()
+            && rep.string_protocol.get() != Some(protocol)
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original binary getter cache issuer",
+            )
+            .into());
+        }
         if let IntRep::ByteArray(rep) = &*self.0.intrep.borrow()
             && (rep.conversion.is_none() || rep.conversion == Some(conversion))
             && (rep.proper || conversion != NativeBinaryByteConversion::CheckedLatin1)
         {
-            return Ok(Rc::clone(&rep.bytes));
+            return Ok(Ok(Rc::clone(&rep.bytes)));
         }
-        let original = self
-            .native_string_bytes(protocol)
-            .map_err(ByteArrayAccessError::Unavailable)?;
+        let reached = original_string();
+        Self::native_stage_check(current)?;
+        let original = match reached? {
+            Ok(bytes) => bytes,
+            Err(error) => return Ok(Err(error)),
+        };
         let units = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version);
-        let bytes: Rc<[u8]> = Rc::from(
-            conversion
-                .convert_native(&original, units)
-                .map_err(ByteArrayAccessError::Conversion)?,
-        );
+        let bytes: Rc<[u8]> = match conversion.convert_native(&original, units) {
+            Ok(bytes) => Rc::from(bytes),
+            Err(error) => return Ok(Err(ByteArrayAccessError::Conversion(error))),
+        };
         let proper = NativeBinaryByteConversion::CheckedLatin1
             .convert_native(&original, units)
             .is_ok();
-        *self.0.intrep.borrow_mut() = IntRep::ByteArray(Rc::new(ByteArrayRep {
+        let primary = IntRep::ByteArray(Rc::new(ByteArrayRep {
             bytes: Rc::clone(&bytes),
             string_protocol: Cell::new(Some(protocol)),
             origin: None,
             conversion: Some(conversion),
             proper,
         }));
-        Ok(bytes)
+        if current.is_some() {
+            self.replace_primary_using(primary, current)?;
+        } else {
+            *self.0.intrep.borrow_mut() = primary;
+        }
+        Self::native_stage_check(current)?;
+        Ok(Ok(bytes))
     }
 
     /// Select decoder bytes from the actual object/cache protocol; UTF8
@@ -6298,15 +6364,79 @@ impl Value {
         let count = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
             .decode_units(&bytes)
             .len();
+        let unicode =
+            (version <= tcl_dialect::TclVersion::V8_5 && count != bytes.len()).then(|| {
+                Rc::from(
+                    tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+                        .decode_storage_units(
+                            &bytes,
+                            tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+                        ),
+                )
+            });
         self.replace_primary_using(
             IntRep::NativeString {
                 protocol,
                 num_chars: Some(count),
-                unicode: None,
+                unicode,
             },
             current,
         )?;
         Ok(count)
+    }
+
+    /// Selected SetStringFromAny/count purpose, without public length shortcuts.
+    pub(crate) fn native_c_string_storage_checked<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        current: &mut dyn FnMut() -> Result<(), E>,
+        original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<tcl_cmd_core::string::NativeCStringStorage, E> {
+        let count = self.native_character_count_using(
+            protocol,
+            tcl_registry::native_string_length::NativeStringLengthRepresentation::String,
+            &mut Some(&mut *current),
+            original_string,
+        )?;
+        current()?;
+        let snapshot = self.native_object_snapshot();
+        let tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+            protocol: origin,
+            unicode,
+            ..
+        } = snapshot.cache
+        else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C String storage primary",
+            )
+            .into());
+        };
+        if origin != protocol {
+            return Err(
+                ValueError::CommandProtocolUnavailable("original C String storage issuer").into(),
+            );
+        }
+        Ok(tcl_cmd_core::string::NativeCStringStorage {
+            count,
+            bytes: snapshot.resident,
+            unicode,
+        })
+    }
+
+    pub(crate) fn capture_native_binary_storage(
+        &self,
+    ) -> Result<NativeBinaryStorageReceipt, ValueError> {
+        self.check_native_header()?;
+        let original = self.0.intrep.borrow();
+        let IntRep::ByteArray(backing) = &*original else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original binary storage receipt",
+            ));
+        };
+        Ok(NativeBinaryStorageReceipt {
+            header: self.native_lifetime_lease(),
+            backing: Rc::downgrade(backing),
+        })
     }
 
     pub(crate) fn native_append_binary_checked<E: From<ValueError>>(

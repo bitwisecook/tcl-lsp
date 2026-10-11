@@ -19,9 +19,9 @@
 //! Portable `string` command logic, generic over [`ValueOps`].
 //!
 //! Each helper takes already-sliced argument values and returns
-//! `Result<O::Value, CmdError>`. All indexing is by **character** (the contract
-//! in [`tcl_syntax::value`]), so a byte-oriented runtime conforms via its
-//! `ValueOps` impl and these bodies stay correct everywhere.
+//! `Result<O::Value, CmdError>`. Physical indexed consumers select original C
+//! storage/units or Jim UTF traversal through [`NativeIndexOps`]. Neutral
+//! adapters use their independently authored lexical character model.
 //!
 //! [`dispatch`] covers the portable subcommands shared across both
 //! runtimes (`length`/`index`/`range`/`map`/`match`/`replace`/`insert`/
@@ -30,6 +30,8 @@
 //! runtime still implements itself, so a host can fall back to its own
 //! body for the few not routed here.
 
+mod native_c;
+pub use native_c::NativeCStringStorage;
 mod native_compiled;
 pub use native_compiled::{
     compiled_find, compiled_index, compiled_qualifiers, compiled_range, compiled_tail,
@@ -71,6 +73,9 @@ pub fn index<O: NativeIndexOps>(
                 Err(_) => ops.empty(),
             });
         }
+        if let Some(version) = ops.index_c_version() {
+            return native_c::original_index(ops, s, idx, version);
+        }
         let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
         let i = index::resolve_value(ops, idx, chars.len())?;
         if i < 0 {
@@ -106,6 +111,10 @@ pub fn range<O: NativeIndexOps>(
                 }
                 _ => index::IndexResult::Created(ops.empty()),
             });
+        }
+        if let Some(version) = ops.index_c_version() {
+            return native_c::original_range(ops, s, first, last, version)
+                .map(index::IndexResult::Created);
         }
         let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
         let len = chars.len();
@@ -1484,6 +1493,7 @@ mod tests {
 
     impl crate::index::NativeIndexOps for StrOps {
         type IndexOperation = ();
+        type IndexBinaryReceipt = ();
         type IndexKeyOwner = Self::Value;
         fn index_borrowed_key(
             &mut self,

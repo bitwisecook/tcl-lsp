@@ -11,7 +11,7 @@ pub enum NativeStringLengthRepresentation {
     String,
     /// C8.6 preserves any byte-array internal representation and counts bytes.
     AnyByteArray,
-    /// C9 preserves only a pure, proper byte-array representation.
+    /// C9 preserves a proper byte-array representation, including resident bytes.
     PureProperByteArray,
     /// Jim converts to its string internal representation and caches the count.
     JimCachedString,
@@ -26,10 +26,10 @@ impl NativeStringLengthRepresentation {
 
     /// Whether an actual byte-array payload supplies the count directly.
     #[must_use]
-    pub fn counts_byte_array(self, pure: bool, proper: bool) -> bool {
+    pub fn counts_byte_array(self, _pure: bool, proper: bool) -> bool {
         match self {
             Self::AnyByteArray => true,
-            Self::PureProperByteArray => pure && proper,
+            Self::PureProperByteArray => proper,
             Self::String | Self::JimCachedString => false,
         }
     }
@@ -91,7 +91,10 @@ mod tests {
             );
         }
         assert!(Representation::AnyByteArray.counts_byte_array(false, false));
-        assert!(!Representation::PureProperByteArray.counts_byte_array(false, true));
+        // naming.string.original-counted-index-range-storage-and-results
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-index-range-storage-and-results.md
+        // Actual C9 case16 retains the proper ByteArray with resident String.
+        assert!(Representation::PureProperByteArray.counts_byte_array(false, true));
         assert!(!Representation::PureProperByteArray.counts_byte_array(true, false));
         assert!(Representation::PureProperByteArray.counts_byte_array(true, true));
         let jim = crate::model::ingress::resolve_environment("jim").analyser_profile();
