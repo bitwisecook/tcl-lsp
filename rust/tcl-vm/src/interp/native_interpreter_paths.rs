@@ -8,138 +8,181 @@ use tcl_syntax::value::ValueError;
 
 impl Vm {
     pub(crate) fn create_child_original(&mut self, path: &Value, safe: bool) -> Completion<Value> {
-        let elements = match self.native_interpreter_path_elements(path) {
-            Ok(elements) => elements,
-            Err(error) => return completion_from_cmd_error(self, error.into()),
-        };
-        // ChildCreate retains the whole original spelling when its list has
-        // fewer than two elements; this differs from GetInterp's element loop.
-        let (parent, name) = if elements.len() < 2 {
-            let bytes = match self.native_name_operand_bytes(path) {
-                Ok(bytes) => bytes,
-                Err(error) => return self.refuse_host_command(error.to_string()),
+        let original_names =
+            match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self) {
+                Ok(scope) => scope,
+                Err(error) => return crate::command::completion_from_cmd_error(self, error),
             };
-            let Some(policy) = self.name_policy_protocol() else {
-                return self.refuse_host_command("interpreter creation protocol".into());
+        let reached = (|| {
+            let elements = match self.native_interpreter_path_elements(path) {
+                Ok(elements) => elements,
+                Err(error) => return completion_from_cmd_error(self, error.into()),
             };
-            let name = match policy.recipe().interpreter_child_input(&bytes) {
-                Ok(name) => NameBytes::from(name.selected()),
-                Err(_) => return self.refuse_host_command("interpreter creation extent".into()),
-            };
-            (self.cur, name)
-        } else {
-            let mut parent = self.cur;
-            for element in &elements[..elements.len() - 1] {
-                let next = self
-                    .st_of(parent)
-                    .and_then(|state| state.children.get(element.as_bytes()).copied());
-                let Some(next) = next.filter(|next| self.interp_alive(*next)) else {
-                    return self.interpreter_path_missing(path);
+            // ChildCreate retains the whole original spelling when its list has
+            // fewer than two elements; this differs from GetInterp's element loop.
+            let (parent, name) = if elements.len() < 2 {
+                let bytes = match original_names.read(self, path) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(self, error),
                 };
-                parent = next;
+                let Some(policy) = self.name_policy_protocol() else {
+                    return self.refuse_host_command("interpreter creation protocol".into());
+                };
+                let name = match policy.recipe().interpreter_child_input(&bytes) {
+                    Ok(name) => NameBytes::from(name.selected()),
+                    Err(_) => {
+                        return self.refuse_host_command("interpreter creation extent".into());
+                    }
+                };
+                (self.cur, name)
+            } else {
+                let mut parent = self.cur;
+                for element in &elements[..elements.len() - 1] {
+                    let next = self
+                        .st_of(parent)
+                        .and_then(|state| state.children.get(element.as_bytes()).copied());
+                    let Some(next) = next.filter(|next| self.interp_alive(*next)) else {
+                        return self.interpreter_path_missing(path);
+                    };
+                    parent = next;
+                }
+                (parent, elements.last().expect("multi-element path").clone())
+            };
+            if self
+                .st_of(parent)
+                .is_some_and(|state| state.children.contains_key(name.as_bytes()))
+            {
+                return completion_from_cmd_error(
+                    self,
+                    tcl_cmd_core::CmdError::new_bytes(
+                        [
+                            b"interpreter named \"".as_slice(),
+                            name.as_bytes(),
+                            b"\" already exists, cannot create",
+                        ]
+                        .concat(),
+                    ),
+                );
             }
-            (parent, elements.last().expect("multi-element path").clone())
-        };
-        if self
-            .st_of(parent)
-            .is_some_and(|state| state.children.contains_key(name.as_bytes()))
-        {
-            return completion_from_cmd_error(
-                self,
-                tcl_cmd_core::CmdError::new_bytes(
-                    [
-                        b"interpreter named \"".as_slice(),
-                        name.as_bytes(),
-                        b"\" already exists, cannot create",
-                    ]
-                    .concat(),
-                ),
-            );
+            match self.in_interp(parent, |vm| vm.create_child_named_bytes(name, safe)) {
+                Ok(_) => ok(path.clone()),
+                Err(error) => self.refuse_host_command(error.to_string()),
+            }
+        })();
+        if let Err(error) = original_names.finish(self) {
+            return crate::command::completion_from_cmd_error(self, error);
         }
-        match self.in_interp(parent, |vm| vm.create_child_named_bytes(name, safe)) {
-            Ok(_) => ok(path.clone()),
-            Err(error) => self.refuse_host_command(error.to_string()),
-        }
+        reached
     }
 
     pub(crate) fn native_interpreter_path_elements(
-        &self,
+        &mut self,
         original: &Value,
-    ) -> Result<Vec<NameBytes>, ValueError> {
-        let policy = self
-            .name_policy_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "interpreter path protocol",
-            ))?;
-        if policy.recipe().is_jim084() {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "C interpreter path on Jim",
-            ));
-        }
-        let elements = self.native_object_list_elements_in(original, policy.string_protocol())?;
-        elements
-            .iter()
-            .map(|element| {
-                let bytes = self.native_name_operand_bytes(element).map_err(|_| {
-                    ValueError::CommandProtocolUnavailable("interpreter path element getter")
-                })?;
-                let selected = policy
-                    .recipe()
-                    .interpreter_child_input(&bytes)
-                    .map_err(|_| ValueError::CommandProtocolUnavailable("interpreter child key"))?;
-                Ok(NameBytes::from(selected.selected()))
-            })
-            .collect()
+    ) -> Result<Vec<NameBytes>, tcl_cmd_core::CmdError> {
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)?;
+        let reached = (|| {
+            let policy =
+                self.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "interpreter path protocol",
+                    ))?;
+            if policy.recipe().is_jim084() {
+                return Err(
+                    ValueError::CommandProtocolUnavailable("C interpreter path on Jim").into(),
+                );
+            }
+            let elements =
+                self.native_object_list_elements_in(original, policy.string_protocol())?;
+            elements
+                .iter()
+                .map(|element| {
+                    let bytes = original_names.read(self, element)?;
+                    let selected =
+                        policy
+                            .recipe()
+                            .interpreter_child_input(&bytes)
+                            .map_err(|_| {
+                                ValueError::CommandProtocolUnavailable("interpreter child key")
+                            })?;
+                    Ok(NameBytes::from(selected.selected()))
+                })
+                .collect()
+        })();
+        original_names.finish(self)?;
+        reached
     }
 
     pub(crate) fn resolve_interp_path_original(
         &mut self,
         original: &Value,
     ) -> Result<InterpId, Completion<Value>> {
-        let elements = self
-            .native_interpreter_path_elements(original)
-            .map_err(|error| completion_from_cmd_error(self, error.into()))?;
-        let mut selected = self.cur;
-        for element in elements {
-            let next = self
-                .st_of(selected)
-                .and_then(|state| state.children.get(element.as_bytes()).copied());
-            let Some(next) = next.filter(|next| self.interp_alive(*next)) else {
-                return Err(self.interpreter_path_missing(original));
-            };
-            selected = next;
-        }
-        Ok(selected)
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let elements = self
+                .native_interpreter_path_elements(original)
+                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            let mut selected = self.cur;
+            for element in elements {
+                let next = self
+                    .st_of(selected)
+                    .and_then(|state| state.children.get(element.as_bytes()).copied());
+                let Some(next) = next.filter(|next| self.interp_alive(*next)) else {
+                    return Err(self.interpreter_path_missing(original));
+                };
+                selected = next;
+            }
+            Ok(selected)
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
     }
 
     pub(crate) fn interpreter_path_missing(&mut self, original: &Value) -> Completion<Value> {
-        let bytes = match self.native_name_operand_bytes(original) {
-            Ok(bytes) => bytes,
-            Err(error) => return self.refuse_host_command(error.to_string()),
-        };
-        let Some(policy) = self.name_policy_protocol() else {
-            return self.refuse_host_command("interpreter path diagnostic protocol".into());
-        };
-        let reported = match policy.recipe().interpreter_child_input(&bytes) {
-            Ok(input) => input.selected().to_vec(),
-            Err(_) => return self.refuse_host_command("interpreter path diagnostic extent".into()),
-        };
-        let code = tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
-            policy.string_protocol(),
-        )
-        .render(&[b"TCL".as_slice(), b"LOOKUP", b"INTERP", reported.as_slice()]);
-        completion_from_cmd_error(
-            self,
-            tcl_cmd_core::CmdError::with_error_code_bytes(
-                [
-                    b"could not find interpreter \"".as_slice(),
-                    &reported,
-                    b"\"",
-                ]
-                .concat(),
-                code,
-            ),
-        )
+        let original_names =
+            match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self) {
+                Ok(scope) => scope,
+                Err(error) => return crate::command::completion_from_cmd_error(self, error),
+            };
+        let reached = (|| {
+            let bytes = match original_names.read(self, original) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(self, error),
+            };
+            let Some(policy) = self.name_policy_protocol() else {
+                return self.refuse_host_command("interpreter path diagnostic protocol".into());
+            };
+            let reported = match policy.recipe().interpreter_child_input(&bytes) {
+                Ok(input) => input.selected().to_vec(),
+                Err(_) => {
+                    return self.refuse_host_command("interpreter path diagnostic extent".into());
+                }
+            };
+            let code = tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
+                policy.string_protocol(),
+            )
+            .render(&[b"TCL".as_slice(), b"LOOKUP", b"INTERP", reported.as_slice()]);
+            completion_from_cmd_error(
+                self,
+                tcl_cmd_core::CmdError::with_error_code_bytes(
+                    [
+                        b"could not find interpreter \"".as_slice(),
+                        &reported,
+                        b"\"",
+                    ]
+                    .concat(),
+                    code,
+                ),
+            )
+        })();
+        if let Err(error) = original_names.finish(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
+        reached
     }
 }
 

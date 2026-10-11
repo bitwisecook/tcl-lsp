@@ -8,49 +8,52 @@ use crate::Value;
 use tcl_cmd_core::CmdError;
 use tcl_syntax::{
     naming::{NamePolicyAuthority, NativeNameContext},
-    raw_string::NativeStringAccessError,
     value::ValueError,
 };
 
 impl Vm {
     pub(crate) fn native_coroutine_publication_slot(
-        &self,
+        &mut self,
         original: &Value,
     ) -> Result<CommandSlot, CmdError> {
-        let bytes = self
-            .native_name_operand_bytes(original)
-            .map_err(|error| CmdError::from(NativeStringAccessError::Unavailable(error)))?;
-        let policy = self
-            .name_policy_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "coroutine publication naming issuer",
-            ))?;
-        let current = self.current_ns_id();
-        let path = self.namespace_path_for_token(current);
-        let selected = policy
-            .recipe()
-            .coroutine_publication_projection(NativeNameContext::new(&path), &bytes)
-            .map_err(|_| {
-                ValueError::CommandProtocolUnavailable("coroutine publication name purpose")
-            })?;
-        let Some(namespace) = self.native_command_projection_holder(current, &selected) else {
-            let diagnostic = policy
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)?;
+        let reached = (|| {
+            let bytes = original_names.read(self, original)?;
+            let policy =
+                self.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "coroutine publication naming issuer",
+                    ))?;
+            let current = self.current_ns_id();
+            let path = self.namespace_path_for_token(current);
+            let selected = policy
                 .recipe()
-                .coroutine_unknown_namespace_error(&bytes)
+                .coroutine_publication_projection(NativeNameContext::new(&path), &bytes)
                 .map_err(|_| {
-                    ValueError::CommandProtocolUnavailable("coroutine namespace diagnostic")
+                    ValueError::CommandProtocolUnavailable("coroutine publication name purpose")
                 })?;
-            let mut error =
-                CmdError::with_error_code_bytes(diagnostic.message, diagnostic.error_code);
-            if policy.authority() == NamePolicyAuthority::Native {
-                error = error.with_native_string_result(policy.string_protocol());
-            }
-            return Err(error);
-        };
-        Ok(CommandSlot {
-            namespace,
-            simple: selected.into_slot().simple,
-        })
+            let Some(namespace) = self.native_command_projection_holder(current, &selected) else {
+                let diagnostic = policy
+                    .recipe()
+                    .coroutine_unknown_namespace_error(&bytes)
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("coroutine namespace diagnostic")
+                    })?;
+                let mut error =
+                    CmdError::with_error_code_bytes(diagnostic.message, diagnostic.error_code);
+                if policy.authority() == NamePolicyAuthority::Native {
+                    error = error.with_native_string_result(policy.string_protocol());
+                }
+                return Err(error);
+            };
+            Ok(CommandSlot {
+                namespace,
+                simple: selected.into_slot().simple,
+            })
+        })();
+        original_names.finish(self)?;
+        reached
     }
 }
 

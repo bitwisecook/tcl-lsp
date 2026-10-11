@@ -204,66 +204,88 @@ pub(crate) fn on_command_exposed(vm: &mut Vm, token: &str, new_fqn: &str) {
 /// `command arg…`, register `name` as its resume command, and run it to the
 /// first `yield` (or completion), returning that value.
 fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if args.len() < 2 {
-        return crate::command::native_wrong_arguments_message(
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        if args.len() < 2 {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"coroutine name command ?arg ...?\"",
+            );
+        }
+        let slot = match vm.native_coroutine_publication_slot(&args[0]) {
+            Ok(slot) => slot,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        // C's `coroutine` (re)creates the command, *replacing* whatever already
+        // exists under that name (a proc, or a leftover coroutine) — it does not
+        // error. `register_command` below is the single lifecycle owner: it tears
+        // down a replaced coroutine's sidecar and saved state before publishing the
+        // new resume command.
+        let words = args[1..].to_vec();
+        let namespace = match tcl_cmd_core::namespace::current_original(vm) {
+            Ok(namespace) => namespace,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let Some(protocol) = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+        else {
+            return vm.refuse_host_command("original coroutine invocation List issuer".into());
+        };
+        let mut original = Vec::with_capacity(words.len() + 1);
+        original.push(namespace);
+        original.extend(words);
+        let original = Value::native_list_constructor(original, protocol);
+        let asm = Rc::new(tcl_bytecode::FunctionAsm {
+            instructions: vec![tcl_bytecode::Instruction::new(
+                tcl_bytecode::Op::DONE,
+                vec![],
+            )],
+            ..tcl_bytecode::FunctionAsm::default()
+        });
+        // The new flow starts on the actual shared root frame. Its original List
+        // separately retains the caller namespace for the first command lookup.
+        let source_namespace = vm.namespace_path_for_token(tcl_core_types::ROOT_NS);
+        let driver = vm.admitted_foreign_unit(asm, source_namespace);
+        let frame = Frame::new_original_invocation(driver, original);
+        // Publish the resume command before attaching its fresh coroutine state.
+        // `register_command` retires any command it replaces, including an old
+        // coroutine at this name; attaching first would let that replacement
+        // teardown mistake the new state for the old command's state and remove
+        // it. Once the replacement is complete, install the state atomically from
+        // the coroutine subsystem's perspective and start it below.
+        let selected_current = vm.native_namespace_token_has_owner(slot.namespace);
+        if let Err(error) = original_names.require(
             vm,
-            "wrong # args: should be \"coroutine name command ?arg ...?\"",
+            selected_current,
+            "selected original coroutine publication namespace",
+        ) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let fqn = vm.register_command_in_slot(slot, Command::Native(Rc::new(CoroResumeCommand)));
+        if let Err(error) = original_names.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        vm.coro.live.insert(
+            CommandSidecarKey::visible(&fqn),
+            CoroState {
+                acts: vec![frame],
+                parked: ParkedFlow::default(),
+                status: CoroStatus::Fresh,
+                last_suspend: SuspendKind::Yield,
+                injections: Vec::new(),
+            },
         );
+        resume(vm, &CommandSidecarKey::visible(&fqn), &[], &args[0])
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    let slot = match vm.native_coroutine_publication_slot(&args[0]) {
-        Ok(slot) => slot,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
-    // C's `coroutine` (re)creates the command, *replacing* whatever already
-    // exists under that name (a proc, or a leftover coroutine) — it does not
-    // error. `register_command` below is the single lifecycle owner: it tears
-    // down a replaced coroutine's sidecar and saved state before publishing the
-    // new resume command.
-    let words = args[1..].to_vec();
-    let namespace = match tcl_cmd_core::namespace::current_original(vm) {
-        Ok(namespace) => namespace,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
-    let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
-        return vm.refuse_host_command("original coroutine invocation List issuer".into());
-    };
-    let mut original = Vec::with_capacity(words.len() + 1);
-    original.push(namespace);
-    original.extend(words);
-    let original = Value::native_list_constructor(original, protocol);
-    let asm = Rc::new(tcl_bytecode::FunctionAsm {
-        instructions: vec![tcl_bytecode::Instruction::new(
-            tcl_bytecode::Op::DONE,
-            vec![],
-        )],
-        ..tcl_bytecode::FunctionAsm::default()
-    });
-    // The new flow starts on the actual shared root frame. Its original List
-    // separately retains the caller namespace for the first command lookup.
-    let source_namespace = vm.namespace_path_for_token(tcl_core_types::ROOT_NS);
-    let driver = vm.admitted_foreign_unit(asm, source_namespace);
-    let frame = Frame::new_original_invocation(driver, original);
-    // Publish the resume command before attaching its fresh coroutine state.
-    // `register_command` retires any command it replaces, including an old
-    // coroutine at this name; attaching first would let that replacement
-    // teardown mistake the new state for the old command's state and remove
-    // it. Once the replacement is complete, install the state atomically from
-    // the coroutine subsystem's perspective and start it below.
-    let fqn = vm.register_command_in_slot(slot, Command::Native(Rc::new(CoroResumeCommand)));
-    vm.coro.live.insert(
-        CommandSidecarKey::visible(&fqn),
-        CoroState {
-            acts: vec![frame],
-            parked: ParkedFlow::default(),
-            status: CoroStatus::Fresh,
-            last_suspend: SuspendKind::Yield,
-            injections: Vec::new(),
-        },
-    );
-    resume(vm, &CommandSidecarKey::visible(&fqn), &[], &args[0])
+    reached
 }
 
 /// The builtin the coroutine command name resolves to: `$coro ?value ...?`
@@ -287,30 +309,47 @@ fn validate_resume_arity(
     args: &[Value],
     original_name: &Value,
 ) -> Result<(), Completion<Value>> {
-    match vm.coro.live.get(key) {
-        None => return Err(err(format!("invalid command name \"{}\"", key.name()))),
-        Some(s) if s.status == CoroStatus::Running => {
-            return Err(err(format!(
-                "coroutine \"{}\" is already running",
-                key.name()
-            )));
+    let original_names = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| {
+        let selected = vm.active_sidecar(key.clone());
+        match vm.coro.live.get(key) {
+            None => return Err(err(format!("invalid command name \"{}\"", key.name()))),
+            Some(s) if s.status == CoroStatus::Running => {
+                return Err(err(format!(
+                    "coroutine \"{}\" is already running",
+                    key.name()
+                )));
+            }
+            Some(s)
+                if s.status == CoroStatus::Suspended
+                    && s.last_suspend == SuspendKind::Yield
+                    && args.len() > 1 =>
+            {
+                let name = original_names
+                    .read(vm, original_name)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                let selected_current = selected.is_attached();
+                original_names
+                    .require(
+                        vm,
+                        selected_current,
+                        "selected original coroutine arity receiver",
+                    )
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                let mut message = b"wrong # args: should be \"".to_vec();
+                message.extend_from_slice(&name);
+                message.extend_from_slice(b" ?arg?\"");
+                return Err(crate::command::native_wrong_arguments_message(vm, message));
+            }
+            Some(_) => {}
         }
-        Some(s)
-            if s.status == CoroStatus::Suspended
-                && s.last_suspend == SuspendKind::Yield
-                && args.len() > 1 =>
-        {
-            let name = vm
-                .native_name_operand_bytes(original_name)
-                .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-            let mut message = b"wrong # args: should be \"".to_vec();
-            message.extend_from_slice(&name);
-            message.extend_from_slice(b" ?arg?\"");
-            return Err(crate::command::native_wrong_arguments_message(vm, message));
-        }
-        Some(_) => {}
-    }
-    Ok(())
+        Ok(())
+    })();
+    original_names
+        .finish(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    reached
 }
 
 /// Resume the coroutine `fqn`, delivering `args` as the result of the parked
@@ -581,39 +620,50 @@ pub(crate) fn request_yieldto_original(
 }
 
 fn invoke_original_relay(vm: &mut Vm, original: &Value) -> Completion<Value> {
-    let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
-        return vm.refuse_host_command("original yieldto List issuer".into());
-    };
-    let members = match vm.native_object_list_elements_in(original, protocol) {
-        Ok(members) => members,
-        Err(error) => return crate::command::completion_from_tcl_error(vm, error.into()),
-    };
-    let Some((namespace, words)) = members.split_first() else {
-        return vm.refuse_host_command("original yieldto namespace operand".into());
-    };
-    let Some((head, args)) = words.split_first() else {
-        return ok(Value::empty());
-    };
-    let namespace = match vm.namespace_object_lookup(namespace) {
-        Ok(Some(namespace)) => namespace,
-        Ok(None) => {
-            return match vm.native_name_operand_bytes(namespace) {
-                Ok(bytes) => vm.namespace_lookup_error_bytes(&bytes),
-                Err(error) => vm.refuse_host_command(error.to_string()),
-            };
-        }
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-    };
-    vm.invoke_command_value_at(
-        namespace,
-        head,
-        args,
-        &[],
-        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-    )
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let Some(protocol) = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+        else {
+            return vm.refuse_host_command("original yieldto List issuer".into());
+        };
+        let members = match vm.native_object_list_elements_in(original, protocol) {
+            Ok(members) => members,
+            Err(error) => return crate::command::completion_from_tcl_error(vm, error.into()),
+        };
+        let Some((namespace, words)) = members.split_first() else {
+            return vm.refuse_host_command("original yieldto namespace operand".into());
+        };
+        let Some((head, args)) = words.split_first() else {
+            return ok(Value::empty());
+        };
+        let namespace = match vm.namespace_object_lookup(namespace) {
+            Ok(Some(namespace)) => namespace,
+            Ok(None) => {
+                return match original_names.read(vm, namespace) {
+                    Ok(bytes) => vm.namespace_lookup_error_bytes(&bytes),
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
+                };
+            }
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        };
+        vm.invoke_command_value_at(
+            namespace,
+            head,
+            args,
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        )
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    reached
 }
 
 /// `yield ?value?` — suspend the current coroutine.

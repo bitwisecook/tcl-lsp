@@ -21,60 +21,70 @@ impl Vm {
         }
     }
 
-    fn invoke_jim_frame_defers(&mut self) {
+    fn invoke_jim_frame_defers(&mut self) -> Result<(), tcl_cmd_core::CmdError> {
         let Some(level) = self.frames.len().checked_sub(1) else {
-            return;
+            return Ok(());
         };
-        let Ok(context) = self.native_jim_object_context() else {
-            return;
-        };
-        let Ok(name) = self.native_name_operand_bytes(&context.defer_object()) else {
-            return;
-        };
-        // JimInvokeDefer checks this exact frame table before name lookup.
-        let present = if level == 0 {
-            self.ns_vars
-                .get(&tcl_core_types::ROOT_NS)
-                .is_some_and(|table| table.get(&name).is_some())
-        } else {
-            self.frames[level].locals.get(&name).is_some()
-        };
-        if !present {
-            return;
-        }
-        let Some(scripts) = self.get_var_from_bytes(level, &name) else {
-            return;
-        };
-        let Ok(elements) = self.native_object_list_elements_in(
-            &scripts,
-            tcl_syntax::native_string::NativeStringProtocol::Jim084,
-        ) else {
-            return;
-        };
-        let saved_result = context.result_object();
-        context.publish_result(&context.empty_object());
-        let mut completed = true;
-        for script in elements.iter().rev() {
-            let completion = self.eval_value_at_level(level, script);
-            if completion.code != Code::Ok {
-                completed = false;
-                break;
+        let original_names = super::native_name_consumers::OriginalNameConsumerScope::enter(self)?;
+        let reached = (|| {
+            let context = self.native_jim_object_context()?;
+            let name = original_names.read(self, &context.defer_object())?;
+            // JimInvokeDefer checks this exact frame table before name lookup.
+            let present = if level == 0 {
+                self.ns_vars
+                    .get(&tcl_core_types::ROOT_NS)
+                    .is_some_and(|table| table.get(&name).is_some())
+            } else {
+                self.frames[level].locals.get(&name).is_some()
+            };
+            if !present {
+                return Ok(());
             }
-        }
-        if completed {
-            context.publish_result(&saved_result);
-        }
+            let Some(scripts) = self.get_var_from_bytes(level, &name) else {
+                return Ok(());
+            };
+            let elements = self.native_object_list_elements_in(
+                &scripts,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            )?;
+            original_names.check(self)?;
+            let saved_result = context.result_object();
+            context.publish_result(&context.empty_object());
+            original_names.check(self)?;
+            let mut completed = true;
+            for script in elements.iter().rev() {
+                let completion = self.eval_value_at_level(level, script);
+                original_names.check(self)?;
+                if completion.code != Code::Ok {
+                    completed = false;
+                    break;
+                }
+            }
+            if completed {
+                context.publish_result(&saved_result);
+            }
+            Ok(())
+        })();
+        original_names.finish(self)?;
+        reached
     }
 }
 
 impl JimInterpreterTeardown for Vm {
     fn release_frames(&mut self) {
+        let operation = super::native_operation_currency::NativeOperationScope::enter(self);
         while !self.frames.is_empty() {
-            self.invoke_jim_frame_defers();
+            if let Err(error) = self.invoke_jim_frame_defers() {
+                let _ = crate::command::completion_from_cmd_error(self, error);
+            }
             // Jim frees locals without Tcl variable-trace callbacks. Unbind
             // each departing table while retaining procedure-owned statics.
             let mut frame = self.frames.pop().expect("selected live frame");
-            self.clean_jim_local_commands(std::mem::take(&mut frame.jim_local_commands));
+            if let Err(error) =
+                self.clean_jim_local_commands(std::mem::take(&mut frame.jim_local_commands))
+            {
+                let _ = crate::command::completion_from_cmd_error(self, error);
+            }
             frame.release_native_jim_owners();
             for (_, cell) in frame.into_local_bindings() {
                 self.var_arena.unbind(cell);
@@ -92,6 +102,10 @@ impl JimInterpreterTeardown for Vm {
             }
         }
         drop(std::mem::take(&mut self.const_vars));
+        let checked = operation.and_then(|scope| scope.check(self));
+        if let Err(error) = checked {
+            let _ = crate::command::completion_from_cmd_error(self, error);
+        }
     }
 
     fn release_commands(&mut self) {

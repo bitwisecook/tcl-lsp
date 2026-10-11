@@ -101,6 +101,7 @@ mod native_jim_links;
 pub(crate) mod native_jim_lookup;
 #[cfg(test)]
 mod native_legacy_increment_tests;
+mod native_name_consumers;
 mod native_name_operands;
 mod native_name_queries;
 mod native_name_world;
@@ -124,6 +125,7 @@ mod selected_frame;
 mod variable_container;
 mod variable_trace_outcomes;
 
+pub(crate) use jim_local::OriginalJimLocalCommand;
 use native_procedure_artifacts::{CachedProcedureArtifact, ProcedureCacheKey};
 pub(crate) use selected_frame::SelectedFrameRestore;
 
@@ -16418,8 +16420,16 @@ impl Vm {
     /// fired traces are then dropped, since their variables no longer exist.
     /// Guarded on `var_traces` being non-empty, so it is free in the common case.
     fn destroy_call_frame(&mut self, mut frame: CallFrame) {
+        let operation = native_operation_currency::NativeOperationScope::enter(self);
+        if let Err(error) = &operation {
+            let _ = crate::command::completion_from_cmd_error(self, error.clone());
+        }
         let storage = frame.jim_storage.clone();
-        self.clean_jim_local_commands(std::mem::take(&mut frame.jim_local_commands));
+        if let Err(error) =
+            self.clean_jim_local_commands(std::mem::take(&mut frame.jim_local_commands))
+        {
+            let _ = crate::command::completion_from_cmd_error(self, error);
+        }
         frame.release_native_jim_owners();
         for (name, raw) in frame.into_local_bindings() {
             if self.var_arena.has_static_refs(raw) {
@@ -16439,6 +16449,10 @@ impl Vm {
         self.retire_released_native_alias_entries();
         if self.uses_native_jim_lookup() {
             self.jim_storage.recycle(storage);
+        }
+        let checked = operation.and_then(|scope| scope.check(self));
+        if let Err(error) = checked {
+            let _ = crate::command::completion_from_cmd_error(self, error);
         }
     }
 

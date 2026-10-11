@@ -56,7 +56,7 @@ pub(crate) struct CallFrame {
     /// Actual current namespace object owned by this native Jim frame.
     pub(crate) jim_namespace: std::cell::RefCell<Option<(NsId, Value)>>,
     /// Successful local-command results retained until this real frame is freed.
-    pub(crate) jim_local_commands: Vec<Value>,
+    pub(crate) jim_local_commands: Vec<crate::interp::OriginalJimLocalCommand>,
     /// The sole lifetime owner for retained activation receipts.
     pub(crate) activation: Rc<ActivationIdentity>,
     /// Original Jim link-frame storage; activation identity remains independently fresh.

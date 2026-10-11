@@ -64,95 +64,147 @@ impl Vm {
         prefix: Value,
         selected: OriginalEnsembleInvocation<'_>,
     ) -> (tcl_core_types::Completion<Value>, bool) {
-        let OriginalEnsembleInvocation {
-            namespace,
-            parameters,
-            arguments,
-            original_word_count,
-            usage,
-            default_target,
-        } = selected;
+        let original_names =
+            match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self) {
+                Ok(scope) => scope,
+                Err(error) => {
+                    return (
+                        crate::command::completion_from_cmd_error(self, error),
+                        false,
+                    );
+                }
+            };
+        let reached = (|| {
+            let OriginalEnsembleInvocation {
+                namespace,
+                parameters,
+                arguments,
+                original_word_count,
+                usage,
+                default_target,
+            } = selected;
 
-        let dialect = self.native_invocation_dialect();
-        let Some(dispatch) = dialect.native_ensemble_dispatch_protocol() else {
-            return (
-                self.refuse_host_command("native ensemble forwarding protocol".into()),
-                false,
-            );
-        };
-        let Some(recipe) = dialect.native_string_materialization(None) else {
-            return (
-                self.refuse_host_command("native ensemble invocation List".into()),
-                false,
-            );
-        };
-        let protocol = recipe.protocol();
-        let invocation = if dispatch.always_copy_prefix || original_word_count == 2 {
-            match prefix.native_list_copy(protocol) {
-                Ok(copy) => copy,
-                Err(error) => return (self.refuse_host_command(error.to_string()), false),
-            }
-        } else {
-            let members = match prefix.native_object_list_elements(protocol) {
+            let dialect = self.native_invocation_dialect();
+            let Some(dispatch) = dialect.native_ensemble_dispatch_protocol() else {
+                return (
+                    self.refuse_host_command("native ensemble forwarding protocol".into()),
+                    false,
+                );
+            };
+            let Some(recipe) = dialect.native_string_materialization(None) else {
+                return (
+                    self.refuse_host_command("native ensemble invocation List".into()),
+                    false,
+                );
+            };
+            let protocol = recipe.protocol();
+            let invocation = if dispatch.always_copy_prefix || original_word_count == 2 {
+                match prefix.native_list_copy(protocol) {
+                    Ok(copy) => copy,
+                    Err(error) => return (self.refuse_host_command(error.to_string()), false),
+                }
+            } else {
+                let members = match prefix.native_object_list_elements(protocol) {
+                    Ok(members) => members,
+                    Err(error) => return (self.refuse_host_command(error.to_string()), false),
+                };
+                let mut words = members.to_vec();
+                words.extend_from_slice(parameters);
+                words.extend_from_slice(arguments);
+                Value::native_list_constructor(words, protocol)
+            };
+            let members = match invocation.native_object_list_elements(protocol) {
                 Ok(members) => members,
                 Err(error) => return (self.refuse_host_command(error.to_string()), false),
             };
-            let mut words = members.to_vec();
-            words.extend_from_slice(parameters);
-            words.extend_from_slice(arguments);
-            Value::native_list_constructor(words, protocol)
-        };
-        let members = match invocation.native_object_list_elements(protocol) {
-            Ok(members) => members,
-            Err(error) => return (self.refuse_host_command(error.to_string()), false),
-        };
-        let prefix = if dispatch.always_copy_prefix {
-            Some(prefix)
-        } else {
+            let prefix = if dispatch.always_copy_prefix {
+                Some(prefix)
+            } else {
+                drop(prefix);
+                None
+            };
+            let mut words: Vec<_> = members
+                .iter()
+                .map(|word| word.native_lifetime_lease().into_value())
+                .collect();
+            if dispatch.always_copy_prefix {
+                words.extend(
+                    parameters
+                        .iter()
+                        .chain(arguments)
+                        .map(|word| word.native_lifetime_lease().into_value()),
+                );
+            }
+            let lookup = if dispatch.use_ensemble_namespace {
+                namespace
+            } else {
+                super::ROOT_NS
+            };
+            let selected_current = self.native_namespace_token_has_owner(namespace);
+            if let Err(error) = original_names.require(
+                self,
+                selected_current,
+                "selected original ensemble invocation namespace",
+            ) {
+                return (
+                    crate::command::completion_from_cmd_error(self, error),
+                    false,
+                );
+            }
+            let missing = if default_target {
+                let bytes = match original_names.read(self, &words[0]) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return (
+                            crate::command::completion_from_cmd_error(self, error),
+                            false,
+                        );
+                    }
+                };
+                let selected_current = self.native_namespace_token_has_owner(namespace);
+                if let Err(error) = original_names.require(
+                    self,
+                    selected_current,
+                    "selected original ensemble namespace after head getter",
+                ) {
+                    return (
+                        crate::command::completion_from_cmd_error(self, error),
+                        false,
+                    );
+                }
+                match self.resolve_command_bytes_checked(lookup, &bytes, true) {
+                    Ok(selected) => selected.is_none(),
+                    Err(error) => return (self.refuse_host_command(error.to_string()), false),
+                }
+            } else {
+                false
+            };
+            if let Err(error) = original_names.check(self) {
+                return (
+                    crate::command::completion_from_cmd_error(self, error),
+                    false,
+                );
+            }
+            let result = self.invoke_command_value_internal_at(
+                lookup,
+                &words[0],
+                &words[1..],
+                usage,
+                tcl_registry::command_lookup::CommandLookupOrigin::EnsembleInvocation,
+            );
+            drop(words);
+            drop(members);
+            drop(invocation);
             drop(prefix);
-            None
-        };
-        let mut words: Vec<_> = members
-            .iter()
-            .map(|word| word.native_lifetime_lease().into_value())
-            .collect();
-        if dispatch.always_copy_prefix {
-            words.extend(
-                parameters
-                    .iter()
-                    .chain(arguments)
-                    .map(|word| word.native_lifetime_lease().into_value()),
+            (result, missing)
+        })();
+        if let Err(error) = original_names.finish(self) {
+            return (
+                crate::command::completion_from_cmd_error(self, error),
+                false,
             );
         }
-        let lookup = if dispatch.use_ensemble_namespace {
-            namespace
-        } else {
-            super::ROOT_NS
-        };
-        let missing = if default_target {
-            let bytes = match self.native_name_operand_bytes(&words[0]) {
-                Ok(bytes) => bytes,
-                Err(error) => return (self.refuse_host_command(error.to_string()), false),
-            };
-            match self.resolve_command_bytes_checked(lookup, &bytes, true) {
-                Ok(selected) => selected.is_none(),
-                Err(error) => return (self.refuse_host_command(error.to_string()), false),
-            }
-        } else {
-            false
-        };
-        let result = self.invoke_command_value_internal_at(
-            lookup,
-            &words[0],
-            &words[1..],
-            usage,
-            tcl_registry::command_lookup::CommandLookupOrigin::EnsembleInvocation,
-        );
-        drop(words);
-        drop(members);
-        drop(invocation);
-        drop(prefix);
-        (result, missing)
+        reached
     }
     pub(crate) fn prepare_original_ensemble_configuration(&self, def: &mut EnsembleDef) {
         let Some(recipe) = self

@@ -49,22 +49,31 @@ impl Drop for JimCommandLease {
         if !self.node.is_live()
             && let Some(world) = self.world.upgrade()
         {
-            world.borrow_mut().retire_jim_node(&self.node);
+            let retired = world.borrow_mut().retire_jim_node(&self.node);
+            drop(retired);
         }
     }
 }
 
 impl native_name_world::NativeNameWorld {
-    pub(super) fn retire_jim_node(&mut self, node: &Rc<JimCommandNode>) {
+    pub(super) fn retire_jim_node(&mut self, node: &Rc<JimCommandNode>) -> Vec<Rc<JimCommandNode>> {
         self.note_jim_retirement(node.token);
-        if let Some(previous) = node.previous.borrow_mut().take() {
-            let owners = previous.previous_owners.get();
-            assert!(owners != 0, "actual previous Jim command owner");
-            previous.previous_owners.set(owners - 1);
-            if !previous.is_live() {
-                self.retire_jim_node(&previous);
-            }
-        }
+        let previous = node.previous.borrow_mut().take();
+        let Some(previous) = previous else {
+            return Vec::new();
+        };
+        let owners = previous.previous_owners.get();
+        assert!(owners != 0, "actual previous Jim command owner");
+        previous.previous_owners.set(owners - 1);
+        let mut retired = if previous.is_live() {
+            Vec::new()
+        } else {
+            self.retire_jim_node(&previous)
+        };
+        // Retain the extracted edge until the caller has released the world
+        // borrow. Deeper previous edges retain their existing release order.
+        retired.push(previous);
+        retired
     }
     pub(super) fn advance_jim_procedure_epoch(&mut self) {
         self.jim_procedure_epoch = self
@@ -85,6 +94,22 @@ impl native_name_world::NativeNameWorld {
                 .retain(|_, node| node.strong_count() != 0);
         }
     }
+}
+
+/// Retire the captured detached node in its actual retained interpreter world.
+/// The caller preserves original execution currency independently of this owner.
+pub(super) fn retire_detached_original_jim_node_in(
+    world: &Rc<RefCell<native_name_world::NativeNameWorld>>,
+    node: Rc<JimCommandNode>,
+) {
+    node.unpublish();
+    let retired = if node.is_live() {
+        Vec::new()
+    } else {
+        world.borrow_mut().retire_jim_node(&node)
+    };
+    drop(retired);
+    drop(node);
 }
 
 impl Vm {
@@ -248,13 +273,28 @@ impl Vm {
     }
 
     pub(super) fn note_jim_command_unpublished(&self, token: u64) {
-        let mut world = self.name_world.borrow_mut();
-        if let Some(node) = world.jim_command_nodes.remove(&token) {
+        let node = self
+            .name_world
+            .borrow_mut()
+            .jim_command_nodes
+            .remove(&token);
+        if let Some(node) = node {
             node.unpublish();
-            if !node.is_live() {
-                world.retire_jim_node(&node);
-            }
+            let retired = if node.is_live() {
+                Vec::new()
+            } else {
+                self.name_world.borrow_mut().retire_jim_node(&node)
+            };
+            drop(retired);
+            drop(node);
         }
+    }
+
+    /// Release an already detached previous node after a refused restoration.
+    /// Active invocations and owning previous edges retain their existing roles.
+    #[cfg(test)]
+    pub(super) fn retire_detached_original_jim_node(&mut self, node: Rc<JimCommandNode>) {
+        retire_detached_original_jim_node_in(&self.name_world, node);
     }
 
     pub(crate) fn retain_active_jim_command(&self, token: u64) -> Option<JimCommandLease> {
@@ -929,6 +969,159 @@ mod tests {
                 .as_int()
                 .unwrap(),
             4
+        );
+    }
+
+    struct RetirementObserver {
+        world: Weak<RefCell<native_name_world::NativeNameWorld>>,
+        releases: Rc<RefCell<Vec<(u8, bool)>>>,
+        label: u8,
+    }
+    impl crate::NativeCommand for RetirementObserver {
+        fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
+            ok(Value::empty())
+        }
+    }
+    impl Drop for RetirementObserver {
+        fn drop(&mut self) {
+            let released = self
+                .world
+                .upgrade()
+                .is_some_and(|world| world.try_borrow_mut().is_ok());
+            self.releases.borrow_mut().push((self.label, released));
+        }
+    }
+    fn observed_command(vm: &Vm, releases: &Rc<RefCell<Vec<(u8, bool)>>>, label: u8) -> Command {
+        Command::Native(Rc::new(RetirementObserver {
+            world: Rc::downgrade(&vm.name_world),
+            releases: Rc::clone(releases),
+            label,
+        }))
+    }
+    fn detach_selected_previous(vm: &mut Vm, key: &str) -> Rc<JimCommandNode> {
+        let token = vm.visible_command_generation(key).unwrap();
+        let top = vm
+            .name_world
+            .borrow()
+            .jim_command_receipts
+            .get(&token)
+            .and_then(Weak::upgrade)
+            .unwrap();
+        let previous = top.previous.borrow_mut().take().unwrap();
+        // The existing local restoration stage promotes this same node before
+        // retiring the top binding; the detached cleanup owns that real role.
+        previous.published.set(true);
+        previous
+            .previous_owners
+            .set(previous.previous_owners.get().checked_sub(1).unwrap());
+        drop(vm.take_command_unchecked_key(key).unwrap());
+        drop(top);
+        previous
+    }
+
+    #[test]
+    fn detached_previous_retirement_releases_the_actual_chain_outside_world_borrows() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software owner cleanup; no Native pointer or reference-count parity.
+        let mut vm = actual_jim();
+        let releases = Rc::new(RefCell::new(Vec::new()));
+        vm.register_written_command("chain", observed_command(&vm, &releases, b'A'))
+            .unwrap();
+        vm.register_jim_local_command(
+            CommandSlot {
+                namespace: ROOT_NS,
+                simple: NameBytes::from(b"chain".as_slice()),
+            },
+            observed_command(&vm, &releases, b'B'),
+            None,
+        );
+        let key = vm.register_jim_local_command(
+            CommandSlot {
+                namespace: ROOT_NS,
+                simple: NameBytes::from(b"chain".as_slice()),
+            },
+            observed_command(&vm, &releases, b'C'),
+            None,
+        );
+        let previous = detach_selected_previous(&mut vm, &key);
+        assert_eq!(releases.borrow().as_slice(), [(b'C', true)]);
+        assert_eq!(previous.previous_owners.get(), 0);
+        assert!(previous.published.get());
+        vm.retire_detached_original_jim_node(previous);
+        assert_eq!(
+            releases.borrow().as_slice(),
+            [(b'C', true), (b'A', true), (b'B', true)]
+        );
+        assert!(vm.visible_command_generation(&key).is_none());
+    }
+
+    #[test]
+    fn detached_previous_retirement_preserves_its_real_active_invocation_owner() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software entered-role cleanup, independent of idle table ownership.
+        let mut vm = actual_jim();
+        let releases = Rc::new(RefCell::new(Vec::new()));
+        let key = vm
+            .register_written_command("active", observed_command(&vm, &releases, b'A'))
+            .unwrap();
+        let token = vm.visible_command_generation(&key).unwrap();
+        let active = vm.retain_active_jim_command(token).unwrap();
+        let key = vm.register_jim_local_command(
+            CommandSlot {
+                namespace: ROOT_NS,
+                simple: NameBytes::from(b"active".as_slice()),
+            },
+            observed_command(&vm, &releases, b'B'),
+            None,
+        );
+        let previous = detach_selected_previous(&mut vm, &key);
+        let original = Rc::downgrade(&previous);
+        vm.retire_detached_original_jim_node(previous);
+        assert_eq!(releases.borrow().as_slice(), [(b'B', true)]);
+        let original = original.upgrade().unwrap();
+        assert!(!original.published.get());
+        assert_eq!(original.active.get(), 1);
+        drop(original);
+        drop(active);
+        assert_eq!(releases.borrow().as_slice(), [(b'B', true), (b'A', true)]);
+    }
+
+    #[test]
+    fn detached_previous_retirement_uses_its_original_world_when_another_vm_is_current() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Explicit original world custody grants no authority to another interpreter.
+        let mut original_vm = actual_jim();
+        let original_world = Rc::clone(&original_vm.name_world);
+        let releases = Rc::new(RefCell::new(Vec::new()));
+        original_vm
+            .register_written_command("original", observed_command(&original_vm, &releases, b'A'))
+            .unwrap();
+        let key = original_vm.register_jim_local_command(
+            CommandSlot {
+                namespace: ROOT_NS,
+                simple: NameBytes::from(b"original".as_slice()),
+            },
+            observed_command(&original_vm, &releases, b'B'),
+            None,
+        );
+        let previous = detach_selected_previous(&mut original_vm, &key);
+        let token = previous.token;
+        let other_vm = actual_jim();
+        let other_epoch = other_vm.name_world.borrow().jim_procedure_epoch;
+        let other_retired = other_vm.name_world.borrow().jim_retired_tokens.clone();
+        retire_detached_original_jim_node_in(&original_world, previous);
+        assert!(original_world.borrow().jim_retired_tokens.contains(&token));
+        assert_eq!(releases.borrow().as_slice(), [(b'B', true), (b'A', true)]);
+        assert_eq!(
+            other_vm.name_world.borrow().jim_procedure_epoch,
+            other_epoch
+        );
+        assert_eq!(
+            other_vm.name_world.borrow().jim_retired_tokens,
+            other_retired
         );
     }
 }

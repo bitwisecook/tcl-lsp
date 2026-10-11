@@ -13,48 +13,59 @@ pub(super) fn command_inventory(
     original: &[Value],
     kind: tcl_registry::commands::tcl::NativeJimCommandInventoryKind,
 ) -> Completion<Value> {
-    let original_namespace = match vm.with_jim_current_namespace(|original| Ok(original.clone())) {
-        Ok(namespace) => namespace,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let namespace = match vm.native_string_bytes(&original_namespace) {
-        Ok(namespace) => namespace,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let first_operand = match original
-        .get(1)
-        .map(|value| vm.native_name_operand_bytes(value))
-        .transpose()
-    {
-        Ok(first) => first,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    match scope.command_inventory(original.len() - 1, first_operand.as_deref(), &namespace) {
-        tcl_registry::commands::tcl::NativeJimCommandInventory::NamespaceHelper => vm
-            .invoke_host_original_object_vector(
-                &Value::new_native_string_bytes(b"namespace info".as_slice()),
-                original,
-            ),
-        tcl_registry::commands::tcl::NativeJimCommandInventory::Flat {
-            pattern,
-            include_spaces,
-        } => {
-            match tcl_cmd_core::info::jim_core_command_list(
-                vm,
-                pattern.map(|index| &original[index + 1]),
-                include_spaces,
-                kind,
-            ) {
-                Ok(value) => ok(value),
-                Err(error) => crate::command::completion_from_cmd_error(vm, error),
-            }
-        }
-        tcl_registry::commands::tcl::NativeJimCommandInventory::WrongArguments => {
-            let selector = match vm.native_name_operand_bytes(&original[0]) {
-                Ok(selector) => selector,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let original_namespace =
+            match vm.with_jim_current_namespace(|original| Ok(original.clone())) {
+                Ok(namespace) => namespace,
                 Err(error) => return vm.refuse_host_command(error.to_string()),
             };
-            crate::command::completion_from_cmd_error(
+        let reached_namespace = vm.native_string_bytes(&original_namespace);
+        if let Err(error) = original_names.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let namespace = match reached_namespace {
+            Ok(namespace) => namespace,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        };
+        let first_operand = match original
+            .get(1)
+            .map(|value| original_names.read(vm, value))
+            .transpose()
+        {
+            Ok(first) => first,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        match scope.command_inventory(original.len() - 1, first_operand.as_deref(), &namespace) {
+            tcl_registry::commands::tcl::NativeJimCommandInventory::NamespaceHelper => vm
+                .invoke_host_original_object_vector(
+                    &Value::new_native_string_bytes(b"namespace info".as_slice()),
+                    original,
+                ),
+            tcl_registry::commands::tcl::NativeJimCommandInventory::Flat {
+                pattern,
+                include_spaces,
+            } => {
+                match tcl_cmd_core::info::jim_core_command_list(
+                    vm,
+                    pattern.map(|index| &original[index + 1]),
+                    include_spaces,
+                    kind,
+                ) {
+                    Ok(value) => ok(value),
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
+                }
+            }
+            tcl_registry::commands::tcl::NativeJimCommandInventory::WrongArguments => {
+                let selector = match original_names.read(vm, &original[0]) {
+                    Ok(selector) => selector,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                crate::command::completion_from_cmd_error(
                 vm,
                 tcl_cmd_core::CmdError::new_bytes(
                     tcl_registry::commands::tcl::NativeJimCommandInventory::wrong_arguments_message(
@@ -63,8 +74,13 @@ pub(super) fn command_inventory(
                 )
                 .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084),
             )
+            }
         }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 pub(super) fn report(
@@ -73,34 +89,46 @@ pub(super) fn report(
     report: NativeJimInfoReport,
     original: &[Value],
 ) -> Completion<Value> {
-    // Source proof: naming.info.jim-original-selector-table
-    // docs/design/analysis/name-resolution-proofs/info-jim-original-selector-table.md
-    let choices = match choices(vm, protocol, report) {
-        Ok(bytes) => bytes,
-        Err(completion) => return completion,
-    };
-    let head = match vm.native_name_operand_bytes(&original[report.head()]) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let selector = match report
-        .selector()
-        .map(|index| vm.native_name_operand_bytes(&original[index]))
-        .transpose()
-    {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let bytes = report.message(&head, selector.as_deref().unwrap_or_default(), &choices);
-    if report.succeeds() {
-        ok(Value::new_native_string_bytes(bytes))
-    } else {
-        crate::command::completion_from_cmd_error(
-            vm,
-            tcl_cmd_core::CmdError::new_bytes(bytes)
-                .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084),
-        )
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        // Source proof: naming.info.jim-original-selector-table
+        // docs/design/analysis/name-resolution-proofs/info-jim-original-selector-table.md
+        let choices = match choices(vm, protocol, report) {
+            Ok(bytes) => bytes,
+            Err(completion) => return completion,
+        };
+        let head = match original_names.read(vm, &original[report.head()]) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let selector = match report
+            .selector()
+            .map(|index| original_names.read(vm, &original[index]))
+            .transpose()
+        {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let bytes = report.message(&head, selector.as_deref().unwrap_or_default(), &choices);
+        if report.succeeds() {
+            ok(Value::new_native_string_bytes(bytes))
+        } else {
+            crate::command::completion_from_cmd_error(
+                vm,
+                tcl_cmd_core::CmdError::new_bytes(bytes).with_native_string_result(
+                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                ),
+            )
+        }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 fn choices(
@@ -108,44 +136,59 @@ fn choices(
     protocol: NativeJimInfoProtocol,
     report: NativeJimInfoReport,
 ) -> Result<Vec<u8>, Completion<Value>> {
-    let Some(separator) = report.choices_separator() else {
-        return Ok(Vec::new());
-    };
-    let names = Value::native_list_constructor(
-        protocol
-            .names()
-            .iter()
-            .map(|name| Value::new_native_string_bytes(name.as_bytes()))
-            .collect(),
-        tcl_syntax::native_string::NativeStringProtocol::Jim084,
-    );
-    let completion = vm.invoke_host_original_object_vector(
-        &Value::new_native_string_bytes(b"lsort".as_slice()),
-        &[names],
-    );
-    if let Some(refusal) = vm.refused_completion() {
-        return Err(refusal);
-    }
-    if completion.code != crate::Code::Ok {
-        return vm
-            .native_name_operand_bytes(&completion.result)
-            .map(|bytes| bytes.to_vec())
-            .map_err(|error| vm.refuse_host_command(error.to_string()));
-    }
-    let elements = vm
-        .list_elements(&completion.result)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    let mut bytes = Vec::new();
-    for (index, element) in elements.iter().enumerate() {
-        if index > 0 {
-            bytes.extend_from_slice(separator);
-        }
-        bytes.extend_from_slice(
-            &vm.native_name_operand_bytes(element)
-                .map_err(|error| vm.refuse_host_command(error.to_string()))?,
+    let original_names = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| {
+        let Some(separator) = report.choices_separator() else {
+            return Ok(Vec::new());
+        };
+        let names = Value::native_list_constructor(
+            protocol
+                .names()
+                .iter()
+                .map(|name| Value::new_native_string_bytes(name.as_bytes()))
+                .collect(),
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
         );
-    }
-    Ok(bytes)
+        let completion = vm.invoke_host_original_object_vector(
+            &Value::new_native_string_bytes(b"lsort".as_slice()),
+            &[names],
+        );
+        original_names
+            .check(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        if let Some(refusal) = vm.refused_completion() {
+            return Err(refusal);
+        }
+        if completion.code != crate::Code::Ok {
+            return original_names
+                .read(vm, &completion.result)
+                .map(|bytes| bytes.to_vec())
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error));
+        }
+        let reached_elements = vm.list_elements(&completion.result);
+        original_names
+            .check(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let elements = reached_elements
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        let mut bytes = Vec::new();
+        for (index, element) in elements.iter().enumerate() {
+            if index > 0 {
+                bytes.extend_from_slice(separator);
+            }
+            bytes.extend_from_slice(
+                &original_names
+                    .read(vm, element)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?,
+            );
+        }
+        Ok(bytes)
+    })();
+    original_names
+        .finish(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    reached
 }
 
 #[cfg(test)]

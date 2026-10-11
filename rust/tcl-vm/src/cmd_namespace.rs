@@ -48,40 +48,62 @@ fn eval_in_ns(
     location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     create: bool,
 ) -> Completion<Value> {
-    // Native eval first resolves the original namespace object. Creation on a
-    // miss uses its written spelling, without installing a cache for that miss.
-    let token = match vm.namespace_object_lookup(original) {
-        Ok(Some(token)) => token,
-        Ok(None) => {
-            let written = match vm.native_name_operand_bytes(original) {
-                Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            if create {
-                match vm.activate_namespace_operand(&written) {
-                    Ok(token) => token,
-                    Err(completion) => return completion,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        // Native eval first resolves the original namespace object. Creation on a
+        // miss uses its written spelling, without installing a cache for that miss.
+        let token = match vm.namespace_object_lookup(original) {
+            Ok(Some(token)) => token,
+            Ok(None) => {
+                let written = match original_names.read(vm, original) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                if create {
+                    match vm.activate_namespace_operand(&written) {
+                        Ok(token) => token,
+                        Err(completion) => return completion,
+                    }
+                } else {
+                    return vm.namespace_lookup_error_at(
+                        &written,
+                        tcl_syntax::naming::NativeNamespaceLookupOperation::Inscope,
+                    );
                 }
-            } else {
-                return vm.namespace_lookup_error_at(
-                    &written,
-                    tcl_syntax::naming::NativeNamespaceLookupOperation::Inscope,
-                );
             }
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        let selected_current = vm.native_namespace_token_has_owner(token);
+        if let Err(error) = original_names.require(
+            vm,
+            selected_current,
+            "selected original namespace evaluation holder",
+        ) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    vm.push_ns_eval_token_frame(token, call_argv);
-    vm.enter_ns_script();
-    let result = vm.eval_original_script_value(body, purpose, location);
-    vm.leave_ns_script();
-    vm.pop_ns();
-    vm.pop_call_frame();
-    let completion = match result {
-        Ok(completion) => completion,
-        Err(error) => crate::command::completion_from_tcl_error(vm, error),
-    };
-    settle_control_options(vm, completion, ControlOptionPolicy::FRESH_FORWARDED)
+        vm.push_ns_eval_token_frame(token, call_argv);
+        vm.enter_ns_script();
+        let result = vm.eval_original_script_value(body, purpose, location);
+        vm.leave_ns_script();
+        vm.pop_ns();
+        vm.pop_call_frame();
+        if let Err(error) = original_names.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let completion = match result {
+            Ok(completion) => completion,
+            Err(error) => crate::command::completion_from_tcl_error(vm, error),
+        };
+        settle_control_options(vm, completion, ControlOptionPolicy::FRESH_FORWARDED)
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    reached
 }
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -193,46 +215,57 @@ fn namespace_code_invocation(
     args: &[Value],
     invocation: NamespaceInvocation,
 ) -> Completion<Value> {
-    let [script] = args else {
-        let mut usage = match namespace_usage_header(vm, "code", invocation) {
-            Ok(usage) => usage,
-            Err(refusal) => return refusal,
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        usage.extend_from_slice(b" arg");
-        return crate::command::native_wrong_args_bytes(vm, &usage);
-    };
-    let Some(policy) = vm
-        .native_invocation_dialect()
-        .namespace_code_handler_policy(Some(
+    let reached = (|| {
+        let [script] = args else {
+            let mut usage = match namespace_usage_header(vm, "code", invocation) {
+                Ok(usage) => usage,
+                Err(refusal) => return refusal,
+            };
+            usage.extend_from_slice(b" arg");
+            return crate::command::native_wrong_args_bytes(vm, &usage);
+        };
+        let Some(policy) = vm
+            .native_invocation_dialect()
+            .namespace_code_handler_policy(Some(
             tcl_registry::native_namespace_code::LogicalNamespaceCodeProvider::Tcl84CoreSimulation,
+        )) else {
+            return vm.refuse_host_command(
+                "namespace code native handler policy is not selected".into(),
+            );
+        };
+        let bytes = match original_names.read(vm, script) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        if policy.preserves_argument(&bytes) {
+            return ok(script.clone());
+        }
+        let context = match vm.native_namespace_result_object(
+            vm.current_ns_id(),
+            tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::CodeContext,
+        ) {
+            Ok(context) => context,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        ok(tcl_syntax::value::ValueOps::new_list(
+            vm,
+            vec![
+                Value::string("::namespace"),
+                Value::string("inscope"),
+                context,
+                script.clone(),
+            ],
         ))
-    else {
-        return vm
-            .refuse_host_command("namespace code native handler policy is not selected".into());
-    };
-    let bytes = match vm.native_name_operand_bytes(script) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    if policy.preserves_argument(&bytes) {
-        return ok(script.clone());
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    let context = match vm.native_namespace_result_object(
-        vm.current_ns_id(),
-        tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::CodeContext,
-    ) {
-        Ok(context) => context,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    ok(tcl_syntax::value::ValueOps::new_list(
-        vm,
-        vec![
-            Value::string("::namespace"),
-            Value::string("inscope"),
-            context,
-            script.clone(),
-        ],
-    ))
+    reached
 }
 
 #[derive(Clone, Copy)]
@@ -251,531 +284,609 @@ fn cmd_namespace_in(
     args: &[Value],
     invocation: NamespaceInvocation,
 ) -> Completion<Value> {
-    let Some((sub, rest)) = args.split_first() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"namespace subcommand ?arg ...?\"",
-        );
-    };
-    let original_sub = match vm.native_name_operand_bytes(sub) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let Some(name_policy) = vm.name_policy_protocol() else {
-        return vm
-            .refuse_host_command("native namespace subcommand protocol is unavailable".into());
-    };
-    let selected_sub = name_policy
-        .recipe()
-        .namespace_subcommand_input(&original_sub);
-    // Availability follows the interpreter's command surface. An embedding
-    // host may provide broader private machinery than the source grammar.
-    let profile = vm.command_surface_profile();
-    let dialect = Some(crate::environment::surface_point(profile));
-    let registry = tcl_registry::default_registry();
-    let spec = registry
-        .get_for_surface("namespace", dialect)
-        .expect("the core namespace command is registered for every Tcl release");
-    let Some(subcommand) =
-        spec.resolve_subcommand_bytes_for_dialect(selected_sub.selected(), dialect)
-    else {
-        let available: Vec<&str> = spec
-            .subcommands
-            .iter()
-            .filter(|candidate| {
-                candidate
-                    .surface
-                    .or(spec.surface)
-                    .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
-            })
-            .map(|candidate| candidate.name)
-            .collect();
-        // The original dispatcher owns its noun, ambiguity and enumeration;
-        // older C releases use option lookup rather than the modern ensemble.
-        return err(tcl_cmd_core::namespace::unknown_subcommand_message(
-            name_policy.recipe(),
-            &available,
-            selected_sub.selected(),
-        ));
-    };
-    if matches!(
-        subcommand.name,
-        "exists" | "parent" | "children" | "tail" | "qualifiers"
-    ) && !subcommand
-        .arity
-        .accepts(u16::try_from(rest.len()).unwrap_or(u16::MAX))
-    {
-        return crate::command::completion_from_cmd_error(
-            vm,
-            tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
-        );
-    }
-    match subcommand.name {
-        "canonical" => {
-            let (prefix, name) = match rest {
-                [] => {
-                    return ok(Value::from_native_string_bytes(
-                        vm.namespace_object_bytes(vm.current_ns_id()).as_bytes(),
-                    ));
-                }
-                [name] => (None, name),
-                [prefix, name] => (Some(prefix), name),
-                _ => {
-                    return crate::command::native_wrong_arguments_message(
-                        vm,
-                        "wrong # args: should be \"namespace canonical ?current? ?name?\"",
-                    );
-                }
-            };
-            let name = match vm.native_name_operand_bytes(name) {
-                Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            let prefix = match prefix
-                .map(|value| vm.native_name_operand_bytes(value))
-                .transpose()
-            {
-                Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            match vm.jim_canonical_namespace_bytes(prefix.as_deref(), &name) {
-                Ok(bytes) => ok(Value::from_native_string_bytes(bytes)),
-                Err(error) => vm.refuse_host_command(error.to_string()),
-            }
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let Some((sub, rest)) = args.split_first() else {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"namespace subcommand ?arg ...?\"",
+            );
+        };
+        let original_sub = match original_names.read(vm, sub) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let Some(name_policy) = vm.name_policy_protocol() else {
+            return vm
+                .refuse_host_command("native namespace subcommand protocol is unavailable".into());
+        };
+        let selected_sub = name_policy
+            .recipe()
+            .namespace_subcommand_input(&original_sub);
+        // Availability follows the interpreter's command surface. An embedding
+        // host may provide broader private machinery than the source grammar.
+        let profile = vm.command_surface_profile();
+        let dialect = Some(crate::environment::surface_point(profile));
+        let registry = tcl_registry::default_registry();
+        let spec = registry
+            .get_for_surface("namespace", dialect)
+            .expect("the core namespace command is registered for every Tcl release");
+        let Some(subcommand) =
+            spec.resolve_subcommand_bytes_for_dialect(selected_sub.selected(), dialect)
+        else {
+            let available: Vec<&str> = spec
+                .subcommands
+                .iter()
+                .filter(|candidate| {
+                    candidate
+                        .surface
+                        .or(spec.surface)
+                        .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
+                })
+                .map(|candidate| candidate.name)
+                .collect();
+            // The original dispatcher owns its noun, ambiguity and enumeration;
+            // older C releases use option lookup rather than the modern ensemble.
+            return err(tcl_cmd_core::namespace::unknown_subcommand_message(
+                name_policy.recipe(),
+                &available,
+                selected_sub.selected(),
+            ));
+        };
+        if matches!(
+            subcommand.name,
+            "exists" | "parent" | "children" | "tail" | "qualifiers"
+        ) && !subcommand
+            .arity
+            .accepts(u16::try_from(rest.len()).unwrap_or(u16::MAX))
+        {
+            return crate::command::completion_from_cmd_error(
+                vm,
+                tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
+            );
         }
-        "eval" => ns_eval(vm, rest),
-        "current" => namespace_current_invocation(vm, rest, invocation),
-        "qualifiers" => ns_text_op(vm, rest, false),
-        "tail" => ns_text_op(vm, rest, true),
-        // exists/parent/children route through the shared core over `Namespaces`
-        // (the VM's String model honours the `NsId` handles via its arena). This
-        // also gave `children` its missing `?pattern?` filter and made
-        // parent/children on a missing namespace error, both matching tclsh.
-        // During `TclTeardownNamespace` the namespace token is already dead
-        // even though its command table stays reachable for delete callbacks.
-        // The shared handle lookup intentionally still exposes that table to
-        // `info commands`; this lifecycle-aware predicate distinguishes the
-        // namespace-existence query.
-        "exists" => {
-            let Some(original) = rest.first() else {
-                return crate::command::native_wrong_arguments_message(vm, subcommand.synopsis);
-            };
-            match vm.namespace_object_lookup(original) {
-                // The native object getter itself owns lifetime validity:
-                // C8.4 accepts an original cache for an activated dying token.
-                Ok(namespace) => ok(Value::bool(namespace.is_some())),
-                Err(error) => vm.refuse_host_command(error.to_string()),
-            }
-        }
-        "parent" | "children" => {
-            if subcommand.name == "parent" && name_policy.recipe().is_jim084() {
-                let original = match rest.first() {
-                    Some(original) => match vm.native_name_operand_bytes(original) {
-                        Ok(bytes) => bytes,
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
-                    },
-                    None => {
-                        std::rc::Rc::from(vm.namespace_object_bytes(vm.current_ns_id()).as_bytes())
+        match subcommand.name {
+            "canonical" => {
+                let (prefix, name) = match rest {
+                    [] => {
+                        return ok(Value::from_native_string_bytes(
+                            vm.namespace_object_bytes(vm.current_ns_id()).as_bytes(),
+                        ));
                     }
-                };
-                return match name_policy.recipe().jim_namespace_parent_bytes(&original) {
-                    Ok(bytes) => ok(Value::from_native_string_bytes(bytes)),
-                    Err(error) => vm.refuse_host_command(format!("{error:?}")),
-                };
-            }
-            let namespace = match rest.first() {
-                Some(original) => match vm.namespace_object_lookup(original) {
-                    Ok(Some(namespace)) => namespace,
-                    Ok(None) => {
-                        let written = match vm.native_name_operand_bytes(original) {
-                            Ok(bytes) => bytes,
-                            Err(error) => return vm.refuse_host_command(error.to_string()),
-                        };
-                        return vm.namespace_lookup_error_at(
-                            &written,
-                            if subcommand.name == "parent" {
-                                tcl_syntax::naming::NativeNamespaceLookupOperation::Parent
-                            } else {
-                                tcl_syntax::naming::NativeNamespaceLookupOperation::Children
-                            },
+                    [name] => (None, name),
+                    [prefix, name] => (Some(prefix), name),
+                    _ => {
+                        return crate::command::native_wrong_arguments_message(
+                            vm,
+                            "wrong # args: should be \"namespace canonical ?current? ?name?\"",
                         );
                     }
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
-                },
-                None => vm.current_ns_id(),
-            };
-            if subcommand.name == "parent" {
-                match tcl_cmd_core::namespace::parent_original(vm, namespace) {
-                    Ok(parent) => ok(parent),
-                    Err(error) => vm.refuse_host_command(error.to_string()),
-                }
-            } else {
-                let pattern = match rest
-                    .get(1)
-                    .map(|value| vm.native_name_operand_bytes(value))
+                };
+                let name = match original_names.read(vm, name) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                let prefix = match prefix
+                    .map(|value| original_names.read(vm, value))
                     .transpose()
                 {
                     Ok(bytes) => bytes,
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                 };
-                match tcl_cmd_core::namespace::children_tokens_checked(
-                    vm,
-                    namespace,
-                    pattern.as_deref(),
-                ) {
-                    Ok(children) => match tcl_cmd_core::namespace::children_original(vm, &children)
-                    {
-                        Ok(value) => ok(value),
-                        Err(error) => vm.refuse_host_command(error.to_string()),
-                    },
+                match vm.jim_canonical_namespace_bytes(prefix.as_deref(), &name) {
+                    Ok(bytes) => ok(Value::from_native_string_bytes(bytes)),
                     Err(error) => vm.refuse_host_command(error.to_string()),
                 }
             }
-        }
-        "code" => namespace_code_invocation(vm, rest, invocation),
-        // `namespace inscope ns script ?arg ...?` runs `script` (with any extra
-        // args appended as list elements) in namespace `ns`.
-        "inscope" => ns_inscope(vm, rest),
-        "which" => {
-            let words = match rest
-                .iter()
-                .map(|word| vm.native_name_operand_bytes(word))
-                .collect::<Result<Vec<_>, _>>()
-            {
-                Ok(words) => words,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&words) else {
-                return crate::command::native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"namespace which ?-command? ?-variable? name\"",
-                );
-            };
-            let result = match kind {
-                tcl_cmd_core::namespace::WhichKind::Variable => {
-                    tcl_cmd_core::namespace::which_variable_bytes_checked(vm, &words[name_index])
+            "eval" => ns_eval(vm, rest),
+            "current" => namespace_current_invocation(vm, rest, invocation),
+            "qualifiers" => ns_text_op(vm, rest, false),
+            "tail" => ns_text_op(vm, rest, true),
+            // exists/parent/children route through the shared core over `Namespaces`
+            // (the VM's String model honours the `NsId` handles via its arena). This
+            // also gave `children` its missing `?pattern?` filter and made
+            // parent/children on a missing namespace error, both matching tclsh.
+            // During `TclTeardownNamespace` the namespace token is already dead
+            // even though its command table stays reachable for delete callbacks.
+            // The shared handle lookup intentionally still exposes that table to
+            // `info commands`; this lifecycle-aware predicate distinguishes the
+            // namespace-existence query.
+            "exists" => {
+                let Some(original) = rest.first() else {
+                    return crate::command::native_wrong_arguments_message(vm, subcommand.synopsis);
+                };
+                match vm.namespace_object_lookup(original) {
+                    // The native object getter itself owns lifetime validity:
+                    // C8.4 accepts an original cache for an activated dying token.
+                    Ok(namespace) => ok(Value::bool(namespace.is_some())),
+                    Err(error) => vm.refuse_host_command(error.to_string()),
                 }
-                tcl_cmd_core::namespace::WhichKind::Command => {
-                    vm.native_namespace_command_name(&rest[name_index], false)
+            }
+            "parent" | "children" => {
+                if subcommand.name == "parent" && name_policy.recipe().is_jim084() {
+                    let original = match rest.first() {
+                        Some(original) => match original_names.read(vm, original) {
+                            Ok(bytes) => bytes,
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error);
+                            }
+                        },
+                        None => std::rc::Rc::from(
+                            vm.namespace_object_bytes(vm.current_ns_id()).as_bytes(),
+                        ),
+                    };
+                    return match name_policy.recipe().jim_namespace_parent_bytes(&original) {
+                        Ok(bytes) => ok(Value::from_native_string_bytes(bytes)),
+                        Err(error) => vm.refuse_host_command(format!("{error:?}")),
+                    };
                 }
-            };
-            match result {
-                Ok(bytes) => ok(bytes.map_or_else(Value::empty, Value::from_native_string_bytes)),
-                Err(error) => vm.refuse_host_command(error.to_string()),
-            }
-        }
-        "origin" => {
-            if rest.len() != 1 {
-                return crate::command::completion_from_cmd_error(
+                let namespace = match rest.first() {
+                    Some(original) => match vm.namespace_object_lookup(original) {
+                        Ok(Some(namespace)) => namespace,
+                        Ok(None) => {
+                            let written = match original_names.read(vm, original) {
+                                Ok(bytes) => bytes,
+                                Err(error) => {
+                                    return crate::command::completion_from_cmd_error(vm, error);
+                                }
+                            };
+                            return vm.namespace_lookup_error_at(
+                                &written,
+                                if subcommand.name == "parent" {
+                                    tcl_syntax::naming::NativeNamespaceLookupOperation::Parent
+                                } else {
+                                    tcl_syntax::naming::NativeNamespaceLookupOperation::Children
+                                },
+                            );
+                        }
+                        Err(error) => return vm.refuse_host_command(error.to_string()),
+                    },
+                    None => vm.current_ns_id(),
+                };
+                let selected_current = vm.native_namespace_token_has_owner(namespace);
+                if let Err(error) = original_names.require(
                     vm,
-                    tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
-                );
-            }
-            match vm.native_namespace_command_name(&rest[0], true) {
-                Ok(Some(bytes))
-                    if vm
-                        .actual_native_invocation_dialect()
-                        .native_command_name_protocol()
-                        .is_some() =>
-                {
-                    match vm.native_namespace_origin_result(&bytes) {
-                        Ok(result) => ok(result),
+                    selected_current,
+                    "selected original parent namespace holder",
+                ) {
+                    return crate::command::completion_from_cmd_error(vm, error);
+                }
+                if subcommand.name == "parent" {
+                    match tcl_cmd_core::namespace::parent_original(vm, namespace) {
+                        Ok(parent) => ok(parent),
+                        Err(error) => vm.refuse_host_command(error.to_string()),
+                    }
+                } else {
+                    let pattern = match rest
+                        .get(1)
+                        .map(|value| original_names.read(vm, value))
+                        .transpose()
+                    {
+                        Ok(bytes) => bytes,
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    };
+                    let selected_current = vm.native_namespace_token_has_owner(namespace);
+                    if let Err(error) = original_names.require(
+                        vm,
+                        selected_current,
+                        "selected original children namespace after pattern getter",
+                    ) {
+                        return crate::command::completion_from_cmd_error(vm, error);
+                    }
+                    match tcl_cmd_core::namespace::children_tokens_checked(
+                        vm,
+                        namespace,
+                        pattern.as_deref(),
+                    ) {
+                        Ok(children) => {
+                            match tcl_cmd_core::namespace::children_original(vm, &children) {
+                                Ok(value) => ok(value),
+                                Err(error) => vm.refuse_host_command(error.to_string()),
+                            }
+                        }
                         Err(error) => vm.refuse_host_command(error.to_string()),
                     }
                 }
-                Ok(Some(bytes)) => ok(Value::from_native_string_bytes(bytes)),
-                Ok(None)
-                    if vm
-                        .actual_native_invocation_dialect()
-                        .native_command_name_protocol()
-                        .is_some() =>
+            }
+            "code" => namespace_code_invocation(vm, rest, invocation),
+            // `namespace inscope ns script ?arg ...?` runs `script` (with any extra
+            // args appended as list elements) in namespace `ns`.
+            "inscope" => ns_inscope(vm, rest),
+            "which" => {
+                let words = match rest
+                    .iter()
+                    .map(|word| original_names.read(vm, word))
+                    .collect::<Result<Vec<_>, _>>()
                 {
-                    vm.native_namespace_origin_failure(&rest[0])
-                }
-                Ok(None) => {
-                    let name = match vm.native_name_operand_bytes(&rest[0]) {
-                        Ok(name) => name,
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
-                    };
-                    namespace_command_lookup_error(
+                    Ok(words) => words,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&words)
+                else {
+                    return crate::command::native_wrong_arguments_message(
                         vm,
-                        &name,
-                        b"invalid command name ",
-                        b"",
-                        b"COMMAND",
-                    )
+                        "wrong # args: should be \"namespace which ?-command? ?-variable? name\"",
+                    );
+                };
+                let result = match kind {
+                    tcl_cmd_core::namespace::WhichKind::Variable => {
+                        tcl_cmd_core::namespace::which_variable_bytes_checked(
+                            vm,
+                            &words[name_index],
+                        )
+                    }
+                    tcl_cmd_core::namespace::WhichKind::Command => {
+                        vm.native_namespace_command_name(&rest[name_index], false)
+                    }
+                };
+                match result {
+                    Ok(bytes) => {
+                        ok(bytes.map_or_else(Value::empty, Value::from_native_string_bytes))
+                    }
+                    Err(error) => vm.refuse_host_command(error.to_string()),
                 }
-                Err(error) => vm.refuse_host_command(error.to_string()),
             }
-        }
-
-        "export" => {
-            if vm.dialect_profile().namespace_import_binding()
-                == Some(tcl_dialect::NamespaceImportBinding::SourceName)
-            {
-                ok(Value::empty())
-            } else {
-                ns_export(vm, rest)
-            }
-        }
-        "import" => ns_import(vm, rest),
-        // C validates all written names before retiring any selected token.
-        // Jim's authored helper performs its separate sequential flat operation.
-        "delete" => {
-            if !name_policy.recipe().is_jim084() {
-                return match tcl_cmd_core::namespace::delete_original(vm, rest) {
-                    Ok(None) => ok(Value::empty()),
-                    Ok(Some(index)) => {
-                        let written = match vm.native_name_operand_bytes(&rest[index]) {
-                            Ok(bytes) => bytes,
-                            Err(error) => return vm.refuse_host_command(error.to_string()),
+            "origin" => {
+                if rest.len() != 1 {
+                    return crate::command::completion_from_cmd_error(
+                        vm,
+                        tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
+                    );
+                }
+                match vm.native_namespace_command_name(&rest[0], true) {
+                    Ok(Some(bytes))
+                        if vm
+                            .actual_native_invocation_dialect()
+                            .native_command_name_protocol()
+                            .is_some() =>
+                    {
+                        match vm.native_namespace_origin_result(&bytes) {
+                            Ok(result) => ok(result),
+                            Err(error) => vm.refuse_host_command(error.to_string()),
+                        }
+                    }
+                    Ok(Some(bytes)) => ok(Value::from_native_string_bytes(bytes)),
+                    Ok(None)
+                        if vm
+                            .actual_native_invocation_dialect()
+                            .native_command_name_protocol()
+                            .is_some() =>
+                    {
+                        vm.native_namespace_origin_failure(&rest[0])
+                    }
+                    Ok(None) => {
+                        let name = match original_names.read(vm, &rest[0]) {
+                            Ok(name) => name,
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error);
+                            }
                         };
-                        vm.namespace_lookup_error_at(
-                            &written,
-                            tcl_syntax::naming::NativeNamespaceLookupOperation::Delete,
+                        namespace_command_lookup_error(
+                            vm,
+                            &name,
+                            b"invalid command name ",
+                            b"",
+                            b"COMMAND",
                         )
                     }
                     Err(error) => vm.refuse_host_command(error.to_string()),
-                };
-            }
-            for original in rest {
-                let written = match vm.native_name_operand_bytes(original) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
-                };
-                match vm.delete_namespace_operand(&written) {
-                    Ok(true) => {}
-                    Ok(false) => {
-                        return vm.namespace_lookup_error_at(
-                            &written,
-                            tcl_syntax::naming::NativeNamespaceLookupOperation::Delete,
-                        );
-                    }
-                    Err(completion) => return completion,
                 }
             }
-            ok(Value::empty())
-        }
-        "path" => match rest {
-            [] => {
-                let mut objects = Vec::new();
-                for namespace in vm.ns_path_tokens() {
-                    match vm.native_namespace_result_object(
-                        namespace,
-                        tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::Path,
-                    ) {
-                        Ok(object) => objects.push(object),
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
-                    }
+
+            "export" => {
+                if vm.dialect_profile().namespace_import_binding()
+                    == Some(tcl_dialect::NamespaceImportBinding::SourceName)
+                {
+                    ok(Value::empty())
+                } else {
+                    ns_export(vm, rest)
                 }
-                ok(tcl_syntax::value::ValueOps::new_list(vm, objects))
             }
-            [list] => {
-                let elems = match tcl_syntax::value::ValueOps::list_elements(vm, list) {
-                    Ok(elements) => elements,
-                    Err(error) => {
-                        return crate::command::completion_from_cmd_error(vm, error.into());
-                    }
-                };
-                // C resolves every entry with `TclGetNamespaceFromObj` *before*
-                // installing the path (`NamespacePathCmd`), so an unresolvable
-                // entry errors and leaves the old path in place.
-                let mut path = Vec::with_capacity(elems.len());
-                for e in &elems {
-                    match vm.namespace_object_lookup(e) {
-                        Ok(Some(namespace)) => path.push(namespace),
-                        Ok(None) => {
-                            let written = match vm.native_name_operand_bytes(e) {
+            "import" => ns_import(vm, rest),
+            // C validates all written names before retiring any selected token.
+            // Jim's authored helper performs its separate sequential flat operation.
+            "delete" => {
+                if !name_policy.recipe().is_jim084() {
+                    return match tcl_cmd_core::namespace::delete_original(vm, rest) {
+                        Ok(None) => ok(Value::empty()),
+                        Ok(Some(index)) => {
+                            let written = match original_names.read(vm, &rest[index]) {
                                 Ok(bytes) => bytes,
-                                Err(error) => return vm.refuse_host_command(error.to_string()),
+                                Err(error) => {
+                                    return crate::command::completion_from_cmd_error(vm, error);
+                                }
                             };
-                            return vm.namespace_lookup_error_bytes(&written);
+                            vm.namespace_lookup_error_at(
+                                &written,
+                                tcl_syntax::naming::NativeNamespaceLookupOperation::Delete,
+                            )
                         }
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
+                        Err(error) => vm.refuse_host_command(error.to_string()),
+                    };
+                }
+                for original in rest {
+                    let written = match original_names.read(vm, original) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    };
+                    match vm.delete_namespace_operand(&written) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            return vm.namespace_lookup_error_at(
+                                &written,
+                                tcl_syntax::naming::NativeNamespaceLookupOperation::Delete,
+                            );
+                        }
+                        Err(completion) => return completion,
                     }
                 }
-                vm.ns_path_set(path);
                 ok(Value::empty())
             }
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"namespace path ?nsList?\"",
-            ),
-        },
-        // `namespace forget ?pattern ...?` — remove previously imported commands
-        // matching each pattern from the current namespace.
-        "forget" => {
-            for p in rest {
-                let bytes = match vm.native_name_operand_bytes(p) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
-                };
-                if let Err(error) = vm.forget_imports(&bytes) {
-                    return error;
-                }
-            }
-            ok(Value::empty())
-        }
-        "ensemble" => ns_ensemble(vm, sub, rest),
-        // `namespace unknown ?handler?` (TIP 181) — get/set the CURRENT
-        // namespace's resolution-miss handler (a command prefix). Handlers
-        // are per-namespace, NOT inherited by children; the global
-        // namespace's handler is the interp-wide default; unset reports
-        // `::unknown` (the default chain). Consulted by the dispatch miss
-        // path before the plain `unknown` proc.
-        "unknown" => match rest {
-            [] => ok(vm.ns_unknown_get().unwrap_or_else(Value::empty)),
-            [handler] => {
-                let length = match tcl_syntax::value::ValueOps::list_len(vm, handler) {
-                    Ok(length) => length,
-                    Err(error) => {
-                        return crate::command::completion_from_cmd_error(vm, error.into());
+            "path" => match rest {
+                [] => {
+                    let mut objects = Vec::new();
+                    for namespace in vm.ns_path_tokens() {
+                        match vm.native_namespace_result_object(
+                            namespace,
+                            tcl_syntax::native_namespace_name::NativeNamespaceObjectProducer::Path,
+                        ) {
+                            Ok(object) => objects.push(object),
+                            Err(error) => return vm.refuse_host_command(error.to_string()),
+                        }
                     }
-                };
-                vm.ns_unknown_set(handler.clone(), length);
-                ok(handler.clone())
+                    ok(tcl_syntax::value::ValueOps::new_list(vm, objects))
+                }
+                [list] => {
+                    let elems = match tcl_syntax::value::ValueOps::list_elements(vm, list) {
+                        Ok(elements) => elements,
+                        Err(error) => {
+                            return crate::command::completion_from_cmd_error(vm, error.into());
+                        }
+                    };
+                    // C resolves every entry with `TclGetNamespaceFromObj` *before*
+                    // installing the path (`NamespacePathCmd`), so an unresolvable
+                    // entry errors and leaves the old path in place.
+                    let mut path = Vec::with_capacity(elems.len());
+                    for e in &elems {
+                        match vm.namespace_object_lookup(e) {
+                            Ok(Some(namespace)) => path.push(namespace),
+                            Ok(None) => {
+                                let written = match original_names.read(vm, e) {
+                                    Ok(bytes) => bytes,
+                                    Err(error) => {
+                                        return crate::command::completion_from_cmd_error(
+                                            vm, error,
+                                        );
+                                    }
+                                };
+                                return vm.namespace_lookup_error_bytes(&written);
+                            }
+                            Err(error) => return vm.refuse_host_command(error.to_string()),
+                        }
+                    }
+                    vm.ns_path_set(path);
+                    ok(Value::empty())
+                }
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"namespace path ?nsList?\"",
+                ),
+            },
+            // `namespace forget ?pattern ...?` — remove previously imported commands
+            // matching each pattern from the current namespace.
+            "forget" => {
+                for p in rest {
+                    let bytes = match original_names.read(vm, p) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    };
+                    if let Err(error) = vm.forget_imports(&bytes) {
+                        return error;
+                    }
+                }
+                ok(Value::empty())
             }
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"namespace unknown ?script?\"",
-            ),
-        },
-        "upvar" => ns_upvar(vm, rest),
-        _ => unreachable!("every registry namespace subcommand has VM dispatch"),
+            "ensemble" => ns_ensemble(vm, sub, rest),
+            // `namespace unknown ?handler?` (TIP 181) — get/set the CURRENT
+            // namespace's resolution-miss handler (a command prefix). Handlers
+            // are per-namespace, NOT inherited by children; the global
+            // namespace's handler is the interp-wide default; unset reports
+            // `::unknown` (the default chain). Consulted by the dispatch miss
+            // path before the plain `unknown` proc.
+            "unknown" => match rest {
+                [] => ok(vm.ns_unknown_get().unwrap_or_else(Value::empty)),
+                [handler] => {
+                    let length = match tcl_syntax::value::ValueOps::list_len(vm, handler) {
+                        Ok(length) => length,
+                        Err(error) => {
+                            return crate::command::completion_from_cmd_error(vm, error.into());
+                        }
+                    };
+                    vm.ns_unknown_set(handler.clone(), length);
+                    ok(handler.clone())
+                }
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"namespace unknown ?script?\"",
+                ),
+            },
+            "upvar" => ns_upvar(vm, rest),
+            _ => unreachable!("every registry namespace subcommand has VM dispatch"),
+        }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 /// `namespace upvar ns ?otherVar myVar ...?` — link variables in `ns` into
 /// the active frame. Subcommand spelling and release availability are resolved
 /// from the registry above; this function owns only the storage operation.
 fn ns_upvar(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm.refuse_host_command("namespace upvar naming protocol is unavailable".into());
-    };
-    let Some(grammar) = vm
-        .actual_native_invocation_dialect()
-        .native_namespace_upvar_protocol()
-    else {
-        return vm.refuse_host_command("namespace upvar argument grammar is unavailable".into());
-    };
-    let arguments = match grammar.arguments(rest.len()) {
-        Ok(arguments) => arguments,
-        Err(usage) => return crate::command::native_wrong_args_bytes(vm, usage),
-    };
-    let namespace_bytes = match vm.native_name_operand_bytes(&rest[0]) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    if policy.recipe().is_jim084() {
-        let prefix = match vm.jim_namespace_upvar_target_bytes(&namespace_bytes, b"") {
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        let Some(policy) = vm.name_policy_protocol() else {
+            return vm.refuse_host_command("namespace upvar naming protocol is unavailable".into());
+        };
+        let Some(grammar) = vm
+            .actual_native_invocation_dialect()
+            .native_namespace_upvar_protocol()
+        else {
+            return vm
+                .refuse_host_command("namespace upvar argument grammar is unavailable".into());
+        };
+        let arguments = match grammar.arguments(rest.len()) {
+            Ok(arguments) => arguments,
+            Err(usage) => return crate::command::native_wrong_args_bytes(vm, usage),
+        };
+        let namespace_bytes = match original_names.read(vm, &rest[0]) {
             Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        if policy.recipe().is_jim084() {
+            let prefix = match vm.jim_namespace_upvar_target_bytes(&namespace_bytes, b"") {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            };
+            let mut argv = vec![Value::string("0")];
+            for (target_word, local_word) in arguments.pairs() {
+                let other = match original_names.read(vm, &rest[target_word]) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                let mut target = prefix.clone();
+                target.extend_from_slice(&other);
+                argv.push(Value::from_string_bytes(target));
+                argv.push(local_word.map_or_else(Value::empty, |word| rest[word].clone()));
+            }
+            return vm.invoke_command_in_lookup_namespace("::", "upvar", &argv);
+        }
+        let namespace = match vm.namespace_object_lookup(&rest[0]) {
+            Ok(Some(namespace)) => namespace,
+            Ok(None) => return vm.namespace_lookup_error_bytes(&namespace_bytes),
             Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
         };
-        let mut argv = vec![Value::string("0")];
         for (target_word, local_word) in arguments.pairs() {
-            let other = match vm.native_name_operand_bytes(&rest[target_word]) {
+            let local_word = local_word.expect("selected C grammar has complete pairs");
+            let local = match original_names.read(vm, &rest[local_word]) {
                 Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let local = match policy.recipe().namespace_upvar_local_input(&local) {
+                Ok(local) => Value::new_native_string_bytes(local.selected()),
                 Err(error) => return vm.refuse_host_command(error.to_string()),
             };
-            let mut target = prefix.clone();
-            target.extend_from_slice(&other);
-            argv.push(Value::from_string_bytes(target));
-            argv.push(local_word.map_or_else(Value::empty, |word| rest[word].clone()));
+            let selected_current = vm.native_namespace_token_has_owner(namespace);
+            if let Err(error) = original_names.require(
+                vm,
+                selected_current,
+                "selected original namespace upvar target",
+            ) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            if let Err(error) = vm.link_original_c_variable_objects(
+                &rest[target_word],
+                vm.current_level(),
+                Some(namespace),
+                &local,
+            ) {
+                return error;
+            }
         }
-        return vm.invoke_command_in_lookup_namespace("::", "upvar", &argv);
+        ok(Value::empty())
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    let namespace = match vm.namespace_object_lookup(&rest[0]) {
-        Ok(Some(namespace)) => namespace,
-        Ok(None) => return vm.namespace_lookup_error_bytes(&namespace_bytes),
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-    };
-    for (target_word, local_word) in arguments.pairs() {
-        let local_word = local_word.expect("selected C grammar has complete pairs");
-        let local = match vm.native_name_operand_bytes(&rest[local_word]) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let local = match policy.recipe().namespace_upvar_local_input(&local) {
-            Ok(local) => Value::new_native_string_bytes(local.selected()),
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        if let Err(error) = vm.link_original_c_variable_objects(
-            &rest[target_word],
-            vm.current_level(),
-            Some(namespace),
-            &local,
-        ) {
-            return error;
-        }
-    }
-    ok(Value::empty())
+    reached
 }
 
 fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    if rest.is_empty() {
-        return ok(Value::list(
-            vm.exports_get()
-                .into_iter()
-                .map(|bytes| Value::from_native_string_bytes(bytes.as_bytes()))
-                .collect(),
-        ));
-    }
-    let mut values = rest;
-    if let Some(first) = values.first() {
-        let bytes = match vm.native_name_operand_bytes(first) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        if bytes.as_ref() == b"-clear" {
-            vm.clear_exports();
-            values = &values[1..];
+    let reached = (|| {
+        if rest.is_empty() {
+            return ok(Value::list(
+                vm.exports_get()
+                    .into_iter()
+                    .map(|bytes| Value::from_native_string_bytes(bytes.as_bytes()))
+                    .collect(),
+            ));
         }
-    }
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm.refuse_host_command("native export protocol is unavailable".into());
-    };
-    if policy.recipe().is_jim084() {
-        return ok(Value::empty());
-    }
-    let mut patterns = Vec::new();
-    for value in values {
-        let bytes = match vm.native_name_operand_bytes(value) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let selected = match policy.recipe().namespace_pattern_input(
-            &bytes,
-            tcl_syntax::naming::NativeNamePurpose::NamespaceExportPattern,
-        ) {
-            Ok(selected) => tcl_core_types::NameBytes::from(selected.selected()),
-            Err(_) => {
-                return vm
-                    .refuse_host_command("native export pattern projection is unavailable".into());
+        let mut values = rest;
+        if let Some(first) = values.first() {
+            let bytes = match original_names.read(vm, first) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            if bytes.as_ref() == b"-clear" {
+                vm.clear_exports();
+                values = &values[1..];
             }
-        };
-        patterns.push(selected);
-    }
-    // `NamespaceExportCmd` calls `Tcl_Export` once per pattern and returns on
-    // the first failure, so the patterns before an invalid one are already
-    // committed — validation is NOT a batch gate. (`-clear` is committed
-    // earlier still: C spends a whole `Tcl_Export(…, "::", 1)` call on it,
-    // which resets the list and then fails its own qualifier check, an error
-    // `NamespaceExportCmd` deliberately discards with `Tcl_ResetResult`.)
-    // An export pattern names commands in the *current* namespace, so it may
-    // not carry a namespace qualifier.
-    for pattern in &patterns {
-        if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
-            let mut message = b"invalid export pattern \"".to_vec();
-            message.extend_from_slice(pattern.as_bytes());
-            message.extend_from_slice(b"\": pattern can't specify a namespace");
-            return crate::command::completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::CmdError::new_bytes(message),
-            );
         }
-        vm.add_exports(std::slice::from_ref(pattern));
+        let Some(policy) = vm.name_policy_protocol() else {
+            return vm.refuse_host_command("native export protocol is unavailable".into());
+        };
+        if policy.recipe().is_jim084() {
+            return ok(Value::empty());
+        }
+        let mut patterns = Vec::new();
+        for value in values {
+            let bytes = match original_names.read(vm, value) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let selected = match policy.recipe().namespace_pattern_input(
+                &bytes,
+                tcl_syntax::naming::NativeNamePurpose::NamespaceExportPattern,
+            ) {
+                Ok(selected) => tcl_core_types::NameBytes::from(selected.selected()),
+                Err(_) => {
+                    return vm.refuse_host_command(
+                        "native export pattern projection is unavailable".into(),
+                    );
+                }
+            };
+            patterns.push(selected);
+        }
+        // `NamespaceExportCmd` calls `Tcl_Export` once per pattern and returns on
+        // the first failure, so the patterns before an invalid one are already
+        // committed — validation is NOT a batch gate. (`-clear` is committed
+        // earlier still: C spends a whole `Tcl_Export(…, "::", 1)` call on it,
+        // which resets the list and then fails its own qualifier check, an error
+        // `NamespaceExportCmd` deliberately discards with `Tcl_ResetResult`.)
+        // An export pattern names commands in the *current* namespace, so it may
+        // not carry a namespace qualifier.
+        for pattern in &patterns {
+            if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
+                let mut message = b"invalid export pattern \"".to_vec();
+                message.extend_from_slice(pattern.as_bytes());
+                message.extend_from_slice(b"\": pattern can't specify a namespace");
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::new_bytes(message),
+                );
+            }
+            vm.add_exports(std::slice::from_ref(pattern));
+        }
+        ok(Value::empty())
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    ok(Value::empty())
+    reached
 }
 
 /// `namespace import ?-force? ?pattern ...?` (`NamespaceImportCmd` /
@@ -785,82 +896,98 @@ fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// and every later word is a pattern — including a trailing `-force`, which
 /// then fails the "the pattern must name a source namespace" check.
 fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    if vm.dialect_profile().namespace_import_binding()
-        == Some(tcl_dialect::NamespaceImportBinding::SourceName)
-    {
-        let operation =
-            match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
-                Ok(operation) => operation,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-        for pattern in rest {
-            let reached = tcl_syntax::value::ValueOps::native_string_bytes(vm, pattern);
-            if let Err(error) = operation.check(vm) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-            let original = match reached {
-                Ok(bytes) => bytes,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-            };
-            let result = vm.import_source_names(&original, &operation);
-            if let Err(error) = operation.check(vm) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-            if result.code != Code::Ok {
-                return result;
-            }
-        }
-        return ok(Value::empty());
-    }
-    if rest.is_empty() {
-        // The introspection form: the current namespace's imported commands.
-        return ok(Value::list(
-            vm.imported_command_tails()
-                .into_iter()
-                .map(|bytes| Value::from_native_string_bytes(bytes.as_bytes()))
-                .collect(),
-        ));
-    }
-    let mut words = Vec::new();
-    for value in rest {
-        match vm.native_name_operand_bytes(value) {
-            Ok(bytes) => words.push(bytes),
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        }
-    }
-    let allow_overwrite = words
-        .first()
-        .is_some_and(|bytes| bytes.as_ref() == b"-force");
-    for pattern in &words[usize::from(allow_overwrite)..] {
-        let destination = tcl_runtime_api::Namespaces::current(vm);
-        let Some(policy) = vm.name_policy_protocol() else {
-            return vm.refuse_host_command("native import protocol is unavailable".into());
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let Ok(projection) = policy.recipe().namespace_pattern_input(
-            pattern,
-            tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
-        ) else {
-            return vm
-                .refuse_host_command("native import pattern projection is unavailable".into());
-        };
-        let selected = projection.selected();
-        let qualifier = tcl_cmd_core::namespace::qualifiers(selected);
-        if let Err(error) =
-            tcl_runtime_api::Namespaces::find_namespace_bytes_checked(vm, destination, qualifier)
+    let reached = (|| {
+        if vm.dialect_profile().namespace_import_binding()
+            == Some(tcl_dialect::NamespaceImportBinding::SourceName)
         {
-            return crate::command::completion_from_cmd_error(
+            let operation =
+                match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+                    Ok(operation) => operation,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+            for pattern in rest {
+                let reached = tcl_syntax::value::ValueOps::native_string_bytes(vm, pattern);
+                if let Err(error) = operation.check(vm) {
+                    return crate::command::completion_from_cmd_error(vm, error);
+                }
+                let original = match reached {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return crate::command::completion_from_cmd_error(vm, error.into());
+                    }
+                };
+                let result = vm.import_source_names(&original, &operation);
+                if let Err(error) = operation.check(vm) {
+                    return crate::command::completion_from_cmd_error(vm, error);
+                }
+                if result.code != Code::Ok {
+                    return result;
+                }
+            }
+            return ok(Value::empty());
+        }
+        if rest.is_empty() {
+            // The introspection form: the current namespace's imported commands.
+            return ok(Value::list(
+                vm.imported_command_tails()
+                    .into_iter()
+                    .map(|bytes| Value::from_native_string_bytes(bytes.as_bytes()))
+                    .collect(),
+            ));
+        }
+        let mut words = Vec::new();
+        for value in rest {
+            match original_names.read(vm, value) {
+                Ok(bytes) => words.push(bytes),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            }
+        }
+        let allow_overwrite = words
+            .first()
+            .is_some_and(|bytes| bytes.as_ref() == b"-force");
+        for pattern in &words[usize::from(allow_overwrite)..] {
+            let destination = tcl_runtime_api::Namespaces::current(vm);
+            let Some(policy) = vm.name_policy_protocol() else {
+                return vm.refuse_host_command("native import protocol is unavailable".into());
+            };
+            let Ok(projection) = policy.recipe().namespace_pattern_input(
+                pattern,
+                tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+            ) else {
+                return vm
+                    .refuse_host_command("native import pattern projection is unavailable".into());
+            };
+            let selected = projection.selected();
+            let qualifier = tcl_cmd_core::namespace::qualifiers(selected);
+            if let Err(error) = tcl_runtime_api::Namespaces::find_namespace_bytes_checked(
                 vm,
-                tcl_cmd_core::CmdError::from(error),
-            );
+                destination,
+                qualifier,
+            ) {
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::from(error),
+                );
+            }
+            if let Err(problem) = tcl_cmd_core::namespace::import_pattern(vm, destination, selected)
+            {
+                return err(problem.message());
+            }
+            if let Err(problem) = vm.import_commands(pattern, allow_overwrite) {
+                return problem.completion(vm);
+            }
         }
-        if let Err(problem) = tcl_cmd_core::namespace::import_pattern(vm, destination, selected) {
-            return err(problem.message());
-        }
-        if let Err(problem) = vm.import_commands(pattern, allow_overwrite) {
-            return problem.completion(vm);
-        }
+        ok(Value::empty())
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    ok(Value::empty())
+    reached
 }
 
 /// `namespace ensemble create|exists|configure` (`TclNamespaceEnsembleCmd`,
@@ -868,85 +995,99 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `ensembleSubcommands` table, so `namespace ensemble cr` is `create` and a
 /// miss reads `bad subcommand "…": must be configure, create, or exists`.
 fn ns_ensemble(vm: &mut Vm, selector: &Value, rest: &[Value]) -> Completion<Value> {
-    if !rest.is_empty() {
-        let original = match vm.native_name_operand_bytes(selector) {
-            Ok(original) => original,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        if let Some(helper) = vm
-            .native_invocation_dialect()
-            .native_namespace_scripted_helper(&original)
-        {
-            let target = Value::from_native_string_bytes(helper);
-            return vm.invoke_command_value_at(
-                vm.current_ns_id(),
-                &target,
-                rest,
-                &[],
-                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-            );
-        }
-    }
-    if let Some(protocol) = vm
-        .native_invocation_dialect()
-        .native_ensemble_configuration_protocol()
-    {
-        let lifecycle = match vm.native_namespace_name_token(vm.current_ns_id()) {
-            Ok(token) => token.lifecycle(),
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        if !protocol.permits_namespace_lifecycle(lifecycle) {
-            return crate::command::completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::CmdError::with_error_code_bytes(
-                    b"tried to manipulate ensemble of deleted namespace".to_vec(),
-                    b"TCL ENSEMBLE DEAD".to_vec(),
-                ),
-            );
-        }
-    }
-
-    let Some((op, args)) = rest.split_first() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"namespace ensemble subcommand ?arg ...?\"",
-        );
-    };
-    let index = match vm.native_static_option_index(
-        op,
-        tcl_cmd_core::ensemble::SUBCOMMANDS.names(),
-        false,
-        "subcommand",
-    ) {
-        Ok(index) => index,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-    };
-    match index {
-        // configure
-        0 => ns_ensemble_configure(vm, args),
-        // create
-        1 => ns_ensemble_create(vm, args),
-        // exists
-        _ => match args {
-            [cmd] => {
-                let bytes = match vm.native_name_operand_bytes(cmd) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
-                };
-                match vm.lookup_command_bytes_checked(vm.current_ns_id(), &bytes) {
-                    Ok(command) => ok(Value::bool(matches!(
-                        command,
-                        Some((_, crate::command::Command::Ensemble(_)))
-                    ))),
-                    Err(error) => vm.refuse_host_command(error.to_string()),
-                }
+    let reached = (|| {
+        if !rest.is_empty() {
+            let original = match original_names.read(vm, selector) {
+                Ok(original) => original,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            if let Some(helper) = vm
+                .native_invocation_dialect()
+                .native_namespace_scripted_helper(&original)
+            {
+                let target = Value::from_native_string_bytes(helper);
+                return vm.invoke_command_value_at(
+                    vm.current_ns_id(),
+                    &target,
+                    rest,
+                    &[],
+                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                );
             }
-            _ => crate::command::native_wrong_arguments_message(
+        }
+        if let Some(protocol) = vm
+            .native_invocation_dialect()
+            .native_ensemble_configuration_protocol()
+        {
+            let lifecycle = match vm.native_namespace_name_token(vm.current_ns_id()) {
+                Ok(token) => token.lifecycle(),
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            };
+            if !protocol.permits_namespace_lifecycle(lifecycle) {
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::with_error_code_bytes(
+                        b"tried to manipulate ensemble of deleted namespace".to_vec(),
+                        b"TCL ENSEMBLE DEAD".to_vec(),
+                    ),
+                );
+            }
+        }
+
+        let Some((op, args)) = rest.split_first() else {
+            return crate::command::native_wrong_arguments_message(
                 vm,
-                "wrong # args: should be \"namespace ensemble exists cmdname\"",
-            ),
-        },
+                "wrong # args: should be \"namespace ensemble subcommand ?arg ...?\"",
+            );
+        };
+        let index = match vm.native_static_option_index(
+            op,
+            tcl_cmd_core::ensemble::SUBCOMMANDS.names(),
+            false,
+            "subcommand",
+        ) {
+            Ok(index) => index,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        if let Err(error) = original_names.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        match index {
+            // configure
+            0 => ns_ensemble_configure(vm, args),
+            // create
+            1 => ns_ensemble_create(vm, args),
+            // exists
+            _ => match args {
+                [cmd] => {
+                    let bytes = match original_names.read(vm, cmd) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    };
+                    match vm.lookup_command_bytes_checked(vm.current_ns_id(), &bytes) {
+                        Ok(command) => ok(Value::bool(matches!(
+                            command,
+                            Some((_, crate::command::Command::Ensemble(_)))
+                        ))),
+                        Err(error) => vm.refuse_host_command(error.to_string()),
+                    }
+                }
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"namespace ensemble exists cmdname\"",
+                ),
+            },
+        }
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 /// The mutable half of an ensemble definition — the options `create` and
@@ -992,72 +1133,83 @@ fn apply_shared_option(
     vm: &mut Vm,
     creating: bool,
 ) -> Result<(), Completion<Value>> {
-    use crate::command::native_ensemble_objects::NativeEnsembleRoot;
-    use tcl_cmd_core::ensemble::{EnsembleObjectRole, SharedOption};
-    let protocol = vm
-        .native_invocation_dialect()
-        .native_string_materialization(None)
-        .ok_or_else(|| vm.refuse_host_command("ensemble original configured objects".into()))?
-        .protocol();
-    match which {
-        SharedOption::Map => apply_ensemble_map(opts, val, vm, creating, protocol)?,
-        SharedOption::Subcommands => {
-            let elems = val
-                .native_object_list_elements(protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-            let names = elems
-                .iter()
-                .map(|value| {
-                    vm.native_name_operand_bytes(value)
-                        .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-            opts.subcommands = (!names.is_empty()).then_some(names);
-            opts.originals.subcommands = opts
-                .subcommands
-                .as_ref()
-                .map(|_| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
+    let original_names = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| {
+        use crate::command::native_ensemble_objects::NativeEnsembleRoot;
+        use tcl_cmd_core::ensemble::{EnsembleObjectRole, SharedOption};
+        let protocol = vm
+            .native_invocation_dialect()
+            .native_string_materialization(None)
+            .ok_or_else(|| vm.refuse_host_command("ensemble original configured objects".into()))?
+            .protocol();
+        match which {
+            SharedOption::Map => apply_ensemble_map(opts, val, vm, creating, protocol)?,
+            SharedOption::Subcommands => {
+                let elems = val
+                    .native_object_list_elements(protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                let names = elems
+                    .iter()
+                    .map(|value| {
+                        original_names
+                            .read(vm, value)
+                            .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                opts.subcommands = (!names.is_empty()).then_some(names);
+                opts.originals.subcommands = opts
+                    .subcommands
+                    .as_ref()
+                    .map(|_| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
+            }
+            SharedOption::Parameters => {
+                let elems = val
+                    .native_object_list_elements(protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                opts.parameters = elems
+                    .iter()
+                    .map(|value| {
+                        original_names
+                            .read(vm, value)
+                            .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                opts.originals.parameters = (!opts.parameters.is_empty())
+                    .then(|| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
+            }
+            SharedOption::Prefixes => {
+                opts.prefixes = tcl_syntax::value::ValueOps::as_bool(vm, val)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+            }
+            SharedOption::Unknown => {
+                let elements = val
+                    .native_object_list_elements(protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                let words = elements
+                    .iter()
+                    .map(|word| {
+                        original_names
+                            .read(vm, word)
+                            .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                opts.unknown = (!words.is_empty()).then_some(words);
+                opts.originals.unknown = opts
+                    .unknown
+                    .as_ref()
+                    .map(|_| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
+            }
         }
-        SharedOption::Parameters => {
-            let elems = val
-                .native_object_list_elements(protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-            opts.parameters = elems
-                .iter()
-                .map(|value| {
-                    vm.native_name_operand_bytes(value)
-                        .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-            opts.originals.parameters = (!opts.parameters.is_empty())
-                .then(|| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
-        }
-        SharedOption::Prefixes => {
-            opts.prefixes = tcl_syntax::value::ValueOps::as_bool(vm, val)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-        }
-        SharedOption::Unknown => {
-            let elements = val
-                .native_object_list_elements(protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-            let words = elements
-                .iter()
-                .map(|word| {
-                    vm.native_name_operand_bytes(word)
-                        .map(|bytes| tcl_core_types::NameBytes::from(bytes.as_ref()))
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-            opts.unknown = (!words.is_empty()).then_some(words);
-            opts.originals.unknown = opts
-                .unknown
-                .as_ref()
-                .map(|_| EnsembleObjectRole::new(NativeEnsembleRoot::pending(val)));
-        }
-    }
-    Ok(())
+        Ok(())
+    })();
+    original_names
+        .finish(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    reached
 }
 
 fn apply_ensemble_map(
@@ -1067,81 +1219,93 @@ fn apply_ensemble_map(
     creating: bool,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
 ) -> Result<(), Completion<Value>> {
-    use crate::command::native_ensemble_objects::NativeEnsembleRoot;
-    use tcl_cmd_core::ensemble::EnsembleObjectRole;
-    let mut search = val
-        .native_lifetime_lease()
-        .into_value()
-        .into_native_dictionary_search(protocol)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-    let mut patched = None;
-    let mut map = Vec::new();
-    while let Some((key, value)) = search
-        .next_original_pair()
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
-    {
-        let elements = value
-            .native_object_list_elements(protocol)
+    let original_names = crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = (|| {
+        use crate::command::native_ensemble_objects::NativeEnsembleRoot;
+        use tcl_cmd_core::ensemble::EnsembleObjectRole;
+        let mut search = val
+            .native_lifetime_lease()
+            .into_value()
+            .into_native_dictionary_search(protocol)
             .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-        if elements.is_empty() {
-            return Err(err_with_code(
-                "ensemble subcommand implementations must be non-empty lists",
-                "TCL ENSEMBLE EMPTY_TARGET",
-            ));
-        }
-        let original = vm
-            .native_name_operand_bytes(&elements[0])
-            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-        let mut prefix = None;
-        let selected = vm
-            .native_ensemble_map_prefix_input(tcl_runtime_api::Namespaces::current(vm), &original)
-            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-        if let std::borrow::Cow::Owned(qualified) = selected {
-            let mut words = elements.to_vec();
-            words[0] = Value::from_native_string_bytes(qualified);
-            let copy = if creating {
-                Value::native_list_constructor(elements.to_vec(), protocol)
-            } else {
-                value.duplicate_native_object_in(protocol)
-            };
-            let replacement = Value::native_list_replace_elements(&copy, &words, protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-            let root = patched.get_or_insert_with(|| val.duplicate_native_object_in(protocol));
-            let updated = root
-                .native_dictionary_set_member(key.clone(), replacement.clone(), protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-            *root = updated;
-            prefix = Some(replacement);
-        }
-        let name = vm
-            .native_name_operand_bytes(&key)
-            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-        let words = if let Some(prefix) = prefix {
-            prefix
+        let mut patched = None;
+        let mut map = Vec::new();
+        while let Some((key, value)) = search
+            .next_original_pair()
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+        {
+            let elements = value
                 .native_object_list_elements(protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
-        } else {
-            elements
-        };
-        let words = words
-            .iter()
-            .map(|word| {
-                vm.native_name_operand_bytes(word)
-                    .map(|bytes| Some(tcl_core_types::NameBytes::from(bytes.as_ref())))
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-        map.push((tcl_core_types::NameBytes::from(name.as_ref()), words));
-    }
-    drop(search);
-    opts.map = map;
-    opts.originals.map = (!opts.map.is_empty()).then(|| {
-        EnsembleObjectRole::new(patched.map_or_else(
-            || NativeEnsembleRoot::pending(val),
-            NativeEnsembleRoot::owned,
-        ))
-    });
-    Ok(())
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+            if elements.is_empty() {
+                return Err(err_with_code(
+                    "ensemble subcommand implementations must be non-empty lists",
+                    "TCL ENSEMBLE EMPTY_TARGET",
+                ));
+            }
+            let original = original_names
+                .read(vm, &elements[0])
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            let mut prefix = None;
+            let selected = vm
+                .native_ensemble_map_prefix_input(
+                    tcl_runtime_api::Namespaces::current(vm),
+                    &original,
+                )
+                .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+            if let std::borrow::Cow::Owned(qualified) = selected {
+                let mut words = elements.to_vec();
+                words[0] = Value::from_native_string_bytes(qualified);
+                let copy = if creating {
+                    Value::native_list_constructor(elements.to_vec(), protocol)
+                } else {
+                    value.duplicate_native_object_in(protocol)
+                };
+                let replacement = Value::native_list_replace_elements(&copy, &words, protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                let root = patched.get_or_insert_with(|| val.duplicate_native_object_in(protocol));
+                let updated = root
+                    .native_dictionary_set_member(key.clone(), replacement.clone(), protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                *root = updated;
+                prefix = Some(replacement);
+            }
+            let name = original_names
+                .read(vm, &key)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            let words = if let Some(prefix) = prefix {
+                prefix
+                    .native_object_list_elements(protocol)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+            } else {
+                elements
+            };
+            let words = words
+                .iter()
+                .map(|word| {
+                    original_names
+                        .read(vm, word)
+                        .map(|bytes| Some(tcl_core_types::NameBytes::from(bytes.as_ref())))
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            map.push((tcl_core_types::NameBytes::from(name.as_ref()), words));
+        }
+        drop(search);
+        opts.map = map;
+        opts.originals.map = (!opts.map.is_empty()).then(|| {
+            EnsembleObjectRole::new(patched.map_or_else(
+                || NativeEnsembleRoot::pending(val),
+                NativeEnsembleRoot::owned,
+            ))
+        });
+        Ok(())
+    })();
+    original_names
+        .finish(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    reached
 }
 
 /// `namespace ensemble create ?option value ...?` — build the ensemble command.
@@ -1185,81 +1349,119 @@ pub(crate) fn namespace_command_lookup_error(
 }
 
 fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    use crate::command::EnsembleDef;
-    let Some(options) = vm
-        .native_invocation_dialect()
-        .native_ensemble_configuration_protocol()
-    else {
-        return vm.refuse_host_command("ensemble configuration options".into());
-    };
-
-    if !args.len().is_multiple_of(2) {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"namespace ensemble create ?option value ...?\"",
-        );
-    }
-    let ns_id = tcl_runtime_api::Namespaces::current(vm);
-    let mut command: Option<std::rc::Rc<[u8]>> = None;
-    let mut opts = EnsembleOptions {
-        map: Vec::new(),
-        originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(),
-        subcommands: None,
-        prefixes: true,
-        parameters: Vec::new(),
-        unknown: None,
-    };
-    for pair in args.as_chunks::<2>().0 {
-        let resolved = match vm.native_static_option_index(
-            &pair[0],
-            options.create_options(),
-            false,
-            "option",
-        ) {
-            Ok(index) => options.create_option(index),
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let Some(shared) = resolved.shared() else {
-            // `-command` names the command rather than configuring it.
-            command = Some(match vm.native_name_operand_bytes(&pair[1]) {
-                Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            });
-            continue;
+    let reached = (|| {
+        use crate::command::EnsembleDef;
+        let Some(options) = vm
+            .native_invocation_dialect()
+            .native_ensemble_configuration_protocol()
+        else {
+            return vm.refuse_host_command("ensemble configuration options".into());
         };
-        if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, true) {
-            return completion;
+
+        if !args.len().is_multiple_of(2) {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"namespace ensemble create ?option value ...?\"",
+            );
         }
+        let ns_id = tcl_runtime_api::Namespaces::current(vm);
+        let mut command: Option<std::rc::Rc<[u8]>> = None;
+        let mut opts = EnsembleOptions {
+            map: Vec::new(),
+            originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(),
+            subcommands: None,
+            prefixes: true,
+            parameters: Vec::new(),
+            unknown: None,
+        };
+        for pair in args.as_chunks::<2>().0 {
+            let resolved = match vm.native_static_option_index(
+                &pair[0],
+                options.create_options(),
+                false,
+                "option",
+            ) {
+                Ok(index) => options.create_option(index),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let Some(shared) = resolved.shared() else {
+                // `-command` names the command rather than configuring it.
+                command = Some(match original_names.read(vm, &pair[1]) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                });
+                continue;
+            };
+            if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, true) {
+                return completion;
+            }
+        }
+        // The default command is the namespace itself; an explicit -command binds in
+        // the current namespace when unqualified.
+        let selected_current = vm.native_namespace_token_has_owner(ns_id);
+        if let Err(error) = original_names.require(
+            vm,
+            selected_current,
+            "selected original ensemble creation namespace",
+        ) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let slot = match vm.native_namespace_ensemble_publication_slot(command.as_deref()) {
+            Ok(slot) => slot,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        let mut reporting = b"::".to_vec();
+        reporting.extend_from_slice(&vm.command_slot_display_bytes(&slot));
+        let def = EnsembleDef {
+            originals: opts.originals,
+            native: None,
+            namespace: ns_id,
+            map: opts.map,
+            subcommands: opts.subcommands,
+            prefixes: opts.prefixes,
+            parameters: opts.parameters,
+            unknown: opts.unknown,
+        };
+        let token = std::rc::Rc::new(
+            tcl_cmd_core::ensemble::EnsembleToken::with_configuration_retirement(
+                def,
+                tcl_core_types::NameBytes::from(reporting.as_slice()),
+                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+                crate::command::native_ensemble_objects::retire_configuration,
+            ),
+        );
+        let selected_current = vm.native_namespace_token_has_owner(ns_id);
+        if let Err(error) = original_names.require(
+            vm,
+            selected_current,
+            "selected original ensemble holder before publication",
+        ) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        vm.register_namespace_ensemble_slot(slot, &token);
+        if let Err(error) = original_names.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let selected_current = !token.is_deleted() && vm.native_namespace_token_has_owner(ns_id);
+        if let Err(error) = original_names.require(
+            vm,
+            selected_current,
+            "selected original ensemble before object-role adoption",
+        ) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        token.config().originals.activate();
+        ok(Value::from_native_string_bytes(reporting))
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    // The default command is the namespace itself; an explicit -command binds in
-    // the current namespace when unqualified.
-    let slot = match vm.native_namespace_ensemble_publication_slot(command.as_deref()) {
-        Ok(slot) => slot,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let mut reporting = b"::".to_vec();
-    reporting.extend_from_slice(&vm.command_slot_display_bytes(&slot));
-    let def = EnsembleDef {
-        originals: opts.originals,
-        native: None,
-        namespace: ns_id,
-        map: opts.map,
-        subcommands: opts.subcommands,
-        prefixes: opts.prefixes,
-        parameters: opts.parameters,
-        unknown: opts.unknown,
-    };
-    let token = std::rc::Rc::new(
-        tcl_cmd_core::ensemble::EnsembleToken::with_configuration_retirement(
-            def,
-            tcl_core_types::NameBytes::from(reporting.as_slice()),
-            tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
-            crate::command::native_ensemble_objects::retire_configuration,
-        ),
-    );
-    vm.register_namespace_ensemble_slot(slot, &token);
-    token.config().originals.activate();
-    ok(Value::from_native_string_bytes(reporting))
+    reached
 }
 
 /// `namespace ensemble configure cmdname ?-option? ?value ...?`
@@ -1268,114 +1470,170 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `ensembleConfigOptions` differs from the create table — it carries
 /// `-namespace` (readable, never writable) and has no `-command`.
 fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    const USAGE: &str = "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
-    let Some(options) = vm
-        .native_invocation_dialect()
-        .native_ensemble_configuration_protocol()
-    else {
-        return vm.refuse_host_command("ensemble configuration options".into());
-    };
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        const USAGE: &str = "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
+        let Some(options) = vm
+            .native_invocation_dialect()
+            .native_ensemble_configuration_protocol()
+        else {
+            return vm.refuse_host_command("ensemble configuration options".into());
+        };
 
-    let Some((cmd_val, rest)) = args.split_first() else {
-        return crate::command::native_wrong_arguments_message(vm, USAGE);
-    };
-    // C's arity gate: one bare option word is a read, anything else must be
-    // `-option value` pairs.
-    if rest.len() > 1 && !rest.len().is_multiple_of(2) {
-        return crate::command::native_wrong_arguments_message(vm, USAGE);
-    }
-    let written = match vm.native_name_operand_bytes(cmd_val) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    // `Tcl_FindEnsemble` reports the two failures separately: a name that
-    // resolves to no command at all is `unknown command "x"` (the
-    // `Tcl_FindCommand` miss), while a name that *is* a command but carries a
-    // different implementation is `"x" is not an ensemble command`. Collapsing
-    // them into the second message misreports a plain typo.
-    let selected =
-        match vm.lookup_command_bytes_checked(tcl_runtime_api::Namespaces::current(vm), &written) {
+        let Some((cmd_val, rest)) = args.split_first() else {
+            return crate::command::native_wrong_arguments_message(vm, USAGE);
+        };
+        // C's arity gate: one bare option word is a read, anything else must be
+        // `-option value` pairs.
+        if rest.len() > 1 && !rest.len().is_multiple_of(2) {
+            return crate::command::native_wrong_arguments_message(vm, USAGE);
+        }
+        let written = match original_names.read(vm, cmd_val) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        // `Tcl_FindEnsemble` reports the two failures separately: a name that
+        // resolves to no command at all is `unknown command "x"` (the
+        // `Tcl_FindCommand` miss), while a name that *is* a command but carries a
+        // different implementation is `"x" is not an ensemble command`. Collapsing
+        // them into the second message misreports a plain typo.
+        let selected = match vm
+            .lookup_command_bytes_checked(tcl_runtime_api::Namespaces::current(vm), &written)
+        {
             Ok(selected) => selected,
             Err(error) => return vm.refuse_host_command(error.to_string()),
         };
-    let token = match selected {
-        Some((_, crate::command::Command::Ensemble(token))) => token,
-        Some(_) => {
-            return namespace_command_lookup_error(
+        let token = match selected {
+            Some((_, crate::command::Command::Ensemble(token))) => token,
+            Some(_) => {
+                return namespace_command_lookup_error(
+                    vm,
+                    &written,
+                    b"",
+                    b" is not an ensemble command",
+                    b"ENSEMBLE",
+                );
+            }
+            None => {
+                return namespace_command_lookup_error(
+                    vm,
+                    &written,
+                    b"unknown command ",
+                    b"",
+                    b"COMMAND",
+                );
+            }
+        };
+        let selected_current = !token.is_deleted();
+        if let Err(error) =
+            original_names.require(vm, selected_current, "selected original ensemble token")
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let def = token.config();
+        if rest.is_empty() {
+            return ensemble_configuration_snapshot(vm, &def, options);
+        }
+        if let [only] = rest {
+            return match vm.native_static_option_index(
+                only,
+                options.configure_options(),
+                false,
+                "option",
+            ) {
+                Ok(index) => {
+                    let selected_current =
+                        !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
+                    if let Err(error) = original_names.require(
+                        vm,
+                        selected_current,
+                        "selected original ensemble report target",
+                    ) {
+                        return crate::command::completion_from_cmd_error(vm, error);
+                    }
+                    match ensemble_option_value(vm, &def, options.configure_option(index)) {
+                        Ok(value) => ok(value),
+                        Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
+                    }
+                }
+                Err(error) => crate::command::completion_from_cmd_error(vm, error),
+            };
+        }
+        let mut opts = EnsembleOptions::from_def(&def);
+        // `apply_shared_option` qualifies relative `-map` targets against `vm`'s
+        // current namespace, which is what CONF_MAP wants here: it uses
+        // `TclGetCurrentNamespace(interp)` — the namespace current at the
+        // `configure` call, NOT the ensemble's own namespace (which CRT_MAP uses
+        // at create time). They coincide in the common
+        // `namespace eval M {namespace ensemble configure …}` shape, but
+        // configuring an ensemble from outside its namespace resolves relative
+        // targets against the caller.
+        for pair in rest.as_chunks::<2>().0 {
+            let resolved = match vm.native_static_option_index(
+                &pair[0],
+                options.configure_options(),
+                false,
+                "option",
+            ) {
+                Ok(index) => options.configure_option(index),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let selected_current =
+                !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
+            if let Err(error) = original_names.require(
                 vm,
-                &written,
-                b"",
-                b" is not an ensemble command",
-                b"ENSEMBLE",
-            );
+                selected_current,
+                "selected original ensemble target after option getter",
+            ) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let Some(shared) = resolved.shared() else {
+                return err_with_code("option -namespace is read-only", "TCL ENSEMBLE READ_ONLY");
+            };
+            if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, false) {
+                return completion;
+            }
         }
-        None => {
-            return namespace_command_lookup_error(
-                vm,
-                &written,
-                b"unknown command ",
-                b"",
-                b"COMMAND",
-            );
-        }
-    };
-    let def = token.config();
-    if rest.is_empty() {
-        return ensemble_configuration_snapshot(vm, &def, options);
-    }
-    if let [only] = rest {
-        return match vm.native_static_option_index(
-            only,
-            options.configure_options(),
-            false,
-            "option",
+        let selected_current =
+            !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
+        if let Err(error) = original_names.require(
+            vm,
+            selected_current,
+            "selected original ensemble target before adoption",
         ) {
-            Ok(index) => match ensemble_option_value(vm, &def, options.configure_option(index)) {
-                Ok(value) => ok(value),
-                Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
-            },
-            Err(error) => crate::command::completion_from_cmd_error(vm, error),
-        };
-    }
-    let mut opts = EnsembleOptions::from_def(&def);
-    // `apply_shared_option` qualifies relative `-map` targets against `vm`'s
-    // current namespace, which is what CONF_MAP wants here: it uses
-    // `TclGetCurrentNamespace(interp)` — the namespace current at the
-    // `configure` call, NOT the ensemble's own namespace (which CRT_MAP uses
-    // at create time). They coincide in the common
-    // `namespace eval M {namespace ensemble configure …}` shape, but
-    // configuring an ensemble from outside its namespace resolves relative
-    // targets against the caller.
-    for pair in rest.as_chunks::<2>().0 {
-        let resolved = match vm.native_static_option_index(
-            &pair[0],
-            options.configure_options(),
-            false,
-            "option",
-        ) {
-            Ok(index) => options.configure_option(index),
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        };
-        let Some(shared) = resolved.shared() else {
-            return err_with_code("option -namespace is read-only", "TCL ENSEMBLE READ_ONLY");
-        };
-        if let Err(completion) = apply_shared_option(&mut opts, shared, &pair[1], vm, false) {
-            return completion;
+            return crate::command::completion_from_cmd_error(vm, error);
         }
+        opts.originals.activate();
+        token.configure(crate::command::EnsembleDef {
+            originals: opts.originals,
+            native: def.native,
+            namespace: def.namespace,
+            map: opts.map,
+            subcommands: opts.subcommands,
+            prefixes: opts.prefixes,
+            parameters: opts.parameters,
+            unknown: opts.unknown,
+        });
+        let selected_current =
+            !token.is_deleted() && vm.native_namespace_token_has_owner(def.namespace);
+        if let Err(error) = original_names.require(
+            vm,
+            selected_current,
+            "selected original ensemble after configuration retirement",
+        ) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        vm.note_ensemble_configuration_changed(&token);
+        ok(Value::empty())
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    opts.originals.activate();
-    token.configure(crate::command::EnsembleDef {
-        originals: opts.originals,
-        native: def.native,
-        namespace: def.namespace,
-        map: opts.map,
-        subcommands: opts.subcommands,
-        prefixes: opts.prefixes,
-        parameters: opts.parameters,
-        unknown: opts.unknown,
-    });
-    vm.note_ensemble_configuration_changed(&token);
-    ok(Value::empty())
+    reached
 }
 
 fn ensemble_configuration_snapshot(
@@ -1474,49 +1732,61 @@ fn ensemble_option_value(
 
 /// Native namespace text reporting selects its purpose-specific input extent.
 fn ns_text_op(vm: &mut Vm, rest: &[Value], tail: bool) -> Completion<Value> {
-    use tcl_syntax::naming::NativeNamespaceTextResult;
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+    let reached = (|| {
+        use tcl_syntax::naming::NativeNamespaceTextResult;
 
-    let Some(original) = rest.first() else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            if tail {
-                "wrong # args: should be \"namespace tail string\""
-            } else {
-                "wrong # args: should be \"namespace qualifiers string\""
-            },
-        );
-    };
-    let bytes = match vm.native_name_operand_bytes(original) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm.refuse_host_command("native namespace text protocol is unavailable".into());
-    };
-    let result = match policy.recipe().namespace_text_result(&bytes, tail) {
-        NativeNamespaceTextResult::Original => original.clone(),
-        NativeNamespaceTextResult::Counted(bytes) => Value::from_native_string_bytes(bytes),
-        NativeNamespaceTextResult::Append(bytes) => {
-            let Some(append) = vm
-                .native_invocation_dialect()
-                .native_object_append_protocol(None)
-            else {
-                return vm
-                    .refuse_host_command("namespace text append protocol is unavailable".into());
-            };
-            let receiver = Value::new_native_string_bytes(b"".as_slice());
-            match tcl_cmd_core::native_append::append_counted_bytes(
-                &crate::value::VmAppendObjects,
-                append.recipe(),
-                &receiver,
-                bytes,
-            ) {
-                Ok(result) => result,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
+        let Some(original) = rest.first() else {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                if tail {
+                    "wrong # args: should be \"namespace tail string\""
+                } else {
+                    "wrong # args: should be \"namespace qualifiers string\""
+                },
+            );
+        };
+        let bytes = match original_names.read(vm, original) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let Some(policy) = vm.name_policy_protocol() else {
+            return vm.refuse_host_command("native namespace text protocol is unavailable".into());
+        };
+        let result = match policy.recipe().namespace_text_result(&bytes, tail) {
+            NativeNamespaceTextResult::Original => original.clone(),
+            NativeNamespaceTextResult::Counted(bytes) => Value::from_native_string_bytes(bytes),
+            NativeNamespaceTextResult::Append(bytes) => {
+                let Some(append) = vm
+                    .native_invocation_dialect()
+                    .native_object_append_protocol(None)
+                else {
+                    return vm.refuse_host_command(
+                        "namespace text append protocol is unavailable".into(),
+                    );
+                };
+                let receiver = Value::new_native_string_bytes(b"".as_slice());
+                match tcl_cmd_core::native_append::append_counted_bytes(
+                    &crate::value::VmAppendObjects,
+                    append.recipe(),
+                    &receiver,
+                    bytes,
+                ) {
+                    Ok(result) => result,
+                    Err(error) => return vm.refuse_host_command(error.to_string()),
+                }
             }
-        }
-    };
-    ok(result)
+        };
+        ok(result)
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    reached
 }
 
 fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {

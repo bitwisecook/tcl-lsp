@@ -195,480 +195,513 @@ fn canonical_info_sub<'a>(subs: &[&'a str], sub: &[u8]) -> Option<&'a str> {
 
 #[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
 fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let subs = crate::environment::release_subcommands(
-        vm.actual_native_execution_profile().name,
-        "info",
-        INFO_SUBS,
-    );
-    let (canon, rest) = if let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_jim_info_protocol()
-    {
-        let Some(head) = vm.invoked_name_value() else {
-            return vm.refuse_host_command("original Jim info invocation is unavailable".into());
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let mut original = Vec::with_capacity(args.len() + 1);
-        original.push(head);
-        original.extend_from_slice(args);
-        let dispatch = match protocol.dispatch(original.len(), |index| {
-            vm.native_name_operand_bytes(&original[index])
-        }) {
-            Ok(dispatch) => dispatch,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        match dispatch {
-            tcl_registry::commands::tcl::NativeJimInfoDispatch::Member {
-                name,
-                arguments,
-                scope,
-                ..
-            } => {
-                if let Some(kind) = protocol.command_inventory_kind(name) {
-                    return native_jim::command_inventory(
-                        vm,
-                        scope,
-                        &original[arguments - 1..],
-                        kind,
-                    );
-                }
-                (name, &args[arguments - 1..])
-            }
-            tcl_registry::commands::tcl::NativeJimInfoDispatch::Report(report) => {
-                return native_jim::report(vm, protocol, report, &original);
-            }
-        }
-    } else {
-        let Some((sub, rest)) = args.split_first() else {
-            let Some(head) = vm.invoked_name_value() else {
-                return vm.refuse_host_command("original info invocation is unavailable".into());
-            };
-            let mut usage = match vm.native_argument_usage_header(std::slice::from_ref(&head)) {
-                Ok(usage) => usage,
-                Err(error) => return error,
-            };
-            let suffix = vm
-                .native_invocation_dialect()
-                .native_info_original_missing_selector_usage()
-                .unwrap_or(b"subcommand ?arg ...?");
-            usage.push(b' ');
-            usage.extend_from_slice(suffix);
-            return crate::command::native_wrong_args_bytes(vm, &usage);
-        };
-        let canon = if vm
-            .native_invocation_dialect()
-            .native_info_original_option_protocol()
-            .is_some()
+    let reached = (|| {
+        let subs = crate::environment::release_subcommands(
+            vm.actual_native_execution_profile().name,
+            "info",
+            INFO_SUBS,
+        );
+        let (canon, rest) = if let Some(protocol) = vm
+            .actual_native_invocation_dialect()
+            .native_jim_info_protocol()
         {
-            let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", subs);
-            match table.index_of_original(vm, sub) {
-                Ok(index) => subs[index],
-                Err(error) => return completion_from_cmd_error(vm, error),
+            let Some(head) = vm.invoked_name_value() else {
+                return vm
+                    .refuse_host_command("original Jim info invocation is unavailable".into());
+            };
+            let mut original = Vec::with_capacity(args.len() + 1);
+            original.push(head);
+            original.extend_from_slice(args);
+            let dispatch = match protocol.dispatch(original.len(), |index| {
+                original_names.read(vm, &original[index])
+            }) {
+                Ok(dispatch) => dispatch,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            match dispatch {
+                tcl_registry::commands::tcl::NativeJimInfoDispatch::Member {
+                    name,
+                    arguments,
+                    scope,
+                    ..
+                } => {
+                    if let Some(kind) = protocol.command_inventory_kind(name) {
+                        return native_jim::command_inventory(
+                            vm,
+                            scope,
+                            &original[arguments - 1..],
+                            kind,
+                        );
+                    }
+                    (name, &args[arguments - 1..])
+                }
+                tcl_registry::commands::tcl::NativeJimInfoDispatch::Report(report) => {
+                    return native_jim::report(vm, protocol, report, &original);
+                }
             }
         } else {
-            let sub_bytes = match vm.native_name_operand_bytes(sub) {
-                Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            let Some(canon) = canonical_info_sub(subs, &sub_bytes) else {
-                return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
-                    subs, &sub_bytes, true, INFO_NS,
-                ));
-            };
-            canon
-        };
-        (canon, rest)
-    };
-    match canon {
-        "alias" => match rest {
-            [original_name] => match tcl_cmd_core::info::jim_original_alias(vm, original_name) {
-                Ok(original) => ok(original),
-                Err(error) => completion_from_cmd_error(vm, error),
-            },
-            _ => vm.refuse_host_command("selected Jim alias arity".into()),
-        },
-        // `info exists varName` — the shared Family-B core over `VarStore::exists`.
-        "exists" => match rest {
-            [name] => {
-                if vm.native_c_variable_name_protocol().is_some() {
-                    return match vm.exists_original_c_parts(name, None) {
-                        Ok(found) => match vm.original_existence_result(found) {
-                            Ok(value) => ok(value),
-                            Err(failure) => failure,
-                        },
-                        Err(failure) => failure,
-                    };
-                }
-                // `info exists` fires read traces first (a trace may create the
-                // variable — tcltest's lazy `SafeFetch` constraint init relies
-                // on this); a trace error does not abort the existence check.
-                let name = match vm.native_name_operand_bytes(name) {
-                    Ok(bytes) => bytes,
-                    Err(error) => {
-                        return vm
-                            .refuse_host_command(format!("variable name is unavailable: {error}"));
-                    }
+            let Some((sub, rest)) = args.split_first() else {
+                let Some(head) = vm.invoked_name_value() else {
+                    return vm
+                        .refuse_host_command("original info invocation is unavailable".into());
                 };
-                if vm.observed_name_policy_selected() {
-                    return match vm.observed_variable_exists(&name, vm.current_level()) {
-                        Ok(found) => ok(Value::bool(found)),
-                        Err(error) => vm.refuse_host_command(format!(
-                            "observed variable storage is unavailable: {error}"
-                        )),
-                    };
+                let mut usage = match vm.native_argument_usage_header(std::slice::from_ref(&head)) {
+                    Ok(usage) => usage,
+                    Err(error) => return error,
+                };
+                let suffix = vm
+                    .native_invocation_dialect()
+                    .native_info_original_missing_selector_usage()
+                    .unwrap_or(b"subcommand ?arg ...?");
+                usage.push(b' ');
+                usage.extend_from_slice(suffix);
+                return crate::command::native_wrong_args_bytes(vm, &usage);
+            };
+            let canon = if vm
+                .native_invocation_dialect()
+                .native_info_original_option_protocol()
+                .is_some()
+            {
+                let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", subs);
+                match table.index_of_original(vm, sub) {
+                    Ok(index) => subs[index],
+                    Err(error) => return completion_from_cmd_error(vm, error),
                 }
-                match vm.exists_var_traced_bytes(&name) {
-                    Ok(found) => ok(Value::bool(found)),
-                    Err(first) => {
-                        vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
+            } else {
+                let sub_bytes = match original_names.read(vm, sub) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                let Some(canon) = canonical_info_sub(subs, &sub_bytes) else {
+                    return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+                        subs, &sub_bytes, true, INFO_NS,
+                    ));
+                };
+                canon
+            };
+            (canon, rest)
+        };
+        if let Err(error) = original_names.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        match canon {
+            "alias" => match rest {
+                [original_name] => {
+                    match tcl_cmd_core::info::jim_original_alias(vm, original_name) {
+                        Ok(original) => ok(original),
+                        Err(error) => completion_from_cmd_error(vm, error),
                     }
                 }
-            }
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info exists varName\"",
-            ),
-        },
-        "complete" => match rest {
-            [script] => {
-                // String worker grammar and the CLI's Document configuration
-                // retain their independent actual purposes.
-                let config = vm
-                    .lexer_config()
-                    .with_grammar(vm.actual_native_invocation_dialect().lexer_grammar);
-                match tcl_cmd_core::info::complete_value(vm, script, config) {
-                    Ok(value) => ok(value),
-                    Err(error) => completion_from_cmd_error(vm, error),
-                }
-            }
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info complete command\"",
-            ),
-        },
-        // `info level ?number?` — the shared Family-B core over `Introspect`
-        // (`tcl_cmd_core::info::level`); the VM is a thin adapter mapping
-        // `Result<Value, CmdError>` onto its completion ABI.
-        "level" => {
-            let number = match rest {
-                [] => None,
-                [n] => Some(n),
-                _ => {
-                    return crate::command::native_wrong_arguments_message(
-                        vm,
-                        "wrong # args: should be \"info level ?number?\"",
-                    );
-                }
-            };
-            let dialect = vm.actual_native_invocation_dialect();
-            let result = if dialect.native_error_log_protocol().is_some()
-                && dialect
-                    .tcl_version
-                    .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
-            {
-                vm.native_info_level(number)
-            } else {
-                tcl_cmd_core::info::level(vm, number)
-            };
-            match result {
-                Ok(v) => ok(v),
-                Err(e) => crate::command::completion_from_cmd_error(vm, e),
-            }
-        }
-        // commands/procs route through the shared namespace-aware core (over the
-        // `Namespaces` enumeration rungs), which gives the VM correct qualified
-        // patterns + global-scope visibility.
-        "commands" => info_command_listing(vm, rest, args.first(), false),
-        "procs" => info_command_listing(vm, rest, args.first(), true),
-        // vars/locals/globals route through the shared variable-listing cores
-        // (namespace-aware over `Namespaces::vars_in` + the active-frame
-        // `Frames::var_names`/`in_proc`). This splits `vars` from `locals` (aliasing
-        // them would drop `info vars`'s links in a proc) and
-        // gives `info globals` the global-namespace-only filter.
-        "vars" => match tcl_cmd_core::info::vars(vm, rest.first()) {
-            Ok(value) => ok(value),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error),
-        },
-        "locals" => match tcl_cmd_core::info::locals(vm, rest.first()) {
-            Ok(value) => ok(value),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error),
-        },
-        "globals" => match tcl_cmd_core::info::globals(vm, rest.first()) {
-            Ok(value) => ok(value),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error),
-        },
-        // `info constant name` — whether `name` is a `const`; `info consts
-        // ?pattern?` — the constant names in scope (glob-filtered).
-        "constant" => match rest {
-            [name] => match vm.native_name_operand_bytes(name) {
-                Ok(bytes) => ok(Value::bool(vm.is_constant(&bytes))),
-                Err(error) => vm.refuse_host_command(error.to_string()),
+                _ => vm.refuse_host_command("selected Jim alias arity".into()),
             },
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info constant varname\"",
-            ),
-        },
-        "consts" => match rest {
-            [] | [_] => match tcl_cmd_core::info::consts(vm, rest.first()) {
-                Ok(value) => ok(value),
-                Err(error) => completion_from_cmd_error(vm, error),
-            },
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info consts ?pattern?\"",
-            ),
-        },
-        // body/args/default route through the shared `info` core over the `Procs`
-        // role trait; the var-write for `default` stays here (it is trace-aware).
-        "body" => match rest {
-            [name] => match tcl_cmd_core::info::body(vm, name) {
-                Ok(v) => ok(v),
-                Err(e) => crate::command::completion_from_cmd_error(vm, e),
-            },
-            _ => crate::command::native_wrong_args(vm, "info body procname"),
-        },
-        "args" => match rest {
-            [name] => match tcl_cmd_core::info::args(vm, name) {
-                Ok(v) => ok(v),
-                Err(e) => crate::command::completion_from_cmd_error(vm, e),
-            },
-            _ => crate::command::native_wrong_args(vm, "info args procname"),
-        },
-        "default" => match rest {
-            [name, arg, var] => match tcl_cmd_core::info::default(vm, name, arg) {
-                Ok((val, has)) => {
-                    let var = match vm.native_name_operand_bytes(var) {
-                        Ok(name) => name,
+            // `info exists varName` — the shared Family-B core over `VarStore::exists`.
+            "exists" => match rest {
+                [name] => {
+                    if vm.native_c_variable_name_protocol().is_some() {
+                        return match vm.exists_original_c_parts(name, None) {
+                            Ok(found) => match vm.original_existence_result(found) {
+                                Ok(value) => ok(value),
+                                Err(failure) => failure,
+                            },
+                            Err(failure) => failure,
+                        };
+                    }
+                    // `info exists` fires read traces first (a trace may create the
+                    // variable — tcltest's lazy `SafeFetch` constraint init relies
+                    // on this); a trace error does not abort the existence check.
+                    let name = match original_names.read(vm, name) {
+                        Ok(bytes) => bytes,
                         Err(error) => {
-                            return vm.refuse_host_command(format!(
-                                "default output name is unavailable: {error}"
-                            ));
+                            return crate::command::completion_from_cmd_error(vm, error);
                         }
                     };
-                    if let Err(error) = vm.set_var_bytes(&var, val) {
-                        return error;
+                    if vm.observed_name_policy_selected() {
+                        return match vm.observed_variable_exists(&name, vm.current_level()) {
+                            Ok(found) => ok(Value::bool(found)),
+                            Err(error) => vm.refuse_host_command(format!(
+                                "observed variable storage is unavailable: {error}"
+                            )),
+                        };
                     }
-                    ok(Value::bool(has))
-                }
-                Err(e) => crate::command::completion_from_cmd_error(vm, e),
-            },
-            _ => crate::command::native_wrong_args(vm, "info default procname arg varname"),
-        },
-        "tclversion" | "patchlevel" | "version" => info_version_report(vm, rest, canon),
-        "sharedlibextension" => match rest {
-            [] => ok(Value::string(
-                tcl_platform::bootstrap::SHARED_LIBRARY_EXTENSION,
-            )),
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info sharedlibextension\"",
-            ),
-        },
-        // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.
-        "functions" => info_functions_impl(vm, rest),
-        // The empty original list denotes this interpreter. Each reached child
-        // element uses the shared original-list/C-string path owner.
-        "loaded" => {
-            let (path, prefix) = match rest {
-                [] => (None, None),
-                [path] => (Some(path), None),
-                [path, prefix] => (Some(path), Some(prefix)),
-                _ => return crate::command::native_wrong_args(vm, "info loaded ?interp? ?prefix?"),
-            };
-            if let Some(path) = path {
-                let selected = match vm.resolve_interp_path_original(path) {
-                    Ok(selected) => selected,
-                    Err(error) => return error,
-                };
-                if !vm.interp_is_current(selected) {
-                    return vm.refuse_host_command("foreign loaded-library inventory".into());
-                }
-            }
-            let libraries = vm.loaded_libraries();
-            match prefix {
-                Some(prefix) => ok(libraries
-                    .iter()
-                    .find(|(_, loaded)| loaded.as_bytes() == prefix.to_str().as_bytes())
-                    .map_or_else(Value::empty, |(file, _)| Value::string(file.as_str()))),
-                None => ok(Value::list(
-                    libraries
-                        .iter()
-                        .map(|(file, prefix)| {
-                            Value::list(vec![
-                                Value::string(file.as_str()),
-                                Value::string(prefix.as_str()),
-                            ])
-                        })
-                        .collect(),
-                )),
-            }
-        }
-
-        // `info cmdtype commandName` — native / proc / alias (interp/object kinds
-        // need those subsystems).
-        "cmdtype" => match rest {
-            [name] => {
-                let bytes = match vm.native_name_operand_bytes(name) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
-                };
-                match vm.command_kind_bytes_checked(&bytes) {
-                    Ok(Some(kind)) => ok(Value::string(kind)),
-                    Ok(None) => completion_from_cmd_error(
-                        vm,
-                        tcl_cmd_core::CmdError::new_bytes(
-                            [b"unknown command \"".as_slice(), &bytes, b"\""].concat(),
+                    match vm.exists_var_traced_bytes(&name) {
+                        Ok(found) => ok(Value::bool(found)),
+                        Err(first) => vm.refuse_tcl_host_failure(
+                            crate::error::TclHostFailure::Execution(first),
                         ),
-                    ),
-                    Err(error) => vm.refuse_host_command(error.to_string()),
+                    }
+                }
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info exists varName\"",
+                ),
+            },
+            "complete" => match rest {
+                [script] => {
+                    // String worker grammar and the CLI's Document configuration
+                    // retain their independent actual purposes.
+                    let config = vm
+                        .lexer_config()
+                        .with_grammar(vm.actual_native_invocation_dialect().lexer_grammar);
+                    match tcl_cmd_core::info::complete_value(vm, script, config) {
+                        Ok(value) => ok(value),
+                        Err(error) => completion_from_cmd_error(vm, error),
+                    }
+                }
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info complete command\"",
+                ),
+            },
+            // `info level ?number?` — the shared Family-B core over `Introspect`
+            // (`tcl_cmd_core::info::level`); the VM is a thin adapter mapping
+            // `Result<Value, CmdError>` onto its completion ABI.
+            "level" => {
+                let number = match rest {
+                    [] => None,
+                    [n] => Some(n),
+                    _ => {
+                        return crate::command::native_wrong_arguments_message(
+                            vm,
+                            "wrong # args: should be \"info level ?number?\"",
+                        );
+                    }
+                };
+                let dialect = vm.actual_native_invocation_dialect();
+                let result = if dialect.native_error_log_protocol().is_some()
+                    && dialect
+                        .tcl_version
+                        .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
+                {
+                    vm.native_info_level(number)
+                } else {
+                    tcl_cmd_core::info::level(vm, number)
+                };
+                match result {
+                    Ok(v) => ok(v),
+                    Err(e) => crate::command::completion_from_cmd_error(vm, e),
                 }
             }
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info cmdtype commandName\"",
-            ),
-        },
-        // `info library` is the script library directory — the `::tcl_library`
-        // global the bootstrap seeds from `$env(TCL_LIBRARY)`. Read it as a
-        // global (the `::` prefix): C's `info library` returns the global
-        // regardless of the calling frame, so library procs (`::tcl::tm::path`,
-        // the Safe Base) reach it from inside a namespace/proc.
-        "library" => match vm.get_var("::tcl_library") {
-            Some(v) if !v.to_str().is_empty() => ok(v),
-            _ => err("no library has been specified for Tcl"),
-        },
-        "script"
-            if vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) =>
-        {
-            if rest.len() > 1 {
-                return crate::command::native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"info script ?filename?\"",
-                );
-            }
-            let context = match vm.native_jim_object_context() {
-                Ok(context) => context,
-                Err(error) => return crate::command::completion_from_tcl_error(vm, error.into()),
-            };
-            if let Some(value) = rest.first()
-                && let Err(error) = context.replace_current_filename(value)
-            {
-                return crate::command::completion_from_tcl_error(vm, error.into());
-            }
-            let result = context.current_filename_object();
-            context.publish_result(&result);
-            ok(result)
-        }
-        "script" => ok(Value::string(vm.current_script())),
-        "nameofexecutable" => ok(Value::empty()),
-        // TclOO introspection — dispatched into the object system.
-        "object" => crate::cmd_oo::info_object(vm, rest),
-        "class" => crate::cmd_oo::info_class(vm, rest),
-        // `info coroutine` — the running coroutine's name, or "" at top level.
-        "coroutine" => match rest {
-            [] => ok(crate::cmd_coro::current_coroutine(vm)),
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info coroutine\"",
-            ),
-        },
-        // TIP 348 (Tcl 8.6+). Availability is already filtered through the
-        // registry-derived release subcommand set above; the state lives on
-        // the selected interpreter, so child access uses the ordinary arena.
-        "stacktrace" => match rest {
-            [] => ok(vm.jim_stacktrace()),
-            _ => crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info stacktrace\"",
-            ),
-        },
-        "errorstack" => {
-            let id = match rest {
-                [] => None,
-                [path] => match vm.resolve_interp_path_original(path) {
-                    Ok(id) => Some(id),
-                    Err(error) => return error,
+            // commands/procs route through the shared namespace-aware core (over the
+            // `Namespaces` enumeration rungs), which gives the VM correct qualified
+            // patterns + global-scope visibility.
+            "commands" => info_command_listing(vm, rest, args.first(), false),
+            "procs" => info_command_listing(vm, rest, args.first(), true),
+            // vars/locals/globals route through the shared variable-listing cores
+            // (namespace-aware over `Namespaces::vars_in` + the active-frame
+            // `Frames::var_names`/`in_proc`). This splits `vars` from `locals` (aliasing
+            // them would drop `info vars`'s links in a proc) and
+            // gives `info globals` the global-namespace-only filter.
+            "vars" => match tcl_cmd_core::info::vars(vm, rest.first()) {
+                Ok(value) => ok(value),
+                Err(error) => crate::command::completion_from_cmd_error(vm, error),
+            },
+            "locals" => match tcl_cmd_core::info::locals(vm, rest.first()) {
+                Ok(value) => ok(value),
+                Err(error) => crate::command::completion_from_cmd_error(vm, error),
+            },
+            "globals" => match tcl_cmd_core::info::globals(vm, rest.first()) {
+                Ok(value) => ok(value),
+                Err(error) => crate::command::completion_from_cmd_error(vm, error),
+            },
+            // `info constant name` — whether `name` is a `const`; `info consts
+            // ?pattern?` — the constant names in scope (glob-filtered).
+            "constant" => match rest {
+                [name] => match original_names.read(vm, name) {
+                    Ok(bytes) => ok(Value::bool(vm.is_constant(&bytes))),
+                    Err(error) => crate::command::completion_from_cmd_error(vm, error),
                 },
-                _ => {
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info constant varname\"",
+                ),
+            },
+            "consts" => match rest {
+                [] | [_] => match tcl_cmd_core::info::consts(vm, rest.first()) {
+                    Ok(value) => ok(value),
+                    Err(error) => completion_from_cmd_error(vm, error),
+                },
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info consts ?pattern?\"",
+                ),
+            },
+            // body/args/default route through the shared `info` core over the `Procs`
+            // role trait; the var-write for `default` stays here (it is trace-aware).
+            "body" => match rest {
+                [name] => match tcl_cmd_core::info::body(vm, name) {
+                    Ok(v) => ok(v),
+                    Err(e) => crate::command::completion_from_cmd_error(vm, e),
+                },
+                _ => crate::command::native_wrong_args(vm, "info body procname"),
+            },
+            "args" => match rest {
+                [name] => match tcl_cmd_core::info::args(vm, name) {
+                    Ok(v) => ok(v),
+                    Err(e) => crate::command::completion_from_cmd_error(vm, e),
+                },
+                _ => crate::command::native_wrong_args(vm, "info args procname"),
+            },
+            "default" => match rest {
+                [name, arg, var] => match tcl_cmd_core::info::default(vm, name, arg) {
+                    Ok((val, has)) => {
+                        let var = match original_names.read(vm, var) {
+                            Ok(name) => name,
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error);
+                            }
+                        };
+                        if let Err(error) = vm.set_var_bytes(&var, val) {
+                            return error;
+                        }
+                        ok(Value::bool(has))
+                    }
+                    Err(e) => crate::command::completion_from_cmd_error(vm, e),
+                },
+                _ => crate::command::native_wrong_args(vm, "info default procname arg varname"),
+            },
+            "tclversion" | "patchlevel" | "version" => info_version_report(vm, rest, canon),
+            "sharedlibextension" => match rest {
+                [] => ok(Value::string(
+                    tcl_platform::bootstrap::SHARED_LIBRARY_EXTENSION,
+                )),
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info sharedlibextension\"",
+                ),
+            },
+            // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.
+            "functions" => info_functions_impl(vm, rest),
+            // The empty original list denotes this interpreter. Each reached child
+            // element uses the shared original-list/C-string path owner.
+            "loaded" => {
+                let (path, prefix) = match rest {
+                    [] => (None, None),
+                    [path] => (Some(path), None),
+                    [path, prefix] => (Some(path), Some(prefix)),
+                    _ => {
+                        return crate::command::native_wrong_args(
+                            vm,
+                            "info loaded ?interp? ?prefix?",
+                        );
+                    }
+                };
+                if let Some(path) = path {
+                    let selected = match vm.resolve_interp_path_original(path) {
+                        Ok(selected) => selected,
+                        Err(error) => return error,
+                    };
+                    if !vm.interp_is_current(selected) {
+                        return vm.refuse_host_command("foreign loaded-library inventory".into());
+                    }
+                }
+                let libraries = vm.loaded_libraries();
+                match prefix {
+                    Some(prefix) => ok(libraries
+                        .iter()
+                        .find(|(_, loaded)| loaded.as_bytes() == prefix.to_str().as_bytes())
+                        .map_or_else(Value::empty, |(file, _)| Value::string(file.as_str()))),
+                    None => ok(Value::list(
+                        libraries
+                            .iter()
+                            .map(|(file, prefix)| {
+                                Value::list(vec![
+                                    Value::string(file.as_str()),
+                                    Value::string(prefix.as_str()),
+                                ])
+                            })
+                            .collect(),
+                    )),
+                }
+            }
+
+            // `info cmdtype commandName` — native / proc / alias (interp/object kinds
+            // need those subsystems).
+            "cmdtype" => match rest {
+                [name] => {
+                    let bytes = match original_names.read(vm, name) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    };
+                    match vm.command_kind_bytes_checked(&bytes) {
+                        Ok(Some(kind)) => ok(Value::string(kind)),
+                        Ok(None) => completion_from_cmd_error(
+                            vm,
+                            tcl_cmd_core::CmdError::new_bytes(
+                                [b"unknown command \"".as_slice(), &bytes, b"\""].concat(),
+                            ),
+                        ),
+                        Err(error) => vm.refuse_host_command(error.to_string()),
+                    }
+                }
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info cmdtype commandName\"",
+                ),
+            },
+            // `info library` is the script library directory — the `::tcl_library`
+            // global the bootstrap seeds from `$env(TCL_LIBRARY)`. Read it as a
+            // global (the `::` prefix): C's `info library` returns the global
+            // regardless of the calling frame, so library procs (`::tcl::tm::path`,
+            // the Safe Base) reach it from inside a namespace/proc.
+            "library" => match vm.get_var("::tcl_library") {
+                Some(v) if !v.to_str().is_empty() => ok(v),
+                _ => err("no library has been specified for Tcl"),
+            },
+            "script"
+                if vm
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) =>
+            {
+                if rest.len() > 1 {
                     return crate::command::native_wrong_arguments_message(
                         vm,
-                        "wrong # args: should be \"info errorstack ?interp?\"",
+                        "wrong # args: should be \"info script ?filename?\"",
                     );
                 }
-            };
-            match id {
-                Some(id) => ok(vm.in_interp(id, |target| target.error_stack_value())),
-                None => ok(vm.error_stack_value()),
+                let context = match vm.native_jim_object_context() {
+                    Ok(context) => context,
+                    Err(error) => {
+                        return crate::command::completion_from_tcl_error(vm, error.into());
+                    }
+                };
+                if let Some(value) = rest.first()
+                    && let Err(error) = context.replace_current_filename(value)
+                {
+                    return crate::command::completion_from_tcl_error(vm, error.into());
+                }
+                let result = context.current_filename_object();
+                context.publish_result(&result);
+                ok(result)
             }
+            "script" => ok(Value::string(vm.current_script())),
+            "nameofexecutable" => ok(Value::empty()),
+            // TclOO introspection — dispatched into the object system.
+            "object" => crate::cmd_oo::info_object(vm, rest),
+            "class" => crate::cmd_oo::info_class(vm, rest),
+            // `info coroutine` — the running coroutine's name, or "" at top level.
+            "coroutine" => match rest {
+                [] => ok(crate::cmd_coro::current_coroutine(vm)),
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info coroutine\"",
+                ),
+            },
+            // TIP 348 (Tcl 8.6+). Availability is already filtered through the
+            // registry-derived release subcommand set above; the state lives on
+            // the selected interpreter, so child access uses the ordinary arena.
+            "stacktrace" => match rest {
+                [] => ok(vm.jim_stacktrace()),
+                _ => crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"info stacktrace\"",
+                ),
+            },
+            "errorstack" => {
+                let id = match rest {
+                    [] => None,
+                    [path] => match vm.resolve_interp_path_original(path) {
+                        Ok(id) => Some(id),
+                        Err(error) => return error,
+                    },
+                    _ => {
+                        return crate::command::native_wrong_arguments_message(
+                            vm,
+                            "wrong # args: should be \"info errorstack ?interp?\"",
+                        );
+                    }
+                };
+                match id {
+                    Some(id) => ok(vm.in_interp(id, |target| target.error_stack_value())),
+                    None => ok(vm.error_stack_value()),
+                }
+            }
+            // Reached by a word that matched nothing, prefixed several entries, or
+            // resolved to a subcommand this engine does not implement.
+            _ if vm
+                .actual_native_invocation_dialect()
+                .native_jim_info_member_names()
+                .is_some() =>
+            {
+                vm.refuse_host_command("selected Jim info handler is unavailable".into())
+            }
+            other => err(String::from_utf8_lossy(
+                &tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    subs,
+                    other.as_bytes(),
+                    true,
+                    INFO_NS,
+                ),
+            )
+            .into_owned()),
         }
-        // Reached by a word that matched nothing, prefixed several entries, or
-        // resolved to a subcommand this engine does not implement.
-        _ if vm
-            .actual_native_invocation_dialect()
-            .native_jim_info_member_names()
-            .is_some() =>
-        {
-            vm.refuse_host_command("selected Jim info handler is unavailable".into())
-        }
-        other => err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                other.as_bytes(),
-                true,
-                INFO_NS,
-            ))
-            .into_owned(),
-        ),
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
+    reached
 }
 
 fn info_functions_impl(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if args.len() > 1 {
-        return crate::command::native_wrong_args(vm, "info functions ?pattern?");
-    }
-    let Some(recipe) = tcl_registry::mathfunc::NativeInfoFunctionsRecipe::select(
-        vm.actual_native_invocation_dialect(),
-    ) else {
-        return vm.refuse_host_command("selected math function information recipe".into());
-    };
-    let pattern = match args
-        .first()
-        .map(|word| vm.native_name_operand_bytes(word))
-        .transpose()
-    {
-        Ok(pattern) => pattern,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    if let Some(bytes) = recipe.script(pattern.as_deref()) {
-        let script = Value::new_native_string_bytes(bytes);
-        return match vm.eval_original_script_value(
-            &script,
-            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
-            None,
-        ) {
-            Ok(completion) => completion,
-            Err(error) => crate::command::completion_from_tcl_error(vm, error),
+    let original_names =
+        match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-    }
-    let mut names = Vec::new();
-    for name in vm.math_function_names() {
-        if let Some(pattern) = &pattern {
-            match vm.native_namespace_match(
-                tcl_syntax::native_glob::NativeNameGlobPurpose::InfoFunctions84Scan,
-                pattern,
-                name.as_bytes(),
-            ) {
-                Ok(true) => {}
-                Ok(false) => continue,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            }
+    let reached = (|| {
+        if args.len() > 1 {
+            return crate::command::native_wrong_args(vm, "info functions ?pattern?");
         }
-        names.push(Value::new_native_string_bytes(name.into_bytes()));
+        let Some(recipe) = tcl_registry::mathfunc::NativeInfoFunctionsRecipe::select(
+            vm.actual_native_invocation_dialect(),
+        ) else {
+            return vm.refuse_host_command("selected math function information recipe".into());
+        };
+        let pattern = match args
+            .first()
+            .map(|word| original_names.read(vm, word))
+            .transpose()
+        {
+            Ok(pattern) => pattern,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        if let Some(bytes) = recipe.script(pattern.as_deref()) {
+            let script = Value::new_native_string_bytes(bytes);
+            return match vm.eval_original_script_value(
+                &script,
+                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                None,
+            ) {
+                Ok(completion) => completion,
+                Err(error) => crate::command::completion_from_tcl_error(vm, error),
+            };
+        }
+        let mut names = Vec::new();
+        for name in vm.math_function_names() {
+            if let Some(pattern) = &pattern {
+                match vm.native_namespace_match(
+                    tcl_syntax::native_glob::NativeNameGlobPurpose::InfoFunctions84Scan,
+                    pattern,
+                    name.as_bytes(),
+                ) {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    Err(error) => return vm.refuse_host_command(error.to_string()),
+                }
+            }
+            names.push(Value::new_native_string_bytes(name.into_bytes()));
+        }
+        ok(Value::list(names))
+    })();
+    if let Err(error) = original_names.finish(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
     }
-    ok(Value::list(names))
+    reached
 }
 
 fn info_version_report(vm: &mut Vm, rest: &[Value], member: &str) -> Completion<Value> {
