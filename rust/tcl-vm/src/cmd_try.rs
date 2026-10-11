@@ -1069,11 +1069,8 @@ mod native_fixture_tests {
                 let code: i64 = wanted.next().unwrap().parse().unwrap();
                 let result = bytes_from_hex(wanted.next().unwrap());
                 let source = bytes_from_hex(source);
-                let mut vm = Vm::new();
-                vm.set_dialect_profile(profile);
-                vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-                ));
+                // Retain genuine core/bootstrap and compiler owners for this native expectation.
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let completion = vm
                     .try_eval_source_bytes(&source)
                     .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
@@ -1084,5 +1081,29 @@ mod native_fixture_tests {
             }
         }
         assert_eq!(compared, 60);
+    }
+
+    #[test]
+    fn original_try_source_without_actual_core_keeps_native_preflight_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // An authored profile/compiler is not a genuine native-core constructor.
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        let source = include_str!("../tests/data/native_try/cases.tsv")
+            .lines()
+            .find_map(|row| row.strip_prefix("malformed-unmatched-vars\t"))
+            .unwrap();
+        let source = bytes_from_hex(source);
+        assert!(matches!(
+            vm.try_eval_source_bytes(&source),
+            Err(tcl_runtime_api::NativeExecutionError::CompilationAdmission(
+                tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired
+            ))
+        ));
     }
 }
