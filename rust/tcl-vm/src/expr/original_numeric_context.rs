@@ -143,9 +143,23 @@ pub(crate) fn with_original_numeric_context<T>(
     vm: &mut Vm,
     operation: impl FnOnce(NumericContext<'_>) -> Result<T, TclError>,
 ) -> Result<T, TclError> {
+    let inherited =
+        crate::interp::native_operation_currency::NativeOperationScope::current_entered(vm)
+            .map_err(TclError::from_execution_failure)?;
     let policy = vm.numeric_policy_context();
     if policy.simulation.is_some() {
-        return operation(policy);
+        let reached = operation(policy);
+        if let Err(first) = inherited
+            .as_ref()
+            .map_or(Ok(()), |scope| scope.check_native(vm))
+        {
+            drop(reached);
+            let _ = inherited
+                .as_ref()
+                .map_or(Ok(()), |scope| scope.check_native(vm));
+            return Err(TclError::from_execution_failure(first));
+        }
+        return reached;
     }
     let scope = crate::interp::native_operation_currency::NativeOperationScope::enter_native(vm)
         .map_err(TclError::from_execution_failure)?;

@@ -2196,6 +2196,7 @@ impl Value {
 
     /// Reach the same String updater with the original caller's currentness check.
     /// Formatter callbacks are checked before consuming their result or publishing bytes.
+    #[cfg(test)]
     pub(crate) fn native_string_bytes_checked<E: From<ValueError>>(
         &self,
         protocol: NativeStringProtocol,
@@ -4478,6 +4479,7 @@ impl Value {
 
     /// Render an already reached primitive failure on this original header.
     /// No second conversion or context-free String access is performed.
+    #[cfg(test)]
     pub(crate) fn native_scalar_failure_presentation(
         &self,
         dialect: tcl_registry::InvocationDialect,

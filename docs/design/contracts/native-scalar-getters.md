@@ -369,7 +369,7 @@ successful Rust assertions remain separate validation scopes in the linked
 proof records.
 
 Original VM String materialisation uses `OriginalNumericOps::string` (or the
-ValueError-compatible `string_value`) and `Value::native_string_bytes_checked`.
+ValueError-compatible `string_value`) and `Value::native_string_bytes_checked_for_value`.
 The selected protocol must match the captured actual invocation; the same
 entered scope and exact original header check Host formatter acquisition,
 formatter build and format, compound children, and publication of String bytes.
@@ -488,3 +488,10 @@ A consumer with an actual VM uses `with_original_numeric_context` and passes
 message or default. The explicit authored route and independent public Value
 APIs pass no original provider. Neither route supplies a physical scalar-getter
 policy by selecting a generic integer, double or Boolean converter.
+
+
+`with_original_numeric_context` checks a genuinely entered current operation
+before selecting authored arithmetic and after the authored callback on either
+outcome. Authored independent conversion issues no Native receipt. The original
+currency check does not borrow a numeric or grammar policy. Saved metadata,
+parked interpreter records and ended weak records do not establish current entry.

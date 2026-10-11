@@ -2,10 +2,9 @@
 //! Actual Jim previous-command owners and frame-owned original cleanup names.
 
 use super::native_jim_lookup::{JimCommandLease, JimCommandNode};
-use super::{
-    Command, CommandSlot, Completion, NameBytes, ROOT_NS, Rc, RefCell, Value, Vm, err,
-    native_name_world,
-};
+use super::{Command, CommandSlot, Completion, Rc, RefCell, Value, Vm, err, native_name_world};
+#[cfg(test)]
+use super::{NameBytes, ROOT_NS};
 use tcl_syntax::value::ValueError;
 
 /// The frame owns its original header and an already selected cleanup binding.

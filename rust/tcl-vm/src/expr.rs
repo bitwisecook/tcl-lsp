@@ -695,6 +695,7 @@ fn string_comparison(op: BinOp) -> bool {
     )
 }
 
+#[cfg(test)]
 fn compare_string_units(
     model: Option<tcl_dialect::StringCharacterModel>,
     a: &Value,

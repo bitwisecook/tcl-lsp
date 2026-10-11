@@ -119,22 +119,32 @@ impl NativeOperationScope {
         Self::enter_native(vm).map_err(CmdError::from_execution_refusal)
     }
 
-    pub(crate) fn enter_native(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
+    /// Borrow only an actual live entry in the current physical interpreter.
+    /// Retained saved receipts and parked or ended entries issue no authority.
+    pub(crate) fn current_entered(vm: &mut Vm) -> Result<Option<Self>, NativeExecutionError> {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(first);
         }
         let owner = Rc::clone(&vm.native_operation_context);
-        // Weak scope records never keep a finished operation or Host alive.
-        // No owner borrow is held while checking, querying Host, or dropping
-        // an actual scope's retained host/context facets.
-        let inherited = {
-            let mut entered = owner.entered.borrow_mut();
-            entered.retain(|record| record.strong_count() != 0);
-            entered.last().and_then(Weak::upgrade)
+        // Weak records never retain ended execution or its Host. No owner
+        // borrow crosses a check, callback or retirement.
+        let entered = {
+            let mut records = owner.entered.borrow_mut();
+            records.retain(|record| record.strong_count() != 0);
+            records.last().and_then(Weak::upgrade)
         };
+        let original = entered.map(|entered| Self { entered });
+        if let Some(original) = &original {
+            original.check_native(vm)?;
+        }
+        Ok(original)
+    }
+
+    pub(crate) fn enter_native(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
+        let inherited = Self::current_entered(vm)?;
+        let owner = Rc::clone(&vm.native_operation_context);
         let currency = if let Some(original) = inherited {
-            original.currency.check_native(vm)?;
-            original.currency.clone()
+            original.currency().clone()
         } else {
             let generation = owner
                 .generation
@@ -359,5 +369,74 @@ mod tests {
         assert!(original.native_scalar_cache().is_none());
         assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"17");
         assert_eq!(vm.execution_refusal, Some(first));
+    }
+    #[test]
+    fn original_current_entry_distinguishes_live_saved_ended_and_parked_receipts() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
+        let child_name = vm.create_child(Some("entry_child".into()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let observed = NativeOperationScope::current_entered(&mut vm)
+            .unwrap()
+            .unwrap();
+        assert!(Rc::ptr_eq(&outer.entered, &observed.entered));
+        drop(observed);
+        let saved_metadata = outer.currency().clone();
+        vm.in_interp(child, |vm| {
+            assert!(NativeOperationScope::current_entered(vm).unwrap().is_none());
+            let child_scope = NativeOperationScope::enter_native(vm).unwrap();
+            let current = NativeOperationScope::current_entered(vm).unwrap().unwrap();
+            assert!(Rc::ptr_eq(&child_scope.entered, &current.entered));
+            assert!(!Rc::ptr_eq(&outer.entered, &current.entered));
+        });
+        outer.check_native(&mut vm).unwrap();
+        drop(outer);
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
+        saved_metadata.check_native(&mut vm).unwrap();
+        assert!(!vm.native_operation_context.has_entered_operation());
+    }
+
+    #[test]
+    fn original_numeric_routing_checks_inherited_currency_before_authored_policy() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.authored_numeric_context().is_some());
+        let called = std::cell::Cell::new(false);
+        let reached = crate::expr::with_original_numeric_context(&mut vm, |_| {
+            called.set(true);
+            Ok(())
+        });
+        assert!(!called.get());
+        let crate::TclError::Host(crate::error::TclHostFailure::Execution(first)) =
+            reached.unwrap_err()
+        else {
+            panic!("the genuine inherited receipt must stop authored routing");
+        };
+        assert_eq!(vm.execution_refusal, Some(first.clone()));
+        assert_eq!(outer.check_native(&mut vm).unwrap_err(), first);
+        let mut authored = native();
+        authored.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        let answer = crate::expr::with_original_numeric_context(&mut authored, |context| {
+            assert!(context.original.is_none());
+            Value::int(7).as_int_with_stages(None)
+        })
+        .unwrap();
+        assert_eq!(answer, 7);
+        assert!(!authored.native_operation_context.has_entered_operation());
+        assert!(authored.execution_refusal.is_none());
     }
 }
