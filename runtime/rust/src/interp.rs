@@ -1536,7 +1536,6 @@ pub struct InterpState {
     stores_confined: Cell<bool>,
     /// Free-running counter that throttles wall-clock polling for the `time`
     /// limit (see [`Interp::limit_check_tick`]).
-    #[cfg(have_tommath)]
     limit_tick: Cell<u32>,
     /// `interp debug -frame` — the TIP 280 frame-debug switch. A one-way latch
     /// (once on, stays on), seeded from `env(TCL_INTERP_DEBUG_FRAME)` at create.
@@ -2004,7 +2003,6 @@ impl Interp {
             limits: RefCell::new(LimitSet::default()),
             budget: RefCell::new(crate::budget::Budget::default()),
             stores_confined: Cell::new(false),
-            #[cfg(have_tommath)]
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
             runtime_version: Cell::new(version),
@@ -16199,7 +16197,6 @@ impl Interp {
 
     /// Whether this interp's `time` limit has elapsed (an absolute wall-clock
     /// deadline). `false` when no time limit is set.
-    #[cfg(have_tommath)]
     pub(crate) fn time_limit_exceeded(&self) -> bool {
         match self.limits.borrow().time_value {
             Some((secs, millis)) => {
@@ -16212,7 +16209,6 @@ impl Interp {
 
     /// Whether a `time` limit is configured at all — the cheap guard the loop
     /// commands check before paying for a wall-clock read.
-    #[cfg(have_tommath)]
     pub(crate) fn has_time_limit(&self) -> bool {
         self.limits.borrow().time_value.is_some()
     }
@@ -16222,7 +16218,6 @@ impl Interp {
     /// its `Code`. Called from the loop commands (`while`/`for`) each iteration
     /// so an unbounded loop under `interp limit $i time` terminates. A guarded
     /// no-op when no time limit is set.
-    #[cfg(have_tommath)]
     pub(crate) fn limit_check_tick(&mut self) -> Option<Code> {
         if let Some(code) = self.charge_tick() {
             return Some(code);
@@ -23277,3 +23272,7 @@ mod native_child_alias_publication_tests;
 #[cfg(test)]
 #[path = "interp/native_result_boundaries_tests.rs"]
 mod native_result_boundaries_tests;
+
+#[cfg(test)]
+#[path = "interp/original_limit_tick_cfg_tests.rs"]
+mod original_limit_tick_cfg_tests;
