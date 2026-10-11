@@ -1,0 +1,22 @@
+{
+  "ordinal": 198,
+  "selector": "expr::float_error_tests::c84_cached_resident_double_normalizes_without_fresh_c_call",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "expr::float_error_tests::c84_cached_resident_double_normalizes_without_fresh_c_call",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.017268498020712286,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/198.log",
+  "log_sha256": "1a7f3fd87f8d91aed2917e18f126cc1c9d0098b963d1dde85c0b0eb44123c56b"
+}

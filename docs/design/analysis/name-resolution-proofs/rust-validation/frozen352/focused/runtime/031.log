@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_dict::original_map_option_cleanup_tests::original_dict_map_option_refusal_retires_its_allocated_accumulator ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 1.61s
+

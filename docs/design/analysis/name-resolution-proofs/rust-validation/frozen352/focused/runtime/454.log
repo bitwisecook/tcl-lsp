@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::qualified_global_aliases_plain_at_top_level ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 2.94s
+

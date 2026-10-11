@@ -1,0 +1,6 @@
+
+running 1 test
+test value::native_scalar_target_tests::original_cached_getter_refuses_missing_or_unsupported_target_before_mutation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.00s
+

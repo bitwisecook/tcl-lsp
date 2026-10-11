@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_numeric_ops::tests::original_c84_precision_null_read_reaches_decimal_worker_without_reset ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.68s
+

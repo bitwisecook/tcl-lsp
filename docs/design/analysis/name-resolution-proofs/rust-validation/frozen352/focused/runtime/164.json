@@ -1,0 +1,22 @@
+{
+  "ordinal": 164,
+  "selector": "cmd_oo::tests::private_variable_cross_class_mangling",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "cmd_oo::tests::private_variable_cross_class_mangling",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 1.7036982880090363,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 1.65s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/164.log",
+  "log_sha256": "2958e7e542f347c5699dc86bd9d568bf7c7edcadf748676c51fa2257b75eb9be"
+}

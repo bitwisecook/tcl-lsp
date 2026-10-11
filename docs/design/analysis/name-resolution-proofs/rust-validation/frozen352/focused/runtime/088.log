@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows ... 
+thread 'cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows' (1357492) panicked at src/cmd_namespace/original_argument_tests.rs:222:5:
+assertion `left == right` failed: original Jim namespace fixture: refusal=None, callback_captured=false, result=Ok(NativeObjectSnapshot { resident: Some([105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 99, 111, 110, 115, 117, 109, 101, 114, 70, 105, 120, 116, 117, 114, 101, 67, 117, 114, 114, 101, 110, 116, 78, 97, 109, 101, 115, 112, 97, 99, 101, 34]), storage: Some(Allocated), cache: None })
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.69s
+

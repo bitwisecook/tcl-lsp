@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_array::tests::search_absence_and_original_root_retirement_are_guest_observations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 17.53s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_body_artifact::native_string_trim::tests::original_string_trim_matches_all_216_native_header_windows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 19.18s
+

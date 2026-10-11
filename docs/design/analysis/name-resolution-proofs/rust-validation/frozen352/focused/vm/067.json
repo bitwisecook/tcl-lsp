@@ -1,0 +1,22 @@
+{
+  "ordinal": 67,
+  "selector": "command::tests::jim_static_storage_matches_the_fixed_native_fixture",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "command::tests::jim_static_storage_matches_the_fixed_native_fixture",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 4.150908726034686,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 4.06s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/067.log",
+  "log_sha256": "b1fdf1462fd483d7dee1393f5b3609ddf109c558dafc8d364a297bf55cc56891"
+}

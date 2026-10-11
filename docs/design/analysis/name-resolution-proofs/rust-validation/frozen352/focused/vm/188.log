@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::family_b_tests::native_double_strings_observe_precision_only_until_first_materialisation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 22.37s
+

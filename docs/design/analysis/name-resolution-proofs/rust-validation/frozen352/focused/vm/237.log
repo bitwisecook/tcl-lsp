@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::family_b_tests::variable_links_follow_authored_dialect_lifetimes ... 
+thread 'interp::family_b_tests::variable_links_follow_authored_dialect_lifetimes' (1360526) panicked at rust/tcl-vm/src/interp.rs:29856:22:
+called `Result::unwrap()` on an `Err` value: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("native stale array-default table provenance"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::variable_links_follow_authored_dialect_lifetimes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 37.54s
+

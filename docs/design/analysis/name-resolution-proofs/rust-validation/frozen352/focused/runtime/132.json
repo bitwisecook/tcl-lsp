@@ -1,0 +1,22 @@
+{
+  "ordinal": 132,
+  "selector": "cmd_oo::tests::isa_typeof_traverses_mixins_and_subclass_pattern",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "cmd_oo::tests::isa_typeof_traverses_mixins_and_subclass_pattern",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 4.636457362037618,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.49s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/132.log",
+  "log_sha256": "9b3e9ba31317b0f8b087ea63af7cf049551f7ea3acbbdc6e7afd06953ee29985"
+}

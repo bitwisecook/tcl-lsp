@@ -1,0 +1,15 @@
+
+running 1 test
+test command::tests::unsupported_expression_is_neutral_and_preserves_only_prior_effects ... 
+thread 'command::tests::unsupported_expression_is_neutral_and_preserves_only_prior_effects' (1358733) panicked at rust/tcl-vm/src/command.rs:5225:34:
+called `Result::unwrap_err()` on an `Ok` value: Completion { code: Error, result: Value("wrong # args: should be \"catch command ?varName?\""), options: Value("-code 1 -level 0 -errorcode NONE"), option_origin: ErrorMetadata }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::tests::unsupported_expression_is_neutral_and_preserves_only_prior_effects
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 3.38s
+

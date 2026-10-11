@@ -1,0 +1,22 @@
+{
+  "ordinal": 479,
+  "selector": "interp::tests::undefined_variable_is_an_error",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::tests::undefined_variable_is_an_error",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 2.3569347000448033,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 2.30s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/479.log",
+  "log_sha256": "fabbf997492b2da129323b31308da52a989f6eddb24bdbf8e28289e4a275ce9f"
+}

@@ -1,0 +1,17 @@
+
+running 1 test
+test frame::materialisation_tests::original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows ... 
+thread 'frame::materialisation_tests::original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows' (1358569) panicked at src/frame/materialisation_tests.rs:349:13:
+assertion `left == right` failed
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    frame::materialisation_tests::original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 2.16s
+

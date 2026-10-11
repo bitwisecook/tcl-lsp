@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_thread::original_job_boundary_tests::original_job_boundary_keeps_the_complete_cause_until_the_actual_scope_finishes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.89s
+

@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::family_b_tests::native_variable_updates_retain_exact_keys_and_failed_read_options ... 
+thread 'interp::family_b_tests::native_variable_updates_retain_exact_keys_and_failed_read_options' (1360286) panicked at rust/tcl-vm/src/interp.rs:29596:17:
+assertion failed: code.is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::native_variable_updates_retain_exact_keys_and_failed_read_options
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.18s
+

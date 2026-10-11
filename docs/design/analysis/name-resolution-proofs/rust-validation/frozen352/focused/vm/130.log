@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::authored_math::tests::authored_fixed_functions_match_original_c84_results_and_operand_order ... 
+thread 'interp::authored_math::tests::authored_fixed_functions_match_original_c84_results_and_operand_order' (1359480) panicked at rust/tcl-vm/src/interp/authored_math.rs:267:14:
+called `Result::unwrap()` on an `Err` value: CompilationAdmission(NativePreflightRequired)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::authored_math::tests::authored_fixed_functions_match_original_c84_results_and_operand_order
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 6.91s
+

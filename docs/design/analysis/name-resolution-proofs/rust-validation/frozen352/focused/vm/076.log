@@ -1,0 +1,15 @@
+
+running 1 test
+test command::tests::procedure_definition_and_activation_match_42_native_observations ... 
+thread 'command::tests::procedure_definition_and_activation_match_42_native_observations' (1358519) panicked at rust/tcl-vm/src/command.rs:4707:64:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("retired native object header")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::tests::procedure_definition_and_activation_match_42_native_observations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 6.81s
+

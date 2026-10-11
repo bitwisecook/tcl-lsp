@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_try::native_fixture_tests::try_grammar_binding_and_finally_match_fixed_native_results ... 
+thread 'cmd_try::native_fixture_tests::try_grammar_binding_and_finally_match_fixed_native_results' (1356959) panicked at rust/tcl-vm/src/cmd_try.rs:1079:45:
+tcl8.6/malformed-unmatched-vars: CompilationAdmission(NativePreflightRequired)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_try::native_fixture_tests::try_grammar_binding_and_finally_match_fixed_native_results
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 7.13s
+

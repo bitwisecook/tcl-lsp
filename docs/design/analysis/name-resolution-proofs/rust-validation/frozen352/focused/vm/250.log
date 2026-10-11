@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_compiled_locals::tests::compiled_dictionary_c86_for_error_preserves_original_completion_and_reference_windows ... 
+thread 'interp::native_compiled_locals::tests::compiled_dictionary_c86_for_error_preserves_original_completion_and_reference_windows' (1360682) panicked at rust/tcl-vm/src/interp/native_compiled_locals.rs:1331:70:
+called `Result::unwrap()` on an `Err` value: CompilationAdmission(NativePreflightRequired)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_compiled_locals::tests::compiled_dictionary_c86_for_error_preserves_original_completion_and_reference_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 6.44s
+

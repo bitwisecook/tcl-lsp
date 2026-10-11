@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::family_b_tests::retained_expression_keeps_stock_workers_without_replacement_or_random_grants ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 4.31s
+

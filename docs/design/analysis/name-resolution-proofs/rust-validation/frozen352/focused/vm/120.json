@@ -1,0 +1,22 @@
+{
+  "ordinal": 120,
+  "selector": "expr::tests::native_integer_arithmetic_uses_the_selected_engine_on_both_paths",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "expr::tests::native_integer_arithmetic_uses_the_selected_engine_on_both_paths",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 93.69166861701524,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 93.62s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/120.log",
+  "log_sha256": "9b77ab86309faf51184d5ea16b5fe782e9cfc385af88963622bb3549b91c438b"
+}

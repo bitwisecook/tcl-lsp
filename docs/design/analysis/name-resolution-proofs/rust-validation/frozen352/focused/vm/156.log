@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::family_b_tests::counted_syntax_failure_state_distinguishes_direct_from_script_preparation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 14.63s
+

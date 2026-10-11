@@ -1,0 +1,22 @@
+{
+  "ordinal": 461,
+  "selector": "interp::tests::safe_interp_hidden_set_matches_the_measured_tclsh_sets",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::tests::safe_interp_hidden_set_matches_the_measured_tclsh_sets",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 15.54758698301157,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 15.33s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/461.log",
+  "log_sha256": "c87ab4a9bf781814a5479ef39642aab5a1f387ed1357fe3ea206f691a8623945"
+}

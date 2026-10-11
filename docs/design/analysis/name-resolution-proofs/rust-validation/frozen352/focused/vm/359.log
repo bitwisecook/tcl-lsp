@@ -1,0 +1,6 @@
+
+running 1 test
+test return_options::tests::jim_private_state_retains_original_error_objects_after_ordinary_completion ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 4.70s
+

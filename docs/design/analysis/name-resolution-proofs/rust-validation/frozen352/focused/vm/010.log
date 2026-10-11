@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_dict::tests::host_dictionary_surface_is_independent_of_embedded_source_grammar ... 
+thread 'cmd_dict::tests::host_dictionary_surface_is_independent_of_embedded_source_grammar' (1356625) panicked at rust/tcl-vm/src/cmd_dict.rs:1259:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_dict::tests::host_dictionary_surface_is_independent_of_embedded_source_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.34s
+

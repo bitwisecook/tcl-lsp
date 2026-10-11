@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_compiled_locals::tests::original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references ... 
+thread 'interp::native_compiled_locals::tests::original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references' (1360760) panicked at rust/tcl-vm/src/interp/native_compiled_locals.rs:879:72:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("retired native object header")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_compiled_locals::tests::original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 8.00s
+

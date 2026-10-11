@@ -1,0 +1,22 @@
+{
+  "ordinal": 196,
+  "selector": "dict::tests::unset_preserves_order_and_frees",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "dict::tests::unset_preserves_order_and_frees",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.04260193201480433,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/196.log",
+  "log_sha256": "ac2a32b8f64f01dcc1e6b6753a55cce1ecfdc65318891e2756d78a74a1ee282c"
+}

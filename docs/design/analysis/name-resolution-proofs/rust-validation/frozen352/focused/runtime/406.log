@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::tests::command_identity_survives_unrelated_mutation_and_follows_its_actual_generation ... 
+thread 'interp::tests::command_identity_survives_unrelated_mutation_and_follows_its_actual_generation' (1360869) panicked at src/interp.rs:19818:13:
+assertion failed: !i.check_command_guard(fresh, b"moved")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::tests::command_identity_survives_unrelated_mutation_and_follows_its_actual_generation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 5.01s
+

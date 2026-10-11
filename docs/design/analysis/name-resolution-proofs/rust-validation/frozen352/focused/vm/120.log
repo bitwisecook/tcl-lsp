@@ -1,0 +1,6 @@
+
+running 1 test
+test expr::tests::native_integer_arithmetic_uses_the_selected_engine_on_both_paths ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 93.62s
+

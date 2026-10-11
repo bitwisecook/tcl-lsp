@@ -1,0 +1,15 @@
+
+running 1 test
+test command::tests::unsupported_expression_refusal_survives_child_interpreter_switches ... 
+thread 'command::tests::unsupported_expression_refusal_survives_child_interpreter_switches' (1358766) panicked at rust/tcl-vm/src/command.rs:5278:13:
+child expression needs a provider: ValueAccessRefusal(CommandProtocolUnavailable("original source evaluation purpose"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::tests::unsupported_expression_refusal_survives_child_interpreter_switches
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.44s
+

@@ -1,0 +1,17 @@
+
+running 1 test
+test command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions ... 
+thread 'command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions' (1357594) panicked at rust/tcl-vm/src/command.rs:4478:13:
+assertion `left == right` failed: 0	0	1	70	7365742076616c75652022	6d697373696e672022	6d697373696e6720220a202020207768696c6520636f6d70696c696e670a227365742076616c756520220a2020202028636f6d70696c696e6720626f6479206f662070726f63202270222c206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a227022	4e4f4e45
+  left: [10, 32, 32, 32, 32, 105, 110, 118, 111, 107, 101, 100, 32, 102, 114, 111, 109, 32, 119, 105, 116, 104, 105, 110, 10, 34, 112, 34]
+ right: [109, 105, 115, 115, 105, 110, 103, 32, 34, 10, 32, 32, 32, 32, 119, 104, 105, 108, 101, 32, 99, 111, 109, 112, 105, 108, 105, 110, 103, 10, 34, 115, 101, 116, 32, 118, 97, 108, 117, 101, 32, 34, 10, 32, 32, 32, 32, 40, 99, 111, 109, 112, 105, 108, 105, 110, 103, 32, 98, 111, 100, 121, 32, 111, 102, 32, 112, 114, 111, 99, 32, 34, 112, 34, 44, 32, 108, 105, 110, 101, 32, 49, 41, 10, 32, 32, 32, 32, 105, 110, 118, 111, 107, 101, 100, 32, 102, 114, 111, 109, 32, 119, 105, 116, 104, 105, 110, 10, 34, 112, 34]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 5.54s
+

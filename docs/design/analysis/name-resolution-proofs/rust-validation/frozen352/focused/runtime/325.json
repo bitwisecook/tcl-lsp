@@ -1,0 +1,22 @@
+{
+  "ordinal": 325,
+  "selector": "interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 101,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 10.493647878989577,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 10.43s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/325.log",
+  "log_sha256": "77399edace665d64edc1d7bee40ad88a5229a3349d505f24810f5b29a68cad79"
+}

@@ -1,0 +1,22 @@
+{
+  "ordinal": 218,
+  "selector": "frame::native_scalar_alias::tests::same_spelled_foreign_link_cannot_issue_an_undefined_root_marker",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "frame::native_scalar_alias::tests::same_spelled_foreign_link_cannot_issue_an_undefined_root_marker",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.018536822986789048,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/218.log",
+  "log_sha256": "e8fad91e06d6c212e8ce4dff2ecaf0a2dce90857e8ad2555684437413432a227"
+}

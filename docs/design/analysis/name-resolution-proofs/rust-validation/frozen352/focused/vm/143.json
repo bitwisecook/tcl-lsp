@@ -1,0 +1,22 @@
+{
+  "ordinal": 143,
+  "selector": "interp::family_b_tests::a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "interp::family_b_tests::a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 101,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 4.046641413006,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 3.96s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/143.log",
+  "log_sha256": "3ce626cc4bf0a0432e6bf530aed47103948fcd9c44609b57e367ffe02921b54b"
+}

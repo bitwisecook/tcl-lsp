@@ -1,0 +1,22 @@
+{
+  "ordinal": 492,
+  "selector": "list::tests::native_c_list_copy_shares_backing_until_first_mutation",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "list::tests::native_c_list_copy_shares_backing_until_first_mutation",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.013905333005823195,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/492.log",
+  "log_sha256": "1607d167ac365105d15e79cff113e9d252dceb90e15c1790b77afd084b4a6e96"
+}

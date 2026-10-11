@@ -1,0 +1,6 @@
+
+running 1 test
+test value::tests::selected_double_updaters_match_all_native_nonfinite_payloads ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.00s
+

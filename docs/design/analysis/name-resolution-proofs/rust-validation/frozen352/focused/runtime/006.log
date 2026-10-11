@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 13.37s
+

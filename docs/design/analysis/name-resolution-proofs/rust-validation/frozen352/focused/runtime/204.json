@@ -1,0 +1,22 @@
+{
+  "ordinal": 204,
+  "selector": "frame::materialisation_tests::original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "frame::materialisation_tests::original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 101,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 2.191923644975759,
+  "passed_exact_assertion": false,
+  "summaries": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 2.16s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/204.log",
+  "log_sha256": "4a6aa32556f79cc09b3b529add11163beb687b0aa760f9d6f8cdde43ab4f662e"
+}

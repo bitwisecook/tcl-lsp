@@ -1,0 +1,22 @@
+{
+  "ordinal": 202,
+  "selector": "frame::destruction::tests::search_keys_keep_undefined_members_and_selected_incarnation",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "frame::destruction::tests::search_keys_keep_undefined_members_and_selected_incarnation",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.02155568898888305,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.00s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/202.log",
+  "log_sha256": "87c23380bef1ef31f76fcf4ccf98d785b1f3082d131a4fd026d6d16e745f597e"
+}

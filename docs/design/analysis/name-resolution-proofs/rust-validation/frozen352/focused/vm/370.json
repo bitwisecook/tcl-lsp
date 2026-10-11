@@ -1,0 +1,22 @@
+{
+  "ordinal": 370,
+  "selector": "value::native_retirement::tests::deep_list_retirement_retires_native_headers_but_keeps_lifetime_leases",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "value::native_retirement::tests::deep_list_retirement_retires_native_headers_but_keeps_lifetime_leases",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.12145871901884675,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.09s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/370.log",
+  "log_sha256": "da1e05845f6d1f09a3621e2f7ce7fcb5277aa1e9f5d96d80c0a1e09ecededeb3"
+}

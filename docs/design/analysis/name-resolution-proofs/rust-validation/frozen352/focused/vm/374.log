@@ -1,0 +1,6 @@
+
+running 1 test
+test value::native_scalar_target_tests::original_cached_nan_boolean_failure_keeps_absent_string_and_public_error_fields ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.01s
+

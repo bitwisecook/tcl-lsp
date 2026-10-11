@@ -1,0 +1,22 @@
+{
+  "ordinal": 147,
+  "selector": "cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 4.953698795987293,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.91s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/147.log",
+  "log_sha256": "1ac8e3db3ed7d6318f2f45ac2a7916a51be57beeea0a2dc5ff7ceb974a0dddbd"
+}

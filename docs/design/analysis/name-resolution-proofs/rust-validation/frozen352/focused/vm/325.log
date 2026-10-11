@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_operation_currency::tests::original_numeric_routing_checks_inherited_currency_before_authored_policy ... 
+thread 'interp::native_operation_currency::tests::original_numeric_routing_checks_inherited_currency_before_authored_policy' (1361250) panicked at rust/tcl-vm/src/interp/native_operation_currency.rs:417:9:
+assertion failed: vm.authored_numeric_context().is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_operation_currency::tests::original_numeric_routing_checks_inherited_currency_before_authored_policy
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 4.49s
+

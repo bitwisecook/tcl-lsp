@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::the_profile_form_of_a_pin_is_the_context_the_profile_names ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 44.27s
+

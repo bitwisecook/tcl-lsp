@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_coro::retirement_tests::yieldto_retains_deleted_entered_namespace_when_its_spelling_is_recreated ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 23.06s
+

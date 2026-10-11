@@ -1,0 +1,15 @@
+
+running 1 test
+test expr::tests::measured_bare_matches_tree_evaluation_requires_independent_authored_policy ... 
+thread 'expr::tests::measured_bare_matches_tree_evaluation_requires_independent_authored_policy' (1359412) panicked at rust/tcl-vm/src/expr.rs:2147:28:
+called `Result::unwrap()` on an `Err` value: Host(ValueAccess(CommandProtocolUnavailable("native expression quote settlement")))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    expr::tests::measured_bare_matches_tree_evaluation_requires_independent_authored_policy
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 3.31s
+

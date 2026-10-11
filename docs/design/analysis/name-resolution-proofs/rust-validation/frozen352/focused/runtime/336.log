@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_literal_pool::tests::native_arrays_share_registered_headers_and_release_global_before_local ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 26.21s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_operation_currency::tests::original_vm_nested_receipt_cannot_reissue_after_context_change_or_poison ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.63s
+

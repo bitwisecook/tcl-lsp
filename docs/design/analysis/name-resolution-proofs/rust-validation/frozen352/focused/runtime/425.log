@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::idle_original_delete_procedure_runs_before_publication_and_preserves_first_refusal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 10.90s
+

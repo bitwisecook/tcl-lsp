@@ -1,0 +1,17 @@
+
+running 1 test
+test value_ops::raw_value_tests::selected_jim_byte_values_keep_native_units_list_objects_and_numeric_errors ... 
+thread 'value_ops::raw_value_tests::selected_jim_byte_values_keep_native_units_list_objects_and_numeric_errors' (1362196) panicked at rust/tcl-vm/src/value_ops.rs:1201:9:
+assertion `left == right` failed
+  left: Err(NativeScalarGetter(NativeScalarGetterError { protocol: NativeScalarGetterProtocol { engine: Jim084 }, kind: Wide, failure: Invalid, message: [101, 120, 112, 101, 99, 116, 101, 100, 32, 105, 110, 116, 101, 103, 101, 114, 32, 98, 117, 116, 32, 103, 111, 116, 32, 34, 255, 237, 160, 128, 34], error_code: Unchanged, eval_error_code: Unchanged, eval_nul_terminated: false }))
+ right: Err(NotIntegerBytes([255, 237, 160, 128]))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    value_ops::raw_value_tests::selected_jim_byte_values_keep_native_units_list_objects_and_numeric_errors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 4.28s
+

@@ -1,0 +1,22 @@
+{
+  "ordinal": 210,
+  "selector": "frame::native_inventory_tests::array_entry_ledgers_match_all_320_native_table_controls",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "frame::native_inventory_tests::array_entry_ledgers_match_all_320_native_table_controls",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 0.625504722003825,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 0.61s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/210.log",
+  "log_sha256": "9d48686703298b12616640f26d242b6c034ec51cff4d1c67af1f89360aa3cd11"
+}

@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::family_b_tests::explicit_host_activation_restores_user_policy_and_separates_cached_bodies ... 
+thread 'interp::family_b_tests::explicit_host_activation_restores_user_policy_and_separates_cached_bodies' (1359808) panicked at rust/tcl-vm/src/interp.rs:26951:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::explicit_host_activation_restores_user_policy_and_separates_cached_bodies
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 7.52s
+

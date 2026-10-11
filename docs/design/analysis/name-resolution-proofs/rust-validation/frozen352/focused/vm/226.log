@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::family_b_tests::stock_guard_reissues_after_unrelated_birth_but_not_worker_replacement ... 
+thread 'interp::family_b_tests::stock_guard_reissues_after_unrelated_birth_but_not_worker_replacement' (1360494) panicked at rust/tcl-vm/src/interp.rs:29115:9:
+assertion failed: !vm.check_command_guard(original, "string")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::family_b_tests::stock_guard_reissues_after_unrelated_birth_but_not_worker_replacement
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 0.55s
+

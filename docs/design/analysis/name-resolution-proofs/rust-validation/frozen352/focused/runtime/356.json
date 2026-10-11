@@ -1,0 +1,22 @@
+{
+  "ordinal": 356,
+  "selector": "interp::native_precision::original_stage_tests::original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::native_precision::original_stage_tests::original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 1.1402061800472438,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 1.12s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/356.log",
+  "log_sha256": "4afbc62d2bdf5cc641f15834f8a21bb4fa00a0c204218b1d6e3a9e49f73d4882"
+}

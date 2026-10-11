@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::tests::info_methods_all_and_object_vars_pattern ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.37s
+

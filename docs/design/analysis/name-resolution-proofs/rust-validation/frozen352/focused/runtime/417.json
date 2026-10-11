@@ -1,0 +1,22 @@
+{
+  "ordinal": 417,
+  "selector": "interp::tests::expand_marker_splits_arguments",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::tests::expand_marker_splits_arguments",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 4.850981249008328,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 4.78s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/417.log",
+  "log_sha256": "c9ada09e920be14fae80a3a64cfde456416e6bd84f4a7c42d7d1875f353729ed"
+}

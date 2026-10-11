@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::tests::native_core_root_cells_match_six_original_constructor_inventories ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 19.49s
+

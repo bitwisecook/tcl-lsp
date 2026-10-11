@@ -1,0 +1,6 @@
+
+running 1 test
+test command::native_apply_original_tests::apply_coroutine_keeps_arguments_and_selects_the_actual_shadowed_handler ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 25.27s
+

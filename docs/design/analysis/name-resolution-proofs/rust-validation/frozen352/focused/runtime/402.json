@@ -1,0 +1,22 @@
+{
+  "ordinal": 402,
+  "selector": "interp::tests::child_parent_association_stales_interpreter_guard",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-runtime352.elf",
+    "--exact",
+    "interp::tests::child_parent_association_stales_interpreter_guard",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 2.7014722599997185,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1815 filtered out; finished in 2.66s"
+  ],
+  "log": "/workspace/.proofs/runtime-focused-isolated352/402.log",
+  "log_sha256": "bf35e765d22585bc191ae482d7a76735a6ea885bfc563752b6089073df7cd877"
+}

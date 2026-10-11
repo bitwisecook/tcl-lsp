@@ -1,0 +1,22 @@
+{
+  "ordinal": 30,
+  "selector": "cmd_regexp::original_object_tests::native_regsub_mapping_and_regexp_keep_distinct_original_primaries",
+  "argv": [
+    "/workspace/.pins/naming-owned352/pinned-vm352.elf",
+    "--exact",
+    "cmd_regexp::original_object_tests::native_regsub_mapping_and_regexp_keep_distinct_original_primaries",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/.checkpoints/naming-current-validation352",
+  "exit": 0,
+  "timeout": false,
+  "timeout_seconds": 300,
+  "seconds": 2.102153123996686,
+  "passed_exact_assertion": true,
+  "summaries": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 915 filtered out; finished in 2.00s"
+  ],
+  "log": "/workspace/.proofs/vm-focused-isolated352/030.log",
+  "log_sha256": "7fcd351859d74b2be8f0780f1fa9b9d571209a5e761d7fd1207ce2521d872842"
+}

@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements ... 
+thread 'cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements' (1356741) panicked at rust/tcl-vm/src/cmd_info.rs:870:63:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 915 filtered out; finished in 1.16s
+
