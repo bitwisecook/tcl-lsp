@@ -523,11 +523,28 @@ fn read_variable(vm: &mut Vm, name: &str) -> Result<Value, EngineError> {
 }
 
 fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineError> {
-    vm.write_variable(
-        name,
-        to_vm_value(value, vm.native_scalar_carrier_dialect())?,
-    )
-    .map_err(|error| internal_error(vm, error))
+    let original = vm
+        .capture_original_scalar_ingress()
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+    let dialect = vm.native_scalar_carrier_dialect();
+    let reached = (|| {
+        let imported = {
+            let actual = ActualScalarImport {
+                vm: RefCell::new(&mut *vm),
+                original: &original,
+            };
+            to_vm_value_using(value, dialect, Some(&actual))?
+        };
+        let reached = vm
+            .write_variable(name, imported)
+            .map_err(|error| internal_error(vm, error));
+        vm.check_original_scalar_ingress(&original)
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+        reached
+    })();
+    vm.finish_original_scalar_ingress(original)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+    reached
 }
 
 fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
@@ -724,6 +741,10 @@ impl NativeCommand for HostCommandShim {
     }
 
     fn invoke(&self, vm: &mut Vm, arguments: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
+        let original = match vm.capture_original_scalar_ingress() {
+            Ok(original) => original,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
         let dialect = vm.native_scalar_carrier_dialect();
         let interpreter = vm.native_object_bridge_identity();
         let originals: Vec<Rc<dyn tcl_engine_api::OriginalObject>> =
@@ -757,6 +778,9 @@ impl NativeCommand for HostCommandShim {
             Ok(arguments) => arguments,
             Err(error) => return vm.refuse_host_command(error.to_string()),
         };
+        if let Err(error) = vm.check_original_scalar_ingress(&original) {
+            return vm.refuse_host_command(error.to_string());
+        }
         let mut registrar = VmRegistrar {
             vm,
             host_commands: Rc::clone(&self.host_commands),
@@ -776,15 +800,21 @@ impl NativeCommand for HostCommandShim {
                         )
                     })
             };
-        match outcome {
+        if let Err(error) = registrar.vm.check_original_scalar_ingress(&original) {
+            return registrar.vm.refuse_host_command(error.to_string());
+        }
+        let completion = match outcome {
             Ok(result) => {
-                match recover_original_completion(
-                    &result,
-                    registrar.vm.native_scalar_carrier_dialect(),
-                    interpreter,
-                ) {
+                let actual = ActualScalarImport {
+                    vm: RefCell::new(&mut *registrar.vm),
+                    original: &original,
+                };
+                match recover_original_completion(&result, dialect, interpreter, &actual) {
                     Ok(completion) => completion,
-                    Err(error) => registrar.vm.refuse_host_command(error.to_string()),
+                    Err(error) => actual
+                        .vm
+                        .borrow_mut()
+                        .refuse_host_command(error.to_string()),
                 }
             }
             // A script error crosses as the Tcl error it is: the message
@@ -823,7 +853,13 @@ impl NativeCommand for HostCommandShim {
                 tcl_vm::Value::empty(),
             ),
             Err(error) => registrar.vm.refuse_host_command(error.to_string()),
+        };
+        drop(arguments);
+        drop(originals);
+        if let Err(error) = registrar.vm.check_original_scalar_ingress(&original) {
+            return registrar.vm.refuse_host_command(error.to_string());
         }
+        completion
     }
 }
 
@@ -850,6 +886,7 @@ fn recover_original_result(
         dialect,
         interpreter,
         &mut std::collections::BTreeMap::new(),
+        None,
     )
 }
 
@@ -857,10 +894,23 @@ fn recover_original_completion(
     completion: &tcl_engine_api::OriginalObjectCompletion,
     dialect: tcl_registry::InvocationDialect,
     interpreter: (u64, u64),
+    actual: &ActualScalarImport<'_>,
 ) -> Result<Completion<tcl_vm::Value>, EngineError> {
     let mut memo = std::collections::BTreeMap::new();
-    let result = recover_original_result_in(&completion.result, dialect, interpreter, &mut memo)?;
-    let options = recover_original_result_in(&completion.options, dialect, interpreter, &mut memo)?;
+    let result = recover_original_result_in(
+        &completion.result,
+        dialect,
+        interpreter,
+        &mut memo,
+        Some(actual),
+    )?;
+    let options = recover_original_result_in(
+        &completion.options,
+        dialect,
+        interpreter,
+        &mut memo,
+        Some(actual),
+    )?;
     Ok(Completion::new(completion.code, result, options))
 }
 
@@ -876,10 +926,11 @@ fn recover_original_leaf(
     result: &tcl_engine_api::OriginalObjectResult,
     dialect: tcl_registry::InvocationDialect,
     interpreter: (u64, u64),
+    actual: Option<&ActualScalarImport<'_>>,
 ) -> Result<Option<tcl_vm::Value>, EngineError> {
     use tcl_engine_api::OriginalObjectResult as R;
     Ok(Some(match result {
-        R::Value(value) => to_vm_value(value, dialect)?,
+        R::Value(value) => to_vm_value_using(value, dialect, actual)?,
         R::Index { cache, origin } => tcl_vm::Value::from_native_index_cache(
             cache.clone(),
             import_version(*origin),
@@ -914,9 +965,16 @@ fn recover_original_resident(
     storage: tcl_engine_api::NativeStringStorageIdentity,
     dialect: tcl_registry::InvocationDialect,
     interpreter: (u64, u64),
+    actual: Option<&ActualScalarImport<'_>>,
 ) -> Result<Option<tcl_vm::Value>, EngineError> {
     use tcl_engine_api::OriginalObjectResult as R;
     let value = match value {
+        R::Value(Value::NativeScalar(cache)) => import_vm_scalar(
+            cache,
+            dialect,
+            Some((Rc::clone(string), import_storage(storage))),
+            actual,
+        )?,
         R::CommandName(cache) => recover_native_command_name_cache(
             cache,
             dialect,
@@ -945,105 +1003,128 @@ fn recover_original_result_in(
     dialect: tcl_registry::InvocationDialect,
     interpreter: (u64, u64),
     memo: &mut std::collections::BTreeMap<usize, tcl_vm::Value>,
+    actual: Option<&ActualScalarImport<'_>>,
 ) -> Result<tcl_vm::Value, EngineError> {
     use OriginalRecoveryWork as Work;
     use tcl_engine_api::OriginalObjectResult as R;
-    let mut work = vec![Work::Visit(result)];
-    let mut values = Vec::new();
-    let mut active = std::collections::BTreeSet::new();
-    while let Some(next) = work.pop() {
-        if let Work::Visit(result) = &next
-            && let Some(value) = recover_original_leaf(result, dialect, interpreter)?
-        {
-            values.push(value);
-            continue;
-        }
-        match next {
-            Work::Visit(R::Shared(node)) => {
-                let identity = Rc::as_ptr(node) as usize;
-                if let Some(value) = memo.get(&identity) {
-                    values.push(value.clone());
-                } else {
-                    if !active.insert(identity) {
-                        return Err(EngineError::ExecutionRefusal(
-                            "cyclic callback object graph".into(),
-                        ));
-                    }
-                    work.push(Work::Shared(identity));
-                    work.push(Work::Visit(node));
-                }
-            }
-            Work::Visit(R::List { items, canonical }) => {
-                work.push(Work::List(items.len(), *canonical));
-                work.extend(items.iter().rev().map(Work::Visit));
-            }
-            Work::Visit(R::Dictionary { entries, buckets }) => {
-                work.push(Work::Dictionary(entries.len(), *buckets));
-                for (key, value) in entries.iter().rev() {
-                    work.push(Work::Visit(value));
-                    work.push(Work::Visit(key));
-                }
-            }
-            Work::Visit(R::Resident {
-                value,
-                string,
-                storage,
-            }) => {
-                if let Some(recovered) =
-                    recover_original_resident(value, string, *storage, dialect, interpreter)?
-                {
-                    values.push(recovered);
-                } else {
-                    work.push(Work::Resident(string, *storage));
-                    work.push(Work::Visit(value));
-                }
-            }
-            Work::Visit(_) => unreachable!("original leaf already recovered"),
-            Work::List(count, canonical) => {
-                let start = values
-                    .len()
-                    .checked_sub(count)
-                    .expect("visited callback List children");
-                let items = values.split_off(start);
-                let protocol = dialect.native_string_protocol().ok_or_else(|| {
-                    EngineError::ExecutionRefusal("callback List updater issuer unavailable".into())
-                })?;
-                values.push(tcl_vm::Value::list_with_native_canonical_in(
-                    items, canonical, protocol,
-                ));
-            }
-            Work::Dictionary(count, buckets) => {
-                let protocol = dialect.native_string_protocol().ok_or_else(|| {
-                    EngineError::ExecutionRefusal(
-                        "callback Dictionary updater issuer unavailable".into(),
-                    )
-                })?;
-                let value = recover_dictionary_children(&mut values, count, buckets, protocol)?;
-                values.push(value);
-            }
-            Work::Resident(string, storage) => {
-                let value = values
-                    .pop()
-                    .expect("visited resident callback representation");
-                values.push(
-                    value
-                        .with_resident_string_bytes_and_storage(
-                            Rc::clone(string),
-                            import_storage(storage),
-                        )
-                        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
-                );
-            }
-            Work::Shared(identity) => {
-                memo.insert(
-                    identity,
-                    values.last().expect("visited callback graph node").clone(),
-                );
-                active.remove(&identity);
-            }
-        }
+    if let Some(actual) = actual {
+        actual.check()?;
     }
-    Ok(values.pop().expect("visited callback result"))
+    let reached = (|| {
+        let mut work = vec![Work::Visit(result)];
+        let mut values = Vec::new();
+        let mut active = std::collections::BTreeSet::new();
+        while let Some(next) = work.pop() {
+            if let Some(actual) = actual {
+                actual.check()?;
+            }
+            if let Work::Visit(result) = &next
+                && let Some(value) = recover_original_leaf(result, dialect, interpreter, actual)?
+            {
+                if let Some(actual) = actual {
+                    actual.check()?;
+                }
+                values.push(value);
+                continue;
+            }
+            match next {
+                Work::Visit(R::Shared(node)) => {
+                    let identity = Rc::as_ptr(node) as usize;
+                    if let Some(value) = memo.get(&identity) {
+                        values.push(value.clone());
+                    } else {
+                        if !active.insert(identity) {
+                            return Err(EngineError::ExecutionRefusal(
+                                "cyclic callback object graph".into(),
+                            ));
+                        }
+                        work.push(Work::Shared(identity));
+                        work.push(Work::Visit(node));
+                    }
+                }
+                Work::Visit(R::List { items, canonical }) => {
+                    work.push(Work::List(items.len(), *canonical));
+                    work.extend(items.iter().rev().map(Work::Visit));
+                }
+                Work::Visit(R::Dictionary { entries, buckets }) => {
+                    work.push(Work::Dictionary(entries.len(), *buckets));
+                    for (key, value) in entries.iter().rev() {
+                        work.push(Work::Visit(value));
+                        work.push(Work::Visit(key));
+                    }
+                }
+                Work::Visit(R::Resident {
+                    value,
+                    string,
+                    storage,
+                }) => {
+                    if let Some(recovered) = recover_original_resident(
+                        value,
+                        string,
+                        *storage,
+                        dialect,
+                        interpreter,
+                        actual,
+                    )? {
+                        values.push(recovered);
+                    } else {
+                        work.push(Work::Resident(string, *storage));
+                        work.push(Work::Visit(value));
+                    }
+                }
+                Work::Visit(_) => unreachable!("original leaf already recovered"),
+                Work::List(count, canonical) => {
+                    let start = values
+                        .len()
+                        .checked_sub(count)
+                        .expect("visited callback List children");
+                    let items = values.split_off(start);
+                    let protocol = dialect.native_string_protocol().ok_or_else(|| {
+                        EngineError::ExecutionRefusal(
+                            "callback List updater issuer unavailable".into(),
+                        )
+                    })?;
+                    values.push(tcl_vm::Value::list_with_native_canonical_in(
+                        items, canonical, protocol,
+                    ));
+                }
+                Work::Dictionary(count, buckets) => {
+                    let protocol = dialect.native_string_protocol().ok_or_else(|| {
+                        EngineError::ExecutionRefusal(
+                            "callback Dictionary updater issuer unavailable".into(),
+                        )
+                    })?;
+                    let value = recover_dictionary_children(&mut values, count, buckets, protocol)?;
+                    values.push(value);
+                }
+                Work::Resident(string, storage) => {
+                    let value = values
+                        .pop()
+                        .expect("visited resident callback representation");
+                    values.push(
+                        value
+                            .with_resident_string_bytes_and_storage(
+                                Rc::clone(string),
+                                import_storage(storage),
+                            )
+                            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+                    );
+                }
+                Work::Shared(identity) => {
+                    memo.insert(
+                        identity,
+                        values.last().expect("visited callback graph node").clone(),
+                    );
+                    active.remove(&identity);
+                }
+            }
+        }
+        Ok(values.pop().expect("visited callback result"))
+    })();
+    if let Some(actual) = actual {
+        actual.check()?;
+    }
+    reached
 }
 
 fn checked_list_backing_receipt(
@@ -1242,68 +1323,128 @@ fn recover_native_string_cache(
 /// Convert an interface value to the VM's representation.
 ///
 /// A Dictionary retains its member objects without a string round-trip.
+// The actual VM receipt spans recursive transport and mandatory cleanup.
+struct ActualScalarImport<'a> {
+    vm: RefCell<&'a mut Vm>,
+    original: &'a tcl_vm::NativeScalarIngress,
+}
+impl ActualScalarImport<'_> {
+    fn check(&self) -> Result<(), EngineError> {
+        self.vm
+            .borrow_mut()
+            .check_original_scalar_ingress(self.original)
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+    }
+    fn scalar(
+        &self,
+        facts: &tcl_engine_api::NativeScalarCache,
+        resident: Option<(
+            Rc<[u8]>,
+            tcl_syntax::native_string::NativeStringStorageIdentity,
+        )>,
+    ) -> Result<tcl_vm::Value, EngineError> {
+        self.vm
+            .borrow_mut()
+            .import_original_native_scalar(self.original, facts, resident)
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+    }
+}
+
+fn import_vm_scalar(
+    facts: &tcl_engine_api::NativeScalarCache,
+    dialect: tcl_registry::InvocationDialect,
+    resident: Option<(
+        Rc<[u8]>,
+        tcl_syntax::native_string::NativeStringStorageIdentity,
+    )>,
+    actual: Option<&ActualScalarImport<'_>>,
+) -> Result<tcl_vm::Value, EngineError> {
+    if let Some(actual) = actual {
+        return actual.scalar(facts, resident);
+    }
+    let (cache, origin) = import_scalar_cache(facts);
+    tcl_vm::Value::from_native_scalar_cache_with_storage(cache, origin, dialect, resident)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+}
+
+#[cfg(test)]
 fn to_vm_value(
     value: &Value,
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<tcl_vm::Value, EngineError> {
+    to_vm_value_using(value, dialect, None)
+}
+
+fn to_vm_value_using(
+    value: &Value,
+    dialect: tcl_registry::InvocationDialect,
+    actual: Option<&ActualScalarImport<'_>>,
+) -> Result<tcl_vm::Value, EngineError> {
+    if let Some(actual) = actual {
+        actual.check()?;
+    }
     let refusal = |error: &dyn std::fmt::Display| EngineError::ExecutionRefusal(error.to_string());
-    Ok(match value {
-        Value::Empty => tcl_vm::Value::string(String::new()),
-        Value::Str(text) => tcl_vm::Value::from_string_bytes(text.as_bytes()),
-        Value::StringBytes(bytes) => tcl_vm::Value::from_string_bytes(bytes.as_ref()),
-        Value::ByteArray(bytes) => tcl_vm::Value::from_native_byte_array(Rc::clone(bytes), dialect)
-            .map_err(|error| refusal(&error))?,
-        Value::NativeScalar(cache) => {
-            let (cache, origin) = import_scalar_cache(cache);
-            tcl_vm::Value::from_native_scalar_cache(cache, origin, dialect)
-                .map_err(|error| refusal(&error))?
-        }
-        Value::Resident {
-            value,
-            string,
-            storage,
-        } => {
-            let storage =
-                tcl_syntax::scalar_getter::carrier::checked_storage(*storage, string.len())
-                    .map_err(|error| refusal(&error))?;
-            if let Value::NativeScalar(cache) = value.as_ref() {
-                let (cache, origin) = import_scalar_cache(cache);
-                tcl_vm::Value::from_native_scalar_cache_with_storage(
-                    cache,
-                    origin,
-                    dialect,
-                    Some((Rc::clone(string), storage)),
-                )
-                .map_err(|error| refusal(&error))?
-            } else {
-                to_vm_value(value, dialect)?
-                    .with_resident_string_bytes_and_storage(Rc::clone(string), storage)
+    let reached = (|| {
+        Ok(match value {
+            Value::Empty => tcl_vm::Value::string(String::new()),
+            Value::Str(text) => tcl_vm::Value::from_string_bytes(text.as_bytes()),
+            Value::StringBytes(bytes) => tcl_vm::Value::from_string_bytes(bytes.as_ref()),
+            Value::ByteArray(bytes) => {
+                tcl_vm::Value::from_native_byte_array(Rc::clone(bytes), dialect)
                     .map_err(|error| refusal(&error))?
             }
-        }
-        Value::Int(number) => tcl_vm::Value::int(*number),
-        Value::Double(number) => tcl_vm::Value::double(*number),
-        Value::List(items) => tcl_vm::Value::native_list_constructor(
-            items
-                .iter()
-                .map(|value| to_vm_value(value, dialect))
-                .collect::<Result<_, _>>()?,
-            dialect.native_string_protocol().ok_or_else(|| {
-                EngineError::ExecutionRefusal("List import updater issuer unavailable".into())
-            })?,
-        ),
-        Value::Dict(entries) => tcl_vm::Value::native_dictionary_constructor(
-            entries
-                .iter()
-                .map(|(key, value)| Ok((to_vm_value(key, dialect)?, to_vm_value(value, dialect)?)))
-                .collect::<Result<_, EngineError>>()?,
-            None,
-            dialect.native_string_protocol().ok_or_else(|| {
-                EngineError::ExecutionRefusal("Dictionary import updater issuer unavailable".into())
-            })?,
-        )
-        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
-    })
+            Value::NativeScalar(cache) => import_vm_scalar(cache, dialect, None, actual)?,
+            Value::Resident {
+                value,
+                string,
+                storage,
+            } => {
+                let storage =
+                    tcl_syntax::scalar_getter::carrier::checked_storage(*storage, string.len())
+                        .map_err(|error| refusal(&error))?;
+                if let Value::NativeScalar(cache) = value.as_ref() {
+                    import_vm_scalar(cache, dialect, Some((Rc::clone(string), storage)), actual)?
+                } else {
+                    to_vm_value_using(value, dialect, actual)?
+                        .with_resident_string_bytes_and_storage(Rc::clone(string), storage)
+                        .map_err(|error| refusal(&error))?
+                }
+            }
+            Value::Int(number) => tcl_vm::Value::int(*number),
+            Value::Double(number) => tcl_vm::Value::double(*number),
+            Value::List(items) => tcl_vm::Value::native_list_constructor(
+                items
+                    .iter()
+                    .map(|value| to_vm_value_using(value, dialect, actual))
+                    .collect::<Result<_, _>>()?,
+                dialect.native_string_protocol().ok_or_else(|| {
+                    EngineError::ExecutionRefusal("List import updater issuer unavailable".into())
+                })?,
+            ),
+            Value::Dict(entries) => tcl_vm::Value::native_dictionary_constructor(
+                entries
+                    .iter()
+                    .map(|(key, value)| {
+                        Ok((
+                            to_vm_value_using(key, dialect, actual)?,
+                            to_vm_value_using(value, dialect, actual)?,
+                        ))
+                    })
+                    .collect::<Result<_, EngineError>>()?,
+                None,
+                dialect.native_string_protocol().ok_or_else(|| {
+                    EngineError::ExecutionRefusal(
+                        "Dictionary import updater issuer unavailable".into(),
+                    )
+                })?,
+            )
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+        })
+    })();
+    if let Some(actual) = actual {
+        actual.check()?;
+    }
+    reached
 }
 
 /// Convert a VM value to the interface's representation.
@@ -1353,7 +1494,7 @@ fn from_vm_object_value(value: &tcl_vm::Value) -> Result<Value, EngineError> {
     } else if let Some(cache) = value.native_scalar_cache() {
         Value::NativeScalar(export_scalar_cache(
             cache,
-            value.native_word_boolean_version(),
+            value.native_scalar_descriptor_origin(),
         )?)
     } else if value.has_list_representation() {
         if !matches!(
@@ -1416,7 +1557,7 @@ fn from_vm_value(
     if let Some(cache) = value.native_scalar_cache() {
         let payload = Value::NativeScalar(export_scalar_cache(
             cache,
-            value.native_word_boolean_version(),
+            value.native_scalar_descriptor_origin(),
         )?);
         // Retain the bridge's string-valued host view while carrying the full
         // primary cache. Numeric string generation does not narrow that cache.
@@ -1728,23 +1869,53 @@ impl Engine for TclVmEngine {
                 code: None,
             });
         }
-        let dialect = self.vm.native_scalar_carrier_dialect();
-        let arguments: Vec<tcl_vm::Value> = arguments
-            .iter()
-            .map(|value| to_vm_value(value, dialect))
-            .collect::<Result<_, _>>()?;
-        let _grammar = self.claim_grammar();
-        // Fuel is per invocation, so refill before every call rather than
-        // letting a long-lived engine starve its own later hooks.
-        self.vm.reset_command_count();
-        if let Some(wall_clock) = self.budget.wall_clock {
-            self.vm.set_wall_clock_budget(Some(wall_clock));
-        }
-        let completion = self
+        let original = self
             .vm
-            .try_invoke_command(&handle.procedure, &arguments)
+            .capture_original_scalar_ingress()
             .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
-        Self::completion_to_result(&mut self.vm, &completion)
+        let dialect = self.vm.native_scalar_carrier_dialect();
+        let reached = (|| {
+            let arguments: Vec<tcl_vm::Value> = {
+                let actual = ActualScalarImport {
+                    vm: RefCell::new(&mut self.vm),
+                    original: &original,
+                };
+                let imported = arguments
+                    .iter()
+                    .map(|value| to_vm_value_using(value, dialect, Some(&actual)))
+                    .collect::<Result<_, _>>();
+                actual.check()?;
+                imported?
+            };
+            let _grammar = self.claim_grammar();
+            // Fuel is per invocation, so refill before every call rather than
+            // letting a long-lived engine starve its own later hooks.
+            self.vm.reset_command_count();
+            if let Some(wall_clock) = self.budget.wall_clock {
+                self.vm.set_wall_clock_budget(Some(wall_clock));
+            }
+            let invoked = self.vm.try_invoke_command(&handle.procedure, &arguments);
+            let current = self.vm.check_original_scalar_ingress(&original);
+            drop(arguments);
+            let retired = self.vm.check_original_scalar_ingress(&original);
+            let completed = (|| {
+                current.map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+                retired.map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+                let completion = invoked
+                    .as_ref()
+                    .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+                Self::completion_to_result(&mut self.vm, completion)
+            })();
+            drop(invoked);
+            self.vm
+                .check_original_scalar_ingress(&original)
+                .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+            completed
+        })();
+        self.vm
+            .finish_original_scalar_ingress(original)
+            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+        reached
     }
 
     fn set_budget(&mut self, budget: Budget) -> Result<(), EngineError> {
@@ -3334,3 +3505,7 @@ mod tests {
         assert!(completion.options.cached_list_representation().is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "c84_wide_transport_tests.rs"]
+mod c84_wide_transport_tests;

@@ -66,7 +66,7 @@ impl<'a> OriginalOps<'a> {
         value.check_native_header()?;
         if self.dialect.native_scalar_getter_protocol() != Some(protocol.scalar_protocol())
             || value
-                .native_word_boolean_version()
+                .native_scalar_descriptor_origin()
                 .is_some_and(|version| Some(version) != protocol.scalar_protocol().tcl_version())
         {
             return Err(unavailable());

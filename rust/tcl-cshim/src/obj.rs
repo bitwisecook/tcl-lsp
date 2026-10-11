@@ -225,7 +225,7 @@ fn import_cache(
             value,
             origin: NativeCVersion::V9_0,
         } => return Ok(NativeScalarCache::WordBoolean(*value)),
-        A::WordBoolean { .. } | A::JimCoercedInteger(_) | A::Tcl84Long(_) => {
+        A::WordBoolean { .. } | A::JimCoercedInteger(_) | A::Tcl84Long(_) | A::Tcl84Wide(_) => {
             return Err(EngineError::ExecutionRefusal(
                 "native scalar cache belongs to a different engine descriptor".into(),
             ));

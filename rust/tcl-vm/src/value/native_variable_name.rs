@@ -117,6 +117,7 @@ impl Value {
             IntRep::Str
                 | IntRep::Int(_)
                 | IntRep::Tcl84Long(_)
+                | IntRep::Tcl84Wide(_)
                 | IntRep::Double(_)
                 | IntRep::Bool(_)
                 | IntRep::WordBoolean { .. }

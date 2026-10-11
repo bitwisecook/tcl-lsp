@@ -102,7 +102,7 @@ pub const fn export_storage(storage: Storage) -> CarrierStorage {
     }
 }
 
-/// Decode the full retained cache and its independent word-Boolean origin.
+/// Decode the full retained cache and its independent descriptor origin.
 /// The receiver must validate that origin before installing a native descriptor.
 #[must_use]
 pub fn import_scalar(cache: &Carrier) -> (NativeScalarCache, Option<TclVersion>) {
@@ -137,6 +137,12 @@ pub fn import_scalar(cache: &Carrier) -> (NativeScalarCache, Option<TclVersion>)
             return (NativeScalarCache::JimCoercedInteger(*value), None);
         }
         Carrier::Tcl84Long(value) => return (NativeScalarCache::Tcl84Long(*value), None),
+        Carrier::Tcl84Wide(value) => {
+            return (
+                NativeScalarCache::Number(Number::Int(*value)),
+                Some(TclVersion::V8_4),
+            );
+        }
     };
     (NativeScalarCache::Number(number), None)
 }
@@ -150,6 +156,9 @@ pub fn export_scalar(
     origin: Option<TclVersion>,
 ) -> Result<Carrier, NativeScalarCarrierError> {
     Ok(match cache {
+        NativeScalarCache::Number(Number::Int(value)) if origin == Some(TclVersion::V8_4) => {
+            Carrier::Tcl84Wide(value)
+        }
         NativeScalarCache::Number(Number::Int(value)) => Carrier::Integer(value),
         NativeScalarCache::Number(Number::Double(value)) => Carrier::Double(value),
         NativeScalarCache::Number(Number::Nan { negative, payload }) => {
@@ -214,10 +223,14 @@ impl std::error::Error for ScalarWireError {}
 pub fn encode_scalar(cache: &Carrier) -> Result<Vec<u8>, ScalarWireError> {
     let mut out = Vec::new();
     match cache {
-        Carrier::Tcl84Long(value) | Carrier::Integer(value) | Carrier::JimCoercedInteger(value) => {
+        Carrier::Tcl84Long(value)
+        | Carrier::Tcl84Wide(value)
+        | Carrier::Integer(value)
+        | Carrier::JimCoercedInteger(value) => {
             out.push(match cache {
                 Carrier::Tcl84Long(_) => 0,
                 Carrier::Integer(_) => 1,
+                Carrier::Tcl84Wide(_) => 7,
                 _ => 6,
             });
             out.extend_from_slice(&value.to_le_bytes());
@@ -302,6 +315,7 @@ pub fn decode_scalar(bytes: &[u8]) -> Result<Carrier, ScalarWireError> {
     let value = match input.byte()? {
         0 => Carrier::Tcl84Long(input.number()?.cast_signed()),
         1 => Carrier::Integer(input.number()?.cast_signed()),
+        7 => Carrier::Tcl84Wide(input.number()?.cast_signed()),
         2 => {
             let negative = input.boolean()?;
             let radix = match input.byte()? {
@@ -488,5 +502,31 @@ mod tests {
             decode_scalar(&[5, 1, 1, 0]),
             Err(ScalarWireError::TrailingBytes)
         );
+    }
+}
+
+#[cfg(test)]
+mod wide84_transport_tests {
+    use super::*;
+    #[test]
+    fn explicit_c84_wide_wire_keeps_descriptor_data_distinct_from_integer_and_long() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for value in [17, 4_294_967_296, i64::MIN, i64::MAX] {
+            let wide = Carrier::Tcl84Wide(value);
+            let bytes = encode_scalar(&wide).unwrap();
+            assert_eq!(bytes[0], 7);
+            assert_eq!(decode_scalar(&bytes).unwrap(), wide);
+            let (semantic, origin) = import_scalar(&wide);
+            assert_eq!(semantic, NativeScalarCache::Number(Number::Int(value)));
+            assert_eq!(origin, Some(TclVersion::V8_4));
+            assert_eq!(export_scalar(semantic.clone(), origin).unwrap(), wide);
+            assert_eq!(
+                export_scalar(semantic, None).unwrap(),
+                Carrier::Integer(value)
+            );
+            assert_ne!(bytes, encode_scalar(&Carrier::Tcl84Long(value)).unwrap());
+            assert_ne!(bytes, encode_scalar(&Carrier::Integer(value)).unwrap());
+        }
     }
 }

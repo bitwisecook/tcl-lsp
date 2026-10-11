@@ -994,7 +994,7 @@ fn snapshot_value(interp: &Interp, original: *mut TclObj) -> Result<Value, Engin
             proper: true,
         } => Value::byte_array(bytes),
         Cache::Numeric(cache) => Value::NativeScalar(
-            carrier::export_scalar(cache, obj::native_word_boolean_version(original))
+            carrier::export_scalar(cache, obj::native_scalar_descriptor_origin(original))
                 .map_err(value_error)?,
         ),
         Cache::WordBoolean { value, version } => Value::NativeScalar(

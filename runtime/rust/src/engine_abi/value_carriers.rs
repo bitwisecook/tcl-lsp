@@ -25,6 +25,14 @@ pub(crate) fn scalar(
         .ok_or(ValueError::CommandProtocolUnavailable(
             "native scalar import",
         ))?;
+    if matches!(facts, NativeScalarCache::Integer(_))
+        && protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4)
+    {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "original C84 integer descriptor origin unavailable",
+        )
+        .into());
+    }
     if origin.is_some_and(|origin| protocol.tcl_version() != Some(origin))
         || (matches!(
             cache,
@@ -520,3 +528,7 @@ mod tests {
         assert!(!interp.host_refusal_pending());
     }
 }
+
+#[cfg(test)]
+#[path = "value_carriers/c84_wide_tests.rs"]
+mod c84_wide_tests;

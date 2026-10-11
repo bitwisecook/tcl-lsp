@@ -480,6 +480,15 @@ pub(crate) static TCL_LONG84_TYPE: TclObjType = TclObjType {
     update_string_proc: Some(int_update_string),
     set_from_any_proc: None,
 };
+/// C Tcl 8.4's wideInt primary, independent of the selected machine Long width.
+/// Only an actual selected scalar issuer/adoption installs this descriptor.
+pub(crate) static TCL_WIDE84_TYPE: TclObjType = TclObjType {
+    name: c"wideInt".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: Some(int_update_string),
+    set_from_any_proc: None,
+};
 /// Jim's explicit double getter preserves the exact wide integer. The string
 /// updater remains integer-based, and a subsequent wide getter restores Int.
 pub(crate) static JIM_COERCED_DOUBLE_TYPE: TclObjType = TclObjType {
@@ -1463,6 +1472,17 @@ pub(crate) fn native_word_boolean_version(value: *mut TclObj) -> Option<tcl_dial
     native_word_boolean_origin(obj_type_ptr(value))
 }
 
+/// Retained descriptor origin; this observation supplies no getter authority.
+pub(crate) fn native_scalar_descriptor_origin(
+    value: *mut TclObj,
+) -> Option<tcl_dialect::TclVersion> {
+    if core::ptr::eq(obj_type_ptr(value), &TCL_WIDE84_TYPE) {
+        Some(tcl_dialect::TclVersion::V8_4)
+    } else {
+        native_word_boolean_version(value)
+    }
+}
+
 /// Inspect original physical storage and cache without reaching any updater.
 pub(crate) fn native_object_snapshot(
     value: *mut TclObj,
@@ -2123,7 +2143,7 @@ pub(crate) fn native_scalar_cache(
     let kind = obj_type_ptr(value);
     let cache = if core::ptr::eq(kind, &TCL_LONG84_TYPE) {
         Some(NativeScalarCache::Tcl84Long(wide_of(value)))
-    } else if core::ptr::eq(kind, &TCL_INT_TYPE) {
+    } else if core::ptr::eq(kind, &TCL_INT_TYPE) || core::ptr::eq(kind, &TCL_WIDE84_TYPE) {
         Some(NativeScalarCache::Number(Number::Int(wide_of(value))))
     } else if core::ptr::eq(kind, &TCL_DOUBLE_TYPE) {
         Some(NativeScalarCache::Number(Number::Double(double_of(value))))
@@ -2203,6 +2223,7 @@ pub(crate) fn stock_list_input_class(
     }
     if core::ptr::eq(kind, &TCL_INT_TYPE)
         || core::ptr::eq(kind, &TCL_LONG84_TYPE)
+        || core::ptr::eq(kind, &TCL_WIDE84_TYPE)
         || core::ptr::eq(kind, &TCL_DOUBLE_TYPE)
         || core::ptr::eq(kind, &JIM_COERCED_DOUBLE_TYPE)
     {
@@ -2271,7 +2292,14 @@ fn adopt_native_scalar_cache_using(
             change_type_using(value, &TCL_LONG84_TYPE, integer as u64, check)?;
         }
         NativeScalarCache::Number(Number::Int(integer)) => {
-            change_type_using(value, &TCL_INT_TYPE, integer as u64, check)?;
+            let descriptor = if protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4)
+                && (check.is_some() || scalar_object_context(value)?.is_some())
+            {
+                &TCL_WIDE84_TYPE
+            } else {
+                &TCL_INT_TYPE
+            };
+            change_type_using(value, descriptor, integer as u64, check)?;
         }
         NativeScalarCache::Number(Number::Double(double)) => {
             change_type_using(value, &TCL_DOUBLE_TYPE, double.to_bits(), check)?;

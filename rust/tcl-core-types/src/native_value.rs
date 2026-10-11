@@ -52,6 +52,8 @@ pub enum NativeIntegerRadix {
 pub enum NativeScalarCache {
     /// C Tcl8.4's native long cache, distinct from its wide-integer descriptor.
     Tcl84Long(i64),
+    /// C Tcl 8.4's wideInt cache; recorded origin supplies no live issuer.
+    Tcl84Wide(i64),
     /// Exact signed integer cache, independently of a narrower getter return.
     Integer(i64),
     /// Full integer magnitude, without wrapping or a floating-point conversion.

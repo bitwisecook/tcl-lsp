@@ -69,6 +69,7 @@ pub(crate) mod jim_local;
 mod jim_table_key_tests;
 mod jim_table_keys;
 mod jim_teardown;
+mod namespace_stack;
 mod native_append;
 #[cfg(test)]
 mod native_bootstrap;
@@ -116,6 +117,7 @@ mod native_package_files;
 mod native_precision_tests;
 mod native_procedure_artifacts;
 mod native_rename;
+pub(crate) mod native_scalar_ingress;
 #[cfg(test)]
 #[path = "interp/native_upvar_info_exists_tests.rs"]
 mod native_upvar_info_exists_tests;
@@ -126,7 +128,6 @@ pub(crate) mod oo_cleanup;
 #[cfg(test)]
 mod original_name_residual_tests;
 mod selected_frame;
-mod namespace_stack;
 use namespace_stack::NamespaceResolutionTail;
 mod variable_container;
 mod variable_trace_outcomes;

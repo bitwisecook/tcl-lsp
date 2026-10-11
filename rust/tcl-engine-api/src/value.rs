@@ -180,7 +180,9 @@ impl Value {
         match self {
             Self::Int(value)
             | Self::NativeScalar(
-                NativeScalarCache::Integer(value) | NativeScalarCache::Tcl84Long(value),
+                NativeScalarCache::Integer(value)
+                | NativeScalarCache::Tcl84Long(value)
+                | NativeScalarCache::Tcl84Wide(value),
             ) => Some(*value),
             Self::Resident { value, .. } => value.as_int(),
             _ => None,

@@ -163,7 +163,7 @@ fn read(obj: *mut TclObj) -> Option<NumVal> {
 /// Read a numeric object under the caller's selected Tcl numeral grammar.
 fn read_with_syntax(obj: *mut TclObj, syntax: tcl_dialect::NumberSyntax) -> Option<NumVal> {
     let tp = obj::obj_type_ptr(obj);
-    if tp == &obj::TCL_INT_TYPE {
+    if tp == &obj::TCL_INT_TYPE || tp == &obj::TCL_WIDE84_TYPE {
         return Some(NumVal::Wide(obj::wide_of(obj)));
     }
     if tp == &obj::TCL_DOUBLE_TYPE {
@@ -676,7 +676,7 @@ fn is_nan_operand(obj: *mut TclObj) -> bool {
     if tp == &obj::TCL_DOUBLE_TYPE {
         return obj::double_of(obj).is_nan();
     }
-    if tp == &obj::TCL_INT_TYPE || tp == &TCL_BIGNUM_TYPE {
+    if tp == &obj::TCL_INT_TYPE || tp == &obj::TCL_WIDE84_TYPE || tp == &TCL_BIGNUM_TYPE {
         return false;
     }
     let bytes = obj::bytes_of(obj);

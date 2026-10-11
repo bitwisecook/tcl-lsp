@@ -574,6 +574,8 @@ enum IntRep {
     Int(i64),
     /// C Tcl 8.4 native long, distinct from its wide integer primary cache.
     Tcl84Long(i64),
+    /// Actual selected C84 wideInt storage; unrelated to generic Int construction.
+    Tcl84Wide(i64),
     /// Complete native magnitude, independently of a wrapped getter return.
     Big {
         negative: bool,
@@ -2620,6 +2622,13 @@ impl Value {
                 tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
             ));
         }
+        if matches!(&*self.0.intrep.borrow(), IntRep::Tcl84Wide(_))
+            && protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4)
+        {
+            return Err(failure(
+                tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+            ));
+        }
         if let Some(resident) = self.resident_string_bytes() {
             return Ok(resident);
         }
@@ -3042,7 +3051,9 @@ impl Value {
     #[must_use]
     pub fn native_scalar_cache(&self) -> Option<NativeScalarCache> {
         match &*self.0.intrep.borrow() {
-            IntRep::Int(value) => Some(NativeScalarCache::Number(Number::Int(*value))),
+            IntRep::Int(value) | IntRep::Tcl84Wide(value) => {
+                Some(NativeScalarCache::Number(Number::Int(*value)))
+            }
             IntRep::Tcl84Long(value) => Some(NativeScalarCache::Tcl84Long(*value)),
             IntRep::Bool(value) => Some(NativeScalarCache::Number(Number::Int(i64::from(*value)))),
             IntRep::Big {
@@ -3593,6 +3604,7 @@ impl Value {
             IntRep::NativeParsedVariableName(_) => "parsedVarName",
             IntRep::NativeLocalVariableName(_) => "localVarName",
             IntRep::Tcl84Long(_) | IntRep::Int(_) => "int",
+            IntRep::Tcl84Wide(_) => "wideInt",
             IntRep::Big { .. } => "bignum",
             IntRep::Double(_) | IntRep::CoercedDouble(_) => "double",
             _ => "opaque",
@@ -3832,6 +3844,7 @@ impl Value {
             },
             IntRep::Int(_)
             | IntRep::Tcl84Long(_)
+            | IntRep::Tcl84Wide(_)
             | IntRep::Big { .. }
             | IntRep::Double(_)
             | IntRep::CoercedDouble(_)
@@ -3928,6 +3941,16 @@ impl Value {
         }
     }
 
+    /// Exact scalar descriptor origin; retained metadata grants no live issuer.
+    #[must_use]
+    pub fn native_scalar_descriptor_origin(&self) -> Option<tcl_dialect::TclVersion> {
+        if matches!(&*self.0.intrep.borrow(), IntRep::Tcl84Wide(_)) {
+            Some(tcl_dialect::TclVersion::V8_4)
+        } else {
+            self.native_word_boolean_version()
+        }
+    }
+
     /// Actual C release retained with a native word-Boolean descriptor.
     #[must_use]
     pub fn native_word_boolean_version(&self) -> Option<tcl_dialect::TclVersion> {
@@ -3951,7 +3974,7 @@ impl Value {
     /// Cache origin and independently selected actual engine must agree.
     ///
     /// # Errors
-    /// Refuses unavailable engines, foreign Boolean origins or malformed Big storage.
+    /// Refuses unavailable engines, foreign descriptor origins or malformed Big storage.
     pub fn from_native_scalar_cache(
         cache: NativeScalarCache,
         word_boolean_origin: Option<tcl_dialect::TclVersion>,
@@ -3962,6 +3985,7 @@ impl Value {
 
     /// Reconstruct a full transported cache and its independently resident string.
     /// Modern native word-Boolean descriptors require that resident string.
+    /// Explicit C84 Wide data also require the actual scalar ingress receipt.
     ///
     /// # Errors
     /// Refuses missing authority, inconsistent storage or a foreign cache origin.
@@ -3970,12 +3994,51 @@ impl Value {
         word_boolean_origin: Option<tcl_dialect::TclVersion>,
         dialect: tcl_registry::InvocationDialect,
         resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
-    ) -> Result<Self, tcl_syntax::value::ValueError> {
+    ) -> Result<Self, ValueError> {
+        Self::from_native_scalar_cache_with_storage_using(
+            cache,
+            word_boolean_origin,
+            dialect,
+            resident,
+            None,
+        )
+    }
+
+    pub(crate) fn from_native_scalar_cache_with_ingress(
+        cache: NativeScalarCache,
+        origin: Option<tcl_dialect::TclVersion>,
+        ingress: &crate::NativeScalarIngress,
+        resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
+    ) -> Result<Self, ValueError> {
+        Self::from_native_scalar_cache_with_storage_using(
+            cache,
+            origin,
+            ingress.dialect(),
+            resident,
+            Some(ingress),
+        )
+    }
+
+    fn from_native_scalar_cache_with_storage_using(
+        cache: NativeScalarCache,
+        word_boolean_origin: Option<tcl_dialect::TclVersion>,
+        dialect: tcl_registry::InvocationDialect,
+        resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
+        ingress: Option<&crate::NativeScalarIngress>,
+    ) -> Result<Self, ValueError> {
         let protocol = dialect
             .native_scalar_getter_protocol()
             .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
-        if matches!(cache, NativeScalarCache::WordBoolean(_))
-            && (word_boolean_origin.is_none() || word_boolean_origin != protocol.tcl_version())
+        if matches!(cache, NativeScalarCache::Number(Number::Int(_)))
+            && word_boolean_origin.is_some()
+            && ingress.is_none()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C84 Wide descriptor ingress unavailable",
+            ));
+        }
+        if word_boolean_origin.is_some_and(|origin| Some(origin) != protocol.tcl_version())
+            || (matches!(cache, NativeScalarCache::WordBoolean(_)) && word_boolean_origin.is_none())
         {
             return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
         }
@@ -3989,7 +4052,14 @@ impl Value {
                 .string_storage
                 .set(NativeStringStorageIdentity::Unknown);
         }
-        value.adopt_native_scalar_cache(cache, protocol, dialect)?;
+        if let Some(ingress) = ingress {
+            ingress.validate_cache(&cache)?;
+            let mut geometry = || ingress.validate_cache(&cache);
+            let mut stage: Option<&mut dyn FnMut() -> Result<(), ValueError>> = Some(&mut geometry);
+            value.adopt_native_scalar_cache_using(cache.clone(), protocol, dialect, &mut stage)?;
+        } else {
+            value.adopt_native_scalar_cache(cache, protocol, dialect)?;
+        }
         Ok(value)
     }
 
@@ -4070,7 +4140,14 @@ impl Value {
                 }
                 IntRep::Tcl84Long(value)
             }
-            NativeScalarCache::Number(Number::Int(value)) => IntRep::Int(value),
+            NativeScalarCache::Number(Number::Int(value)) => {
+                if protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4) && check.is_some()
+                {
+                    IntRep::Tcl84Wide(value)
+                } else {
+                    IntRep::Int(value)
+                }
+            }
             NativeScalarCache::Number(Number::Double(value)) => IntRep::Double(value),
             NativeScalarCache::Number(Number::Nan { negative, payload }) => {
                 IntRep::Double(f64::from_bits(
@@ -4198,7 +4275,7 @@ impl Value {
             .native_scalar_getter_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         if self
-            .native_word_boolean_version()
+            .native_scalar_descriptor_origin()
             .is_some_and(|version| Some(version) != protocol.tcl_version())
         {
             return Err(ValueError::ScalarNumericInputUnavailable.into());
@@ -4417,7 +4494,7 @@ impl Value {
             .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         if self
-            .native_word_boolean_version()
+            .native_scalar_descriptor_origin()
             .is_some_and(|version| version != tcl_dialect::TclVersion::V8_4)
         {
             return Err(ValueError::ScalarNumericInputUnavailable.into());
@@ -4628,7 +4705,7 @@ impl Value {
             .filter(|protocol| protocol.supports_number_getter())
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         if self
-            .native_word_boolean_version()
+            .native_scalar_descriptor_origin()
             .is_some_and(|version| Some(version) != protocol.tcl_version())
         {
             return Err(ValueError::ScalarNumericInputUnavailable.into());
@@ -4916,7 +4993,7 @@ impl Value {
     /// Inspect a native integer conversion without reparsing retained source bytes.
     pub(crate) fn integer_representation(&self) -> Option<i64> {
         match *self.0.intrep.borrow() {
-            IntRep::Int(value) | IntRep::Tcl84Long(value) => Some(value),
+            IntRep::Int(value) | IntRep::Tcl84Long(value) | IntRep::Tcl84Wide(value) => Some(value),
             IntRep::Bool(value) => Some(i64::from(value)),
             _ => None,
         }
@@ -4933,6 +5010,7 @@ impl Value {
             IntRep::ByteArray(_) => Class::ByteArray,
             IntRep::Int(_)
             | IntRep::Tcl84Long(_)
+            | IntRep::Tcl84Wide(_)
             | IntRep::Big { .. }
             | IntRep::Double(_)
             | IntRep::CoercedDouble(_)
@@ -6773,6 +6851,7 @@ impl Value {
             IntRep::ByteArray(bytes) => (Self::raw_byte_array_string(&bytes.bytes), false),
             cache @ (IntRep::Int(_)
             | IntRep::Tcl84Long(_)
+            | IntRep::Tcl84Wide(_)
             | IntRep::CoercedDouble(_)
             | IntRep::Big { .. }
             | IntRep::Double(_)
@@ -6846,9 +6925,10 @@ impl Value {
                 RawString::from_bytes(offset.string_update().expect("legacy end-offset updater")),
                 false,
             ),
-            IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::CoercedDouble(n) => {
-                (RawString::from_unicode(n.to_string()), false)
-            }
+            IntRep::Int(n)
+            | IntRep::Tcl84Long(n)
+            | IntRep::Tcl84Wide(n)
+            | IntRep::CoercedDouble(n) => (RawString::from_unicode(n.to_string()), false),
             IntRep::Big {
                 negative,
                 radix,
@@ -6997,7 +7077,7 @@ impl Value {
             return Ok(value);
         }
         match &*self.0.intrep.borrow() {
-            IntRep::Int(n) | IntRep::Tcl84Long(n) => return Ok(*n),
+            IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::Tcl84Wide(n) => return Ok(*n),
             IntRep::Bool(b) => return Ok(i64::from(*b)),
             IntRep::Str
             | IntRep::JimString(_)
@@ -7088,7 +7168,9 @@ impl Value {
             return Ok(value);
         }
         match *self.0.intrep.borrow() {
-            IntRep::Int(value) | IntRep::Tcl84Long(value) => return Ok(value),
+            IntRep::Int(value) | IntRep::Tcl84Long(value) | IntRep::Tcl84Wide(value) => {
+                return Ok(value);
+            }
             IntRep::Bool(value) => return Ok(i64::from(value)),
             _ => {}
         }
@@ -7141,7 +7223,9 @@ impl Value {
     ) -> Result<bool, E> {
         Self::native_stage_check(check)?;
         match *self.0.intrep.borrow() {
-            IntRep::Int(value) | IntRep::Tcl84Long(value) => return Ok(value != 0),
+            IntRep::Int(value) | IntRep::Tcl84Long(value) | IntRep::Tcl84Wide(value) => {
+                return Ok(value != 0);
+            }
             IntRep::Bool(value) => return Ok(value),
             IntRep::Double(value)
                 if input == number::NativeScalarNumericInputPolicy::LengthDelimited =>
@@ -7287,7 +7371,10 @@ impl Value {
     ) -> Result<f64, TclError> {
         self.numeric_conversion_current(original)?;
         match &*self.0.intrep.borrow() {
-            IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::CoercedDouble(n) => {
+            IntRep::Int(n)
+            | IntRep::Tcl84Long(n)
+            | IntRep::Tcl84Wide(n)
+            | IntRep::CoercedDouble(n) => {
                 return Ok(*n as f64);
             }
             IntRep::Double(f) => return Ok(*f),
@@ -7350,7 +7437,10 @@ impl Value {
         self.numeric_conversion_current(original)?;
         match &*self.0.intrep.borrow() {
             IntRep::Bool(b) => return Ok(*b),
-            IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::CoercedDouble(n) => return Ok(*n != 0),
+            IntRep::Int(n)
+            | IntRep::Tcl84Long(n)
+            | IntRep::Tcl84Wide(n)
+            | IntRep::CoercedDouble(n) => return Ok(*n != 0),
             IntRep::Double(f) => return Ok(*f != 0.0),
             IntRep::Str
             | IntRep::JimString(_)

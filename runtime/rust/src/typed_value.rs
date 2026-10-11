@@ -222,7 +222,7 @@ fn scalar_probe_using(
         let context = crate::native_source::context(value)?;
         scalar_jim_stage_current(value, currency, &context)?;
     }
-    if obj::native_word_boolean_version(value)
+    if obj::native_scalar_descriptor_origin(value)
         .is_some_and(|version| Some(version) != protocol.tcl_version())
     {
         return Err(ValueError::ScalarNumericInputUnavailable);
@@ -557,7 +557,7 @@ fn native_number_probe_using(
         .native_scalar_getter_protocol()
         .filter(|protocol| protocol.supports_number_getter())
         .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-    if obj::native_word_boolean_version(value)
+    if obj::native_scalar_descriptor_origin(value)
         .is_some_and(|version| Some(version) != protocol.tcl_version())
     {
         return Err(ValueError::ScalarNumericInputUnavailable);
@@ -847,7 +847,9 @@ fn scalar_number_impl<E: From<tcl_syntax::raw_string::NativeValueAccessRefusal>>
     if obj::obj_type_ptr(value) == &obj::TCL_INT_TYPE {
         return Ok(Some(Number::Int(obj::wide_of(value))));
     }
-    if obj::obj_type_ptr(value) == &obj::TCL_LONG84_TYPE {
+    if obj::obj_type_ptr(value) == &obj::TCL_LONG84_TYPE
+        || obj::obj_type_ptr(value) == &obj::TCL_WIDE84_TYPE
+    {
         if dialect
             .native_scalar_getter_protocol()
             .and_then(|protocol| protocol.tcl_version())

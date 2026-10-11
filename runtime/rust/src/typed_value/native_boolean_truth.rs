@@ -5,26 +5,26 @@
 
 use crate::{
     interp::{
-        Interp,
         native_operation_currency::{CheckedNumericEnvironment, NativeOperationCurrency},
+        Interp,
     },
     obj::{self, Owned, TclObj},
 };
 use std::{cell::Cell, rc::Rc};
 use tcl_cmd_core::{
-    CmdError,
     native_boolean_truth::{
-        NativeBooleanExpressionResultOps, NativeBooleanTruthOps,
         original_boolean_expression_result, original_boolean_truth,
+        NativeBooleanExpressionResultOps, NativeBooleanTruthOps,
     },
+    CmdError,
 };
 use tcl_registry::{
-    InvocationDialect,
     native_boolean_truth::{
         NativeBooleanExpressionResultProduction as Production,
         NativeBooleanExpressionResultProtocol as ResultProtocol,
         NativeBooleanTruthProtocol as TruthProtocol, NativeBooleanTruthPurpose as Purpose,
     },
+    InvocationDialect,
 };
 use tcl_syntax::{
     native_boolean_truth::NativeBooleanTruthProbe as Probe,
@@ -125,7 +125,7 @@ impl<'a> OriginalOps<'a> {
                     .native_scalar_getter_protocol()
                     != Some(protocol.scalar_protocol())
             })
-            || obj::native_word_boolean_version(value)
+            || obj::native_scalar_descriptor_origin(value)
                 .is_some_and(|version| Some(version) != protocol.scalar_protocol().tcl_version())
         {
             return Err(unavailable());
