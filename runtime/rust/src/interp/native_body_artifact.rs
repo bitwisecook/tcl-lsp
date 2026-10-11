@@ -2139,11 +2139,13 @@ impl Interp {
                 );
                 self.clear_error_logged();
                 if code == Code::Error {
-                    self.capture_original_return_instruction_context(
+                    if let Err(first) = self.capture_original_return_instruction_context(
                         tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
                         self.result.get(),
                         options,
-                    );
+                    ) {
+                        return self.refuse_native_execution(first);
+                    }
                 }
             }
             if code == Code::Error {
@@ -3649,7 +3651,7 @@ impl Interp {
                             tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
                             value.as_ptr(),
                             original,
-                        );
+                        ).map_err(|first| self.refuse_native_execution(first))?;
                     }
                     Ok(code)
                 }

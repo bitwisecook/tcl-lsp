@@ -73,18 +73,23 @@ impl Interp {
         purpose: NativeReturnOptionsApplication,
         result: *mut TclObj,
         options: *mut TclObj,
-    ) {
-        if let Some(name) = self
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = if let Some(name) = self
             .native_invocation_dialect()
             .native_return_options_application(purpose)
             .and_then(|recipe| recipe.inner_context_name())
         {
             if !self.exc.borrow().already_logged {
-                self.error_stack
-                    .borrow_mut()
-                    .begin_instruction(name, &[result, options]);
+                self.begin_original_error_stack_instruction_checked(name, &[result, options])
+            } else {
+                Ok(())
             }
-        }
+        } else {
+            Ok(())
+        };
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
     /// Capture the native compile-failure options after the parser publishes
     /// its actual result/private error code, before evaluation resets them.

@@ -950,34 +950,60 @@ fn prepare_native_list_mutation_with_stage_check(
 pub(crate) fn append_native_elements(
     original: Option<*mut TclObj>,
     elements: &[*mut TclObj],
-    protocol: tcl_syntax::native_string::NativeStringProtocol,
-) -> Result<crate::obj::Owned, tcl_syntax::value::ValueError> {
+    protocol: NativeStringProtocol,
+) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+    append_native_elements_using(original, elements, protocol, &|| Ok(()), &|error| error)
+}
+
+/// The same selected append worker under the caller's original stage check.
+/// Header sharing is sampled before its real working hold; no protective native
+/// reference or replacement of pre-existing members is introduced.
+pub(crate) fn append_native_elements_using<E>(
+    original: Option<*mut TclObj>,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    check()?;
+    let original_lifetime = original
+        .map(|original| {
+            obj::check_native_liveness(original).map_err(refuse)?;
+            Ok::<_, E>(obj::NativeObjectLifetime::retain(original))
+        })
+        .transpose()?;
     let value = match original {
         None => {
-            return Ok(crate::obj::Owned::fresh(
-                if elements.is_empty() && protocol.tcl_version().is_some() {
+            let value =
+                obj::Owned::fresh(if elements.is_empty() && protocol.tcl_version().is_some() {
                     obj::new_string_bytes(b"")
                 } else {
                     new_list_obj_native(elements, protocol)
-                },
-            ));
+                });
+            check()?;
+            return Ok(value);
         }
-        Some(value) if obj::is_shared(value) => {
-            let duplicate = obj::duplicate(value);
-            duplicate_native_backing(value, duplicate, protocol);
-            crate::obj::Owned::fresh(duplicate)
+        Some(original) if obj::is_shared(original) => {
+            let duplicate = obj::Owned::fresh(obj::duplicate(original));
+            check()?;
+            obj::check_native_liveness(original).map_err(refuse)?;
+            duplicate_native_backing(original, duplicate.as_ptr(), protocol);
+            check()?;
+            duplicate
         }
-        Some(value) => {
+        Some(original) => {
             if !elements.is_empty() {
-                prepare_native_list_mutation(value, protocol)?;
+                prepare_native_list_mutation_using(original, protocol, check, refuse)?;
             }
-            crate::obj::Owned::retain(value)
+            obj::Owned::retain(original)
         }
     };
-    if elements.is_empty() {
-        return Ok(value);
+    check()?;
+    if !elements.is_empty() {
+        append_prepared_native_elements_using(value.as_ptr(), elements, protocol, check, refuse)?;
     }
-    append_prepared_native_elements(value.as_ptr(), elements, protocol)?;
+    drop(original_lifetime);
+    check()?;
     Ok(value)
 }
 
@@ -988,7 +1014,18 @@ pub(crate) fn append_prepared_native_elements(
     elements: &[*mut TclObj],
     protocol: NativeStringProtocol,
 ) -> Result<(), tcl_syntax::value::ValueError> {
-    prepare_native_list_mutation(value, protocol)?;
+    append_prepared_native_elements_using(value, elements, protocol, &|| Ok(()), &|error| error)
+}
+
+fn append_prepared_native_elements_using<E>(
+    value: *mut TclObj,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<(), E> {
+    prepare_native_list_mutation_using(value, protocol, check, refuse)?;
+    check()?;
     if elements.is_empty() {
         let preserve = protocol.tcl_version().is_some_and(|version| {
             version >= tcl_dialect::TclVersion::V9_0
@@ -997,29 +1034,29 @@ pub(crate) fn append_prepared_native_elements(
         if !preserve {
             obj::invalidate_string(value);
         }
-        return Ok(());
+        return check();
     }
-    // SAFETY: preparation selected the actual unshared receiver before its
-    // working owner; each appended original object becomes a list member.
-    unsafe {
-        let list = list_mut(value);
-        if list.elems.native_is_shared() {
-            list.canonical = Rc::new(Cell::new(
-                protocol.copied_list_canonical(list.canonical.get()),
-            ));
-        }
-        if protocol.tcl_version().is_some() {
-            let length = list.elems.len();
-            replace_prepared_native_elements(value, length, 0, elements, protocol, false)?;
-        } else {
-            for &element in elements {
-                obj::incr_ref_count(element);
-                list.elems.make_mut().push(element);
-            }
+    if unsafe { list_ref(value) }.elems.native_is_shared() {
+        let canonical = unsafe { list_ref(value) }.canonical.get();
+        unsafe { list_mut(value) }.canonical =
+            Rc::new(Cell::new(protocol.copied_list_canonical(canonical)));
+    }
+    if protocol.tcl_version().is_some() {
+        let length = unsafe { list_ref(value) }.elems.len();
+        native_list_storage::replace_prepared_native_elements_using(
+            value, length, 0, elements, protocol, false, check, refuse,
+        )?;
+    } else {
+        for &element in elements {
+            check()?;
+            obj::check_native_liveness(element).map_err(refuse)?;
+            unsafe { obj::incr_ref_count(element) };
+            unsafe { list_mut(value) }.elems.make_mut().push(element);
         }
     }
+    check()?;
     obj::invalidate_string(value);
-    Ok(())
+    check()
 }
 
 /// LAPPEND_LIST reaches original receiver conversion before its header COW.
@@ -1207,7 +1244,7 @@ pub(crate) fn replace_elements_native_checked(
     )
 }
 
-fn replace_elements_native_using<E>(
+pub(crate) fn replace_elements_native_using<E>(
     original: *mut TclObj,
     elements: &[*mut TclObj],
     protocol: NativeStringProtocol,

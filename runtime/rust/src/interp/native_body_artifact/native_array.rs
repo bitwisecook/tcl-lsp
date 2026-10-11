@@ -283,7 +283,7 @@ impl Interp {
                         .expect("Array parity options");
                     let code=self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,1,0,options).map_err(|error|self.report_cmd_error(error.into()))?;
                     self.set_result(message);
-                    self.capture_original_return_instruction_context(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,message,options);
+                    self.capture_original_return_instruction_context(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,message,options).map_err(|first| self.refuse_native_execution(first))?;
                     return Ok(code);
                 }
                 if obj::is_shared(values.as_ptr()) {

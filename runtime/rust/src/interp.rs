@@ -2060,11 +2060,10 @@ impl Interp {
         // fresh interp installs its own rather than inheriting whatever is
         // there (`set_runtime_version` re-installs when an embedder repins).
         install_ambient_release(version);
-        interp.error_stack.borrow_mut().configure(
-            interp
-                .native_invocation_dialect()
-                .native_error_objects_protocol(),
-        );
+        if let Err(first) = interp.configure_native_error_stack_checked() {
+            interp.refuse_native_execution(first);
+            return interp;
+        }
         if let Some((_, protocol, _)) = &native {
             builtins::install_native_core(&mut interp, *protocol);
         } else {
@@ -2521,10 +2520,9 @@ impl Interp {
                 .native_command_name_protocol()
                 .map(|protocol| protocol.version()),
         );
-        self.error_stack.borrow_mut().configure(
-            self.native_invocation_dialect()
-                .native_error_objects_protocol(),
-        );
+        if self.configure_native_error_stack_checked().is_err() {
+            return;
+        }
         self.write_release_globals();
         self.install_native_precision_trace();
         // `package provide Tcl` is a release fact, not a runtime constant, and
@@ -10887,10 +10885,9 @@ impl Interp {
         std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
         std::mem::swap(&mut *self.error_stack.borrow_mut(), &mut ctx.error_stack);
         self.error_stack.borrow_mut().renew_incarnation();
-        self.error_stack.borrow_mut().configure(
-            self.native_invocation_dialect()
-                .native_error_objects_protocol(),
-        );
+        // Configuration may retire actual headers. The rest of this physical
+        // handoff is mandatory even if that retirement retains the first cause.
+        let stack_configuration = self.configure_native_error_stack_checked();
         std::mem::swap(
             &mut *self.jim_error_stack.borrow_mut(),
             &mut ctx.jim_error_stack,
@@ -10936,6 +10933,9 @@ impl Interp {
         ctx.eval_depth = ed;
         let el = self.error_line.replace(ctx.error_line);
         ctx.error_line = el;
+        if let Err(first) = stack_configuration {
+            self.clone().refuse_native_execution(first);
+        }
     }
 
     /// Swap the execution context of the actual coroutine generation with the live
@@ -11171,7 +11171,9 @@ impl Interp {
         self.exc.borrow_mut().native.legacy_copy = true;
         if let Some(es) = errorstack.filter(|_| self.runtime_version().has_error_stack()) {
             if let Ok(parts) = validate_error_stack(crate::parse::split_list(es)) {
-                let _ = self.error_stack.borrow_mut().adopt(parts);
+                if self.adopt_error_stack_bytes_checked(&parts).is_err() {
+                    return;
+                }
             }
         }
         let _ = scope.currency().ensure_current_or_refuse();
@@ -11239,7 +11241,9 @@ impl Interp {
         }
         // TIP 348: record this frame's inner context / uplevel boundary into the
         // error stack (the errorStack half of C's `Tcl_LogCommandInfo`).
-        self.error_stack_log(cmd_bytes);
+        if self.error_stack_log(cmd_bytes).is_err() {
+            return;
+        }
         // errorLine, measured against the enclosing `codePtr->source` (C's
         // `TclLogCommandInfo`): the command's file-absolute line
         // (`line_base + 1 + count('\n')`) minus the proc/eval body's base, so an
@@ -12065,65 +12069,76 @@ impl Interp {
 
     /// Record the inner context and actual call-frame role at the reached
     /// command-log operation. The caller owns the already-logged guard.
-    pub(crate) fn error_stack_log(&self, command: &[u8]) {
-        if self.host_refusal_pending() || !self.runtime_version().has_error_stack() {
-            return;
-        }
-        use tcl_runtime_api::error_stack::ErrorStackFrame;
-        let mut es = self.error_stack.borrow_mut();
-        let _ = es.begin_inner(b"INNER".to_vec(), command.to_vec());
-        let frames = self.frames.borrow();
-        let strings = self
-            .native_invocation_dialect()
-            .native_error_objects_protocol()
-            .expect("actual C error stack")
-            .strings();
-        let frame = match frames.error_stack_frame() {
-            Some((Some(delta), _)) => ErrorStackFrame::Redirect(obj::Owned::fresh(
-                obj::new_wide_int_obj(i64::try_from(delta).unwrap_or(i64::MAX)),
-            )),
-            Some((None, words)) => {
-                let original = frames.original_error_stack_argv();
-                // Native TclOO teardown frames have objc==0. Their original
-                // empty vector is an actual unreported frame, not CALL {}.
-                if original.as_ref().is_some_and(Vec::is_empty) {
-                    return;
-                }
-                let replacements;
-                let words = if let Some(original) = &original {
-                    original.as_slice()
-                } else {
-                    replacements = words
-                        .iter()
-                        .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)))
-                        .collect::<Vec<_>>();
-                    // Legacy host frames have no original C argv capability.
-                    // Their byte-authored invocation words are separate producers.
-                    let pointers = replacements
-                        .iter()
-                        .map(obj::Owned::as_ptr)
-                        .collect::<Vec<_>>();
-                    return self.log_byte_authored_error_frame(&mut es, &pointers, strings);
-                };
-                ErrorStackFrame::Call(obj::Owned::fresh(crate::list::new_list_obj_native(
-                    words, strings,
-                )))
-            }
-            None => ErrorStackFrame::Unreported,
-        };
-        let _ = es.log_original_frame(frame);
-    }
-
-    fn log_byte_authored_error_frame(
+    pub(crate) fn error_stack_log(
         &self,
-        stack: &mut NativeErrorStack,
-        words: &[*mut TclObj],
-        strings: tcl_syntax::native_string::NativeStringProtocol,
-    ) {
-        let frame = tcl_runtime_api::error_stack::ErrorStackFrame::Call(obj::Owned::fresh(
-            crate::list::new_list_obj_native(words, strings),
-        ));
-        stack.log_original_frame(frame);
+        command: &[u8],
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = (|| {
+            if !self.runtime_version().has_error_stack() {
+                return Ok(());
+            }
+            self.begin_error_stack_bytes_checked(command)?;
+            use tcl_runtime_api::error_stack::ErrorStackFrame;
+            // Preserve the existing actual frame/argv selection, but release its
+            // borrow before constructing or replacing any real List/header.
+            let frame = {
+                let frames = self.frames.borrow();
+                frames.error_stack_frame().map(|(delta, words)| {
+                    (delta, words.to_vec(), frames.original_error_stack_argv())
+                })
+            };
+            let strings = self
+                .native_invocation_dialect()
+                .native_error_objects_protocol()
+                .ok_or_else(|| {
+                    self.clone().refuse_completion_value_access(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "actual C error stack",
+                        ),
+                    )
+                })?
+                .strings();
+            let frame = match frame {
+                Some((Some(delta), _, _)) => ErrorStackFrame::Redirect(obj::Owned::fresh(
+                    obj::new_wide_int_obj(i64::try_from(delta).unwrap_or(i64::MAX)),
+                )),
+                Some((None, words, original)) => {
+                    if original.as_ref().is_some_and(Vec::is_empty) {
+                        return Ok(());
+                    }
+                    let replacements = if original.is_none() {
+                        words
+                            .iter()
+                            .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)))
+                            .collect::<Vec<_>>()
+                    } else {
+                        Vec::new()
+                    };
+                    let pointers = original
+                        .unwrap_or_else(|| replacements.iter().map(obj::Owned::as_ptr).collect());
+                    let allocations = pointers
+                        .iter()
+                        .map(|&original| {
+                            obj::check_native_liveness(original).map_err(|error| {
+                                self.clone().refuse_completion_value_access(error)
+                            })?;
+                            Ok(obj::NativeObjectLifetime::retain(original))
+                        })
+                        .collect::<Result<Vec<_>, tcl_runtime_api::NativeExecutionError>>()?;
+                    let frame =
+                        obj::Owned::fresh(crate::list::new_list_obj_native(&pointers, strings));
+                    drop(allocations);
+                    drop(replacements);
+                    scope.currency().ensure_current_or_refuse()?;
+                    ErrorStackFrame::Call(frame)
+                }
+                None => ErrorStackFrame::Unreported,
+            };
+            self.log_original_error_stack_frame_checked(frame)
+        })();
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
 
     /// Retain the actual private List header without reconstructing its members.

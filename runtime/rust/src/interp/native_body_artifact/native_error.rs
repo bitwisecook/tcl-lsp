@@ -100,7 +100,7 @@ impl Interp {
                             tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
                             value.as_ptr(),
                             options.as_ptr(),
-                        );
+                        ).map_err(|first| self.refuse_native_execution(first))?;
                     }
                     return Ok(code);
                 }

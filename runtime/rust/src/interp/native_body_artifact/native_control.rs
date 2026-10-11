@@ -738,11 +738,14 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
                 self.interp.set_result(original_message);
                 if code == Code::Error {
                     self.interp.clear_error_logged();
-                    self.interp.capture_original_return_instruction_context(
+                    if let Err(first) = self.interp.capture_original_return_instruction_context(
                         tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
                         original_message,
                         original_options,
-                    );
+                    ) {
+                        let code = self.interp.refuse_native_execution(first);
+                        return Err(self.error(code));
+                    }
                 }
                 Err(self.error(code))
             }
@@ -927,7 +930,8 @@ impl Interp {
                     tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
                     self.result_obj(),
                     options,
-                );
+                )
+                .map_err(|first| self.refuse_native_execution(first))?;
             }
             return Err(code);
         }
