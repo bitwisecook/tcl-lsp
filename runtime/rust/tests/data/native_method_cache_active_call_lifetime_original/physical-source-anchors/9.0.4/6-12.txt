@@ -1,0 +1,96 @@
+static Tcl_NRPostProc	ResetFilterFlags;
+static Tcl_NRPostProc	SetFilterFlags;
+static size_t		SortMethodNames(Tcl_HashTable *namesPtr, int flags,
+			    const char ***stringsPtr);
+static inline void	StashCallChain(Tcl_Obj *objPtr, CallChain *callPtr);
+
+/*
+ * Object type used to manage type caches attached to method names.
+ */
+
+static const Tcl_ObjType methodNameType = {
+    "TclOO method name",
+    FreeMethodNameRep,
+    DupMethodNameRep,
+    NULL,
+    NULL,
+    TCL_OBJTYPE_V0
+};
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODeleteContext --
+ *
+ *	Destroys a method call-chain context, which should not be in use.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+void
+TclOODeleteContext(
+    CallContext *contextPtr)
+{
+    Object *oPtr = contextPtr->oPtr;
+
+    TclOODeleteChain(contextPtr->callPtr);
+    if (oPtr != NULL) {
+	TclStackFree(oPtr->fPtr->interp, contextPtr);
+
+	/*
+	 * Corresponding AddRef() in TclOO.c/TclOOObjectCmdCore
+	 */
+
+	TclOODecrRefCount(oPtr);
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODeleteChainCache --
+ *
+ *	Destroy the cache of method call-chains.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+void
+TclOODeleteChainCache(
+    Tcl_HashTable *tablePtr)
+{
+    FOREACH_HASH_DECLS;
+    CallChain *callPtr;
+
+    FOREACH_HASH_VALUE(callPtr, tablePtr) {
+	if (callPtr) {
+	    TclOODeleteChain(callPtr);
+	}
+    }
+    Tcl_DeleteHashTable(tablePtr);
+    Tcl_Free(tablePtr);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODeleteChain --
+ *
+ *	Destroys a method call-chain.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+void
+TclOODeleteChain(
+    CallChain *callPtr)
+{
+    if (callPtr == NULL || callPtr->refCount-- > 1) {
+	return;
+    }
+    if (callPtr->chain != callPtr->staticChain) {
+	Tcl_Free(callPtr->chain);
+    }
+    Tcl_Free(callPtr);
+}
+

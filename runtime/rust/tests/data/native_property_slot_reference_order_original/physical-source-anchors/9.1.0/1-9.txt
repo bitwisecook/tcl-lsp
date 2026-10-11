@@ -1,0 +1,106 @@
+    Tcl_DecrRefCount(resolved);
+    Tcl_DeleteHashTable(&unique);
+
+    // Set slot contents
+    int code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Clear --
+ *
+ *	Implementation of the "-clear" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Clear(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip != objc) {
+	Tcl_WrongNumArgs(interp, skip, objv, NULL);
+	return TCL_ERROR;
+    }
+    Tcl_Obj *list = Tcl_NewObj();
+    Tcl_IncrRefCount(list);
+    int code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Prepend --
+ *
+ *	Implementation of the "-prepend" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Prepend(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip == objc) {
+	return TCL_OK;
+    }
+
+    // Resolve all values
+    Tcl_Obj *list = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (list == NULL) {
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(list);
+
+    // Get slot contents and append to list
+    Tcl_Obj *oldList = CallSlotGet(interp, oPtr);
+    if (oldList == NULL) {
+	Tcl_DecrRefCount(list);
+	return TCL_ERROR;
+    }
+    Tcl_ListObjAppendList(NULL, list, oldList);
+    Tcl_ResetResult(interp);
+
+    // Set slot contents
+    int code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Remove --
+ *
+ *	Implementation of the "-remove" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Remove(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip == objc) {
+	return TCL_OK;
+    }

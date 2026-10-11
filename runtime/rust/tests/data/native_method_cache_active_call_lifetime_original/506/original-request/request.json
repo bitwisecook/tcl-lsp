@@ -1,0 +1,2046 @@
+{
+  "question_id": "naming.tcloo.original-method-cache-and-active-call-lifetime",
+  "status": "fixed unlaunched original-provider request",
+  "capture_owner": "Root only",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "supported_worker_api": {
+    "8.6.18": "Tcl_MethodType version1 / Tcl_NewMethod / int objc",
+    "9.0.4": "Tcl_MethodType2 version2 / Tcl_NewMethod2 / Tcl_Size objc",
+    "9.1.0": "Tcl_MethodType2 version2 / Tcl_NewMethod2 / Tcl_Size objc"
+  },
+  "unsupported_lanes": "C84/C85/Jim initialized availability/API lane only, measured independently; no optional extension absence claim",
+  "source_files": [
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/active-next.tcl",
+      "relative_path": "active-next.tcl",
+      "sha256": "107ae05a15eb6f92ae0a5cce5028ba6ce5cbf7ea4c726b4367f9f95595d240b8",
+      "bytes": 249
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/availability.tcl",
+      "relative_path": "availability.tcl",
+      "sha256": "e96cb98ed4321ee2c4994574d95f992d0a50f8ffec480e0c1db11bb394a11e6e",
+      "bytes": 85
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/c-version.tcl",
+      "relative_path": "c-version.tcl",
+      "sha256": "0e4973e37df90a3d43c7863a53fbbd057dde507b54eadfcfa6e66b641bfde0f9",
+      "bytes": 54
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/delete-method.tcl",
+      "relative_path": "delete-method.tcl",
+      "sha256": "93d94f4f89f6a8c35d22f8e81d2f68591524c744bd3be1e231407bdbc9bf6f4a",
+      "bytes": 39
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/destroy-class.tcl",
+      "relative_path": "destroy-class.tcl",
+      "sha256": "c35f47bbfc236da928fe98085b7b6290aa39538a40a383089fa30da806214e34",
+      "bytes": 21
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/jim-version-probe.tcl",
+      "relative_path": "jim-version-probe.tcl",
+      "sha256": "06da7d50c8fbc4dad05c55acff7ab4692095879b112996b75cfd4f7adb393437",
+      "bytes": 44
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/jim-version.tcl",
+      "relative_path": "jim-version.tcl",
+      "sha256": "7ac778f7f7d6a8b7a6b655858676620395ff7f2c0817cdc34a46124d7e0643de",
+      "bytes": 51
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/probe.c",
+      "relative_path": "probe.c",
+      "sha256": "f9a0297497e166c9700cbd4fddc3f86e6492e028ed3bbc9691ea2be76c5328e6",
+      "bytes": 13432
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/setup.tcl",
+      "relative_path": "setup.tcl",
+      "sha256": "8918ec00359c0cd67010b7226050e0490c9b9c0962a5979929b2abaac03cbfff",
+      "bytes": 127
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.4.20/tcl.h",
+      "relative_path": "source-inspection/8.4.20/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "bytes": 84169
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.4.20/tclBasic.c",
+      "relative_path": "source-inspection/8.4.20/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "bytes": 203688
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.5.19/tcl.h",
+      "relative_path": "source-inspection/8.5.19/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "bytes": 86963
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.5.19/tclBasic.c",
+      "relative_path": "source-inspection/8.5.19/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "bytes": 203084
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOO.h",
+      "relative_path": "source-inspection/8.6.18/tclOO.h",
+      "sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "bytes": 4284
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOOCall.c",
+      "relative_path": "source-inspection/8.6.18/tclOOCall.c",
+      "sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "bytes": 47228
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOODecls.h",
+      "relative_path": "source-inspection/8.6.18/tclOODecls.h",
+      "sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "bytes": 9677
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOODefineCmds.c",
+      "relative_path": "source-inspection/8.6.18/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "bytes": 70128
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOOInt.h",
+      "relative_path": "source-inspection/8.6.18/tclOOInt.h",
+      "sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "bytes": 24191
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOOMethod.c",
+      "relative_path": "source-inspection/8.6.18/tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "bytes": 50906
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOO.h",
+      "relative_path": "source-inspection/9.0.4/tclOO.h",
+      "sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "bytes": 5663
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOOCall.c",
+      "relative_path": "source-inspection/9.0.4/tclOOCall.c",
+      "sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "bytes": 63872
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOODecls.h",
+      "relative_path": "source-inspection/9.0.4/tclOODecls.h",
+      "sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "bytes": 11299
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOODefineCmds.c",
+      "relative_path": "source-inspection/9.0.4/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "bytes": 115346
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOOInt.h",
+      "relative_path": "source-inspection/9.0.4/tclOOInt.h",
+      "sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "bytes": 30426
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOOMethod.c",
+      "relative_path": "source-inspection/9.0.4/tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "bytes": 58997
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOO.h",
+      "relative_path": "source-inspection/9.1.0/tclOO.h",
+      "sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "bytes": 5729
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOOCall.c",
+      "relative_path": "source-inspection/9.1.0/tclOOCall.c",
+      "sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "bytes": 64701
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOODecls.h",
+      "relative_path": "source-inspection/9.1.0/tclOODecls.h",
+      "sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "bytes": 12613
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOODefineCmds.c",
+      "relative_path": "source-inspection/9.1.0/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "bytes": 111662
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOOInt.h",
+      "relative_path": "source-inspection/9.1.0/tclOOInt.h",
+      "sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "bytes": 32133
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOOMethod.c",
+      "relative_path": "source-inspection/9.1.0/tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "bytes": 60880
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/jim/jim.c",
+      "relative_path": "source-inspection/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-inspection/jim/jim.h",
+      "relative_path": "source-inspection/jim/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "bytes": 56502
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/source-windows.json",
+      "relative_path": "source-windows.json",
+      "sha256": "3cc32b210120d60c2a2099c32d8bc79bcaea838db3aba158a9111c7bc72a440b",
+      "bytes": 62888
+    },
+    {
+      "path": "/tmp/receiver-native-method-lifetime506/version-probe.tcl",
+      "relative_path": "version-probe.tcl",
+      "sha256": "7c7dd5703a0b7dd07cc1b060be0263d994d17e1bbe6a58719fdb43d846a88905",
+      "bytes": 38
+    }
+  ],
+  "source_anchors": [
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOOCall.c",
+      "sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "windows": [
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 112,
+          "first_line": 108,
+          "last_line": 206,
+          "window_sha256": "319526e7084d7f694406ea4f7a278b6987cb2931b3e6d77fce1b6250fae223de"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 144,
+          "first_line": 140,
+          "last_line": 238,
+          "window_sha256": "4209e50a125b0877e0c00beb616b848aa1717893eb1899da7279743dacf28a0f"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 163,
+          "first_line": 159,
+          "last_line": 257,
+          "window_sha256": "95cac30aa0e23e26fdf4e7aeaad8d9276f733d41e767256b40c2abf82e9d8ce3"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 237,
+          "first_line": 233,
+          "last_line": 331,
+          "window_sha256": "b01d40ff328b6ff9bdd74085f642cd6c619430693ca15688c8fe53e8a209b30b"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1090,
+          "first_line": 1086,
+          "last_line": 1184,
+          "window_sha256": "93ca18075f47593ce9530dde8513587764f24d22b464925d283c2945aab7a69e"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1115,
+          "first_line": 1111,
+          "last_line": 1209,
+          "window_sha256": "4c9beadf3708089549229284626c6fedd7e13a116b98cf1070f8fc8b95891798"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1175,
+          "first_line": 1171,
+          "last_line": 1269,
+          "window_sha256": "fef3080c2b8ff7ad54113ceb7a44c18fc855f0f0ecb51eb35b322498ecb37285"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1185,
+          "first_line": 1181,
+          "last_line": 1279,
+          "window_sha256": "4062b71e8bb568e54e01bee996af24414df1c6ac5adb15aead56519ac4149868"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1214,
+          "first_line": 1210,
+          "last_line": 1308,
+          "window_sha256": "8b598da2f54d09860de1d2faa9eca31fe1abda5149f0cfd1f62ee65cd8d4e20c"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1220,
+          "first_line": 1216,
+          "last_line": 1314,
+          "window_sha256": "3c565ab232997ec511107311506d4ccd8626414103fd0e399a995da487c332bc"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1315,
+          "first_line": 1311,
+          "last_line": 1409,
+          "window_sha256": "830bbbfc5afd95aa359d9d6838f0f86ee612b607afad8eb78f65a2f9be025778"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1369,
+          "first_line": 1365,
+          "last_line": 1463,
+          "window_sha256": "0987dd25a3f06927fa17a6b4fdb8372e2476c0f84cfec8b72ac93e175b1142c1"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 80,
+          "first_line": 76,
+          "last_line": 174,
+          "window_sha256": "32bae60111bf880b752bac9955549b528a14bbf4cf8fb5437a36cabac3ff660c"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 188,
+          "first_line": 184,
+          "last_line": 282,
+          "window_sha256": "73d401a864773c9cd15521b671782ddfafbf742d91573921ddea25e4605b9dd4"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 204,
+          "first_line": 200,
+          "last_line": 298,
+          "window_sha256": "58a654f1ab1a50061e1f486fb979dd62d66d14649dbf95051316942f4e56a3d8"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 1211,
+          "first_line": 1207,
+          "last_line": 1305,
+          "window_sha256": "89fbf038990d3481141e46333de893c75b2dafca4dd4ffa9be8cfbd29a05228f"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 1383,
+          "first_line": 1379,
+          "last_line": 1477,
+          "window_sha256": "ea5f982a50076a46944f48083b7853dfccc1a8371efc1755094790e9791e20ba"
+        },
+        {
+          "anchor": "FreeMethodNameRep(",
+          "anchor_line": 75,
+          "first_line": 71,
+          "last_line": 169,
+          "window_sha256": "985c8b9e5f069b0639fbe60d5b1aae702632b87d341335f524e4b552b0c3d5f5"
+        },
+        {
+          "anchor": "FreeMethodNameRep(",
+          "anchor_line": 232,
+          "first_line": 228,
+          "last_line": 326,
+          "window_sha256": "9e6f50aa9f092558eefacd380785751a30d6b6b3a636f497c015f892bf9a4cc5"
+        },
+        {
+          "anchor": "FreeMethodNameRep(",
+          "anchor_line": 1056,
+          "first_line": 1052,
+          "last_line": 1150,
+          "window_sha256": "c0da0daef81bf8d3e5252b23c7b27e54edf60cd1a54d636779d2e06d1f4755db"
+        },
+        {
+          "anchor": "DupMethodNameRep(",
+          "anchor_line": 73,
+          "first_line": 69,
+          "last_line": 167,
+          "window_sha256": "6125b64b6e88ab565cfee978a20b35ab16d563546c3a953686fba80713972eef"
+        },
+        {
+          "anchor": "DupMethodNameRep(",
+          "anchor_line": 220,
+          "first_line": 216,
+          "last_line": 314,
+          "window_sha256": "59d27220326edec46418a91521c28cd128257ffdea94361b344891b4743fd2a9"
+        },
+        {
+          "anchor": "TclOOInvokeContext(",
+          "anchor_line": 256,
+          "first_line": 252,
+          "last_line": 350,
+          "window_sha256": "3a4c2c69abdf175a335d13b602e73307b35d1016d711a5524609522178d5a549"
+        },
+        {
+          "anchor": "FinalizeMethodRefs(",
+          "anchor_line": 349,
+          "first_line": 345,
+          "last_line": 443,
+          "window_sha256": "b8479a4964ff6e0c151090ebc90e062585149e80d847c78e7705de3848c8272d"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 58,
+          "first_line": 54,
+          "last_line": 152,
+          "window_sha256": "107028d6a30bc66dc6efeac478ce60b28223c462ef6a252f4f4a73a342b9e534"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 763,
+          "first_line": 759,
+          "last_line": 857,
+          "window_sha256": "0b05666f957860e6079c03b4a98f8cb41ebfe7bf8985b359454b594cbc786742"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 788,
+          "first_line": 784,
+          "last_line": 882,
+          "window_sha256": "ef5f2059de800e9359656ed167726a22ba4f5e7455d01f952b4ce169fa8e0f1e"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1525,
+          "first_line": 1521,
+          "last_line": 1619,
+          "window_sha256": "9b81ab037435126992b7dad5ada20fce2fcdf4caedd9f91629072889a16b4f1b"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1528,
+          "first_line": 1524,
+          "last_line": 1622,
+          "window_sha256": "c4435f45ff20ddd670f08745897377247eb488ac089ed40f773a769adaaa80ce"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1548,
+          "first_line": 1544,
+          "last_line": 1642,
+          "window_sha256": "8f4ac71e264c42dd9a5532339acf6275d586ce2f868043bb3fa71be52485bb5d"
+        },
+        {
+          "anchor": "methodNameType =",
+          "anchor_line": 86,
+          "first_line": 82,
+          "last_line": 180,
+          "window_sha256": "06398dd513af51b153fd3869cf6a6958517c6d79798626a9b12dcff30a58195a"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOMethod.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOOMethod.c",
+      "sha256": "c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728",
+      "windows": [
+        {
+          "anchor": "Tcl_NewMethod(",
+          "anchor_line": 207,
+          "first_line": 203,
+          "last_line": 301,
+          "window_sha256": "4b984eb957e66cf9950afd040a6fbb19046b9d300485e4942653524f4628f41f"
+        },
+        {
+          "anchor": "Tcl_NewMethod(",
+          "anchor_line": 310,
+          "first_line": 306,
+          "last_line": 404,
+          "window_sha256": "ea752d019b33aa93fdbe26aa385f3ecef038076dedcba5a010b57389c16c8762"
+        },
+        {
+          "anchor": "Tcl_NewMethod(",
+          "anchor_line": 642,
+          "first_line": 638,
+          "last_line": 736,
+          "window_sha256": "c21f67859760b76db6bb8fb5c1ada9a7dd1472308115529d72835ba73b5d1744"
+        },
+        {
+          "anchor": "Tcl_NewMethod(",
+          "anchor_line": 1395,
+          "first_line": 1391,
+          "last_line": 1489,
+          "window_sha256": "422a270dc472f3d810c649f0488a4c274aeee32d64a4b45fe1931a8354520000"
+        },
+        {
+          "anchor": "TclOODelMethodRef(",
+          "anchor_line": 272,
+          "first_line": 268,
+          "last_line": 366,
+          "window_sha256": "45dca1d97be64afcf450b9f1c6e4535343b1d4136f22a49370578001f263dec6"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInt.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOOInt.h",
+      "sha256": "9abdcd59f73d78b81c17edb2562686adbcda0afd44aa1dfa0ec5f9b2b7746f98",
+      "windows": [
+        {
+          "anchor": "#define AddRef",
+          "anchor_line": 566,
+          "first_line": 562,
+          "last_line": 621,
+          "window_sha256": "e7bcb08dfa5e6e2b92fe8ed55c7d87e70b72bb714124eff3c4ecd8619d469c3f"
+        },
+        {
+          "anchor": "struct Method",
+          "anchor_line": 44,
+          "first_line": 40,
+          "last_line": 138,
+          "window_sha256": "5d93bf2936ec4e234bd057839544be9ea484116800af6a01a075aecfd6dbce26"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 33,
+          "first_line": 29,
+          "last_line": 127,
+          "window_sha256": "462eb259cc2dd802f95e8fd4a3e92cdca7c87d36279e918a3ba9fc45be47968f"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 269,
+          "first_line": 265,
+          "last_line": 363,
+          "window_sha256": "25655c862e42e1db046b7982e9f3ed31e9b17682ec8d43374916e42c82d3f719"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 270,
+          "first_line": 266,
+          "last_line": 364,
+          "window_sha256": "a8113a62678154343f8dc7237fb0b8f2dcf4a8c5e2fc7f97bc5ac5f0cc8c6d6c"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 347,
+          "first_line": 343,
+          "last_line": 441,
+          "window_sha256": "c40ad924bcc8c8090373f317297b98f0ce5e743ec2a0ffd39c466d2833c2ee17"
+        },
+        {
+          "anchor": "struct MInvoke",
+          "anchor_line": 339,
+          "first_line": 335,
+          "last_line": 433,
+          "window_sha256": "7fbdf82a3e0f22fcc00bd1294e75909b5b3648099ac07f0ea00299d638f567e4"
+        },
+        {
+          "anchor": "struct MInvoke",
+          "anchor_line": 358,
+          "first_line": 354,
+          "last_line": 452,
+          "window_sha256": "fbdd81e695e42922c54e2bd60e2636d35a41a07585d8e4d1d4b79f7a19014d9d"
+        },
+        {
+          "anchor": "struct MInvoke",
+          "anchor_line": 361,
+          "first_line": 357,
+          "last_line": 455,
+          "window_sha256": "e143dfc02fb7dd6ada170b1b423929d41b38e0e29288745f5901d3a7658ea2f9"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOO.h",
+      "sha256": "64ebe853d4ce50f54292c95e47ed91dc6fb006fba335006a15df2fc2cec58ea6",
+      "windows": [
+        {
+          "anchor": "typedef int (Tcl_MethodCallProc",
+          "anchor_line": 64,
+          "first_line": 60,
+          "last_line": 152,
+          "window_sha256": "6acf326d65bd55aa2c0aca654639f5fa96ecc3acfbbe530be9cb8d7b7b1250d5"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 82,
+          "first_line": 78,
+          "last_line": 152,
+          "window_sha256": "cc72a7f3c08f5de4b5fde3f015ef616d1d8d86a4b8880c7aef2bab7b6671f379"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 103,
+          "first_line": 99,
+          "last_line": 152,
+          "window_sha256": "4eb40af04c6598bf94163eebd5e0cf1afa05ea5daed784ba1a45cdd41414802a"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODecls.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOODecls.h",
+      "sha256": "2ee41615f2f0eaa65d58825a8768ea011dc8491d33ee245f3a5062e721d41e54",
+      "windows": [
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 65,
+          "first_line": 61,
+          "last_line": 159,
+          "window_sha256": "16ab99d20986d4ee45bbdd47550e4edb925568eeec8656d1efd7e95fb2cccd78"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 208,
+          "first_line": 204,
+          "last_line": 256,
+          "window_sha256": "03042b67028169b57a4fd0ac2b334fd2768cdf3cb7883a755f8b48ecd5b3e1c4"
+        },
+        {
+          "anchor": "Tcl_GetObjectFromObj",
+          "anchor_line": 43,
+          "first_line": 39,
+          "last_line": 137,
+          "window_sha256": "34643d6c5a8f9c9c61d7491aad38c82fa68b79816c6a3f92da29dc742fee1940"
+        },
+        {
+          "anchor": "Tcl_GetObjectFromObj",
+          "anchor_line": 192,
+          "first_line": 188,
+          "last_line": 256,
+          "window_sha256": "3d66ffb51d1f6d4abe386bcb8e80aa4dea8751891aa19f3df46ef918b4d0e501"
+        },
+        {
+          "anchor": "Tcl_GetObjectAsClass",
+          "anchor_line": 39,
+          "first_line": 35,
+          "last_line": 133,
+          "window_sha256": "a6303507011c7d17a84c3af01d4517d84f139d428f473cfc1546222bfe4f2154"
+        },
+        {
+          "anchor": "Tcl_GetObjectAsClass",
+          "anchor_line": 188,
+          "first_line": 184,
+          "last_line": 256,
+          "window_sha256": "663dd3aacb996eaa9a2dc94d6e13a6ef478de56995e132a5d60cb5139b788487"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "8.6.18",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOODefineCmds.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.6.18/tclOODefineCmds.c",
+      "sha256": "56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81",
+      "windows": [
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 67,
+          "first_line": 63,
+          "last_line": 161,
+          "window_sha256": "6d96357116c3cc3a3a28f1780f4d3474d5f9d18c71e481eb659dde3e995ec26b"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 437,
+          "first_line": 433,
+          "last_line": 531,
+          "window_sha256": "2b1d021069c3deb1784417ee8f68991c31cac2eb05f77f07a71bdcc124988ef3"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 444,
+          "first_line": 440,
+          "last_line": 538,
+          "window_sha256": "2d1308abf4d5ab12346f234ad9b1fdbed32560712a1e9385a201462857dafe98"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1286,
+          "first_line": 1282,
+          "last_line": 1380,
+          "window_sha256": "fc5b72dfc0e973e416079f6231a4e44541cbc87b4377d21cb5d88502fa24e5a3"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1294,
+          "first_line": 1290,
+          "last_line": 1388,
+          "window_sha256": "f9877947cbced03a604f95361fd908d16d914760098c7336501162b72653e7c2"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1300,
+          "first_line": 1296,
+          "last_line": 1394,
+          "window_sha256": "7c965d89ef150308004cd0f7b0d2a11037603c5b0b70dad000cca2e0164a4b70"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1313,
+          "first_line": 1309,
+          "last_line": 1407,
+          "window_sha256": "c32632154b80bec99d231d6d96f0683cf5675eab0a51c8e4c6f2920f69786400"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1325,
+          "first_line": 1321,
+          "last_line": 1419,
+          "window_sha256": "392aab3f0d0ac3c468ab838f0c634dac81883305748d3b48777b7a5380d6324a"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1331,
+          "first_line": 1327,
+          "last_line": 1425,
+          "window_sha256": "6091c1283216061d164d9e04e7acfda06951ad5ec1929fd3b9ede43fb3604d22"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1662,
+          "first_line": 1658,
+          "last_line": 1756,
+          "window_sha256": "9bfa0cca003c9c92414220e0c41b5b6b75604b502a8810a7a2539bf3dd1c40d6"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOCall.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOOCall.c",
+      "sha256": "d28f9c8a4e5ff6382994f050fcdd1e0aa2d6f79b184ac966bc54122f610cc075",
+      "windows": [
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 184,
+          "first_line": 180,
+          "last_line": 278,
+          "window_sha256": "d0f88667d7b1f24aeec0ac5e9f8f5dff1751d45291098e7686f789593d9a9d31"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 216,
+          "first_line": 212,
+          "last_line": 310,
+          "window_sha256": "01ad72e6137820112ee7da27ced6e79b965ba31aafb8508bbac17d1fbfaad594"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 235,
+          "first_line": 231,
+          "last_line": 329,
+          "window_sha256": "b5377918c7d853fbce894934667def0c611ddc34784f07c5ee517c2689074dbd"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 305,
+          "first_line": 301,
+          "last_line": 399,
+          "window_sha256": "d5716e497420be2a59645937a66a3f098ce68ca98512c45b0177dbd13fbc135b"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1278,
+          "first_line": 1274,
+          "last_line": 1372,
+          "window_sha256": "8e8fba910c542b184292990e3e7d2f233d1e5f7157a3be2e54c3e6badbc017ae"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1304,
+          "first_line": 1300,
+          "last_line": 1398,
+          "window_sha256": "1bcc7d51a783d16211a221a47bd5ac1985705b09905467929fbae90700c2fa1a"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1370,
+          "first_line": 1366,
+          "last_line": 1464,
+          "window_sha256": "c122a3b6e49e5f2c6f737f6acb0cd25162e5347817cf36012f5be30541a6d541"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1381,
+          "first_line": 1377,
+          "last_line": 1475,
+          "window_sha256": "22ec6faa37b2cab8f97e965cff271794bdc264b28ff0c0f4e29272a1192f3a13"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1412,
+          "first_line": 1408,
+          "last_line": 1506,
+          "window_sha256": "f1e10a5515bd91eb5b832936bec99f68619a46121c3846699c5671fd80870003"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1418,
+          "first_line": 1414,
+          "last_line": 1512,
+          "window_sha256": "43bf5a4506a49036acd554337cddf3931cf869d83e941b06aedccb3b6b1fcab2"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1513,
+          "first_line": 1509,
+          "last_line": 1607,
+          "window_sha256": "5adb09690756cab8f4bc844f624561b9782c94190d64c4ad731700249c0f0917"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1568,
+          "first_line": 1564,
+          "last_line": 1662,
+          "window_sha256": "14802b4a62dafdcd417442f362757e0af80dedac75b3f43197f076128f9bd207"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 152,
+          "first_line": 148,
+          "last_line": 246,
+          "window_sha256": "d4e8f246611c0075906743b1bb50869ce090369c1a1972cc9c8206e33fdc70f0"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 260,
+          "first_line": 256,
+          "last_line": 354,
+          "window_sha256": "13aa19e877b47d344bbd6a777c32641b3c58f202f1b9b8ab084c41ec6d0c50c4"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 277,
+          "first_line": 273,
+          "last_line": 371,
+          "window_sha256": "72167321ec6bc5dade33bda95578268a7ceb1ba05d2c0edf4e6bd4e48d9e2cb4"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 297,
+          "first_line": 293,
+          "last_line": 391,
+          "window_sha256": "cb5bb9a52a10e28592313765f372d7d3f67d67b3b3d4f9edd8f87ea999b5a881"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 1409,
+          "first_line": 1405,
+          "last_line": 1503,
+          "window_sha256": "e51c64310ae52887317d46fca4830da9431d85a74b70edbe0bfe3ef4297616ea"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 1584,
+          "first_line": 1580,
+          "last_line": 1678,
+          "window_sha256": "c146f7a0acc443976f0974c404b9896d9d324dcfd005f244d359b842dcd4860c"
+        },
+        {
+          "anchor": "FreeMethodNameRep(",
+          "anchor_line": 145,
+          "first_line": 141,
+          "last_line": 239,
+          "window_sha256": "91d339b11d0b7db5439a657a23aceb2392440330c000c563d70fcf3bbdda1687"
+        },
+        {
+          "anchor": "FreeMethodNameRep(",
+          "anchor_line": 302,
+          "first_line": 298,
+          "last_line": 396,
+          "window_sha256": "2999cbb0131c48c07babac508e53a714e5f94b3ec253fd2c12d44d69049dfb65"
+        },
+        {
+          "anchor": "DupMethodNameRep(",
+          "anchor_line": 143,
+          "first_line": 139,
+          "last_line": 237,
+          "window_sha256": "999dacd2059bb1f0c9563738753172192f42cf8137ad1fd50418d38293728d53"
+        },
+        {
+          "anchor": "DupMethodNameRep(",
+          "anchor_line": 293,
+          "first_line": 289,
+          "last_line": 387,
+          "window_sha256": "a08414995e71fad850cf7546700db947081bc82a20b318f67a63ac3c0e6f8c8b"
+        },
+        {
+          "anchor": "TclOOInvokeContext(",
+          "anchor_line": 324,
+          "first_line": 320,
+          "last_line": 418,
+          "window_sha256": "2981d45485de9c4c78c3bfea17d029f431277b24c0735aa9c85cff99993c12c2"
+        },
+        {
+          "anchor": "FinalizeMethodRefs(",
+          "anchor_line": 421,
+          "first_line": 417,
+          "last_line": 515,
+          "window_sha256": "b44e87242b8035f37c1a8072f9e0c490a5ca4d92d0aeffc3edcf4ad70d09e6d7"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 110,
+          "first_line": 106,
+          "last_line": 204,
+          "window_sha256": "e0615954352fc93130f3cc88a6eccaf9026f34697ae511c6c20822402a1d314d"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 855,
+          "first_line": 851,
+          "last_line": 949,
+          "window_sha256": "7b4e79c946a09a19fdfe660a5d4d57b9b445c54778a3eb06f6d5e123e7f72a75"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 936,
+          "first_line": 932,
+          "last_line": 1030,
+          "window_sha256": "59a48b8a190d8797d5fd7549a316774b873b50dfe142898b2cf83c570fa40fe7"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 970,
+          "first_line": 966,
+          "last_line": 1064,
+          "window_sha256": "d2b366fbb81ced78d0a061a2b5934f7b3f598c7bbd215409f49c5e95360cdfcd"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1738,
+          "first_line": 1734,
+          "last_line": 1832,
+          "window_sha256": "6b11a7c4b62a4f849bd8015b525fb88b3385ba367fc2b5ab1ba328646062ce81"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1811,
+          "first_line": 1807,
+          "last_line": 1905,
+          "window_sha256": "be21585b9c4b994221f8c144dfd84689aa40ef74cf7b84e415d3b47592121372"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1814,
+          "first_line": 1810,
+          "last_line": 1908,
+          "window_sha256": "44abfe0a75065af58e4c93a02e09a1aaa2e000bed32e735b1e8bed220098040d"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1837,
+          "first_line": 1833,
+          "last_line": 1931,
+          "window_sha256": "237299c45bf9d9dc10efb4dd84312d91169a30fc18449f3e43f4ec216e29f094"
+        },
+        {
+          "anchor": "methodNameType =",
+          "anchor_line": 158,
+          "first_line": 154,
+          "last_line": 252,
+          "window_sha256": "23b6db87cef9dc39013375819957ce8fdebd42c20af9dbd18bee605d45eb18de"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOMethod.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOOMethod.c",
+      "sha256": "ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c",
+      "windows": [
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 259,
+          "first_line": 255,
+          "last_line": 353,
+          "window_sha256": "4b36492ce93d65ffe3908240e5f7488e1c007dd0322be983ef89562c06adb96f"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 334,
+          "first_line": 330,
+          "last_line": 428,
+          "window_sha256": "b2e21600049e6d9cc85a2d3175497af0247ac01310f21385af497c3adb8acfa0"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 356,
+          "first_line": 352,
+          "last_line": 450,
+          "window_sha256": "90edd775ebd2fa17707bb09aaf30fcd24c6125f9803ad81893305a0cacef9ea5"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 410,
+          "first_line": 406,
+          "last_line": 504,
+          "window_sha256": "ddf76c139b877610e74c38d372b65667df09603a43869496771c90f54d1eef94"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 754,
+          "first_line": 750,
+          "last_line": 848,
+          "window_sha256": "a99064dd39fb5e7c520b711c62c138560fae4a2947dbb01dd1089ff3e9b95770"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 797,
+          "first_line": 793,
+          "last_line": 891,
+          "window_sha256": "0d44394b8e7221bca8b4e07927d534263d4f8fd6aea8225fc7a796e63a6fb255"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 1571,
+          "first_line": 1567,
+          "last_line": 1665,
+          "window_sha256": "56eb10b7de8e47709a84d4ee43e95ce2cd4f2a08ce221288398254792f6b5062"
+        },
+        {
+          "anchor": "Tcl_NewMethod(",
+          "anchor_line": 316,
+          "first_line": 312,
+          "last_line": 410,
+          "window_sha256": "09338229f1486eda03dc076088913687862525ac9642338aa65d49dfe9ff96b7"
+        },
+        {
+          "anchor": "Tcl_NewMethod2(",
+          "anchor_line": 338,
+          "first_line": 334,
+          "last_line": 432,
+          "window_sha256": "ebb76892d692a4f8065b9b1cd5a26a2f47e23639bed5936c9a5b75e67e8cdc83"
+        },
+        {
+          "anchor": "TclOODelMethodRef(",
+          "anchor_line": 372,
+          "first_line": 368,
+          "last_line": 466,
+          "window_sha256": "c9fb601d08b128a5cd7ddd4b900be663043f282f2a3c8717af6ace84d3b9fff9"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInt.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOOInt.h",
+      "sha256": "a386548a74e6c88d002cb137bdf323e1f72f20ad4290988ce98b90355dade929",
+      "windows": [
+        {
+          "anchor": "#define AddRef",
+          "anchor_line": 675,
+          "first_line": 671,
+          "last_line": 758,
+          "window_sha256": "a7e40190662b4be633eb0a6e6702ff2d8b9668c1e58cbb942f619758219e1d61"
+        },
+        {
+          "anchor": "struct Method",
+          "anchor_line": 39,
+          "first_line": 35,
+          "last_line": 133,
+          "window_sha256": "25a54e88a0a0f7142fe1e47e182e916e5a179c6986408c7eb8d596598cb78c45"
+        },
+        {
+          "anchor": "struct Method",
+          "anchor_line": 56,
+          "first_line": 52,
+          "last_line": 150,
+          "window_sha256": "2c8f87a4d9bd79a147af03e2935b56b9040aacef94cc89993802a365b308496b"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 33,
+          "first_line": 29,
+          "last_line": 127,
+          "window_sha256": "f43acdf365cabf19f356543ad4357a956df1e8b7f32aae5a252852b15593fe9d"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 443,
+          "first_line": 439,
+          "last_line": 537,
+          "window_sha256": "05cc2d57a25864048e8bdcf3875b615a5d9df7c7bafa49eb01d2f8838f06fdf2"
+        },
+        {
+          "anchor": "struct MInvoke",
+          "anchor_line": 40,
+          "first_line": 36,
+          "last_line": 134,
+          "window_sha256": "47ff5f22804ed78c469e4e7fb3659e4c406b76a130ef121c6cbb7a06df31d7fb"
+        },
+        {
+          "anchor": "struct MInvoke",
+          "anchor_line": 432,
+          "first_line": 428,
+          "last_line": 526,
+          "window_sha256": "3d4498e5b265893667e23a58a2e501863bad46652a8214bddcd1723b212663de"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOO.h",
+      "sha256": "8381d5980a521ae1907d6d17423e6e45f3f37f75634dc20f1214b7e1ea1170f3",
+      "windows": [
+        {
+          "anchor": "typedef int (Tcl_MethodCallProc",
+          "anchor_line": 65,
+          "first_line": 61,
+          "last_line": 159,
+          "window_sha256": "86851197a47029d8411f0d943397aa02ae92513a21d0131629d4816de1047652"
+        },
+        {
+          "anchor": "typedef int (Tcl_MethodCallProc",
+          "anchor_line": 68,
+          "first_line": 64,
+          "last_line": 162,
+          "window_sha256": "3677b666208aa3f4958e9e28abf95de17d0a2a118f47b6295199c6fbdeda3e0b"
+        },
+        {
+          "anchor": "typedef struct Tcl_MethodType",
+          "anchor_line": 85,
+          "first_line": 81,
+          "last_line": 179,
+          "window_sha256": "79fe0d0c14dfc5d9d74bf5586f927e4c6bf06069d5afe1c6c8c9e1a4c6343417"
+        },
+        {
+          "anchor": "typedef struct Tcl_MethodType",
+          "anchor_line": 103,
+          "first_line": 99,
+          "last_line": 195,
+          "window_sha256": "893b8c728b9802b35f99c07c3d1b73e2ab2c33468f2a673605b8df0895d217b2"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 87,
+          "first_line": 83,
+          "last_line": 181,
+          "window_sha256": "7a15b86995d28ee1cce292f5364b37c612d465d6633646a0cf0ed1c26f028d44"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 105,
+          "first_line": 101,
+          "last_line": 195,
+          "window_sha256": "c194516a08be61019d2a7c99e3d873370ec80d69c281b1c906bfcffb86b39dcb"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 127,
+          "first_line": 123,
+          "last_line": 195,
+          "window_sha256": "e156d96c4b9c48cec3888820d55fcbd1174d67613f6c4e31e4c0f9303bc07595"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 130,
+          "first_line": 126,
+          "last_line": 195,
+          "window_sha256": "2bffbde185bd4772c0a1167a94dcccee27c571a94bc6fdda01502d9cb07b33c3"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 131,
+          "first_line": 127,
+          "last_line": 195,
+          "window_sha256": "b6ccf411db39a48263258f6ab2459c17e2787376b785e05c89d949d5266d3197"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODecls.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOODecls.h",
+      "sha256": "d7c75dce4c4fc02ef5ba85c49933113dc8bcdcd49fde00a982f7394adee80ab2",
+      "windows": [
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 73,
+          "first_line": 69,
+          "last_line": 167,
+          "window_sha256": "712b868bb1268e75943d16530c6d18ed615601169c6862c346b03b0c306938eb"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 144,
+          "first_line": 140,
+          "last_line": 238,
+          "window_sha256": "b927c2a1990db07260017c16dbdaa13ad56a62a6d2fd0ed48023b5c4e3c48453"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 230,
+          "first_line": 226,
+          "last_line": 293,
+          "window_sha256": "ff98b83e8e35e63598239165c4ff716bf94591c43cb673fd0c2957bcf2cbacca"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 274,
+          "first_line": 270,
+          "last_line": 293,
+          "window_sha256": "f527b03ae35a470ea4c723694cc24163f93639829a61a169df790fb1e0b20146"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 286,
+          "first_line": 282,
+          "last_line": 293,
+          "window_sha256": "058d3df00199b2e25d5e1cc3d57411788446781e84b7c77c39b27d8cf1abf955"
+        },
+        {
+          "anchor": "Tcl_GetObjectFromObj",
+          "anchor_line": 51,
+          "first_line": 47,
+          "last_line": 145,
+          "window_sha256": "8897a32b477ca5f0390fb5a9d7d9193934236107054a2ed750e75ebc6457a964"
+        },
+        {
+          "anchor": "Tcl_GetObjectFromObj",
+          "anchor_line": 214,
+          "first_line": 210,
+          "last_line": 293,
+          "window_sha256": "b6e13c1b833496730dd797682a67f73be15e7b51ab525814229032f2cf1dd703"
+        },
+        {
+          "anchor": "Tcl_GetObjectAsClass",
+          "anchor_line": 47,
+          "first_line": 43,
+          "last_line": 141,
+          "window_sha256": "48209542daa706857bf063cf329968c5db656861b4656f6d125639c9ed916096"
+        },
+        {
+          "anchor": "Tcl_GetObjectAsClass",
+          "anchor_line": 210,
+          "first_line": 206,
+          "last_line": 293,
+          "window_sha256": "18ea767832040f9748e7826d130653dfa18b8afe05838c108d586fcec94ebafe"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.0.4",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.0.4/tclOODefineCmds.c",
+      "sha256": "1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d",
+      "windows": [
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 89,
+          "first_line": 85,
+          "last_line": 183,
+          "window_sha256": "941e0dcce06db84b5db96d417bcaf5b9138ae93f8d3144d788b792f74fb5c918"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 745,
+          "first_line": 741,
+          "last_line": 839,
+          "window_sha256": "a949cde4f5e1370d3cb8de28435f4b3b4304be1456c2b6c38e78b009c3043726"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 753,
+          "first_line": 749,
+          "last_line": 847,
+          "window_sha256": "528681b04c760f6fbb8212506d983f55714d95c52adf8fed532772cd3a71d271"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1995,
+          "first_line": 1991,
+          "last_line": 2089,
+          "window_sha256": "2807dca80fd54af1badcee8ffc3cb498b7c0e45a64395c01f6e04c1b19bf7640"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2004,
+          "first_line": 2000,
+          "last_line": 2098,
+          "window_sha256": "1e0f1560d3413b82ddb89a73bc35f4bf5222e9075a3e5de667f790736cd0ae57"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2010,
+          "first_line": 2006,
+          "last_line": 2104,
+          "window_sha256": "d33823c395b3e978ed928168b3bdfaff609960af091874456c73b545c9034533"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2023,
+          "first_line": 2019,
+          "last_line": 2117,
+          "window_sha256": "3994ea18bc94bcfeb43e24464ee0b0c2e2de3c1b808230121b9ca9151dbe9b50"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2035,
+          "first_line": 2031,
+          "last_line": 2129,
+          "window_sha256": "e3363285f031aa59e6355217789487cb52b7b78941820b9ea578607024628a3a"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2041,
+          "first_line": 2037,
+          "last_line": 2135,
+          "window_sha256": "8b8831e28fa7782922f035a9740b8418e813c3bce01febfa77cf26fce52ca1b5"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2513,
+          "first_line": 2509,
+          "last_line": 2607,
+          "window_sha256": "2becd1ccb1e29beacdade990f6d5cfe1201d55e0d719ebfaaab921b7b3623b15"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOCall.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOOCall.c",
+      "sha256": "8fc03042b0551bd87b9af833f52cdc0819c7c2b3f23c9982895f06128bfaf4d0",
+      "windows": [
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 182,
+          "first_line": 178,
+          "last_line": 276,
+          "window_sha256": "4fc8a34937377f729fc02f5b1ea3059f2c83338a21900bf8ca6179509c8b209a"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 213,
+          "first_line": 209,
+          "last_line": 307,
+          "window_sha256": "33647e24c8b318db26b8f4c77d9a80b87525180e7064ddf24176afbc7a80b6e7"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 231,
+          "first_line": 227,
+          "last_line": 325,
+          "window_sha256": "591d5d79829dd385ca3cb00485e52525eaabc111a7eab470827e9b7e2f1c9fc6"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 301,
+          "first_line": 297,
+          "last_line": 395,
+          "window_sha256": "34823e27b871ca94bd1ed252c6b03627d6bdf5de60d12e63be76efd038f6c316"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1298,
+          "first_line": 1294,
+          "last_line": 1392,
+          "window_sha256": "17bbd2fa1c3424b5f6409d818adcf45bdc2c8d5f69e9f8ac8bd144869b8a4e09"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1324,
+          "first_line": 1320,
+          "last_line": 1418,
+          "window_sha256": "62074167c2f532bf67f42843dbe0e98e40ae472a7c0f6051b73c383880a3efaa"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1389,
+          "first_line": 1385,
+          "last_line": 1483,
+          "window_sha256": "c122a3b6e49e5f2c6f737f6acb0cd25162e5347817cf36012f5be30541a6d541"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1400,
+          "first_line": 1396,
+          "last_line": 1494,
+          "window_sha256": "22ec6faa37b2cab8f97e965cff271794bdc264b28ff0c0f4e29272a1192f3a13"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1431,
+          "first_line": 1427,
+          "last_line": 1525,
+          "window_sha256": "f1e10a5515bd91eb5b832936bec99f68619a46121c3846699c5671fd80870003"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1437,
+          "first_line": 1433,
+          "last_line": 1531,
+          "window_sha256": "43bf5a4506a49036acd554337cddf3931cf869d83e941b06aedccb3b6b1fcab2"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1532,
+          "first_line": 1528,
+          "last_line": 1626,
+          "window_sha256": "fab962197b8b873c1c8db4895ab895c2f268c960c3fd92982454e68a94e843a8"
+        },
+        {
+          "anchor": "TclOODeleteChain(",
+          "anchor_line": 1587,
+          "first_line": 1583,
+          "last_line": 1681,
+          "window_sha256": "5c079df50c22325536521f63a0d8f80ccbfdb5d3e1110b69fca55006f9f268ea"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 152,
+          "first_line": 148,
+          "last_line": 246,
+          "window_sha256": "a1866ff202bcd9ffa16625a1198c5327aaa0b515cf38c090b1c9ef5d176dd277"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 256,
+          "first_line": 252,
+          "last_line": 350,
+          "window_sha256": "5e328ddcd6dbdd9c96b555bb14ff1f6cd64fa2b5c1d4dd25c03014d71e41d36a"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 273,
+          "first_line": 269,
+          "last_line": 367,
+          "window_sha256": "a765ea4cb6ec4feede7cc27ff7f548b59f507baf73b3088c0bd5a1fcff2240b5"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 293,
+          "first_line": 289,
+          "last_line": 387,
+          "window_sha256": "b88fd7f35cd316a1d87df6e2eba6e13dac47a3da541d5b7f615535dbb298518e"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 1428,
+          "first_line": 1424,
+          "last_line": 1522,
+          "window_sha256": "e51c64310ae52887317d46fca4830da9431d85a74b70edbe0bfe3ef4297616ea"
+        },
+        {
+          "anchor": "StashCallChain(",
+          "anchor_line": 1602,
+          "first_line": 1598,
+          "last_line": 1696,
+          "window_sha256": "93f973d85f1cef2ea5da288711a70c6ce684390da1906469bac0f08c56f97a9e"
+        },
+        {
+          "anchor": "FreeMethodNameRep(",
+          "anchor_line": 145,
+          "first_line": 141,
+          "last_line": 239,
+          "window_sha256": "693b641a5ca3a32be7cc72c2a756f10eceb79e3962a14e36aafdddc80f9d19a9"
+        },
+        {
+          "anchor": "FreeMethodNameRep(",
+          "anchor_line": 298,
+          "first_line": 294,
+          "last_line": 392,
+          "window_sha256": "75aed404b30848b612344d60a79791b766572050a47567383fc950776b928407"
+        },
+        {
+          "anchor": "DupMethodNameRep(",
+          "anchor_line": 143,
+          "first_line": 139,
+          "last_line": 237,
+          "window_sha256": "2e38cec83156391eab62afbdcfb116d72f7c360bf4da0eb6bb825c9147f98633"
+        },
+        {
+          "anchor": "DupMethodNameRep(",
+          "anchor_line": 289,
+          "first_line": 285,
+          "last_line": 383,
+          "window_sha256": "2776eb48a266042d1f03d3bcb3a047639baea6e24ebd8108eb1eeb7d31849426"
+        },
+        {
+          "anchor": "TclOOInvokeContext(",
+          "anchor_line": 319,
+          "first_line": 315,
+          "last_line": 413,
+          "window_sha256": "0c0390b3d20e88b432bed1bbcc91ed9bfdfe618d4769dc87bcf65cb50fe03104"
+        },
+        {
+          "anchor": "FinalizeMethodRefs(",
+          "anchor_line": 418,
+          "first_line": 414,
+          "last_line": 512,
+          "window_sha256": "868b6bbd1859e3204b8c37ebcb85bac39b055b9580d70c0d10683a088fadf233"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 110,
+          "first_line": 106,
+          "last_line": 204,
+          "window_sha256": "023ab1cdf0b064dfc5d58b55bccd5498fd83baba9b01d48f28f685f42d560d2e"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 876,
+          "first_line": 872,
+          "last_line": 970,
+          "window_sha256": "bf897453c842cd26e01148d45cad3f8d962fef7ddf5a2bc7dcb03122ed6ca156"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 956,
+          "first_line": 952,
+          "last_line": 1050,
+          "window_sha256": "b49fa9ad42b7a77ee2fe2c5cfe854c8f2afd9d026791954e95edfb107ffc5708"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 989,
+          "first_line": 985,
+          "last_line": 1083,
+          "window_sha256": "1eeaa2ed7006619056ff13862db5369ddd8c475e41a1800fd61435dfaae247be"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1756,
+          "first_line": 1752,
+          "last_line": 1850,
+          "window_sha256": "d5318bcf3a0b477b50c597ea94935654c2494e9b6f1d09339250ece680ca90f4"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1829,
+          "first_line": 1825,
+          "last_line": 1923,
+          "window_sha256": "1fb621ff9b3e0bfde6b4ef748b67b346d0882dc432cfb71aa4fa8249b0ea8dcf"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1832,
+          "first_line": 1828,
+          "last_line": 1926,
+          "window_sha256": "beb18887aeb948542a98765c4958cc81f83defe9cf848d9e9061d12103cd7a86"
+        },
+        {
+          "anchor": "AddMethodToCallChain(",
+          "anchor_line": 1855,
+          "first_line": 1851,
+          "last_line": 1949,
+          "window_sha256": "614291614a39b146507b0e870893133087f383efe94a3ebc548475998ac61c2e"
+        },
+        {
+          "anchor": "methodNameType =",
+          "anchor_line": 157,
+          "first_line": 153,
+          "last_line": 251,
+          "window_sha256": "ab43408ac78b947823067545e362b94be407f98c80c6fef87c2fccaab0cd6c55"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOOMethod.c",
+      "sha256": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+      "windows": [
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 265,
+          "first_line": 261,
+          "last_line": 359,
+          "window_sha256": "ed7c06b63966f7c07d54df56974b124bd0ee6decc3367fce32fd42c707a27c61"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 342,
+          "first_line": 338,
+          "last_line": 436,
+          "window_sha256": "2125a6af62a191265c21776831fe8d15c45c57adf84da420d55b82a593a3f521"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 366,
+          "first_line": 362,
+          "last_line": 460,
+          "window_sha256": "62714bff67b38dcabd6d540b989d611dad52e12fe3496a844c6f2d5f82478a1e"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 417,
+          "first_line": 413,
+          "last_line": 511,
+          "window_sha256": "14b62c9827b59cb410b97653ca38b89a1334c647464e070a683fa699e56ba815"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 764,
+          "first_line": 760,
+          "last_line": 858,
+          "window_sha256": "0bf50886b61859ff5f40683c989f0b50fb7c51101821aff7eae0a555c84119e9"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 808,
+          "first_line": 804,
+          "last_line": 902,
+          "window_sha256": "4cad4d24dbfdb8481f0fee7c8dfba002c7d586ea7eb526caa1fe3acd2535a383"
+        },
+        {
+          "anchor": "TclNewMethod(",
+          "anchor_line": 1635,
+          "first_line": 1631,
+          "last_line": 1729,
+          "window_sha256": "f353ba8aa84d7744998ea54e42f203d22072e3524c0b581ac606bae4c53a8e4e"
+        },
+        {
+          "anchor": "Tcl_NewMethod(",
+          "anchor_line": 324,
+          "first_line": 320,
+          "last_line": 418,
+          "window_sha256": "db1d4e771bbe7f617bb8529ea0ca737b816629d395ed48f90a7deabdb6ce27dc"
+        },
+        {
+          "anchor": "Tcl_NewMethod2(",
+          "anchor_line": 348,
+          "first_line": 344,
+          "last_line": 442,
+          "window_sha256": "3b5f6cfc4a8fc4830a197f300119158fb29372508411ec38f2a8fb56812de0d1"
+        },
+        {
+          "anchor": "TclOODelMethodRef(",
+          "anchor_line": 381,
+          "first_line": 377,
+          "last_line": 475,
+          "window_sha256": "d80fc8899b91bf6b008e7d6b064a9fff57ae7cb7017fda6f42deb0adfb988aee"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOOInt.h",
+      "sha256": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+      "windows": [
+        {
+          "anchor": "#define AddRef",
+          "anchor_line": 719,
+          "first_line": 715,
+          "last_line": 797,
+          "window_sha256": "6cef491de7f87c497044272b68f607cb6bdbf8fbf5f1a3471c5db1a6db600a59"
+        },
+        {
+          "anchor": "struct Method",
+          "anchor_line": 39,
+          "first_line": 35,
+          "last_line": 133,
+          "window_sha256": "276520739315c0630a52e499666bb0f59690af7b600bb69d420e5ea4300c0997"
+        },
+        {
+          "anchor": "struct Method",
+          "anchor_line": 51,
+          "first_line": 47,
+          "last_line": 145,
+          "window_sha256": "5454a99de8483ec40df3a8cc6e315b6c89a84f2dab8eedc38c07db72c4f2f7ce"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 33,
+          "first_line": 29,
+          "last_line": 127,
+          "window_sha256": "6af719a0ad7417f7b73b44dbcccf7ed1d4ca2409b1d53907b9e74d9fecc5ebb4"
+        },
+        {
+          "anchor": "struct CallChain",
+          "anchor_line": 445,
+          "first_line": 441,
+          "last_line": 539,
+          "window_sha256": "52ff9394083765c7e59f007d7de0ec908f06e82a49cfb173ff84fe0b90f99a07"
+        },
+        {
+          "anchor": "struct MInvoke",
+          "anchor_line": 40,
+          "first_line": 36,
+          "last_line": 134,
+          "window_sha256": "7ba35c7943cff44e05182bef5be41472e716674ca8a165404421f112159ec994"
+        },
+        {
+          "anchor": "struct MInvoke",
+          "anchor_line": 434,
+          "first_line": 430,
+          "last_line": 528,
+          "window_sha256": "e327016c538ae37491649c6c9c193db5aeccf5d1e26cc73bfeb7f076a1646588"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOO.h",
+      "sha256": "8fa650a6dea982840ad237867e1e69b581b0ab9445bcd82c80bb1b25f2d3260b",
+      "windows": [
+        {
+          "anchor": "typedef int (Tcl_MethodCallProc",
+          "anchor_line": 66,
+          "first_line": 62,
+          "last_line": 160,
+          "window_sha256": "514f017c9e37480f67602ac9428cf6eccee947c253ac0c3da786f6b6d9e83c6c"
+        },
+        {
+          "anchor": "typedef int (Tcl_MethodCallProc",
+          "anchor_line": 69,
+          "first_line": 65,
+          "last_line": 163,
+          "window_sha256": "58778b4fd6484d3ac6342eecccac2032fdeb9439051916058a64789e99b0b6ae"
+        },
+        {
+          "anchor": "typedef struct Tcl_MethodType",
+          "anchor_line": 86,
+          "first_line": 82,
+          "last_line": 180,
+          "window_sha256": "863a7fc5493e80fc45e716cd598012832e0b388f0bfecac5a0914d975c67e426"
+        },
+        {
+          "anchor": "typedef struct Tcl_MethodType",
+          "anchor_line": 104,
+          "first_line": 100,
+          "last_line": 194,
+          "window_sha256": "0209d14b9200aaf16f09d0d97cc19880ee2bd13b315560d32a9fdae8070cd0b0"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 88,
+          "first_line": 84,
+          "last_line": 182,
+          "window_sha256": "656ea8f8dd9677a66ecfde6bee617d9bfec4c558963463effaf1766ae4711e21"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 106,
+          "first_line": 102,
+          "last_line": 194,
+          "window_sha256": "d25daf697871cf54bfba9692bf3bd72171f62cdaca0dafea9454aa3cfd28c9d1"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 128,
+          "first_line": 124,
+          "last_line": 194,
+          "window_sha256": "4503a21102823fe53c4c9cc151560f5a1519a3206dcfef329a2043aa81b6626b"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 129,
+          "first_line": 125,
+          "last_line": 194,
+          "window_sha256": "516a603e5c591a1b3a065252904172b6778ac0af85ce8d48a04cc2e9e82c8c55"
+        },
+        {
+          "anchor": "TCL_OO_METHOD_VERSION",
+          "anchor_line": 131,
+          "first_line": 127,
+          "last_line": 194,
+          "window_sha256": "0b409a3dfe52a857816efef8e619609a714153471a9774684aad312305d4c76d"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODecls.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOODecls.h",
+      "sha256": "7a5a73ea4029bb71922d4ee130d912e57057d4dee3408dfa8e0650f38e62333b",
+      "windows": [
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 69,
+          "first_line": 65,
+          "last_line": 163,
+          "window_sha256": "712b868bb1268e75943d16530c6d18ed615601169c6862c346b03b0c306938eb"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 140,
+          "first_line": 136,
+          "last_line": 234,
+          "window_sha256": "b927c2a1990db07260017c16dbdaa13ad56a62a6d2fd0ed48023b5c4e3c48453"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 226,
+          "first_line": 222,
+          "last_line": 319,
+          "window_sha256": "edba30caee6e96326321aaa86a5e98f0b875eff141d36d1942cbab3617288809"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 270,
+          "first_line": 266,
+          "last_line": 319,
+          "window_sha256": "f78b8ec88fdde0dd2f585d6a6505b1f6e0dc79cd4ead7d6c14d41ea29c5f8640"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 281,
+          "first_line": 277,
+          "last_line": 319,
+          "window_sha256": "615425f76357d34c7373166bda6f0efb54b6e1a3215b157566f9b0f006cfc747"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 301,
+          "first_line": 297,
+          "last_line": 319,
+          "window_sha256": "34c1f9322b87a1c57e2668e16f2fd7d970238faf7f1d10deaaf46573386611ae"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 302,
+          "first_line": 298,
+          "last_line": 319,
+          "window_sha256": "4c39f8076640b03f94f00c797e7c0ac4db78a51aef7d2647a6cd5f361bcc6e1a"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 313,
+          "first_line": 309,
+          "last_line": 319,
+          "window_sha256": "c830aa1fac55b3af6392c2c290085e5c175ae8a48a800c51ae107d442495d165"
+        },
+        {
+          "anchor": "Tcl_NewMethod",
+          "anchor_line": 314,
+          "first_line": 310,
+          "last_line": 319,
+          "window_sha256": "de5deb0b8e8314a4000281874f881479ea5cbdc8b7f395d82fb2af3fc45fafb2"
+        },
+        {
+          "anchor": "Tcl_GetObjectFromObj",
+          "anchor_line": 47,
+          "first_line": 43,
+          "last_line": 141,
+          "window_sha256": "8897a32b477ca5f0390fb5a9d7d9193934236107054a2ed750e75ebc6457a964"
+        },
+        {
+          "anchor": "Tcl_GetObjectFromObj",
+          "anchor_line": 210,
+          "first_line": 206,
+          "last_line": 304,
+          "window_sha256": "18d447d5c0752defa867133556fd6e6bdd6d2f57152a70c58e0ac905a2b686c6"
+        },
+        {
+          "anchor": "Tcl_GetObjectAsClass",
+          "anchor_line": 43,
+          "first_line": 39,
+          "last_line": 137,
+          "window_sha256": "48209542daa706857bf063cf329968c5db656861b4656f6d125639c9ed916096"
+        },
+        {
+          "anchor": "Tcl_GetObjectAsClass",
+          "anchor_line": 206,
+          "first_line": 202,
+          "last_line": 300,
+          "window_sha256": "717418269c407815d9181c16d03a0359198a3bc6cfa02ef18e2b57d90c370683"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "9.1.0",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/9.1.0/tclOODefineCmds.c",
+      "sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+      "windows": [
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 89,
+          "first_line": 85,
+          "last_line": 183,
+          "window_sha256": "f7bc132677d419ba4195ed6617e2c7f0114ebe8effbe83fb9dd424c3f7062dba"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 730,
+          "first_line": 726,
+          "last_line": 824,
+          "window_sha256": "206b16baa422453bcc4f9c632e0e8dcc9dc81edc1d6f105adf6a681ba60de2bb"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 738,
+          "first_line": 734,
+          "last_line": 832,
+          "window_sha256": "80caa733496e9cf82820a031139158d3ad290053872ea22a3d4c9f15eaa15be9"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1971,
+          "first_line": 1967,
+          "last_line": 2065,
+          "window_sha256": "9fc1c829fc73df3e2223f8b0d68623c18997d4ce4e6697ec31c5fdf8876b2003"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1980,
+          "first_line": 1976,
+          "last_line": 2074,
+          "window_sha256": "817b03b5138abba5fdbf2a04ccdc5248982109d022f839c5def8170a286f1088"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1986,
+          "first_line": 1982,
+          "last_line": 2080,
+          "window_sha256": "ea476a868faacebaefe0fbe3e42dd20bda17c60fee9103242b6f89f60fc413f8"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 1998,
+          "first_line": 1994,
+          "last_line": 2092,
+          "window_sha256": "4e03f8c01e0c994745d9e69bc2e8b2e86989d488c280284e6785c8cd1ab30a3d"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2007,
+          "first_line": 2003,
+          "last_line": 2101,
+          "window_sha256": "659cb2d7dd042e956ed15c822db1aded8678a7636b109b62ec7a3200a0423fc4"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2013,
+          "first_line": 2009,
+          "last_line": 2107,
+          "window_sha256": "518182614029dc68506ea0b7f161aa86f0f33392d33b7f181109e49844a1ca5a"
+        },
+        {
+          "anchor": "DeleteMethod",
+          "anchor_line": 2462,
+          "first_line": 2458,
+          "last_line": 2556,
+          "window_sha256": "c6f01772385ed3db418d62ff4122df5c4c1af93f12e3a7828f58b19f0c3e5c7a"
+        }
+      ],
+      "purpose": "Original public MethodType API; callchain/cache stores; first active invocation AddRef and final method reference release; declaration deletion/replacement callback owner"
+    },
+    {
+      "provider": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.4.20/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "purpose": "Actual initialized original core/public SDK availability only; no optional class-package or C TclOO MethodType equivalence claim"
+    },
+    {
+      "provider": "8.4.20",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.4.20/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "purpose": "Actual initialized original core/public SDK availability only; no optional class-package or C TclOO MethodType equivalence claim"
+    },
+    {
+      "provider": "8.5.19",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.5.19/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "purpose": "Actual initialized original core/public SDK availability only; no optional class-package or C TclOO MethodType equivalence claim"
+    },
+    {
+      "provider": "8.5.19",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/8.5.19/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "purpose": "Actual initialized original core/public SDK availability only; no optional class-package or C TclOO MethodType equivalence claim"
+    },
+    {
+      "provider": "jim",
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/jim/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "purpose": "Actual initialized original core/public SDK availability only; no optional class-package or C TclOO MethodType equivalence claim"
+    },
+    {
+      "provider": "jim",
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "copy_path": "/tmp/receiver-native-method-lifetime506/source-inspection/jim/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "purpose": "Actual initialized original core/public SDK availability only; no optional class-package or C TclOO MethodType equivalence claim"
+    }
+  ],
+  "case_map": {
+    "0": "Prime actual original selector; hold duplicate selector; delete idle declared custom method; release both caches afterward",
+    "1": "Prime then invoke original cached selector; actual custom call deletes its own declaration; record inside and after active completion",
+    "2": "Prime inherited custom method, then install derived script override; script deletes the inherited custom declaration and reaches next on the entered callchain",
+    "3": "Prime and hold original selector plus duplicate; replace same named method via actual public MethodType API; reinvoke original selector",
+    "4": "Prime then custom active call replaces same named method through public API and recursively invokes the new method before original return",
+    "5": "Prime and hold duplicate, release both selector cache headers while declaration remains, then delete declaration",
+    "6": "Prime and hold both cache headers; destroy the original declaring class before cache release and interpreter destruction",
+    "7": "Prime and hold both cache headers through interpreter destruction; then release cache headers"
+  },
+  "role_map": {
+    "data0": "Original declared custom method clientData; State/MethodData instrumentation is held on the C stack until after interpreter and object cleanup",
+    "data1": "Replacement custom method clientData with independently held original token",
+    "token0/token1": "One caller native +1; an additional method-clientData native +1 is explicitly added on installation and released in the actual deleteProc; not returned as the method result",
+    "selector": "The same original held m object supplied to each public object-vector invocation",
+    "duplicate": "Actual Tcl_DuplicateObj after the prime invocation; raw observed cache type/refcount retained, not presumed",
+    "observer": "Resident script stage words only, no original token String getter"
+  },
+  "observation_channels": {
+    "ROW": "Raw header String residency, reference count, method call/delete counters and explicit method-clientData object ownership flags; no String getter",
+    "EVENT": "Reached original custom Method delete and token free/duplicate/update callbacks",
+    "METHOD": "Availability and diagnostic public method token address; addresses do not establish generation/identity",
+    "RESULT": "Explicit post-EvalObjv result String presentation, separate from method or cache stages",
+    "VERSION/BUILD/ABI/AVAILABILITY": "Measured initialized exact provider/public-header channel"
+  },
+  "required_receipts": [
+    "Exact actual compiler version/dependency/compile/CLI-version/probe argv, environment, status, duration, full stdout/stderr",
+    "All selected actual header/config/library/ELF/source/compiler/linker files pinned before and after, including dependency and linker discovery",
+    "Fixed entire request/source/script tree copied without edits before launch; failed process retained; no retry silently replacing original request",
+    "Eight fresh-interpreter finite cases per actual supported public API; unsupported lanes preserve only real initialized availability",
+    "Native observations remain independent of Rust context/Host refusal and method-generation purposes"
+  ],
+  "purpose_limits": [
+    "No outcome inferred before Root closes processes",
+    "The probe owns MethodData instrumentation until after interpreter teardown to avoid dereferencing freed clientData; deleteProc releases its actual original object reference exactly once",
+    "Method addresses are diagnostic, never generation or created-object identity proof",
+    "Cached selector/duplicate lifetime and actual entered custom method/next scopes are distinct",
+    "No Native execution, frame, namespace, source-analysis or runtime Host authority donated to application adapters",
+    "No filter/rewrite of original result or public EvalObjv error-context String effects",
+    "No BIG-IP/external provider access, optional TclOO extension or Jim class simulation"
+  ]
+}

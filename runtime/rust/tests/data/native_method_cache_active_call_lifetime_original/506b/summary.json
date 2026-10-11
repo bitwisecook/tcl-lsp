@@ -1,0 +1,38 @@
+{
+  "question_id": "naming.tcloo.original-method-cache-and-active-call-lifetime",
+  "request_sha256": "6a48902aed3ba0f246c64f3bb7bb29078715ee838a35b486f6464cf3ac3617f9",
+  "launcher_sha256": "6096d594b60628738dd05a3e828296d7a0bec99dc7c9e404db9c71bdd91c79b8",
+  "scope": "Actual initialized public MethodType idle-cache versus active invocation lifetime, eight finite cases C86/C90/C91 independently. C84/C85/Jim availability only. No Rust or token generation equivalence.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "status": "closed",
+      "receipt_sha256": "73e3ad5935c538bda92f6d461c20ef58e78c0619363b5bb9cef3aa5314b6feb1"
+    },
+    {
+      "provider": "8.5.19",
+      "status": "closed",
+      "receipt_sha256": "07927208e81b8e134ad8ba2b192ec01188b60d0e66cd84846e42c8e3bd792d27"
+    },
+    {
+      "provider": "8.6.18",
+      "status": "closed",
+      "receipt_sha256": "d33101cb35dea2e3a1434abc92ee82dd298e0f06b81bf6d5b42af0afc50ce0a3"
+    },
+    {
+      "provider": "9.0.4",
+      "status": "closed",
+      "receipt_sha256": "13af0db92d7b45a64385a15532a2986864656608d6cb72575845155b0f765c1d"
+    },
+    {
+      "provider": "9.1.0",
+      "status": "closed",
+      "receipt_sha256": "56dfa5544182e9c8b397ff43bc93709b4748e45fb01d2c17c59c433aa860dbeb"
+    },
+    {
+      "provider": "jim",
+      "status": "closed",
+      "receipt_sha256": "983717df8fed6a32d6105262ee1bf408179a5650c59547f8b67a037f6bf360c8"
+    }
+  ]
+}

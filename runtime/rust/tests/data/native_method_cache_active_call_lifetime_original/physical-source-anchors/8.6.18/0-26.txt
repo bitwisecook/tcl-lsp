@@ -1,0 +1,99 @@
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+AddMethodToCallChain(
+    Method *const mPtr,		/* Actual method implementation to add to call
+				 * chain (or NULL, a no-op). */
+    struct ChainBuilder *const cbPtr,
+				/* The call chain to add the method
+				 * implementation to. */
+    Tcl_HashTable *const doneFilters,
+				/* Where to record what filters have been
+				 * processed. If NULL, not processing filters.
+				 * Note that this function does not update
+				 * this hashtable. */
+    Class *const filterDecl,	/* The class that declared the filter. If
+				 * NULL, either the filter was declared by the
+				 * object or this isn't a filter. */
+    int flags)			/* Used to check if we're mixin-consistent
+				 * only. Mixin-consistent means that either
+				 * we're looking to add things from a mixin
+				 * and we have passed a mixin, or we're not
+				 * looking to add things from a mixin and have
+				 * not passed a mixin. */
+{
+    CallChain *callPtr = cbPtr->callChainPtr;
+    int i;
+
+    /*
+     * Return if this is just an entry used to record whether this is a public
+     * method. If so, there's nothing real to call and so nothing to add to
+     * the call chain.
+     *
+     * This is also where we enforce mixin-consistency.
+     */
+
+    if (mPtr == NULL || mPtr->typePtr == NULL || !MIXIN_CONSISTENT(flags)) {
+	return;
+    }
+
+    /*
+     * Enforce real private method handling here. We will skip adding this
+     * method IF
+     *  1) we are not allowing private methods, AND
+     *  2) this is a private method, AND
+     *  3) this is a class method, AND
+     *  4) this method was not declared by the class of the current object.
+     *
+     * This does mean that only classes really handle private methods. This
+     * should be sufficient for [incr Tcl] support though.
+     */
+
+    if (!(callPtr->flags & PRIVATE_METHOD)
+	    && (mPtr->flags & PRIVATE_METHOD)
+	    && (mPtr->declaringClassPtr != NULL)
+	    && (mPtr->declaringClassPtr != cbPtr->oPtr->selfCls)) {
+	return;
+    }
+
+    /*
+     * First test whether the method is already in the call chain. Skip over
+     * any leading filters.
+     */
+
+    for (i = cbPtr->filterLength ; i < callPtr->numChain ; i++) {
+	if (callPtr->chain[i].mPtr == mPtr &&
+		callPtr->chain[i].isFilter == (doneFilters != NULL)) {
+	    /*
+	     * Call chain semantics states that methods come as *late* in the
+	     * call chain as possible. This is done by copying down the
+	     * following methods. Note that this does not change the number of
+	     * method invocations in the call chain; it just rearranges them.
+	     */
+
+	    Class *declCls = callPtr->chain[i].filterDeclarer;
+
+	    for (; i + 1 < callPtr->numChain ; i++) {
+		callPtr->chain[i] = callPtr->chain[i + 1];
+	    }
+	    callPtr->chain[i].mPtr = mPtr;
+	    callPtr->chain[i].isFilter = (doneFilters != NULL);
+	    callPtr->chain[i].filterDeclarer = declCls;
+	    return;
+	}
+    }
+
+    /*
+     * Need to really add the method. This is made a bit more complex by the
+     * fact that we are using some "static" space initially, and only start
+     * realloc-ing if the chain gets long.
+     */
+
+    if (callPtr->numChain == CALL_CHAIN_STATIC_SIZE) {
+	callPtr->chain =
+		(struct MInvoke *)ckalloc(sizeof(struct MInvoke) * (callPtr->numChain + 1));
+	memcpy(callPtr->chain, callPtr->staticChain,
+		sizeof(struct MInvoke) * callPtr->numChain);
+    } else if (callPtr->numChain > CALL_CHAIN_STATIC_SIZE) {
+	callPtr->chain = (struct MInvoke *)ckrealloc(callPtr->chain,

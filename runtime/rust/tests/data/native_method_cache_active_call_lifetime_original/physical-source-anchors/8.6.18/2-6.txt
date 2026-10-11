@@ -1,0 +1,98 @@
+ */
+
+#define CALL_CHAIN_STATIC_SIZE 4
+
+struct MInvoke {
+    Method *mPtr;		/* Reference to the method implementation
+				 * record. */
+    int isFilter;		/* Whether this is a filter invocation. */
+    Class *filterDeclarer;	/* What class decided to add the filter; if
+				 * NULL, it was added by the object. */
+};
+
+typedef struct CallChain {
+    int objectCreationEpoch;	/* The object's creation epoch. Note that the
+				 * object reference is not stored in the call
+				 * chain; it is in the call context. */
+    int objectEpoch;		/* Local (object structure) epoch counter
+				 * snapshot. */
+    int epoch;			/* Global (class structure) epoch counter
+				 * snapshot. */
+    int flags;			/* Assorted flags, see below. */
+    int refCount;		/* Reference count. */
+    int numChain;		/* Size of the call chain. */
+    struct MInvoke *chain;	/* Array of call chain entries. May point to
+				 * staticChain if the number of entries is
+				 * small. */
+    struct MInvoke staticChain[CALL_CHAIN_STATIC_SIZE];
+} CallChain;
+
+typedef struct CallContext {
+    Object *oPtr;		/* The object associated with this call. */
+    int index;			/* Index into the call chain of the currently
+				 * executing method implementation. */
+    int skip;			/* Current number of arguments to skip; can
+				 * vary depending on whether it is a direct
+				 * method call or a continuation via the
+				 * [next] command. */
+    CallChain *callPtr;		/* The actual call chain. */
+} CallContext;
+
+/*
+ * Bits for the 'flags' field of the call chain.
+ */
+
+#define PUBLIC_METHOD     0x01	/* This is a public (exported) method. */
+#define PRIVATE_METHOD    0x02	/* This is a private (class's direct instances
+				 * only) method. Supports itcl. */
+#define OO_UNKNOWN_METHOD 0x04	/* This is an unknown method. */
+#define CONSTRUCTOR	  0x08	/* This is a constructor. */
+#define DESTRUCTOR	  0x10	/* This is a destructor. */
+
+/*
+ * Structure containing definition information about basic class methods.
+ */
+
+typedef struct {
+    const char *name;		/* Name of the method in question. */
+    int isPublic;		/* Whether the method is public by default. */
+    Tcl_MethodType definition;	/* How to call the method. */
+} DeclaredClassMethod;
+
+/*
+ *----------------------------------------------------------------
+ * Commands relating to OO support.
+ *----------------------------------------------------------------
+ */
+
+MODULE_SCOPE int	TclOOInit(Tcl_Interp *interp);
+MODULE_SCOPE int	TclOODefineObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOOObjDefObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineConstructorObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineDeleteMethodObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineDestructorObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineExportObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineForwardObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineMethodObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineRenameMethodObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);
+MODULE_SCOPE int	TclOODefineUnexportObjCmd(void *clientData,
+			    Tcl_Interp *interp, int objc,
+			    Tcl_Obj *const *objv);

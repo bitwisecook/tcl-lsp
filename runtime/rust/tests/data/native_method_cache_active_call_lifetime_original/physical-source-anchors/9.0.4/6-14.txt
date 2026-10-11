@@ -1,0 +1,97 @@
+TclOOStashContext(
+    Tcl_Obj *objPtr,
+    CallContext *contextPtr)
+{
+    StashCallChain(objPtr, contextPtr->callPtr);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * DupMethodNameRep, FreeMethodNameRep --
+ *
+ *	Functions to implement the required parts of the Tcl_Obj guts needed
+ *	for caching of method contexts in Tcl_Objs.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static void
+DupMethodNameRep(
+    Tcl_Obj *srcPtr,
+    Tcl_Obj *dstPtr)
+{
+    StashCallChain(dstPtr, (CallChain *)
+	    TclFetchInternalRep(srcPtr, &methodNameType)->twoPtrValue.ptr1);
+}
+
+static void
+FreeMethodNameRep(
+    Tcl_Obj *objPtr)
+{
+    TclOODeleteChain((CallChain *)
+	    TclFetchInternalRep(objPtr, &methodNameType)->twoPtrValue.ptr1);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOInvokeContext --
+ *
+ *	Invokes a single step along a method call-chain context. Note that the
+ *	invocation of a step along the chain can cause further steps along the
+ *	chain to be invoked. Note that this function is written to be as light
+ *	in stack usage as possible.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOOInvokeContext(
+    void *clientData,		/* The method call context. */
+    Tcl_Interp *interp,		/* Interpreter for error reporting, and many
+				 * other sorts of context handling (e.g.,
+				 * commands, variables) depending on method
+				 * implementation. */
+    int objc,			/* The number of arguments. */
+    Tcl_Obj *const objv[])	/* The arguments as actually seen. */
+{
+    CallContext *const contextPtr = (CallContext *) clientData;
+    Method *const mPtr = contextPtr->callPtr->chain[contextPtr->index].mPtr;
+    const int isFilter =
+	    contextPtr->callPtr->chain[contextPtr->index].isFilter;
+
+    /*
+     * If this is the first step along the chain, we preserve the method
+     * entries in the chain so that they do not get deleted out from under our
+     * feet.
+     */
+
+    if (contextPtr->index == 0) {
+	Tcl_Size i;
+
+	for (i = 0 ; i < contextPtr->callPtr->numChain ; i++) {
+	    AddRef(contextPtr->callPtr->chain[i].mPtr);
+	}
+
+	/*
+	 * Ensure that the method name itself is part of the arguments when
+	 * we're doing unknown processing.
+	 */
+
+	if (contextPtr->callPtr->flags & OO_UNKNOWN_METHOD) {
+	    contextPtr->skip--;
+	}
+
+	/*
+	 * Add a callback to ensure that method references are dropped once
+	 * this call is finished.
+	 */
+
+	TclNRAddCallback(interp, FinalizeMethodRefs, contextPtr, NULL, NULL,
+		NULL);
+    }
+
+    /*
+     * Save whether we were in a filter and set up whether we are now.
+     */

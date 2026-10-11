@@ -1,0 +1,96 @@
+ *
+ * ----------------------------------------------------------------------
+ */
+void
+TclOODeleteChain(
+    CallChain *callPtr)
+{
+    if (callPtr == NULL || callPtr->refCount-- > 1) {
+	return;
+    }
+    if (callPtr->chain != callPtr->staticChain) {
+	Tcl_Free(callPtr->chain);
+    }
+    Tcl_Free(callPtr);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOStashContext --
+ *
+ *	Saves a reference to a method call context in a Tcl_Obj's internal
+ *	representation.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline void
+StashCallChain(
+    Tcl_Obj *objPtr,
+    CallChain *callPtr)
+{
+    Tcl_ObjInternalRep ir;
+
+    callPtr->refCount++;
+    TclGetString(objPtr);
+    ir.twoPtrValue.ptr1 = callPtr;
+    Tcl_StoreInternalRep(objPtr, &methodNameType, &ir);
+}
+
+void
+TclOOStashContext(
+    Tcl_Obj *objPtr,
+    CallContext *contextPtr)
+{
+    StashCallChain(objPtr, contextPtr->callPtr);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * DupMethodNameRep, FreeMethodNameRep --
+ *
+ *	Functions to implement the required parts of the Tcl_Obj guts needed
+ *	for caching of method contexts in Tcl_Objs.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static void
+DupMethodNameRep(
+    Tcl_Obj *srcPtr,
+    Tcl_Obj *dstPtr)
+{
+    StashCallChain(dstPtr, (CallChain *)
+	    TclFetchInternalRep(srcPtr, &methodNameType)->twoPtrValue.ptr1);
+}
+
+static void
+FreeMethodNameRep(
+    Tcl_Obj *objPtr)
+{
+    TclOODeleteChain((CallChain *)
+	    TclFetchInternalRep(objPtr, &methodNameType)->twoPtrValue.ptr1);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOInvokeContext --
+ *
+ *	Invokes a single step along a method call-chain context. Note that the
+ *	invocation of a step along the chain can cause further steps along the
+ *	chain to be invoked. Note that this function is written to be as light
+ *	in stack usage as possible.
+ *
+ * ----------------------------------------------------------------------
+ */
+int
+TclOOInvokeContext(
+    void *clientData,		/* The method call context. */
+    Tcl_Interp *interp,		/* Interpreter for error reporting, and many
+				 * other sorts of context handling (e.g.,
+				 * commands, variables) depending on method
+				 * implementation. */
+    Tcl_Size objc,		/* The number of arguments. */

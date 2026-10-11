@@ -1,0 +1,109 @@
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOOInfoClassPropCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Class *clsPtr;
+    Tcl_Size i;
+    int idx;
+    bool all = false, writable = false, allocated = false;
+    Tcl_Obj *result;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "className ?options...?");
+	return TCL_ERROR;
+    }
+    clsPtr = TclOOGetClassFromObj(interp, objv[1]);
+    if (clsPtr == NULL) {
+	return TCL_ERROR;
+    }
+    for (i = 2; i < objc; i++) {
+	if (Tcl_GetIndexFromObj(interp, objv[i], propOptNames, "option", 0,
+		&idx) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+	switch (idx) {
+	case PROP_ALL:
+	    all = true;
+	    break;
+	case PROP_READABLE:
+	    writable = false;
+	    break;
+	case PROP_WRITABLE:
+	    writable = true;
+	    break;
+	default:
+	    TCL_UNREACHABLE();
+	}
+    }
+
+    /*
+     * Get the properties.
+     */
+
+    if (all) {
+	result = GetAllClassProperties(clsPtr, writable, &allocated);
+	if (allocated) {
+	    SortPropList(result);
+	}
+    } else {
+	if (writable) {
+	    result = TclOOGetPropertyList(&clsPtr->properties.writable);
+	} else {
+	    result = TclOOGetPropertyList(&clsPtr->properties.readable);
+	}
+	SortPropList(result);
+    }
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+int
+TclOOInfoObjectPropCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr;
+    Tcl_Size i;
+    bool all = false, writable = false;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "objName ?options...?");
+	return TCL_ERROR;
+    }
+    oPtr = (Object *) Tcl_GetObjectFromObj(interp, objv[1]);
+    if (oPtr == NULL) {
+	return TCL_ERROR;
+    }
+    for (i = 2; i < objc; i++) {
+	int idx;
+	if (Tcl_GetIndexFromObj(interp, objv[i], propOptNames, "option", 0,
+		&idx) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+	switch (idx) {
+	case PROP_ALL:
+	    all = true;
+	    break;
+	case PROP_READABLE:
+	    writable = false;
+	    break;
+	case PROP_WRITABLE:
+	    writable = true;
+	    break;
+	default:
+	    TCL_UNREACHABLE();
+	}
+    }
+
+    /*
+     * Get the properties.
+     */
+

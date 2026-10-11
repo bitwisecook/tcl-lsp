@@ -1,0 +1,97 @@
+
+#ifndef TCL_NO_DEPRECATED
+#undef Tcl_NewMethod
+Tcl_Method
+Tcl_NewMethod(
+    TCL_UNUSED(Tcl_Interp *),
+    Tcl_Class cls,		/* The class to attach the method to. */
+    Tcl_Obj *nameObj,		/* The name of the object. May be NULL (e.g.,
+				 * for constructors or destructors); if so, up
+				 * to caller to manage storage. */
+    int flags,			/* Whether this is a public method. */
+    const Tcl_MethodType *typePtr,
+				/* The type of method this is, which defines
+				 * how to invoke, delete and clone the
+				 * method. */
+    void *clientData)		/* Some data associated with the particular
+				 * method to be created. */
+{
+    if (typePtr->version > TCL_OO_METHOD_VERSION_1) {
+	Tcl_Panic("%s: Wrong version in typePtr->version, should be %s",
+		"Tcl_NewMethod", "TCL_OO_METHOD_VERSION_1");
+    }
+    return TclNewMethod(cls, nameObj, flags,
+	    (const Tcl_MethodType2 *)typePtr, clientData);
+}
+#endif /* TCL_NO_DEPRECATED */
+
+Tcl_Method
+Tcl_NewMethod2(
+    TCL_UNUSED(Tcl_Interp *),
+    Tcl_Class cls,		/* The class to attach the method to. */
+    Tcl_Obj *nameObj,		/* The name of the object. May be NULL (e.g.,
+				 * for constructors or destructors); if so, up
+				 * to caller to manage storage. */
+    int flags,			/* Whether this is a public method. */
+    const Tcl_MethodType2 *typePtr,
+				/* The type of method this is, which defines
+				 * how to invoke, delete and clone the
+				 * method. */
+    void *clientData)		/* Some data associated with the particular
+				 * method to be created. */
+{
+    if (typePtr->version < TCL_OO_METHOD_VERSION_2) {
+	Tcl_Panic("%s: Wrong version in typePtr->version, should be %s",
+		"Tcl_NewMethod2", "TCL_OO_METHOD_VERSION_2");
+    }
+    return TclNewMethod(cls, nameObj, flags, typePtr, clientData);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODelMethodRef --
+ *
+ *	How to delete a method.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+void
+TclOODelMethodRef(
+    Method *mPtr)
+{
+    if ((mPtr != NULL) && (mPtr->refCount-- <= 1)) {
+	if (mPtr->type2Ptr != NULL && mPtr->type2Ptr->deleteProc != NULL) {
+	    mPtr->type2Ptr->deleteProc(mPtr->clientData);
+	}
+	if (mPtr->namePtr != NULL) {
+	    Tcl_DecrRefCount(mPtr->namePtr);
+	}
+
+	Tcl_Free(mPtr);
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOODefineBasicMethods --
+ *
+ *	Helper that makes it cleaner to create very simple methods during
+ *	basic system initialization. Not suitable for general use.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+void
+TclOODefineBasicMethods(
+    Class *clsPtr,		/* Class to attach the methods to. */
+    const DeclaredClassMethod *dcmAry)
+				/* Static table of method definitions. */
+{
+    for (const DeclaredClassMethod *dcm = dcmAry; dcm->name ; dcm++) {
+	Tcl_Obj *namePtr = Tcl_NewStringObj(dcm->name, TCL_AUTO_LENGTH);
+
+	TclNewMethod((Tcl_Class) clsPtr, namePtr,
+		(dcm->isPublic ? PUBLIC_METHOD : 0), &dcm->definition, NULL);

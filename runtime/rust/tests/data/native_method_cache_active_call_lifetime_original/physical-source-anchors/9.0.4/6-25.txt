@@ -1,0 +1,98 @@
+	hPtr = Tcl_FindHashEntry(oPtr->methodsPtr, methodName);
+	if (hPtr != NULL) {
+	    mPtr = (Method *) Tcl_GetHashValue(hPtr);
+	    if (IS_PRIVATE(mPtr)) {
+		AddMethodToCallChain(mPtr, cbPtr, NULL, NULL, flags);
+		donePrivate = 1;
+	    }
+	}
+    }
+    return donePrivate;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * AddSimpleChainToCallContext --
+ *
+ *	The core of the call-chain construction engine, this handles calling a
+ *	particular method on a particular object. Note that filters and
+ *	unknown handling are already handled by the logic that uses this
+ *	function. Returns true if a private method was one of those found.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static inline int
+AddSimpleChainToCallContext(
+    Object *const oPtr,		/* Object to add call chain entries for. */
+    Class *const contextCls,	/* Context class; the currently considered
+				 * class is equal to this, private methods may
+				 * also be added. [TIP 500] */
+    Tcl_Obj *const methodNameObj,
+				/* Name of method to add the call chain
+				 * entries for. */
+    ChainBuilder *const cbPtr,	/* Where to add the call chain entries. */
+    Tcl_HashTable *const doneFilters,
+				/* Where to record what call chain entries
+				 * have been processed. */
+    int flags,			/* What sort of call chain are we building. */
+    Class *const filterDecl)	/* The class that declared the filter. If
+				 * NULL, either the filter was declared by the
+				 * object or this isn't a filter. */
+{
+    Tcl_Size i;
+    int foundPrivate = 0, blockedUnexported = 0;
+    Tcl_HashEntry *hPtr;
+    Method *mPtr;
+
+    if (!(flags & (KNOWN_STATE | SPECIAL)) && oPtr->methodsPtr) {
+	hPtr = Tcl_FindHashEntry(oPtr->methodsPtr, methodNameObj);
+
+	if (hPtr != NULL) {
+	    mPtr = (Method *) Tcl_GetHashValue(hPtr);
+	    if (!IS_PRIVATE(mPtr)) {
+		if (WANT_PUBLIC(flags)) {
+		    if (!IS_PUBLIC(mPtr)) {
+			blockedUnexported = 1;
+		    } else {
+			flags |= DEFINITE_PUBLIC;
+		    }
+		} else {
+		    flags |= DEFINITE_PROTECTED;
+		}
+	    }
+	}
+    }
+    if (!(flags & SPECIAL)) {
+	Class *mixinPtr;
+
+	FOREACH(mixinPtr, oPtr->mixins) {
+	    if (contextCls) {
+		foundPrivate |= AddPrivatesFromClassChainToCallContext(
+			mixinPtr, contextCls, methodNameObj, cbPtr,
+			doneFilters, flags|TRAVERSED_MIXIN, filterDecl);
+	    }
+	    foundPrivate |= AddSimpleClassChainToCallContext(mixinPtr,
+		    methodNameObj, cbPtr, doneFilters,
+		    flags | TRAVERSED_MIXIN, filterDecl);
+	}
+	if (oPtr->methodsPtr && !blockedUnexported) {
+	    hPtr = Tcl_FindHashEntry(oPtr->methodsPtr, methodNameObj);
+	    if (hPtr != NULL) {
+		mPtr = (Method *) Tcl_GetHashValue(hPtr);
+		if (!IS_PRIVATE(mPtr)) {
+		    AddMethodToCallChain(mPtr, cbPtr, doneFilters, filterDecl,
+			    flags);
+		}
+	    }
+	}
+    }
+    if (!oPtr->selfCls) {
+	return foundPrivate;
+    }
+    if (contextCls) {
+	foundPrivate |= AddPrivatesFromClassChainToCallContext(oPtr->selfCls,
+		contextCls, methodNameObj, cbPtr, doneFilters, flags,
+		filterDecl);
+    }

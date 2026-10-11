@@ -1,0 +1,68 @@
+#define Tcl_MethodName \
+	(tclOOStubsPtr->tcl_MethodName) /* 10 */
+#define Tcl_NewInstanceMethod \
+	(tclOOStubsPtr->tcl_NewInstanceMethod) /* 11 */
+#define Tcl_NewMethod \
+	(tclOOStubsPtr->tcl_NewMethod) /* 12 */
+#define Tcl_NewObjectInstance \
+	(tclOOStubsPtr->tcl_NewObjectInstance) /* 13 */
+#define Tcl_ObjectDeleted \
+	(tclOOStubsPtr->tcl_ObjectDeleted) /* 14 */
+#define Tcl_ObjectContextIsFiltering \
+	(tclOOStubsPtr->tcl_ObjectContextIsFiltering) /* 15 */
+#define Tcl_ObjectContextMethod \
+	(tclOOStubsPtr->tcl_ObjectContextMethod) /* 16 */
+#define Tcl_ObjectContextObject \
+	(tclOOStubsPtr->tcl_ObjectContextObject) /* 17 */
+#define Tcl_ObjectContextSkippedArgs \
+	(tclOOStubsPtr->tcl_ObjectContextSkippedArgs) /* 18 */
+#define Tcl_ClassGetMetadata \
+	(tclOOStubsPtr->tcl_ClassGetMetadata) /* 19 */
+#define Tcl_ClassSetMetadata \
+	(tclOOStubsPtr->tcl_ClassSetMetadata) /* 20 */
+#define Tcl_ObjectGetMetadata \
+	(tclOOStubsPtr->tcl_ObjectGetMetadata) /* 21 */
+#define Tcl_ObjectSetMetadata \
+	(tclOOStubsPtr->tcl_ObjectSetMetadata) /* 22 */
+#define Tcl_ObjectContextInvokeNext \
+	(tclOOStubsPtr->tcl_ObjectContextInvokeNext) /* 23 */
+#define Tcl_ObjectGetMethodNameMapper \
+	(tclOOStubsPtr->tcl_ObjectGetMethodNameMapper) /* 24 */
+#define Tcl_ObjectSetMethodNameMapper \
+	(tclOOStubsPtr->tcl_ObjectSetMethodNameMapper) /* 25 */
+#define Tcl_ClassSetConstructor \
+	(tclOOStubsPtr->tcl_ClassSetConstructor) /* 26 */
+#define Tcl_ClassSetDestructor \
+	(tclOOStubsPtr->tcl_ClassSetDestructor) /* 27 */
+#define Tcl_GetObjectName \
+	(tclOOStubsPtr->tcl_GetObjectName) /* 28 */
+#define Tcl_MethodIsPrivate \
+	(tclOOStubsPtr->tcl_MethodIsPrivate) /* 29 */
+#define Tcl_GetClassOfObject \
+	(tclOOStubsPtr->tcl_GetClassOfObject) /* 30 */
+#define Tcl_GetObjectClassName \
+	(tclOOStubsPtr->tcl_GetObjectClassName) /* 31 */
+#define Tcl_MethodIsType2 \
+	(tclOOStubsPtr->tcl_MethodIsType2) /* 32 */
+#define Tcl_NewInstanceMethod2 \
+	(tclOOStubsPtr->tcl_NewInstanceMethod2) /* 33 */
+#define Tcl_NewMethod2 \
+	(tclOOStubsPtr->tcl_NewMethod2) /* 34 */
+
+#endif /* defined(USE_TCLOO_STUBS) */
+
+/* !END!: Do not edit above this line. */
+
+#if TCL_MAJOR_VERSION < 9
+    /* TIP #630 */
+#   undef Tcl_MethodType2
+#   undef Tcl_MethodIsType2
+#   undef Tcl_NewInstanceMethod2
+#   undef Tcl_NewMethod2
+#endif
+#ifdef _TCLSIZEHANDLED
+#   undef _TCLSIZEHANDLED
+#   undef Tcl_Size
+#endif
+
+#endif /* _TCLOODECLS */

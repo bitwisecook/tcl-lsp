@@ -1,0 +1,108 @@
+	return TCL_OK;
+    }
+
+    /* Resolve all values */
+    resolved = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (resolved == NULL) {
+	return TCL_ERROR;
+    }
+
+    /* Get slot contents; store in list */
+    list = CallSlotGet(interp, oPtr);
+    if (list == NULL) {
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(list);
+    Tcl_ResetResult(interp);
+
+    /* Append */
+    if (Tcl_IsShared(list)) {
+	Tcl_Obj *dup = Tcl_DuplicateObj(list);
+	Tcl_IncrRefCount(dup);
+	Tcl_DecrRefCount(list);
+	list = dup;
+    }
+    if (Tcl_ListObjAppendList(interp, list, resolved) != TCL_OK) {
+	Tcl_DecrRefCount(list);
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_DecrRefCount(resolved);
+
+    /* Set slot contents */
+    code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_AppendNew --
+ *
+ *	Implementation of the "-appendifnew" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_AppendNew(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    int skip = Tcl_ObjectContextSkippedArgs(context), code, isNew;
+    Tcl_Obj *resolved, *list, **listv;
+    Tcl_Size listc, i;
+    Tcl_HashTable unique;
+
+    if (skip == objc) {
+	return TCL_OK;
+    }
+
+    /* Resolve all values */
+    resolved = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (resolved == NULL) {
+	return TCL_ERROR;
+    }
+
+    /* Get slot contents; store in list */
+    list = CallSlotGet(interp, oPtr);
+    if (list == NULL) {
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(list);
+    Tcl_ResetResult(interp);
+
+    /* Prepare a set of items in the list to set */
+    if (TclListObjGetElements(interp, list, &listc, &listv) != TCL_OK) {
+	Tcl_DecrRefCount(list);
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_InitObjHashTable(&unique);
+    for (i=0 ; i<listc; i++) {
+	Tcl_CreateHashEntry(&unique, listv[i], &isNew);
+    }
+
+    /* Append the new items if they're not already there */
+    if (Tcl_IsShared(list)) {
+	Tcl_Obj *dup = Tcl_DuplicateObj(list);
+	Tcl_IncrRefCount(dup);
+	Tcl_DecrRefCount(list);
+	list = dup;
+    }
+    TclListObjGetElements(NULL, resolved, &listc, &listv);
+    for (i=0 ; i<listc; i++) {
+	Tcl_CreateHashEntry(&unique, listv[i], &isNew);
+	if (isNew) {
+	    Tcl_ListObjAppendElement(interp, list, listv[i]);
+	}
+    }
+    Tcl_DecrRefCount(resolved);
+    Tcl_DeleteHashTable(&unique);
+

@@ -1,0 +1,108 @@
+			    Tcl_Size objc, Tcl_Obj *const *objv);
+static void		DetailsDeleter(void *clientData);
+static int		DetailsCloner(Tcl_Interp *, void *oldClientData,
+			    void **newClientData);
+static Tcl_Obj		*GetAllObjectProperties(Object *oPtr,
+			    bool writable);
+static void		ImplementObjectProperty(Tcl_Object targetObject,
+			    Tcl_Obj *propNamePtr, bool installGetter,
+			    bool installSetter);
+static void		ImplementClassProperty(Tcl_Class targetObject,
+			    Tcl_Obj *propNamePtr, bool installGetter,
+			    bool installSetter);
+static void		FreePropName(Tcl_Obj *objPtr);
+static void		DupPropName(Tcl_Obj *srcPtr, Tcl_Obj *copyPtr);
+
+/*
+ * Method descriptors
+ */
+
+static const Tcl_MethodType2 GetterType = {
+    TCL_OO_METHOD_VERSION_2,
+    "PropertyGetter",
+    Configurable_Getter,
+    DetailsDeleter,
+    DetailsCloner
+};
+
+static const Tcl_MethodType2 SetterType = {
+    TCL_OO_METHOD_VERSION_2,
+    "PropertySetter",
+    Configurable_Setter,
+    DetailsDeleter,
+    DetailsCloner
+};
+
+/*
+ * Cache for longer-term handling of property implementation names. This is
+ * the interior representation of the cache attached to the property names
+ * used by users. It allows the version of the names after they're mapped to
+ * TclOO method names to also be cached.
+ */
+typedef struct PropertyName {
+    // If the property is '-foo', this is '<ReadProp-foo>'
+    Tcl_Obj *readerName;
+    // If the property is '-foo', this is '<WriteProp-foo>'
+    Tcl_Obj *writerName;
+} PropertyName;
+
+/*
+ * The object type descriptor for the property implementation cache type.
+ */
+static const Tcl_ObjType propNameType = {
+    "tcl::oo property name",
+    FreePropName,		// FreeIntRep
+    DupPropName,		// DupIntRep
+    NULL,			// UpdateString
+    NULL,			// SetFromAnyProc
+    TCL_OBJTYPE_V0
+};
+
+/*
+ * How to install a cache value into a Tcl_Obj internal representation.
+ */
+#define SET_PROPERTY_NAME(objPtr, namePtr) \
+    do {							\
+	Tcl_ObjInternalRep ir;					\
+	ir.twoPtrValue.ptr1 = (namePtr);			\
+	ir.twoPtrValue.ptr2 = NULL;				\
+	Tcl_StoreInternalRep((objPtr), &propNameType, &ir);	\
+    } while (0)
+
+/*
+ * How to retrieve a cache value from a Tcl_Obj internal representation.
+ */
+#define GET_PROPERTY_NAME(irPtr) \
+    ((PropertyName *) (irPtr)->twoPtrValue.ptr1)
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * DupPropName, FreePropName, GetImplNamesForProperty --
+ *
+ *	A caching scheme for the actual property implementation names so
+ *	that don't have to reallocate the method name each time we call the
+ *	implementations.
+ *
+ *	Note that this scheme is NOT used by the property configuration code,
+ *	where the starting names have a slightly different structure.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static void
+FreePropName(
+    Tcl_Obj *objPtr)
+{
+    PropertyName *namePtr = GET_PROPERTY_NAME(&objPtr->internalRep);
+    TclDecrRefCount(namePtr->readerName);
+    TclDecrRefCount(namePtr->writerName);
+    Tcl_Free((void *) namePtr);
+    objPtr->typePtr = NULL;
+}
+
+static void
+DupPropName(
+    Tcl_Obj *srcPtr,
+    Tcl_Obj *copyPtr)
+{

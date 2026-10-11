@@ -1,0 +1,108 @@
+}
+
+/* Call [$slot Set $list] to set the list of contents of the slot. */
+static inline int
+CallSlotSet(
+    Tcl_Interp *interp,
+    Object *slot,
+    Tcl_Obj *list)
+{
+    Tcl_Obj *setArgs[3];
+    setArgs[0] = slot->fPtr->myName;
+    setArgs[1] = slot->fPtr->slotSetName;
+    setArgs[2] = list;
+    return TclOOPrivateObjectCmd(slot, interp, 3, setArgs);
+}
+
+/* Call [$slot Resolve $item] to convert a slot item into canonical form. */
+static inline Tcl_Obj *
+CallSlotResolve(
+    Tcl_Interp *interp,
+    Object *slot,
+    Tcl_Obj *item)
+{
+    Tcl_Obj *resolveArgs[3];
+    int code;
+
+    resolveArgs[0] = slot->fPtr->myName;
+    resolveArgs[1] = slot->fPtr->slotResolveName;
+    resolveArgs[2] = item;
+    code = TclOOPrivateObjectCmd(slot, interp, 3, resolveArgs);
+    if (code != TCL_OK) {
+	return NULL;
+    }
+    return Tcl_GetObjResult(interp);
+}
+
+/* Call [$slot Resolve $item] for each of a whole list of items. */
+static inline Tcl_Obj *
+ResolveAll(
+    Tcl_Interp *interp,
+    Object *slot,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Tcl_Obj **resolvedItems = (Tcl_Obj **) TclStackAlloc(interp,
+	    sizeof(Tcl_Obj *) * objc);
+    Tcl_Obj *resolvedList;
+    int i;
+
+    for (i = 0; i < objc; i++) {
+	resolvedItems[i] = CallSlotResolve(interp, slot, objv[i]);
+	if (resolvedItems[i] == NULL) {
+	    for (int j = 0; j < i; j++) {
+		Tcl_DecrRefCount(resolvedItems[j]);
+	    }
+	    TclStackFree(interp, (void *) resolvedItems);
+	    return NULL;
+	}
+	Tcl_IncrRefCount(resolvedItems[i]);
+	Tcl_ResetResult(interp);
+    }
+    resolvedList = Tcl_NewListObj(objc, resolvedItems);
+    for (i = 0; i < objc; i++) {
+	TclDecrRefCount(resolvedItems[i]);
+    }
+    TclStackFree(interp, (void *) resolvedItems);
+    return resolvedList;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Append --
+ *
+ *	Implementation of the "-append" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Append(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    int skip = Tcl_ObjectContextSkippedArgs(context), code;
+    Tcl_Obj *resolved, *list;
+
+    if (skip == objc) {
+	return TCL_OK;
+    }
+
+    /* Resolve all values */
+    resolved = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (resolved == NULL) {
+	return TCL_ERROR;
+    }
+
+    /* Get slot contents; store in list */
+    list = CallSlotGet(interp, oPtr);
+    if (list == NULL) {
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(list);
+    Tcl_ResetResult(interp);

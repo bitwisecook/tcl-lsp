@@ -1,0 +1,87 @@
+/*
+ * Alternatives to Tcl_Preserve/Tcl_EventuallyFree/Tcl_Release.
+ */
+
+#define AddRef(ptr) ((ptr)->refCount++)
+
+/*
+ * A convenience macro for iterating through the lists used in the internal
+ * memory management of objects.
+ * REQUIRES DECLARATION: Tcl_Size i;
+ */
+
+#define FOREACH(var,ary) \
+    for(i=0 ; i<(ary).num; i++) if ((ary).list[i] == NULL) { \
+	continue; \
+    } else if ((var) = (ary).list[i], 1)
+
+/*
+ * A variation where the array is an array of structs. There's no issue with
+ * possible NULLs; every element of the array will be iterated over and the
+ * variable set to a pointer to each of those elements in turn.
+ * REQUIRES DECLARATION: Tcl_Size i; See [96551aca55] for more FOREACH_STRUCT details.
+ */
+
+#define FOREACH_STRUCT(var,ary) \
+    if (i=0, (ary).num>0) for(; var=&((ary).list[i]), i<(ary).num; i++)
+
+/*
+ * Convenience macros for iterating through hash tables. FOREACH_HASH_DECLS
+ * sets up the declarations needed for the main macro, FOREACH_HASH, which
+ * does the actual iteration. FOREACH_HASH_KEY and FOREACH_HASH_VALUE are
+ * restricted versions that only iterate over keys or values respectively.
+ * REQUIRES DECLARATION: FOREACH_HASH_DECLS;
+ */
+
+#define FOREACH_HASH_DECLS \
+    Tcl_HashEntry *hPtr;Tcl_HashSearch search
+#define FOREACH_HASH(key, val, tablePtr) \
+    for(hPtr = Tcl_FirstHashEntry((tablePtr), &search); hPtr != NULL ? \
+	    (*(void **)&(key) = Tcl_GetHashKey((tablePtr), hPtr), \
+	    *(void **)&(val) = Tcl_GetHashValue(hPtr), 1) : 0; \
+	    hPtr = Tcl_NextHashEntry(&search))
+#define FOREACH_HASH_KEY(key, tablePtr) \
+    for(hPtr = Tcl_FirstHashEntry((tablePtr), &search); hPtr != NULL ? \
+	    (*(void **)&(key) = Tcl_GetHashKey((tablePtr), hPtr), 1) : 0; \
+	    hPtr = Tcl_NextHashEntry(&search))
+#define FOREACH_HASH_VALUE(val, tablePtr) \
+    for(hPtr = Tcl_FirstHashEntry((tablePtr), &search); hPtr != NULL ? \
+	    (*(void **)&(val) = Tcl_GetHashValue(hPtr), 1) : 0; \
+	    hPtr = Tcl_NextHashEntry(&search))
+
+/*
+ * Convenience macro for duplicating a list. Needs no external declaration,
+ * but all arguments are used multiple times and so must have no side effects.
+ */
+
+#undef DUPLICATE /* prevent possible conflict with definition in WINAPI nb30.h */
+#define DUPLICATE(target,source,type) \
+    do { \
+	size_t len = sizeof(type) * ((target).num=(source).num);\
+	if (len != 0) { \
+	    memcpy(((target).list=(type*)Tcl_Alloc(len)), (source).list, len); \
+	} else { \
+	    (target).list = NULL; \
+	} \
+    } while(0)
+
+/*
+ * Convenience macro for generating error codes.
+ */
+#define OO_ERROR(interp, code) \
+    Tcl_SetErrorCode((interp), "TCL", "OO", #code, (char *)NULL)
+
+#ifdef _TCLSIZEHANDLED
+#   undef _TCLSIZEHANDLED
+#   undef Tcl_Size
+#endif
+
+#endif /* TCL_OO_INTERNAL_H */
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */

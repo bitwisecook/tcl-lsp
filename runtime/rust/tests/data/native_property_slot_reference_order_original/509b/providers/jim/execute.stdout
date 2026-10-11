@@ -1,0 +1,5 @@
+VERSION	status=0	hex=302e3834207b7d
+BUILD	JIM_GITVERSION=0.84-9-g5bac7c9	JIM_VERSION=84	JIM_ABI_VERSION=102	JIM_UTF8=1
+ABI	int=4	long=8	ptr=8	CHAR_BIT=8
+AVAILABILITY	status=0	hex=7b7d207b7d207b7d207b7d
+UNAVAILABLE	worker=C91-original-property-storage	reason=not-in-this-initialized-core-SDK

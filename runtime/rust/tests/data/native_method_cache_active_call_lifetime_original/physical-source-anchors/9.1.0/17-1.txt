@@ -1,0 +1,98 @@
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * RenameDeleteMethod --
+ *
+ *	Core of the code to rename and delete methods.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+static int
+RenameDeleteMethod(
+    Tcl_Interp *interp,
+    Object *oPtr,
+    bool useClass,
+    Tcl_Obj *const fromPtr,
+    Tcl_Obj *const toPtr)
+{
+    Tcl_HashEntry *hPtr, *newHPtr = NULL;
+    Method *mPtr;
+    int isNew;
+
+    if (!useClass) {
+	if (!oPtr->methodsPtr) {
+	noSuchMethod:
+	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		    "method %s does not exist", TclGetString(fromPtr)));
+	    Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "METHOD",
+		    TclGetString(fromPtr), (char *)NULL);
+	    return TCL_ERROR;
+	}
+	hPtr = Tcl_FindHashEntry(oPtr->methodsPtr, fromPtr);
+	if (hPtr == NULL) {
+	    goto noSuchMethod;
+	}
+	if (toPtr) {
+	    newHPtr = Tcl_CreateHashEntry(oPtr->methodsPtr, toPtr,
+		    &isNew);
+	    if (hPtr == newHPtr) {
+	    renameToSelf:
+		Tcl_SetObjResult(interp, Tcl_NewStringObj(
+			"cannot rename method to itself", TCL_AUTO_LENGTH));
+		OO_ERROR(interp, RENAME_TO_SELF);
+		return TCL_ERROR;
+	    } else if (!isNew) {
+	    renameToExisting:
+		Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+			"method called %s already exists",
+			TclGetString(toPtr)));
+		OO_ERROR(interp, RENAME_OVER);
+		return TCL_ERROR;
+	    }
+	}
+    } else {
+	hPtr = Tcl_FindHashEntry(&oPtr->classPtr->classMethods, fromPtr);
+	if (hPtr == NULL) {
+	    goto noSuchMethod;
+	}
+	if (toPtr) {
+	    newHPtr = Tcl_CreateHashEntry(&oPtr->classPtr->classMethods,
+		    (char *) toPtr, &isNew);
+	    if (hPtr == newHPtr) {
+		goto renameToSelf;
+	    } else if (!isNew) {
+		goto renameToExisting;
+	    }
+	}
+    }
+
+    /*
+     * Complete the splicing by changing the method's name.
+     */
+
+    mPtr = (Method *) Tcl_GetHashValue(hPtr);
+    if (toPtr) {
+	Tcl_IncrRefCount(toPtr);
+	Tcl_DecrRefCount(mPtr->namePtr);
+	mPtr->namePtr = toPtr;
+	Tcl_SetHashValue(newHPtr, mPtr);
+    } else {
+	if (!useClass) {
+	    RecomputeClassCacheFlag(oPtr);
+	}
+	TclOODelMethodRef(mPtr);
+    }
+    Tcl_DeleteHashEntry(hPtr);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOUnknownDefinition --
+ *
+ *	Handles what happens when an unknown command is encountered during the
+ *	processing of a definition script. Works by finding a command in the
+ *	operating definition namespace that the requested command is a unique

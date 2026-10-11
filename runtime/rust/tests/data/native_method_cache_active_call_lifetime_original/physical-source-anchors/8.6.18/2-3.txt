@@ -1,0 +1,99 @@
+				 * the ClientData values that are the values
+				 * of each piece of attached metadata. This
+				 * field starts out as NULL and is only
+				 * allocated if metadata is attached. */
+    struct CallChain *constructorChainPtr;
+    struct CallChain *destructorChainPtr;
+    Tcl_HashTable *classChainCache;
+				/* Places where call chains are stored. For
+				 * constructors, the class chain is always
+				 * used. For destructors and ordinary methods,
+				 * the class chain is only used when the
+				 * object doesn't override with its own mixins
+				 * (and filters and method implementations for
+				 * when getting method chains). */
+    LIST_STATIC(Tcl_Obj *) variables;
+} Class;
+
+/*
+ * The foundation of the object system within an interpreter contains
+ * references to the key classes and namespaces, together with a few other
+ * useful bits and pieces. Probably ought to eventually go in the Interp
+ * structure itself.
+ */
+
+typedef struct ThreadLocalData {
+    int nsCount;		/* Epoch counter is used for keeping
+				 * the values used in Tcl_Obj internal
+				 * representations sane. Must be thread-local
+				 * because Tcl_Objs can cross interpreter
+				 * boundaries within a thread (objects don't
+				 * generally cross threads). */
+} ThreadLocalData;
+
+typedef struct Foundation {
+    Tcl_Interp *interp;
+    Class *objectCls;		/* The root of the object system. */
+    Class *classCls;		/* The class of all classes. */
+    Tcl_Namespace *ooNs;	/* ::oo namespace. */
+    Tcl_Namespace *defineNs;	/* Namespace containing special commands for
+				 * manipulating objects and classes. The
+				 * "oo::define" command acts as a special kind
+				 * of ensemble for this namespace. */
+    Tcl_Namespace *objdefNs;	/* Namespace containing special commands for
+				 * manipulating objects and classes. The
+				 * "oo::objdefine" command acts as a special
+				 * kind of ensemble for this namespace. */
+    Tcl_Namespace *helpersNs;	/* Namespace containing the commands that are
+				 * only valid when executing inside a
+				 * procedural method. */
+    int epoch;			/* Used to invalidate method chains when the
+				 * class structure changes. */
+    ThreadLocalData *tsdPtr;	/* Counter so we can allocate a unique
+				 * namespace to each object. */
+    Tcl_Obj *unknownMethodNameObj;
+				/* Shared object containing the name of the
+				 * unknown method handler method. */
+    Tcl_Obj *constructorName;	/* Shared object containing the "name" of a
+				 * constructor. */
+    Tcl_Obj *destructorName;	/* Shared object containing the "name" of a
+				 * destructor. */
+    Tcl_Obj *clonedName;	/* Shared object containing the name of a
+				 * "<cloned>" pseudo-constructor. */
+    Tcl_Obj *defineName;	/* Fully qualified name of oo::define. */
+} Foundation;
+
+/*
+ * A call context structure is built when a method is called. It contains the
+ * chain of method implementations that are to be invoked by a particular
+ * call, and the process of calling walks the chain, with the [next] command
+ * proceeding to the next entry in the chain.
+ */
+
+#define CALL_CHAIN_STATIC_SIZE 4
+
+struct MInvoke {
+    Method *mPtr;		/* Reference to the method implementation
+				 * record. */
+    int isFilter;		/* Whether this is a filter invocation. */
+    Class *filterDeclarer;	/* What class decided to add the filter; if
+				 * NULL, it was added by the object. */
+};
+
+typedef struct CallChain {
+    int objectCreationEpoch;	/* The object's creation epoch. Note that the
+				 * object reference is not stored in the call
+				 * chain; it is in the call context. */
+    int objectEpoch;		/* Local (object structure) epoch counter
+				 * snapshot. */
+    int epoch;			/* Global (class structure) epoch counter
+				 * snapshot. */
+    int flags;			/* Assorted flags, see below. */
+    int refCount;		/* Reference count. */
+    int numChain;		/* Size of the call chain. */
+    struct MInvoke *chain;	/* Array of call chain entries. May point to
+				 * staticChain if the number of entries is
+				 * small. */
+    struct MInvoke staticChain[CALL_CHAIN_STATIC_SIZE];
+} CallChain;
+

@@ -1,0 +1,107 @@
+	return TCL_OK;
+    }
+
+    // Resolve all values
+    Tcl_Obj *resolved = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+    if (resolved == NULL) {
+	return TCL_ERROR;
+    }
+
+    // Get slot contents; store in list
+    Tcl_Obj *oldList = CallSlotGet(interp, oPtr);
+    if (oldList == NULL) {
+	Tcl_DecrRefCount(resolved);
+	return TCL_ERROR;
+    }
+    Tcl_IncrRefCount(oldList);
+    Tcl_ResetResult(interp);
+
+    // Prepare a set of items in the list to remove
+    Tcl_Size listc;
+    Tcl_Obj **listv;
+    TclListObjGetElements(NULL, resolved, &listc, &listv);
+    Tcl_HashTable removeSet;
+    Tcl_InitObjHashTable(&removeSet);
+    for (Tcl_Size i=0 ; i<listc; i++) {
+	Tcl_CreateHashEntry(&removeSet, listv[i], NULL);
+    }
+    Tcl_DecrRefCount(resolved);
+
+    // Append the new items from the old items if they're not in the remove set
+    if (TclListObjGetElements(interp, oldList, &listc, &listv) != TCL_OK) {
+	Tcl_DecrRefCount(oldList);
+	Tcl_DeleteHashTable(&removeSet);
+	return TCL_ERROR;
+    }
+    Tcl_Obj *newList = Tcl_NewObj();
+    for (Tcl_Size i=0 ; i<listc; i++) {
+	if (Tcl_FindHashEntry(&removeSet, listv[i]) == NULL) {
+	    Tcl_ListObjAppendElement(NULL, newList, listv[i]);
+	}
+    }
+    Tcl_DecrRefCount(oldList);
+    Tcl_DeleteHashTable(&removeSet);
+
+    // Set slot contents
+    Tcl_IncrRefCount(newList);
+    int code = CallSlotSet(interp, oPtr, newList);
+    Tcl_DecrRefCount(newList);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Resolve --
+ *
+ *	Default implementation of the "Resolve" slot accessor. Just returns
+ *	its argument unchanged; particular slots may override.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Resolve(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip + 1 != objc) {
+	Tcl_WrongNumArgs(interp, skip, objv, "list");
+	return TCL_ERROR;
+    }
+    Tcl_SetObjResult(interp, objv[objc - 1]);
+    return TCL_OK;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Set --
+ *
+ *	Implementation of the "-set" slot operation.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Set(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    Tcl_Obj *list;
+
+    // Resolve all values
+    if (skip == objc) {
+	list = Tcl_NewObj();
+    } else {
+	list = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+	if (list == NULL) {
+	    return TCL_ERROR;
+	}

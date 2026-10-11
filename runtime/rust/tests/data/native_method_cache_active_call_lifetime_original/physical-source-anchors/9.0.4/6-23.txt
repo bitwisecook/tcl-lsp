@@ -1,0 +1,98 @@
+    return result;
+}
+
+static int
+FinalizeMethodRefs(
+    void *data[],
+    TCL_UNUSED(Tcl_Interp *),
+    int result)
+{
+    CallContext *contextPtr = (CallContext *) data[0];
+    Tcl_Size i;
+
+    for (i = 0 ; i < contextPtr->callPtr->numChain ; i++) {
+	TclOODelMethodRef(contextPtr->callPtr->chain[i].mPtr);
+    }
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOGetSortedMethodList, TclOOGetSortedClassMethodList --
+ *
+ *	Discovers the list of method names supported by an object or class.
+ *
+ * ----------------------------------------------------------------------
+ */
+
+int
+TclOOGetSortedMethodList(
+    Object *oPtr,		/* The object to get the method names for. */
+    Object *contextObj,		/* From what context object we are inquiring.
+				 * NULL when the context shouldn't see
+				 * object-level private methods. Note that
+				 * flags can override this. */
+    Class *contextCls,		/* From what context class we are inquiring.
+				 * NULL when the context shouldn't see
+				 * class-level private methods. Note that
+				 * flags can override this. */
+    int flags,			/* Whether we just want the public method
+				 * names. */
+    const char ***stringsPtr)	/* Where to write a pointer to the array of
+				 * strings to. */
+{
+    Tcl_HashTable names;	/* Tcl_Obj* method name to "wanted in list"
+				 * mapping. */
+    Tcl_HashTable examinedClasses;
+				/* Used to track what classes have been looked
+				 * at. Is set-like in nature and keyed by
+				 * pointer to class. */
+    FOREACH_HASH_DECLS;
+    Tcl_Size i, numStrings;
+    Class *mixinPtr;
+    Tcl_Obj *namePtr;
+    Method *mPtr;
+
+    Tcl_InitObjHashTable(&names);
+    Tcl_InitHashTable(&examinedClasses, TCL_ONE_WORD_KEYS);
+
+    /*
+     * Process method names due to the object.
+     */
+
+    if (oPtr->methodsPtr) {
+	FOREACH_HASH(namePtr, mPtr, oPtr->methodsPtr) {
+	    if (IS_PRIVATE(mPtr)) {
+		continue;
+	    }
+	    if (IS_UNEXPORTED(mPtr) && !WANT_UNEXPORTED(flags)) {
+		continue;
+	    }
+	    AddStandardMethodName(flags, namePtr, mPtr, &names);
+	}
+    }
+
+    /*
+     * Process method names due to private methods on the object's class.
+     */
+
+    if (WANT_UNEXPORTED(flags)) {
+	FOREACH_HASH(namePtr, mPtr, &oPtr->selfCls->classMethods) {
+	    if (IS_UNEXPORTED(mPtr)) {
+		AddStandardMethodName(flags, namePtr, mPtr, &names);
+	    }
+	}
+    }
+
+    /*
+     * Process method names due to private methods on the context's object or
+     * class. Which must be correct if either are not NULL.
+     */
+
+    if (contextObj && contextObj->methodsPtr) {
+	AddPrivateMethodNames(contextObj->methodsPtr, &names);
+    }
+    if (contextCls) {
+	AddPrivateMethodNames(&contextCls->classMethods, &names);
+    }

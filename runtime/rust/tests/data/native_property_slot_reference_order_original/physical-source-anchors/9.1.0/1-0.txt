@@ -1,0 +1,106 @@
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Set(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    Tcl_Obj *list;
+
+    // Resolve all values
+    if (skip == objc) {
+	list = Tcl_NewObj();
+    } else {
+	list = ResolveAll(interp, oPtr, objc - skip, objv + skip);
+	if (list == NULL) {
+	    return TCL_ERROR;
+	}
+    }
+    Tcl_IncrRefCount(list);
+
+    // Set slot contents
+    int code = CallSlotSet(interp, oPtr, list);
+    Tcl_DecrRefCount(list);
+    return code;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Unimplemented --
+ *
+ *	Default implementation of the "Get" and "Set" slot accessors. Just
+ *	returns an error; actual slots must override.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Unimplemented(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    TCL_UNUSED(Tcl_ObjectContext),
+    TCL_UNUSED(Tcl_Size),
+    TCL_UNUSED(Tcl_Obj *const *))
+{
+    Tcl_SetObjResult(interp, Tcl_NewStringObj("unimplemented", -1));
+    OO_ERROR(interp, ABSTRACT_SLOT);
+    return TCL_ERROR;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * Slot_Unknown --
+ *
+ *	Unknown method name handler for slots. Delegates to the default slot
+ *	operation (--default-operation forwarded method) unless the first
+ *	argument starts with a dash.
+ *
+ * ----------------------------------------------------------------------
+ */
+static int
+Slot_Unknown(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_ObjectContext context,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    if (skip >= objc) {
+	Tcl_Obj *args[] = {
+	    oPtr->fPtr->myName,
+	    oPtr->fPtr->slotDefOpName
+	};
+	return TclOOPrivateObjectCmd(oPtr, interp, 2, args);
+    } else if (TclGetString(objv[skip])[0] != '-') {
+	Tcl_Obj **args = (Tcl_Obj **) TclStackAlloc(interp,
+		sizeof(Tcl_Obj *) * (objc - skip + 2));
+	args[0] = oPtr->fPtr->myName;
+	args[1] = oPtr->fPtr->slotDefOpName;
+	memcpy(args+2, objv+skip, sizeof(Tcl_Obj *) * (objc - skip));
+	int code = TclOOPrivateObjectCmd(oPtr, interp, objc - skip + 2, args);
+	TclStackFree(interp, args);
+	return code;
+    }
+    return TclNRObjectContextInvokeNext(interp, context, objc, objv, skip);
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * TclOOSetSuperclasses --
+ *
+ *	Core of the "superclass" slot setter. Caller must AddRef() the objects
+ *	holding the classes to set before calling this. The 'superclasses'
+ *	argument must be allocated with Tcl_Alloc(); this function takes
+ *	ownership.
+ *
+ * ----------------------------------------------------------------------

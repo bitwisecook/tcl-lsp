@@ -1,0 +1,12 @@
+    /* TIP #630 */
+#   undef Tcl_MethodType2
+#   undef Tcl_MethodIsType2
+#   undef Tcl_NewInstanceMethod2
+#   undef Tcl_NewMethod2
+#endif
+#ifdef _TCLSIZEHANDLED
+#   undef _TCLSIZEHANDLED
+#   undef Tcl_Size
+#endif
+
+#endif /* _TCLOODECLS */

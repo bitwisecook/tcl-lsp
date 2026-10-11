@@ -1,0 +1,108 @@
+ * ----------------------------------------------------------------------
+ */
+
+Tcl_Obj *
+GetAllObjectProperties(
+    Object *oPtr,		/* The object to inspect. Must exist. */
+    bool writable)		/* Whether to get writable properties. If
+				 * false, readable properties will be returned
+				 * instead. */
+{
+    Tcl_HashTable hashTable;
+    FOREACH_HASH_DECLS;
+    Tcl_Obj *propName, *result;
+
+    /*
+     * Look in the cache.
+     */
+
+    if (oPtr->properties.epoch == oPtr->fPtr->epoch) {
+	if (writable) {
+	    if (oPtr->properties.allWritableCache) {
+		return oPtr->properties.allWritableCache;
+	    }
+	} else {
+	    if (oPtr->properties.allReadableCache) {
+		return oPtr->properties.allReadableCache;
+	    }
+	}
+    }
+
+    /*
+     * Gather the information. Unsorted! (Caller will sort.)
+     */
+
+    Tcl_InitObjHashTable(&hashTable);
+    FindObjectProps(oPtr, writable, &hashTable);
+    TclNewObj(result);
+    FOREACH_HASH_KEY(propName, &hashTable) {
+	Tcl_ListObjAppendElement(NULL, result, propName);
+    }
+    Tcl_DeleteHashTable(&hashTable);
+    SortPropList(result);
+
+    /*
+     * Cache the information.
+     */
+
+    if (oPtr->properties.epoch != oPtr->fPtr->epoch) {
+	if (oPtr->properties.allWritableCache) {
+	    Tcl_DecrRefCount(oPtr->properties.allWritableCache);
+	    oPtr->properties.allWritableCache = NULL;
+	}
+	if (oPtr->properties.allReadableCache) {
+	    Tcl_DecrRefCount(oPtr->properties.allReadableCache);
+	    oPtr->properties.allReadableCache = NULL;
+	}
+    }
+    oPtr->properties.epoch = oPtr->fPtr->epoch;
+    if (writable) {
+	oPtr->properties.allWritableCache = result;
+    } else {
+	oPtr->properties.allReadableCache = result;
+    }
+    Tcl_IncrRefCount(result);
+    return result;
+}
+
+/*
+ * ----------------------------------------------------------------------
+ *
+ * SetPropertyList --
+ *
+ *	Helper for writing a property list (which is actually a set).
+ *
+ * ----------------------------------------------------------------------
+ */
+static inline void
+SetPropertyList(
+    PropertyList *propList,	/* The property list to write. Replaces the
+				 * property list's contents. */
+    Tcl_Size objc,		/* Number of property names. */
+    Tcl_Obj *const *objv)	/* Property names. */
+{
+    Tcl_Size i, n;
+    Tcl_Obj *propObj;
+    int isNew;
+    Tcl_HashTable uniqueTable;
+
+    for (i=0 ; i<objc ; i++) {
+	Tcl_IncrRefCount(objv[i]);
+    }
+    FOREACH(propObj, *propList) {
+	Tcl_DecrRefCount(propObj);
+    }
+    if (i != objc) {
+	if (objc == 0) {
+	    Tcl_Free(propList->list);
+	} else if (i) {
+	    propList->list = (Tcl_Obj **)
+		    Tcl_Realloc(propList->list, sizeof(Tcl_Obj *) * ((size_t)objc));
+	} else {
+	    propList->list = (Tcl_Obj **)
+		    Tcl_Alloc(sizeof(Tcl_Obj *) * ((size_t)objc));
+	}
+    }
+    propList->num = 0;
+    if (objc > 0) {
+	Tcl_InitObjHashTable(&uniqueTable);

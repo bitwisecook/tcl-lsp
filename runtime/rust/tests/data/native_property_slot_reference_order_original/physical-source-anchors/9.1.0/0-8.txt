@@ -1,0 +1,109 @@
+				 * wants that. The contents are to be freed
+				 * with Tcl_Free if the cache is used. */
+{
+    Tcl_Size objc, index, i;
+    Tcl_Obj *listPtr = GetAllObjectProperties(
+	    oPtr, (flags & GPN_WRITABLE) != 0);
+    Tcl_Obj **objv;
+    GPNCache *tablePtr;
+
+    (void) Tcl_ListObjGetElements(NULL, listPtr, &objc, &objv);
+    if (cachePtr && *cachePtr) {
+	tablePtr = *cachePtr;
+    } else {
+	tablePtr = (GPNCache *) TclStackAlloc(interp,
+		offsetof(GPNCache, names) + sizeof(char *) * ((size_t)objc + 1));
+
+	for (i = 0; i < objc; i++) {
+	    tablePtr->names[i] = TclGetString(objv[i]);
+	}
+	tablePtr->names[objc] = NULL;
+	if (cachePtr) {
+	    /*
+	     * Have a cache, but nothing in it so far.
+	     *
+	     * We cache the list here so it doesn't vanish from under our
+	     * feet if a property implementation does something crazy like
+	     * changing the set of properties. The type of copy this does
+	     * means that the copy holds the references to the names in the
+	     * table.
+	     */
+	    tablePtr->listPtr = TclListObjCopy(NULL, listPtr);
+	    Tcl_IncrRefCount(tablePtr->listPtr);
+	    *cachePtr = tablePtr;
+	} else {
+	    tablePtr->listPtr = NULL;
+	}
+    }
+    int result = Tcl_GetIndexFromObjStruct(interp, namePtr, tablePtr->names,
+	    sizeof(char *), "property", TCL_INDEX_TEMP_TABLE, &index);
+    if (result == TCL_ERROR && !(flags & GPN_FALLING_BACK)) {
+	/*
+	 * If property can be accessed the other way, use a special message.
+	 * We use a recursive call to look this up.
+	 */
+
+	Tcl_InterpState state = Tcl_SaveInterpState(interp, result);
+	Tcl_Obj *otherName = GetPropertyName(interp, oPtr,
+		flags ^ (GPN_WRITABLE | GPN_FALLING_BACK), namePtr, NULL);
+	result = Tcl_RestoreInterpState(interp, state);
+	if (otherName != NULL) {
+	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+		    "property \"%s\" is %s only",
+		    TclGetString(otherName),
+		    (flags & GPN_WRITABLE) ? "read" : "write"));
+	}
+    }
+    if (!cachePtr) {
+	TclStackFree(interp, tablePtr);
+    }
+    if (result != TCL_OK) {
+	return NULL;
+    }
+    return objv[index];
+}
+
+/* Release the cache made by GetPropertyName(). */
+static inline void
+ReleasePropertyNameCache(
+    Tcl_Interp *interp,
+    GPNCache **cachePtr)
+{
+    if (*cachePtr) {
+	GPNCache *tablePtr = *cachePtr;
+	if (tablePtr->listPtr) {
+	    Tcl_DecrRefCount(tablePtr->listPtr);
+	}
+	TclStackFree(interp, tablePtr);
+	*cachePtr = NULL;
+    }
+}
+
+int
+TclOO_Configurable_Configure(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Interpreter used for the result, error
+				 * reporting, etc. */
+    Tcl_ObjectContext context,	/* The object/call context. */
+    Tcl_Size objc,		/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* The actual arguments. */
+{
+    Object *oPtr = (Object *) Tcl_ObjectContextObject(context);
+    Tcl_Size skip = Tcl_ObjectContextSkippedArgs(context);
+    Tcl_Obj *namePtr;
+    Tcl_Size i, namec;
+    int code = TCL_OK;
+
+    objc -= skip;
+    if ((objc & 1) && (objc != 1)) {
+	/*
+	 * Bad (odd > 1) number of arguments.
+	 */
+
+	Tcl_WrongNumArgs(interp, skip, objv, "?-option value ...?");
+	return TCL_ERROR;
+    }
+
+    objv += skip;
+    if (objc == 0) {
+	/*
