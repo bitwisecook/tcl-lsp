@@ -471,3 +471,22 @@ are tracked by
 Ordinary CLI report values are an independent observation channel. Method cache
 and mutable client-data lifetime observations do not establish these report
 header roles.
+
+### Native property slot replacement
+
+The selected C9.1 property slot worker releases its selected cached List, takes
+one genuine property-list reference for every incoming member, then retires the
+old member owners outside OO borrows. Only then does it obtain each original
+member's counted String and deduplicate through the object-hash key role. A
+unique member keeps its incoming property-list reference; the temporary hash
+key owns a separate reference until the unique list is adopted. A duplicate
+releases only its incoming property-list reference. A held old cached List
+retains its original members independently of replacement.
+
+The actual target and entered original-operation receipt are checked after
+reached getters and retirement callbacks and before later adoption or epoch
+publication. Reached String and retirement effects remain visible on refusal.
+Host/context callback controls establish this software transport only; the
+fixed original C9.1 property observer rows establish their separately matched
+incoming, hash-key and cached-List reference stages. Older C cores and Jim do
+not gain this property worker from those observations.

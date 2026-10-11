@@ -159,6 +159,55 @@ impl Interp {
                 .apply_property_invalidation(target, recipe.method_created(class));
         }
     }
+    /// Release the selected cached List before the incoming slot references.
+    fn retire_original_property_cache(
+        &mut self,
+        target: OoId,
+        class: bool,
+        writable: bool,
+        originals: &OriginalArguments,
+        owner: &native_context::OriginalOoTarget,
+    ) -> Result<(), CmdError> {
+        originals.check()?;
+        owner.check(self)?;
+        let retired = self
+            .oo
+            .borrow_mut()
+            .property_caches
+            .get_mut(&(target, class))
+            .and_then(|cache| {
+                if writable {
+                    cache.writable.take()
+                } else {
+                    cache.readable.take()
+                }
+            });
+        drop(retired);
+        originals.check()?;
+        owner.check(self)
+    }
+
+    /// Extract the old property-list roles, then retire them outside OO borrows.
+    fn retire_original_property_members(
+        &mut self,
+        target: OoId,
+        class: bool,
+        writable: bool,
+        originals: &OriginalArguments,
+        owner: &native_context::OriginalOoTarget,
+    ) -> Result<(), CmdError> {
+        originals.check()?;
+        owner.check(self)?;
+        let retired = self
+            .oo
+            .borrow_mut()
+            .property_members
+            .remove(&(target, class, writable));
+        drop(retired);
+        originals.check()?;
+        owner.check(self)
+    }
+
     pub(super) fn install_original_property_members(
         &mut self,
         target: OoId,
@@ -175,22 +224,7 @@ impl Interp {
             .borrow_mut()
             .property_members
             .insert((target, class, writable), members);
-        drop(retired);
-        originals.check()?;
-        owner.check(self)?;
-
-        let retired = self
-            .oo
-            .borrow_mut()
-            .property_caches
-            .get_mut(&(target, class))
-            .and_then(|cache| {
-                if writable {
-                    cache.writable.take()
-                } else {
-                    cache.readable.take()
-                }
-            });
+        // A reentrant definition can have published its own new members.
         drop(retired);
         originals.check()?;
         owner.check(self)
@@ -531,14 +565,29 @@ pub(super) fn set_property_slot(
         owner.check(interp)?;
         let members = members?;
         let member_arguments = OriginalArguments::enter(interp, &members)?;
+        interp.retire_original_property_cache(target, class, writable, &originals, &owner)?;
+        // SetPropertyList takes every incoming property-list reference before
+        // retiring old members or reaching any object-hash String getter.
+        let incoming = (0..members.len())
+            .map(|index| member_arguments.original(index).map(obj::Owned::retain))
+            .collect::<Result<Vec<_>, _>>()?;
+        interp.retire_original_property_members(target, class, writable, &originals, &owner)?;
         let mut names = Vec::new();
         let mut retained = BTreeMap::new();
-        for index in 0..members.len() {
+        // The temporary Tcl_Obj hash table has an independent native key role.
+        // Its first-win keys survive later hash getters and retire after adoption.
+        let mut temporary_keys = BTreeMap::new();
+        for (index, incoming) in incoming.into_iter().enumerate() {
             let name = member_arguments.bytes(index)?.to_vec();
             owner.check(interp)?;
             if let std::collections::btree_map::Entry::Vacant(entry) = retained.entry(name) {
                 names.push(entry.key().clone());
-                entry.insert(obj::Owned::retain(member_arguments.original(index)?));
+                temporary_keys.insert(entry.key().clone(), obj::Owned::retain(incoming.as_ptr()));
+                entry.insert(incoming);
+            } else {
+                drop(incoming);
+                originals.check()?;
+                owner.check(interp)?;
             }
         }
         originals.check()?;
@@ -567,11 +616,12 @@ pub(super) fn set_property_slot(
             ))?;
             *list = names;
         }
-        // Preserve the current map-then-cache retirement order. This checked
-        // transport does not model C9.1's earlier incoming-reference stages.
         interp.install_original_property_members(
             target, class, writable, retained, &originals, &owner,
         )?;
+        drop(temporary_keys);
+        originals.check()?;
+        owner.check(interp)?;
         if class {
             interp.native_property_structure_changed(target, true);
         }
@@ -1276,7 +1326,7 @@ mod original_slot_boundary_tests {
     fn original_property_slot_member_callback_stops_later_member_and_reference_stages() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        // Allocation leases do not eagerly read or retain native member references.
+        // Allocation leases do not read Strings; the selected slot takes all incoming references before hashing.
         for mode in [1, 2] {
             let (mut interpreter, target) = native();
             MODE.with(|selected| selected.set(mode));
@@ -1313,7 +1363,7 @@ mod original_slot_boundary_tests {
     fn original_property_slot_retirement_runs_outside_borrow_and_checks_before_epoch() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        // Current map-then-cache retirement transport; original native order stays separate.
+        // Selected C91 retirement precedes later adoption and epoch publication.
         for mode in [0, 1, 2, 3] {
             let (mut interpreter, target) = native();
             MODE.with(|selected| selected.set(0));
@@ -1369,14 +1419,13 @@ mod original_slot_boundary_tests {
                 let state = interpreter.oo.borrow();
                 assert_eq!(
                     state.classes[&target].readable_properties,
-                    [b"new".to_vec()]
+                    [b"old".to_vec()]
                 );
                 assert_eq!(state.property_foundation_epoch, epoch);
                 assert!(state.property_caches[&(target, true)].readable.is_none());
-                assert_eq!(
-                    state.property_members[&(target, true, false)][b"new".as_slice()].as_ptr(),
-                    new.as_ptr(),
-                );
+                assert!(!state.property_members.contains_key(&(target, true, false)));
+                assert_eq!(unsafe { (*new.as_ptr()).ref_count }, 2);
+                assert_eq!(UPDATES.with(Cell::get), 0);
                 drop(state);
                 assert_eq!(interpreter.get_obj_result(), prior);
             }
@@ -1419,3 +1468,7 @@ mod original_slot_boundary_tests {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
+
+#[cfg(test)]
+#[path = "native_properties/original_order_tests.rs"]
+mod original_order_tests;
