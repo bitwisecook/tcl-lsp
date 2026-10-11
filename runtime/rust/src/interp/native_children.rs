@@ -79,7 +79,7 @@ impl Interp {
     }
 
     pub(super) fn check_original_child_command(
-        &self,
+        &mut self,
         command: &ChildInterpreterCommand,
         arguments: &super::native_arguments::OriginalArguments,
     ) -> Result<(), tcl_cmd_core::CmdError> {

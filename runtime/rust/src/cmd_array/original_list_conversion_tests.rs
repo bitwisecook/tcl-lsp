@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual ArrayFor ListLength conversion before name/search selection.
 use super::*;
+use crate::obj;
 use crate::cmd_control::original_list_conversion_tests as fixture;
 use std::cell::Cell;
 #[test]
