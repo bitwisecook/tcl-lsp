@@ -321976,7 +321976,7 @@
         {
           "id": "sourceperf-original-owner-932627151fe2",
           "path": "rust/tcl-vm/src/interp/native_name_consumers.rs",
-          "sha256": "f2c3fb35e8b1c1129feac66875df2dfa8ae0dc6543cd35f5b690a83153b2da5b",
+          "sha256": "215ec91176cf1865bfde8e0bd7f1d6f1ccc1d8f2908e946cf715bd1caaffdf97",
           "role": "implementation",
           "description": "Original Name state retains its exact frame, namespace, world and descriptive currency across suspension. Same-target resume checks the saved receipt before attaching entered execution; mandatory cleanup remains distinct."
         },
@@ -328709,8 +328709,8 @@
           "id": "naming.error.original-invocation-context-capture.definition.1",
           "role": "implementation",
           "path": "rust/tcl-vm/src/value.rs",
-          "sha256": "605ed68090e271557af7885dd8fdfba0ced8b4828d26577fd50283708dcf3e4e",
-          "description": "Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity."
+          "sha256": "cf39cb9e07d0dc05abc73093b19e283d888b993964cd7e06d635640b924391c5",
+          "description": "The original error-context capture and owned return-options shape query preserve live-header, selected protocol and member ownership checks without reaching child String getters. This implementation digest carries no assertion result, provider observation or execution admission."
         },
         {
           "id": "naming.error.original-invocation-context-capture.definition.2",
