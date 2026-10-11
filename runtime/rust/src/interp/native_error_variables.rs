@@ -521,7 +521,39 @@ impl Interp {
         info: bool,
         original: *mut obj::TclObj,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.retain_native_error_option_using(
+            currency,
+            info,
+            original,
+            &|| Ok(()),
+            &|value, current| {
+                self.native_object_string_bytes_using(value, current, &|error| {
+                    self.clone().refuse_completion_value_access(error)
+                })
+            },
+            &|error| self.clone().refuse_completion_value_access(error),
+        )
+    }
+
+    /// Same actual private-field reference/retirement/getter stages, retaining
+    /// the original caller's full error channel and independent frame/backing.
+    pub(super) fn retain_native_error_option_using<E>(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        info: bool,
+        original: *mut obj::TclObj,
+        extra: &dyn Fn() -> Result<(), E>,
+        string: &dyn Fn(
+            *mut obj::TclObj,
+            &dyn Fn() -> Result<(), E>,
+        ) -> Result<std::rc::Rc<[u8]>, E>,
+        refuse: &dyn Fn(ValueError) -> E,
+    ) -> Result<(), E>
+    where
+        E: From<tcl_runtime_api::NativeExecutionError>,
+    {
         currency.ensure_current_or_refuse()?;
+        extra()?;
         if self
             .native_invocation_dialect()
             .native_error_variable_protocol()
@@ -529,8 +561,7 @@ impl Interp {
         {
             return Ok(());
         }
-        obj::check_native_liveness(original)
-            .map_err(|error| self.clone().refuse_completion_value_access(error))?;
+        obj::check_native_liveness(original).map_err(refuse)?;
         let lifetime = obj::NativeObjectLifetime::retain(original);
         let variable = if info {
             Variable::ErrorInfo
@@ -543,15 +574,20 @@ impl Interp {
             Some(obj::Owned::retain(original)),
             None,
         )?;
+        extra()?;
         if info {
-            let bytes = self.native_object_string_bytes(lifetime.as_ptr());
-            self.check_native_error_object(currency, variable, &lifetime)?;
-            let bytes =
-                bytes.map_err(|error| self.clone().refuse_completion_value_access(error))?;
+            let current = || {
+                self.check_native_error_object(currency, variable, &lifetime)?;
+                extra()
+            };
+            let bytes = string(lifetime.as_ptr(), &current);
+            current()?;
+            let bytes = bytes?;
             self.exc.borrow_mut().native.info_len = bytes.len();
         }
         drop(lifetime);
-        currency.ensure_current_or_refuse()
+        currency.ensure_current_or_refuse()?;
+        extra()
     }
 
     pub(crate) fn retain_native_error_option(&self, info: bool, original: *mut obj::TclObj) {
@@ -991,15 +1027,18 @@ impl Interp {
         currency.ensure_current_or_refuse()?;
         let original = {
             let exc = self.exc.borrow();
-            exc.native.info.as_ref()
+            exc.native
+                .info
+                .as_ref()
                 .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()))
-        }.ok_or_else(|| {
-                self.refuse_completion_value_access(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "private errorInfo logging publication",
-                    ),
-                )
-            })?;
+        }
+        .ok_or_else(|| {
+            self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "private errorInfo logging publication",
+                ),
+            )
+        })?;
         self.check_native_error_object(currency, Variable::ErrorInfo, &original)?;
         // The current private field lends its actual pointer. The selected
         // variable setter and trace saved state own their independent roles.

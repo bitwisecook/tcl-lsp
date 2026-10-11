@@ -318,7 +318,66 @@ impl Interp {
         level: i64,
         original_options: *mut TclObj,
     ) -> Result<Code, tcl_cmd_core::CmdError> {
+        let arguments =
+            super::native_arguments::OriginalArguments::enter(self, &[original_options])?;
+        let actual = self.clone();
+        let reached = self.process_original_c_return_options_using(
+            purpose,
+            code,
+            level,
+            original_options,
+            &|| arguments.check_original_for(&actual, 0, original_options),
+            &|value, current| {
+                actual.native_object_string_bytes_using(value, current, &|error| {
+                    arguments.retain_refusal(error.into())
+                })
+            },
+            &|error| arguments.retain_refusal(error.into()),
+            &|error| arguments.retain_refusal(error),
+        );
+        arguments.check_original_for(self, 0, original_options)?;
+        reached
+    }
+
+    /// Apply the same original instruction with the compiled caller's already
+    /// captured frame/operand receipt, including reached String and cache stages.
+    pub(super) fn process_original_c_return_options_with_objects(
+        &mut self,
+        purpose: NativeReturnOptionsApplication,
+        code: i32,
+        level: i64,
+        original_options: *mut TclObj,
+        objects: &crate::value_ops::RuntimeDictionaryObjects,
+    ) -> Result<Code, tcl_cmd_core::CmdError> {
+        self.process_original_c_return_options_using(
+            purpose,
+            code,
+            level,
+            original_options,
+            &|| objects.original_check(),
+            &|value, current| objects.original_bytes_using(value, current),
+            &|error| objects.original_refuse(error),
+            &|error| objects.original_retain(error),
+        )
+    }
+
+    fn process_original_c_return_options_using(
+        &mut self,
+        purpose: NativeReturnOptionsApplication,
+        code: i32,
+        level: i64,
+        original_options: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        string: &dyn Fn(
+            *mut TclObj,
+            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
+        refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,
+        retain: &dyn Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError,
+    ) -> Result<Code, tcl_cmd_core::CmdError> {
         let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        extra()?;
+        let actual = self.clone();
         let reached = (|| -> Result<Code, tcl_cmd_core::CmdError> {
             let dialect = self.native_invocation_dialect();
             let protocol = dialect
@@ -326,24 +385,43 @@ impl Interp {
                 .filter(|protocol| {
                     protocol.retains_merged_header() && protocol.accepts_control(code, level)
                 })
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "original merged return-instruction options",
-                ))?;
-            crate::obj::check_native_liveness(original_options)?;
+                .ok_or_else(|| {
+                    refuse(ValueError::CommandProtocolUnavailable(
+                        "original merged return-instruction options",
+                    ))
+                })?;
+            crate::obj::check_native_liveness(original_options).map_err(refuse)?;
             let options_lifetime = crate::obj::NativeObjectLifetime::retain(original_options);
+            let options_ticket =
+                std::cell::RefCell::new(actual.return_options.borrow().original_incarnation());
+            let current = || {
+                scope.currency().ensure_current_or_refuse()?;
+                extra()?;
+                crate::obj::check_native_liveness(options_lifetime.as_ptr()).map_err(refuse)?;
+                if !actual
+                    .return_options
+                    .borrow()
+                    .has_original_incarnation(&options_ticket.borrow())
+                {
+                    return Err(refuse(ValueError::CommandProtocolUnavailable(
+                        "original return instruction carried options replaced",
+                    )));
+                }
+                Ok(())
+            };
+            current()?;
             if !self.return_options.borrow().is_original(original_options) {
-                let original = NativeReturnOptions::from_original_checked(
+                let original = NativeReturnOptions::from_original_using(
                     original_options,
                     protocol.strings(),
-                    &|| {
-                        scope.currency().ensure_current_or_refuse()?;
-                        crate::obj::check_native_liveness(options_lifetime.as_ptr())
-                            .map_err(|error| self.clone().refuse_completion_value_access(error))
-                    },
-                    &|error| self.clone().refuse_completion_value_access(error).into(),
+                    &current,
+                    string,
+                    refuse,
                 )?;
+                current()?;
                 self.restore_return_options_checked(original)?;
-                scope.currency().ensure_current_or_refuse()?;
+                *options_ticket.borrow_mut() = self.return_options.borrow().original_incarnation();
+                current()?;
             }
             if code == 1 {
                 self.replace_native_error_object_checked(
@@ -352,64 +430,70 @@ impl Interp {
                     None,
                     Some(0),
                 )?;
+                current()?;
                 self.exc.borrow_mut().info = None;
                 let pairs = crate::dict::native_dict_pairs_using(
                     original_options,
                     protocol.strings(),
-                    &|| {
-                        scope.currency().ensure_current_or_refuse()?;
-                        crate::obj::check_native_liveness(options_lifetime.as_ptr())
-                            .map_err(|error| self.clone().refuse_completion_value_access(error))
-                    },
-                    &|error| self.clone().refuse_completion_value_access(error),
+                    &current,
+                    refuse,
                 );
-                scope.currency().ensure_current_or_refuse()?;
+                current()?;
                 let pairs = pairs?;
-                let backing = crate::dict::original_dictionary_backing(original_options)?;
+                let backing =
+                    crate::dict::original_dictionary_backing(original_options).map_err(refuse)?;
                 let members = pairs
                     .iter()
                     .map(|&(key, value)| {
-                        crate::obj::check_native_liveness(key)?;
-                        crate::obj::check_native_liveness(value)?;
+                        crate::obj::check_native_liveness(key).map_err(refuse)?;
+                        crate::obj::check_native_liveness(value).map_err(refuse)?;
                         Ok((
                             crate::obj::NativeObjectLifetime::retain(key),
                             crate::obj::NativeObjectLifetime::retain(value),
                         ))
                     })
-                    .collect::<Result<Vec<_>, ValueError>>()?;
-                // Dictionary extraction borrows original values. The retained
-                // private header keeps them alive without temporary child owners.
+                    .collect::<Result<Vec<_>, tcl_cmd_core::CmdError>>()?;
+                let pairs_current = || {
+                    current()?;
+                    crate::dict::original_dictionary_pairs_current(
+                        original_options,
+                        &backing,
+                        &pairs,
+                    )
+                    .map_err(refuse)
+                };
+                // Borrowed members remain under the real private header. Only
+                // allocation leases survive the callback; no child Native +1.
                 let find = |wanted: &[u8]| -> Result<Option<*mut TclObj>, tcl_cmd_core::CmdError> {
                     for &(key, value) in &pairs {
-                        let reached = crate::dict::native_object_bytes(key, protocol.strings());
-                        scope.currency().ensure_current_or_refuse()?;
-                        crate::dict::original_dictionary_pairs_current(
-                            original_options,
-                            &backing,
-                            &pairs,
-                        )?;
-                        crate::obj::check_native_liveness(key)?;
-                        crate::obj::check_native_liveness(value)?;
-                        if reached? == wanted {
+                        let key_current = || {
+                            pairs_current()?;
+                            crate::obj::check_native_liveness(key).map_err(refuse)?;
+                            crate::obj::check_native_liveness(value).map_err(refuse)
+                        };
+                        let reached = string(key, &key_current);
+                        key_current()?;
+                        if reached?.as_ref() == wanted {
                             return Ok(Some(value));
                         }
                     }
                     Ok(None)
                 };
                 if let Some(info) = find(b"-errorinfo")? {
-                    let bytes = crate::dict::native_object_bytes(info, protocol.strings());
-                    scope.currency().ensure_current_or_refuse()?;
-                    crate::dict::original_dictionary_pairs_current(
-                        original_options,
-                        &backing,
-                        &pairs,
-                    )?;
-                    crate::obj::check_native_liveness(info)?;
+                    let bytes = string(info, &pairs_current);
+                    pairs_current()?;
                     let bytes = bytes?;
                     if !bytes.is_empty() {
-                        self.retain_native_error_option_checked(scope.currency(), true, info)?;
+                        self.retain_native_error_option_using(
+                            scope.currency(),
+                            true,
+                            info,
+                            &pairs_current,
+                            string,
+                            refuse,
+                        )?;
                         let mut error = self.exc.borrow_mut();
-                        error.info = Some(bytes);
+                        error.info = Some(bytes.to_vec());
                         error.already_logged = true;
                     }
                 }
@@ -418,45 +502,57 @@ impl Interp {
                     .is_some_and(|objects| objects.has_error_stack())
                 {
                     if let Some(stack) = find(b"-errorstack")? {
-                        self.seed_original_error_stack(stack)?;
+                        self.seed_original_error_stack_using(stack, &pairs_current, retain)?;
                     }
                 }
                 if let Some(error_code) = find(b"-errorcode")? {
-                    // Tcl_SetObjErrorCode retains the original without GetString.
-                    self.retain_native_error_option_checked(scope.currency(), false, error_code)?;
+                    // This selected stage retains the original without GetString.
+                    self.retain_native_error_option_using(
+                        scope.currency(),
+                        false,
+                        error_code,
+                        &pairs_current,
+                        string,
+                        refuse,
+                    )?;
                     let mut error = self.exc.borrow_mut();
                     error.code.clear();
                     error.code_explicit = true;
                 } else {
                     self.replace_native_error_code_checked(scope.currency(), b"NONE")?;
+                    pairs_current()?;
                     let mut error = self.exc.borrow_mut();
                     error.code = b"NONE".to_vec();
                     error.code_explicit = false;
                 }
                 if let Some(line) = find(b"-errorline")? {
-                    // NULL-interpreter GetInt still reaches cache mutations, while
-                    // an authentic guest conversion failure leaves errorLine alone.
-                    let number = crate::typed_value::native_scalar_probe(
-                        line,
-                        dialect,
-                        NativeScalarGetterKind::Int,
+                    // Keep the actual NULL-interpreter Int probe and its Guest
+                    // failure policy, adding no Host/environment acquisition.
+                    let number = crate::list::with_native_conversion_check(
+                        &pairs_current,
+                        refuse,
+                        |stage, _| {
+                            crate::typed_value::native_scalar_probe_with_stage_check(
+                                line,
+                                dialect,
+                                NativeScalarGetterKind::Int,
+                                None,
+                                Some(scope.currency()),
+                                Some(stage),
+                            )
+                        },
                     );
-                    scope.currency().ensure_current_or_refuse()?;
-                    crate::dict::original_dictionary_pairs_current(
-                        original_options,
-                        &backing,
-                        &pairs,
-                    )?;
-                    crate::obj::check_native_liveness(line)?;
+                    pairs_current()?;
                     if let Ok(NativeScalarGetterValue::Wide(value)) = number? {
                         self.error_line.set(value as i32 as u32);
                     }
                 }
                 drop(members);
-                scope.currency().ensure_current_or_refuse()?;
+                current()?;
             }
             drop(options_lifetime);
             scope.currency().ensure_current_or_refuse()?;
+            extra()?;
             let code = Code::from_int(code);
             if level != 0 {
                 self.set_return_state(level as usize, code);
@@ -468,7 +564,9 @@ impl Interp {
                 Ok(code)
             }
         })();
+        let reached = reached.map_err(retain);
         scope.currency().ensure_current_or_refuse()?;
+        extra()?;
         reached
     }
 }

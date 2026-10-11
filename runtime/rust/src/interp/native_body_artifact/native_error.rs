@@ -61,8 +61,8 @@ impl Interp {
     ) -> Result<Code, Code> {
         let original =
             BodyObjectOperation::capture(self).map_err(|error| self.report_cmd_error(error))?;
+        let mut stack = Vec::<obj::Owned>::new();
         let reached = (|| {
-            let mut stack = Vec::<obj::Owned>::new();
             for step in &error.steps {
                 original
                     .check(self)
@@ -110,7 +110,13 @@ impl Interp {
                     ErrorStep::ReturnError => {
                         let options = stack.pop().expect("native Error options");
                         let value = stack.pop().expect("native Error message");
-                        let code = self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate, 1, 0, options.as_ptr()).map_err(|error| self.report_cmd_error(error.into()))?;
+                        let objects = original
+                            .objects(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        let code = self.process_original_c_return_options_with_objects(
+                            tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
+                            1, 0, options.as_ptr(), &objects,
+                        ).map_err(|error| self.report_cmd_error(error))?;
                         original
                             .check(self)
                             .map_err(|error| self.report_cmd_error(error))?;
@@ -128,6 +134,7 @@ impl Interp {
             }
             unreachable!("native Error instruction has an immediate completion")
         })();
+        drop(stack);
         original
             .check(self)
             .map_err(|error| self.report_cmd_error(error))?;
@@ -210,3 +217,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "native_error/original_return_boundary_tests.rs"]
+mod original_return_boundary_tests;

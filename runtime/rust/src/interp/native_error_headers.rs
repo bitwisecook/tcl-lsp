@@ -134,39 +134,73 @@ impl NativeReturnOptions {
         check: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
         refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
-        check()?;
-        obj::check_native_liveness(original)?;
-        let header = obj::Owned::retain(original);
-        let reached = crate::dict::native_dict_pairs_using(
+        Self::from_original_using(
             original,
             protocol,
             &|| check().map_err(tcl_cmd_core::CmdError::from),
+            &|key, current| {
+                crate::list::with_native_conversion_check(current, refuse, |stage, _| {
+                    crate::dict::native_object_bytes_with_stage_handlers(
+                        key,
+                        protocol,
+                        None,
+                        Some(stage),
+                    )
+                    .map(std::rc::Rc::from)
+                })
+            },
             refuse,
-        );
+        )
+    }
+
+    /// Preserve the actual merged-header retain before conversion while the
+    /// entered caller checks its independent frame/backing inside the String worker.
+    pub(super) fn from_original_using(
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+        check: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        string: &dyn Fn(
+            *mut TclObj,
+            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
+        refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,
+    ) -> Result<Self, tcl_cmd_core::CmdError> {
+        check()?;
+        obj::check_native_liveness(original).map_err(refuse)?;
+        let header = obj::Owned::retain(original);
+        let reached = crate::dict::native_dict_pairs_using(original, protocol, check, refuse);
         check()?;
         let pairs = reached?;
-        let backing = crate::dict::original_dictionary_backing(original)?;
+        let backing = crate::dict::original_dictionary_backing(original).map_err(refuse)?;
         let lifetimes = pairs
             .iter()
             .map(|&(key, value)| {
-                obj::check_native_liveness(key)?;
-                obj::check_native_liveness(value)?;
+                obj::check_native_liveness(key).map_err(refuse)?;
+                obj::check_native_liveness(value).map_err(refuse)?;
                 Ok((
                     obj::NativeObjectLifetime::retain(key),
                     obj::NativeObjectLifetime::retain(value),
                 ))
             })
-            .collect::<Result<Vec<_>, ValueError>>()?;
+            .collect::<Result<Vec<_>, tcl_cmd_core::CmdError>>()?;
         let mut keys = Vec::new();
         for &(key, value) in &pairs {
-            obj::check_native_liveness(key)?;
-            obj::check_native_liveness(value)?;
+            obj::check_native_liveness(key).map_err(refuse)?;
+            obj::check_native_liveness(value).map_err(refuse)?;
             let key_lifetime = obj::NativeObjectLifetime::retain(key);
-            let reached = crate::dict::native_object_bytes(key, protocol);
+            let current = || {
+                check()?;
+                crate::dict::original_dictionary_pairs_current(original, &backing, &pairs)
+                    .map_err(refuse)?;
+                obj::check_native_liveness(key_lifetime.as_ptr()).map_err(refuse)
+            };
+            let reached = string(key, &current);
+            current()?;
             check()?;
-            crate::dict::original_dictionary_pairs_current(original, &backing, &pairs)?;
-            obj::check_native_liveness(key_lifetime.as_ptr())?;
-            let key = reached?;
+            crate::dict::original_dictionary_pairs_current(original, &backing, &pairs)
+                .map_err(refuse)?;
+            obj::check_native_liveness(key_lifetime.as_ptr()).map_err(refuse)?;
+            let key = reached?.to_vec();
             if !keys.contains(&key) {
                 keys.push(key);
             }
@@ -182,6 +216,15 @@ impl NativeReturnOptions {
             other: Default::default(),
             incarnation: Default::default(),
         })
+    }
+
+    /// Software birth of the installed carried record; cloning this Rust
+    /// identity changes no native header/member role.
+    pub(super) fn original_incarnation(&self) -> std::rc::Rc<()> {
+        std::rc::Rc::clone(&self.incarnation)
+    }
+    pub(super) fn has_original_incarnation(&self, original: &std::rc::Rc<()>) -> bool {
+        std::rc::Rc::ptr_eq(original, &self.incarnation)
     }
 
     pub(super) fn is_original(&self, original: *mut TclObj) -> bool {
@@ -685,7 +728,24 @@ impl super::Interp {
         &self,
         original: *mut TclObj,
     ) -> Result<(), tcl_cmd_core::CmdError> {
+        let arguments = super::native_arguments::OriginalArguments::enter(self, &[original])?;
+        self.seed_original_error_stack_using(
+            original,
+            &|| arguments.check_original_for(self, 0, original),
+            &|error| arguments.retain_refusal(error),
+        )
+    }
+
+    /// Seed the same private stack under its original incarnation and the
+    /// actual caller's frame/options receipt through duplication and cleanup.
+    pub(super) fn seed_original_error_stack_using(
+        &self,
+        original: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        retain: &dyn Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
         let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        extra()?;
         let reached = (|| -> Result<(), tcl_cmd_core::CmdError> {
             let (mut header, protocol, mut ticket) = {
                 let stack = self.error_stack.borrow();
@@ -705,16 +765,32 @@ impl super::Interp {
             obj::check_native_liveness(original)?;
             let header_lifetime = obj::NativeObjectLifetime::retain(original_header);
             let original_lifetime = obj::NativeObjectLifetime::retain(original);
+            extra()?;
             self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
             // The native worker duplicates its shared private header before
             // converting the supplied operand, which may be that same header.
             if obj::is_shared(original_header) {
-                let duplicate = obj::Owned::fresh(obj::duplicate(original_header));
+                let duplicate = obj::Owned::fresh(obj::duplicate_with_stage_check(
+                    original_header,
+                    &mut || {
+                        extra()?;
+                        self.check_original_error_stack_projection(
+                            scope.currency(),
+                            header,
+                            &ticket,
+                        )
+                        .map_err(tcl_cmd_core::CmdError::from)
+                    },
+                    &mut |first: &tcl_cmd_core::CmdError| {
+                        retain(first.clone());
+                    },
+                )?);
                 crate::list::duplicate_native_backing(
                     original_header,
                     duplicate.as_ptr(),
                     protocol,
                 );
+                extra()?;
                 self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
                 let retired = {
                     let mut stack = self.error_stack.borrow_mut();
@@ -725,14 +801,20 @@ impl super::Interp {
                     retired
                 };
                 drop(retired);
+                extra()?;
                 self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
             }
             let members = crate::list::list_elements_native_using(
                 original,
                 protocol,
-                &|| self.check_original_error_stack_projection(scope.currency(), header, &ticket),
-                &|error| self.clone().refuse_completion_value_access(error),
+                &|| {
+                    extra()?;
+                    self.check_original_error_stack_projection(scope.currency(), header, &ticket)
+                        .map_err(tcl_cmd_core::CmdError::from)
+                },
+                &|error| retain(error.into()),
             );
+            extra()?;
             self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
             obj::check_native_liveness(original_lifetime.as_ptr())?;
             let members = members?;
@@ -741,10 +823,13 @@ impl super::Interp {
                     ValueError::CommandProtocolUnavailable("validated error-stack pairs").into(),
                 );
             }
-            let current =
-                || self.check_original_error_stack_projection(scope.currency(), header, &ticket);
-            let refuse = |error| self.clone().refuse_completion_value_access(error);
-            let value = crate::list::replace_elements_native_checked(
+            let current = || {
+                extra()?;
+                self.check_original_error_stack_projection(scope.currency(), header, &ticket)
+                    .map_err(tcl_cmd_core::CmdError::from)
+            };
+            let refuse = |error: ValueError| retain(error.into());
+            let value = crate::list::replace_elements_native_using(
                 header.expect("checked existing header"),
                 &members,
                 protocol,
@@ -767,10 +852,13 @@ impl super::Interp {
             drop(retired);
             drop(original_lifetime);
             drop(header_lifetime);
+            extra()?;
             self.check_original_error_stack_projection(scope.currency(), header, &ticket)?;
             Ok(())
         })();
+        let reached = reached.map_err(retain);
         scope.currency().ensure_current_or_refuse()?;
+        extra()?;
         reached
     }
 

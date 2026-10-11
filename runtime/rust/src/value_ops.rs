@@ -771,6 +771,26 @@ impl RuntimeDictionaryObjects {
             ))?
             .bytes(value)
     }
+    /// The same original String worker, with an independently captured
+    /// return-options/private-field backing check inside reached callbacks.
+    pub(crate) fn original_bytes_using(
+        &self,
+        value: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.original
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Dictionary/Return owner",
+            ))?
+            .bytes_using(value, extra)
+    }
+    pub(crate) fn original_retain(&self, error: tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError {
+        match self.original.as_ref() {
+            Some(owner) => (owner.retain)(error),
+            None => error,
+        }
+    }
     pub(crate) fn original_list(
         &self,
         value: *mut TclObj,

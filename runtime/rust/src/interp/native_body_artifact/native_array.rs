@@ -18,6 +18,7 @@
 
 //! Selected Array opcodes retain true roots, private iterator locals and original List children.
 
+use super::native_list_conversion::BodyObjectOperation;
 use super::*;
 use tcl_registry::native_array_compilation::{NativeArrayCompilation, NativeArrayInstruction};
 use tcl_registry::native_compilation::NativeArrayCommand as Command;
@@ -221,8 +222,16 @@ impl Interp {
         let original = crate::interp::native_arguments::OriginalArguments::enter(self, &[])
             .map_err(|error| self.report_cmd_error(error))?;
         let frame = BodyListFrame::capture(self);
+        let body_original =
+            BodyObjectOperation::capture(self).map_err(|error| self.report_cmd_error(error))?;
         let reached = self.execute_body_array_with_original(
-            artifact, command, operation, execution, &original, &frame,
+            artifact,
+            command,
+            operation,
+            execution,
+            &original,
+            &frame,
+            &body_original,
         );
         frame
             .check(self, &original)
@@ -238,6 +247,7 @@ impl Interp {
         execution: &mut BodyExecution,
         entered: &crate::interp::native_arguments::OriginalArguments,
         frame: &BodyListFrame,
+        body_original: &Rc<BodyObjectOperation>,
     ) -> Result<Code, Code> {
         let (evaluated, mut slot) =
             self.array_body_target(artifact, command, operation, execution)?;
@@ -313,7 +323,10 @@ impl Interp {
                         .literals
                         .original(literals[1])
                         .expect("Array parity options");
-                    let code=self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,1,0,options).map_err(|error|self.report_cmd_error(error.into()))?;
+                    let objects = body_original
+                        .objects(self)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    let code=self.process_original_c_return_options_with_objects(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,1,0,options,&objects).map_err(|error|self.report_cmd_error(error))?;
                     self.set_result(message);
                     self.capture_original_return_instruction_context(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,message,options).map_err(|first| self.refuse_native_execution(first))?;
                     return Ok(code);

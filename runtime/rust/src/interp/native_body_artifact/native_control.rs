@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Retained original expression operands and structured native control ranges.
+use super::native_list_conversion::BodyObjectOperation;
 use super::*;
 use tcl_registry::native_control_compilation::{NativeControlCompilation, NativeControlOutcome};
 use tcl_registry::native_control_instructions::{
@@ -655,6 +656,7 @@ struct CompiledExpressionContext<'a> {
     prepared: &'a PreparedNativeExpression,
     execution: &'a mut BodyExecution,
     propagated: Option<Code>,
+    original: Rc<BodyObjectOperation>,
 }
 #[cfg(have_tommath)]
 impl CompiledExpressionContext<'_> {
@@ -741,14 +743,25 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
                     .literals
                     .original(options)
                     .expect("native folded expression options");
-                let code = match self.interp.process_original_c_return_options(
+                let objects = match self.original.objects(self.interp) {
+                    Ok(objects) => objects,
+                    Err(error) => {
+                        let code = self.interp.report_cmd_error(error);
+                        return Some(Err(self.error(code)));
+                    }
+                };
+                let code = match self.interp.process_original_c_return_options_with_objects(
                     tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
                     1,
                     0,
                     original_options,
+                    &objects,
                 ) {
                     Ok(code) => code,
-                    Err(error) => self.interp.report_cmd_error(error.into()),
+                    Err(error) => {
+                        let code = self.interp.report_cmd_error(error);
+                        return Some(Err(self.error(code)));
+                    }
                 };
                 self.interp.set_result(original_message);
                 if code == Code::Error {
@@ -927,17 +940,23 @@ impl Interp {
         prepared: &PreparedNativeExpression,
         execution: &mut BodyExecution,
     ) -> Result<obj::Owned, Code> {
+        let original =
+            BodyObjectOperation::capture(self).map_err(|error| self.report_cmd_error(error))?;
         if let Some((message, options)) = prepared.rejected {
             let options = artifact
                 .literals
                 .original(options)
                 .expect("native expression SYNTAX options");
+            let objects = original
+                .objects(self)
+                .map_err(|error| self.report_cmd_error(error))?;
             let code = self
-                .process_original_c_return_options(
+                .process_original_c_return_options_with_objects(
                     tcl_registry::native_return_options::NativeReturnOptionsApplication::Syntax,
                     1,
                     0,
                     options,
+                    &objects,
                 )
                 .map_err(|error| self.report_cmd_error(error.into()))?;
             self.set_result(
@@ -973,6 +992,7 @@ impl Interp {
                 prepared,
                 execution,
                 propagated: None,
+                original: original.clone(),
             };
             let result =
                 crate::expr::eval_compiled_expression_node(tree, &mut context).and_then(|value| {

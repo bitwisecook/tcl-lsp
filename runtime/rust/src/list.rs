@@ -1380,7 +1380,14 @@ pub(crate) fn replace_elements_native(
     elements: &[*mut TclObj],
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
-    replace_elements_native_using(original, elements, protocol, &|| Ok(()), &|error| error)
+    replace_elements_native_with_duplicate_check(
+        original,
+        elements,
+        protocol,
+        &|| Ok(()),
+        &|error| error,
+        None,
+    )
 }
 
 pub(crate) fn replace_elements_native_checked(
@@ -1406,11 +1413,41 @@ pub(crate) fn replace_elements_native_using<E>(
     check: &impl Fn() -> Result<(), E>,
     refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
 ) -> Result<obj::Owned, E> {
+    replace_elements_native_with_duplicate_check(
+        original,
+        elements,
+        protocol,
+        check,
+        refuse,
+        Some(check),
+    )
+}
+
+fn replace_elements_native_with_duplicate_check<E>(
+    original: *mut TclObj,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+    duplicate_check: Option<&dyn Fn() -> Result<(), E>>,
+) -> Result<obj::Owned, E> {
     check()?;
     obj::check_native_liveness(original).map_err(refuse)?;
     let original_lifetime = obj::NativeObjectLifetime::retain(original);
     let value = if obj::is_shared(original) {
-        obj::Owned::fresh(obj::duplicate(original))
+        let copied = match duplicate_check {
+            Some(current) => with_native_conversion_check(current, refuse, |stage, retain| {
+                obj::duplicate_with_stage_check::<tcl_syntax::value::ValueError>(
+                    original,
+                    &mut || stage(),
+                    &mut |first| {
+                        retain(first.clone());
+                    },
+                )
+            })?,
+            None => obj::duplicate(original),
+        };
+        obj::Owned::fresh(copied)
     } else {
         obj::Owned::retain(original)
     };

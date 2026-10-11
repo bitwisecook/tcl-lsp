@@ -270,12 +270,16 @@ impl Interp {
             let merged =
                 tcl_cmd_core::native_return_merge::merge_stack(&mut ops, protocol, &options)
                     .map_err(|error| self.report_cmd_error(error))?;
+            let objects = original
+                .objects(self)
+                .map_err(|error| self.report_cmd_error(error))?;
             let code = self
-                .process_original_c_return_options(
+                .process_original_c_return_options_with_objects(
                     tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
                     merged.code,
                     i64::from(merged.level),
                     merged.options.as_ptr(),
+                    &objects,
                 )
                 .map_err(|error| self.report_cmd_error(error.into()))?;
             self.set_result(result.as_ptr());
