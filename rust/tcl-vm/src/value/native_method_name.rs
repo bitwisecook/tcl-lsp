@@ -16,22 +16,21 @@ impl Value {
             drop(retired);
         }
     }
-    pub(crate) fn retain_native_method_name(
+    pub(crate) fn retain_native_method_name<C>(
         &self,
         chain: Rc<NativeMethodChain>,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
-        check: &mut impl FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        context: &mut C,
+        string: &mut impl FnMut(&mut C) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        check: &mut impl FnMut(&mut C) -> Result<(), tcl_cmd_core::CmdError>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
-        check()?;
+        check(context)?;
         self.check_native_header()?;
-        let reached = self
-            .native_string_bytes(protocol)
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable);
-        check()?;
+        let reached = string(context);
+        check(context)?;
         reached?;
         let retired = std::mem::replace(&mut *self.0.intrep.borrow_mut(), IntRep::Str);
         drop(retired);
-        check()?;
+        check(context)?;
         self.check_native_header()?;
         *self.0.intrep.borrow_mut() = IntRep::NativeMethodName(chain);
         Ok(())

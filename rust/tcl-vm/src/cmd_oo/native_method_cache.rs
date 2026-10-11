@@ -535,16 +535,32 @@ pub(super) fn remember(
     // InvokeContext acquires the ALL-record entered role. Do not protect the
     // earlier callback stage by donating those later record holds.
     drop(steps);
-    original.retain_native_method_name(Rc::clone(&chain), protocol.strings(), &mut || {
-        world.check(
-            vm,
-            &scope,
-            target,
-            external,
-            protocol,
-            original_lifetime.value(),
-        )
-    })?;
+    original.retain_native_method_name(
+        Rc::clone(&chain),
+        vm,
+        &mut |vm| {
+            let reached = (|| {
+                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)?
+                    .string(original_lifetime.value(), protocol.strings())
+            })();
+            if let Err(error) = &reached
+                && let Some(first) = error.native_execution_refusal()
+            {
+                vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+            }
+            reached
+        },
+        &mut |vm| {
+            world.check(
+                vm,
+                &scope,
+                target,
+                external,
+                protocol,
+                original_lifetime.value(),
+            )
+        },
+    )?;
     world.check(
         vm,
         &scope,
@@ -965,3 +981,6 @@ mod owner_tests;
 
 #[cfg(test)]
 mod rename_tests;
+
+#[cfg(test)]
+mod string_stage_tests;

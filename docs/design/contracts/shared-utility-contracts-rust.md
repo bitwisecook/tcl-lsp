@@ -3406,3 +3406,10 @@ filter, forward rewrite, Tcl frame, namespace and activation restoration
 continues after refusal, before the final full first-cause verdict. These
 software cleanup checks do not attest Native callback chronology or physical
 Method/clientData reference counts.
+
+The VM method-name cache reaches its String stage through the canonical
+original String worker with the captured Host formatter and entered operation.
+Its existing world/stamp and original-header checks bracket that stage and
+primary retirement. The first typed String refusal is retained before later
+checks or cleanup; ALL method-record upgrades follow successful settlement.
+Allocation leases and idle weak records add no Native method ownership.
