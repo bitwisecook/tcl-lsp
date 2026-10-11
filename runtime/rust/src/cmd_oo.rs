@@ -7908,13 +7908,18 @@ impl Interp {
             });
             let code = self.dispatch_in_lookup_namespace(namespace, &new_argv);
             self.retire_oo_call_frame(currency);
-            if is_root {
-                self.clear_ensemble_rewrite();
-            }
+            let cleared = if is_root {
+                self.clear_ensemble_rewrite_checked()
+            } else {
+                Ok(())
+            };
             // Clear the rewrite if the forwarded command was not a method body
             // (which would have consumed it).
             self.oo.borrow_mut().fwd_usage = None;
             drop(m);
+            if let Err(first) = cleared {
+                self.refuse_native_execution(first);
+            }
             return originals.finish(code);
         }
 

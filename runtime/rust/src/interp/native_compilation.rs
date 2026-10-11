@@ -1557,37 +1557,49 @@ impl Interp {
         protocol: tcl_registry::native_compilation::NativeNamedInvocationProtocol,
         argv: &[*mut TclObj],
     ) -> Code {
-        let Some(arguments) = argv.get(arguments_from + 1..) else {
-            return self.dispatch(argv);
+        let originals = match super::native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(originals) => originals,
+            Err(error) => return self.report_cmd_error(error),
         };
-        let head = super::new_string(slot);
-        // SAFETY: this invocation owns the freshly allocated fixed-name value.
-        unsafe { crate::obj::incr_ref_count(head) };
-        let mut target = vec![head];
-        target.extend_from_slice(arguments);
-        let rewrites = protocol
-            == tcl_registry::native_compilation::NativeNamedInvocationProtocol::EnsembleRewrite;
-        let is_root = if rewrites {
-            self.begin_ensemble_rewrite(
-                argv.iter()
-                    .map(|word| crate::obj::Owned::retain(*word))
-                    .collect(),
-                arguments_from + 1,
-                1,
-            )
-        } else {
-            false
-        };
-        let code = if rewrites {
-            self.dispatch_invoke(&target)
-        } else {
-            self.dispatch(&target)
-        };
-        if is_root {
-            self.clear_ensemble_rewrite();
-        }
-        super::release_all(&[head]);
-        code
+        let code = (|| {
+            let Some(arguments) = argv.get(arguments_from + 1..) else {
+                return self.dispatch(argv);
+            };
+            let head = super::new_string(slot);
+            // SAFETY: this invocation owns the freshly allocated fixed-name value.
+            unsafe { crate::obj::incr_ref_count(head) };
+            let mut target = vec![head];
+            target.extend_from_slice(arguments);
+            let rewrites = protocol
+                == tcl_registry::native_compilation::NativeNamedInvocationProtocol::EnsembleRewrite;
+            let is_root = if rewrites {
+                self.begin_ensemble_rewrite(
+                    argv.iter()
+                        .map(|word| crate::obj::Owned::retain(*word))
+                        .collect(),
+                    arguments_from + 1,
+                    1,
+                )
+            } else {
+                false
+            };
+            let code = if rewrites {
+                self.dispatch_invoke(&target)
+            } else {
+                self.dispatch(&target)
+            };
+            let cleared = if is_root {
+                self.clear_ensemble_rewrite_checked()
+            } else {
+                Ok(())
+            };
+            super::release_all(&[head]);
+            if let Err(first) = cleared {
+                self.refuse_native_execution(first);
+            }
+            code
+        })();
+        originals.finish(code)
     }
 
     pub(super) fn admit_native_compilation_error(

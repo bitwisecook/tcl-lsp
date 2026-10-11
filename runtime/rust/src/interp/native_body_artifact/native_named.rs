@@ -77,99 +77,115 @@ impl Interp {
         named: &NamedOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
-        let rewrite = named.recipe.protocol == NativeNamedInvocationProtocol::EnsembleRewrite;
-        let direct_head = (!rewrite).then(|| {
-            obj::Owned::retain(
-                artifact
-                    .literals
-                    .original(named.head)
-                    .expect("compiled private name"),
-            )
-        });
-        let mut values = Vec::with_capacity(named.operands.len());
-        let mut originals = Vec::with_capacity(named.operands.len());
-        for (operand, expanded) in named.operands.iter().zip(&named.recipe.expanded) {
-            let value = self.body_namespace_operand(artifact, command, operand, execution)?;
-            if execution.done {
-                return Ok(Code::Ok);
-            }
-            if *expanded {
-                let members = crate::list::list_elements_native_checked(
-                    value.as_ptr(),
-                    artifact.stamp.source_protocol,
+        let scope = super::super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let outcome = (|| {
+            let rewrite = named.recipe.protocol == NativeNamedInvocationProtocol::EnsembleRewrite;
+            let direct_head = (!rewrite).then(|| {
+                obj::Owned::retain(
+                    artifact
+                        .literals
+                        .original(named.head)
+                        .expect("compiled private name"),
                 )
-                .map_err(|error| self.report_cmd_error(error.into()))?;
-                originals.extend(std::iter::repeat_n(None, members.len()));
-                values.extend(members.into_iter().map(obj::Owned::retain));
-            } else {
-                originals.push(match operand {
-                    NamespaceOperand::Original(index) => Some(&command.words[*index]),
-                    NamespaceOperand::Literal(_) => None,
-                });
-                values.push(value);
-            }
-        }
-        let head = direct_head.unwrap_or_else(|| {
-            obj::Owned::retain(
-                artifact
-                    .literals
-                    .original(named.head)
-                    .expect("compiled private name"),
-            )
-        });
-        let arguments = if rewrite {
-            values
-                .get(named.recipe.arguments_from + 1..)
-                .ok_or_else(|| {
-                    self.report_cmd_error(unavailable("native named rewrite operand layout").into())
-                })?
-        } else {
-            &values
-        };
-        let mut argv = Vec::with_capacity(arguments.len() + 1);
-        argv.push(head.as_ptr());
-        argv.extend(arguments.iter().map(obj::Owned::as_ptr));
-        let root = rewrite
-            && self.begin_ensemble_rewrite(values.to_vec(), named.recipe.arguments_from + 1, 1);
-        let file = self
-            .cmd_frames
-            .borrow()
-            .last()
-            .and_then(|frame| frame.file.clone());
-        let mut added = 0;
-        if file.is_some() {
-            for (word, value) in originals.iter().zip(&values) {
-                if let Some(word) = word.filter(|word| word.literal.is_some()) {
-                    let line = self
-                        .cmd_frames
-                        .borrow()
-                        .last()
-                        .map_or(0, |frame| frame.line_base)
-                        + line_of(
-                            artifact.image.bytes(),
-                            word.original.span().start() as usize,
-                        );
-                    self.arg_locs
-                        .borrow_mut()
-                        .push((value.as_ptr(), file.clone(), line));
-                    added += 1;
+            });
+            let mut values = Vec::with_capacity(named.operands.len());
+            let mut originals = Vec::with_capacity(named.operands.len());
+            for (operand, expanded) in named.operands.iter().zip(&named.recipe.expanded) {
+                let value = self.body_namespace_operand(artifact, command, operand, execution)?;
+                if execution.done {
+                    return Ok(Code::Ok);
+                }
+                if *expanded {
+                    let members = crate::list::list_elements_native_checked(
+                        value.as_ptr(),
+                        artifact.stamp.source_protocol,
+                    )
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                    originals.extend(std::iter::repeat_n(None, members.len()));
+                    values.extend(members.into_iter().map(obj::Owned::retain));
+                } else {
+                    originals.push(match operand {
+                        NamespaceOperand::Original(index) => Some(&command.words[*index]),
+                        NamespaceOperand::Literal(_) => None,
+                    });
+                    values.push(value);
                 }
             }
-        }
-        let code = if rewrite {
-            self.dispatch_invoke(&argv)
-        } else {
-            self.dispatch(&argv)
-        };
-        if root {
-            self.clear_ensemble_rewrite();
-        }
-        if added != 0 {
-            let mut locations = self.arg_locs.borrow_mut();
-            let length = locations.len() - added;
-            locations.truncate(length);
-        }
-        Ok(code)
+            let head = direct_head.unwrap_or_else(|| {
+                obj::Owned::retain(
+                    artifact
+                        .literals
+                        .original(named.head)
+                        .expect("compiled private name"),
+                )
+            });
+            let arguments = if rewrite {
+                values
+                    .get(named.recipe.arguments_from + 1..)
+                    .ok_or_else(|| {
+                        self.report_cmd_error(
+                            unavailable("native named rewrite operand layout").into(),
+                        )
+                    })?
+            } else {
+                &values
+            };
+            let mut argv = Vec::with_capacity(arguments.len() + 1);
+            argv.push(head.as_ptr());
+            argv.extend(arguments.iter().map(obj::Owned::as_ptr));
+            let root = rewrite
+                && self.begin_ensemble_rewrite(values.to_vec(), named.recipe.arguments_from + 1, 1);
+            let file = self
+                .cmd_frames
+                .borrow()
+                .last()
+                .and_then(|frame| frame.file.clone());
+            let mut added = 0;
+            if file.is_some() {
+                for (word, value) in originals.iter().zip(&values) {
+                    if let Some(word) = word.filter(|word| word.literal.is_some()) {
+                        let line = self
+                            .cmd_frames
+                            .borrow()
+                            .last()
+                            .map_or(0, |frame| frame.line_base)
+                            + line_of(
+                                artifact.image.bytes(),
+                                word.original.span().start() as usize,
+                            );
+                        self.arg_locs
+                            .borrow_mut()
+                            .push((value.as_ptr(), file.clone(), line));
+                        added += 1;
+                    }
+                }
+            }
+            let code = if rewrite {
+                self.dispatch_invoke(&argv)
+            } else {
+                self.dispatch(&argv)
+            };
+            let cleared = if root {
+                self.clear_ensemble_rewrite_checked()
+            } else {
+                Ok(())
+            };
+            if added != 0 {
+                let mut locations = self.arg_locs.borrow_mut();
+                let length = locations.len() - added;
+                locations.truncate(length);
+            }
+            if let Err(first) = cleared {
+                return Err(self.refuse_native_execution(first));
+            }
+            Ok(code)
+        })();
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        outcome
     }
 }
 

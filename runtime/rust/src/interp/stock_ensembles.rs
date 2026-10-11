@@ -32,6 +32,7 @@ pub(super) struct StockEnsembles {
 }
 
 pub(super) struct HandlerUsageAdapter {
+    pub(super) birth: std::rc::Rc<()>,
     pub(super) parse_prefix: Vec<*mut TclObj>,
     pub(super) original_prefix: Vec<crate::obj::Owned>,
 }
@@ -39,14 +40,19 @@ pub(super) struct HandlerUsageAdapter {
 struct HandlerUsageScope {
     interpreter: Interp,
     previous_len: usize,
+    currency: super::native_operation_currency::NativeOperationCurrency,
 }
 
 impl Drop for HandlerUsageScope {
     fn drop(&mut self) {
-        self.interpreter
+        let _ = self.currency.ensure_current_or_refuse();
+        let retired = self
+            .interpreter
             .handler_usage_adapters
             .borrow_mut()
-            .truncate(self.previous_len);
+            .split_off(self.previous_len);
+        drop(retired);
+        let _ = self.currency.ensure_current_or_refuse();
     }
 }
 
@@ -1034,28 +1040,37 @@ impl Interp {
         prefix: &[&[u8]],
         callback: BuiltinFn,
     ) -> Code {
-        let parse_prefix: Vec<_> = prefix
-            .iter()
-            .map(|word| crate::obj::Owned::fresh(super::new_string(word)))
-            .collect();
-        let mut view: Vec<_> = parse_prefix.iter().map(crate::obj::Owned::as_ptr).collect();
-        view.extend_from_slice(&arguments[1..]);
-        let previous_len = self.handler_usage_adapters.borrow().len();
-        self.handler_usage_adapters
-            .borrow_mut()
-            .push(HandlerUsageAdapter {
-                parse_prefix: view[..prefix.len()].to_vec(),
-                original_prefix: arguments
-                    .first()
-                    .map(|word| crate::obj::Owned::retain(*word))
-                    .into_iter()
-                    .collect(),
-            });
-        let _usage = HandlerUsageScope {
-            interpreter: self.clone(),
-            previous_len,
+        let originals = match super::native_arguments::OriginalArguments::enter(self, arguments) {
+            Ok(originals) => originals,
+            Err(error) => return self.report_cmd_error(error),
         };
-        callback(self, &view)
+        let code = (|| {
+            let parse_prefix: Vec<_> = prefix
+                .iter()
+                .map(|word| crate::obj::Owned::fresh(super::new_string(word)))
+                .collect();
+            let mut view: Vec<_> = parse_prefix.iter().map(crate::obj::Owned::as_ptr).collect();
+            view.extend_from_slice(&arguments[1..]);
+            let previous_len = self.handler_usage_adapters.borrow().len();
+            self.handler_usage_adapters
+                .borrow_mut()
+                .push(HandlerUsageAdapter {
+                    birth: std::rc::Rc::new(()),
+                    parse_prefix: view[..prefix.len()].to_vec(),
+                    original_prefix: arguments
+                        .first()
+                        .map(|word| crate::obj::Owned::retain(*word))
+                        .into_iter()
+                        .collect(),
+                });
+            let _usage = HandlerUsageScope {
+                interpreter: self.clone(),
+                previous_len,
+                currency: originals.currency().clone(),
+            };
+            callback(self, &view)
+        })();
+        originals.finish(code)
     }
 }
 

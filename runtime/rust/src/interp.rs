@@ -110,6 +110,7 @@ struct OriginalProcedurePublication {
 }
 pub(crate) use native_procedure_resources::{NativeCallableProcedure, NativeProcedureDefinition};
 mod execution_name_policy;
+mod native_argument_usage;
 pub(crate) mod native_arguments;
 mod native_command_rename;
 #[cfg(test)]
@@ -1628,6 +1629,7 @@ impl EnsembleRewriteWord {
 
 #[derive(Clone)]
 pub(crate) struct EnsembleRewrite {
+    birth: Rc<()>,
     /// The original command words as the user wrote them (e.g. `foo test 1 2 3`),
     /// with the subcommand spell-fixed to its resolved name.
     pub source: Vec<EnsembleRewriteWord>,
@@ -6083,6 +6085,7 @@ impl Interp {
         match rw.as_mut() {
             None => {
                 *rw = Some(EnsembleRewrite {
+                    birth: Rc::new(()),
                     source,
                     removed,
                     inserted,
@@ -6094,6 +6097,7 @@ impl Interp {
             // inner step so a deeply forwarded `wrong # args` still prints the full
             // original prefix.
             Some(r) => {
+                r.birth = Rc::new(());
                 if r.inserted < removed {
                     r.removed += removed - r.inserted;
                     r.inserted = inserted;
@@ -6106,11 +6110,30 @@ impl Interp {
     }
 
     /// Clear the active ensemble-rewrite (paired with a root `begin_…`).
+    pub(crate) fn clear_ensemble_rewrite_checked(
+        &self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self);
+        let before = match &scope {
+            Ok(scope) => scope.currency().ensure_current_or_refuse(),
+            Err(first) => Err(first.clone()),
+        };
+        let retired = self.ensemble_rewrite.borrow_mut().take();
+        drop(retired);
+        let after = match &scope {
+            Ok(scope) => scope.currency().ensure_current_or_refuse(),
+            Err(first) => Err(first.clone()),
+        };
+        before.and(after)
+    }
+
+    #[cfg(test)]
     pub(crate) fn clear_ensemble_rewrite(&self) {
-        *self.ensemble_rewrite.borrow_mut() = None;
+        let _ = self.clear_ensemble_rewrite_checked();
     }
 
     /// The active ensemble-rewrite, if any.
+    #[cfg(test)]
     pub(crate) fn ensemble_rewrite(&self) -> Option<EnsembleRewrite> {
         self.ensemble_rewrite.borrow().clone()
     }
@@ -6131,7 +6154,8 @@ impl Interp {
             ));
         };
         if protocol.resets_at(event) {
-            self.clear_ensemble_rewrite();
+            self.clear_ensemble_rewrite_checked()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
         Ok(())
     }
@@ -16180,56 +16204,92 @@ impl Interp {
     ///
     /// [`run_proc`]: Interp::run_proc
     fn call_proc(&mut self, def: &Rc<ProcDef>, argv: &[*mut TclObj]) -> Code {
-        let original_body = match def
-            .check_native_liveness()
-            .and_then(|()| def.body.checked_ptr())
-        {
-            Ok(original) => original,
-            Err(error) => return self.report_cmd_error(error.into()),
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
         };
-        let jim_parameters = match def
-            .jim_parameters
-            .as_ref()
-            .map(obj::ProcedureObject::checked_ptr)
-            .transpose()
-        {
-            Ok(original) => original,
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
-        let name = obj_bytes(argv[0]);
-        let body = match tcl_syntax::value::ValueOps::native_string_bytes(self, &original_body) {
-            Ok(body) => body,
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
-        let location = def.location();
-        self.run_proc(
-            &def.params,
-            &body,
-            location.namespace,
-            &argv[1..],
-            &name,
-            CallMeta {
-                original_argv: Some(argv),
-                err: ProcFrame::Proc(&name),
-                fqn: Some(&location.qualified_name),
-                source: def.source.clone(),
-                body_line_base: def.body_line_base,
-                link_vars: &[],
-                oo_variable_resolver: None,
-                keep_loop_codes: false,
-                same_level: false,
-                usage_prefix: None,
-                level_words: None,
-                quote_name: true,
-                native: def.native,
-                statics: def.native_statics(),
-                c_procedure: Some(def),
-                c_method_client_data: None,
-                jim_parameters,
-                jim_body: self.uses_jim_error_stack().then_some(original_body),
-                jim_namespace: location.jim_namespace.as_ref(),
-            },
-        )
+        let code = (|| {
+            let original_body = match def
+                .check_native_liveness()
+                .and_then(|()| def.body.checked_ptr())
+            {
+                Ok(original) => original,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let body_lifetime = obj::NativeObjectLifetime::retain(original_body);
+            let jim_parameters = match def
+                .jim_parameters
+                .as_ref()
+                .map(obj::ProcedureObject::checked_ptr)
+                .transpose()
+            {
+                Ok(original) => original,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let name = match arguments.bytes(0) {
+                Ok(name) => name,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            if let Err(error) = def
+                .check_native_liveness()
+                .and_then(|()| def.body.checked_ptr())
+                .and_then(|current| {
+                    if current == original_body {
+                        Ok(())
+                    } else {
+                        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original procedure body replaced",
+                        ))
+                    }
+                })
+            {
+                return self.report_cmd_error(error.into());
+            }
+            let body = tcl_syntax::value::ValueOps::native_string_bytes(self, &original_body);
+            if let Err(error) = arguments.check() {
+                return self.report_cmd_error(error);
+            }
+            if let Err(error) = def
+                .check_native_liveness()
+                .and_then(|()| obj::check_native_liveness(body_lifetime.as_ptr()))
+            {
+                return self.report_cmd_error(error.into());
+            }
+            let body = match body {
+                Ok(body) => body,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
+            let location = def.location();
+            self.run_proc(
+                &def.params,
+                &body,
+                location.namespace,
+                &argv[1..],
+                &name,
+                CallMeta {
+                    original_argv: Some(argv),
+                    err: ProcFrame::Proc(&name),
+                    fqn: Some(&location.qualified_name),
+                    source: def.source.clone(),
+                    body_line_base: def.body_line_base,
+                    link_vars: &[],
+                    oo_variable_resolver: None,
+                    keep_loop_codes: false,
+                    same_level: false,
+                    usage_prefix: None,
+                    level_words: None,
+                    quote_name: true,
+                    native: def.native,
+                    statics: def.native_statics(),
+                    c_procedure: Some(def),
+                    c_method_client_data: None,
+                    jim_parameters,
+                    jim_body: self.uses_jim_error_stack().then_some(original_body),
+                    jim_namespace: location.jim_namespace.as_ref(),
+                },
+            )
+        })();
+        arguments.finish(code)
     }
 
     pub(crate) fn schedule_tailcall(&mut self, words: &[*mut TclObj]) -> Code {
@@ -16815,27 +16875,38 @@ impl Interp {
         argv: &[*mut TclObj],
         parameters: &[Vec<u8>],
     ) -> Code {
-        let Some(configuration) = self
-            .native_invocation_dialect()
-            .native_ensemble_configuration_protocol()
-        else {
-            return self.report_cmd_error(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "ensemble argument usage",
-                )
-                .into(),
-            );
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
         };
-        let mut message = b"wrong # args: should be \"".to_vec();
-        message.extend_from_slice(&obj_bytes(argv[0]));
-        for parameter in parameters {
+        let code = (|| {
+            let Some(configuration) = self
+                .native_invocation_dialect()
+                .native_ensemble_configuration_protocol()
+            else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "ensemble argument usage",
+                    )
+                    .into(),
+                );
+            };
+            let name = match arguments.bytes(0) {
+                Ok(name) => name,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let mut message = b"wrong # args: should be \"".to_vec();
+            message.extend_from_slice(&name);
+            for parameter in parameters {
+                message.push(b' ');
+                crate::list::append_list_element(&mut message, parameter, false);
+            }
             message.push(b' ');
-            crate::list::append_list_element(&mut message, parameter, false);
-        }
-        message.push(b' ');
-        message.extend_from_slice(configuration.missing_selector_usage());
-        message.push(b'"');
-        self.wrong_arguments_message(&message)
+            message.extend_from_slice(configuration.missing_selector_usage());
+            message.push(b'"');
+            self.wrong_arguments_message(&message)
+        })();
+        arguments.finish(code)
     }
 
     /// The ensemble trampoline: resolve `argv[1]` against the subcommand set
@@ -16846,6 +16917,20 @@ impl Interp {
         &mut self,
         token: &crate::ensemble::EnsembleToken,
         argv: &[*mut TclObj],
+    ) -> Code {
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let code = self.dispatch_ensemble_with_original(token, argv, &arguments);
+        arguments.finish(code)
+    }
+
+    fn dispatch_ensemble_with_original(
+        &mut self,
+        token: &crate::ensemble::EnsembleToken,
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
     ) -> Code {
         let mut current = token.config();
         let mut reparsed = false;
@@ -16870,12 +16955,27 @@ impl Interp {
                     .into(),
                 );
             };
-            let original_sub = obj_bytes(argv[layout.subcommand]);
+            let original_sub = match arguments.bytes(layout.subcommand) {
+                Ok(original) => original,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            if token.is_deleted() {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original ensemble token retired",
+                    )
+                    .into(),
+                );
+            }
             let sub = configuration.member_name(&original_sub);
             let subs = self.ensemble_subcommands(cfg);
             if let Some(idx) = configuration.resolve_member(&subs, &original_sub, cfg.prefixes) {
                 let resolved = &subs[idx];
-                if let Err(error) = self.build_original_ensemble_table(cfg) {
+                let built = self.build_original_ensemble_table(cfg);
+                if let Err(error) = arguments.check() {
+                    return self.report_cmd_error(error);
+                }
+                if let Err(error) = built {
                     return self.report_cmd_error(error.into());
                 }
                 let Some((prefix, mapped)) = cfg.originals.table.prefix(resolved) else {
@@ -16913,7 +17013,12 @@ impl Interp {
             // Miss: try the `-unknown` handler once.
             if !cfg.unknown.is_empty() && !reparsed {
                 reparsed = true;
-                match self.ensemble_unknown(token, cfg, argv) {
+                let outcome = self.ensemble_unknown(token, cfg, argv);
+                if let Err(error) = arguments.check() {
+                    drop(outcome);
+                    return self.report_cmd_error(error);
+                }
+                match outcome {
                     EnsembleUnknown::Prefix(prefix) => {
                         let live = token.config();
                         let Some(live_layout) = tcl_cmd_core::ensemble::invocation_layout(
@@ -17009,102 +17114,199 @@ impl Interp {
         source: Vec<EnsembleRewriteWord>,
         default_name: Option<&[u8]>,
     ) -> Code {
-        let Some(dispatch) = self
-            .native_invocation_dialect()
-            .native_ensemble_dispatch_protocol()
-        else {
-            return self.report_cmd_error(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "native ensemble forwarding",
-                )
-                .into(),
-            );
+        let mut retained = argv.to_vec();
+        retained.push(prefix.as_ptr());
+        let originals = match native_arguments::OriginalArguments::enter(self, &retained) {
+            Ok(originals) => originals,
+            Err(error) => return self.report_cmd_error(error),
         };
-        let Some(string) = self
-            .eval_frame_dialect()
-            .native_string_materialization(None)
-        else {
-            return self.report_cmd_error(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "native ensemble invocation List",
-                )
-                .into(),
-            );
-        };
-        let protocol = string.protocol();
-        let members = match crate::list::list_elements_native_checked(prefix.as_ptr(), protocol) {
-            Ok(members) => members,
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
-        let prefix_len = members.len();
-        let invocation = if dispatch.always_copy_prefix || argv.len() == 2 {
-            match crate::list::native_list_copy(prefix.as_ptr(), protocol) {
-                Ok(copy) => copy,
+        let code = (|| {
+            let Some(dispatch) = self
+                .native_invocation_dialect()
+                .native_ensemble_dispatch_protocol()
+            else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native ensemble forwarding",
+                    )
+                    .into(),
+                );
+            };
+            let Some(string) = self
+                .eval_frame_dialect()
+                .native_string_materialization(None)
+            else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native ensemble invocation List",
+                    )
+                    .into(),
+                );
+            };
+            let protocol = string.protocol();
+            let members = match crate::list::list_elements_native_with_currency(
+                prefix.as_ptr(),
+                protocol,
+                Some(originals.currency()),
+            ) {
+                Ok(members) => members,
                 Err(error) => return self.report_cmd_error(error.into()),
+            };
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
             }
-        } else {
-            let mut words = members;
-            words.extend_from_slice(&argv[layout.parameters.clone()]);
-            words.extend_from_slice(&argv[layout.arguments..]);
-            obj::Owned::fresh(crate::list::new_list_obj_native(&words, protocol))
-        };
-        let mut words =
-            match crate::list::list_elements_native_checked(invocation.as_ptr(), protocol) {
+            let prefix_len = members.len();
+            let invocation = if dispatch.always_copy_prefix || argv.len() == 2 {
+                match crate::list::native_list_copy(prefix.as_ptr(), protocol) {
+                    Ok(copy) => copy,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                }
+            } else {
+                let mut words = members;
+                words.extend_from_slice(&argv[layout.parameters.clone()]);
+                words.extend_from_slice(&argv[layout.arguments..]);
+                obj::Owned::fresh(crate::list::new_list_obj_native(&words, protocol))
+            };
+            let mut words = match crate::list::list_elements_native_with_currency(
+                invocation.as_ptr(),
+                protocol,
+                Some(originals.currency()),
+            ) {
                 Ok(words) => words,
                 Err(error) => return self.report_cmd_error(error.into()),
             };
-        if dispatch.always_copy_prefix {
-            words.extend_from_slice(&argv[layout.parameters.clone()]);
-            words.extend_from_slice(&argv[layout.arguments..]);
-        }
-        let prefix = if dispatch.always_copy_prefix {
-            Some(prefix)
-        } else {
-            drop(prefix);
-            None
-        };
-        let lookup = if dispatch.use_ensemble_namespace {
-            namespace
-        } else {
-            GLOBAL
-        };
-        let default_target_was_missing = default_name.is_some()
-            && self
-                .resolve_dispatchable_with_generation(lookup, &obj_bytes(words[0]))
-                .is_none();
-        let root = self.begin_original_ensemble_rewrite(
-            source,
-            layout.arguments,
-            prefix_len + layout.parameters.len(),
-        );
-        let code = self.dispatch_selection_with_entry(
-            &words,
-            CommandDispatchSelection::LookupAt(
-                lookup,
-                tcl_registry::command_lookup::CommandLookupOrigin::EnsembleInvocation,
-            ),
-            false,
-        );
-        if code == Code::Error && default_target_was_missing {
-            if let Some(name) = default_name {
-                let expected = [
-                    b"invalid command name \"".as_slice(),
-                    obj_bytes(words[0]).as_slice(),
-                    b"\"",
-                ]
-                .concat();
-                if obj_bytes(self.get_obj_result()) == expected {
-                    let message = [b"invalid command name \"".as_slice(), name, b"\""].concat();
-                    self.set_result_bytes(&message);
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            if dispatch.always_copy_prefix {
+                words.extend_from_slice(&argv[layout.parameters.clone()]);
+                words.extend_from_slice(&argv[layout.arguments..]);
+            }
+            let prefix = if dispatch.always_copy_prefix {
+                Some(prefix)
+            } else {
+                drop(prefix);
+                None
+            };
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            let lookup = if dispatch.use_ensemble_namespace {
+                namespace
+            } else {
+                GLOBAL
+            };
+            let selected_words = match native_arguments::OriginalArguments::enter(self, &words) {
+                Ok(arguments) => arguments,
+                Err(error) => return self.report_cmd_error(error),
+            };
+            let default_head = if default_name.is_some() {
+                match selected_words.bytes(0) {
+                    Ok(name) => Some(name),
+                    Err(error) => return self.report_cmd_error(error),
+                }
+            } else {
+                None
+            };
+            let default_target_was_missing = default_head.as_ref().is_some_and(|name| {
+                self.resolve_dispatchable_with_generation(lookup, name)
+                    .is_none()
+            });
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
+            }
+            let root = self.begin_original_ensemble_rewrite(
+                source,
+                layout.arguments,
+                prefix_len + layout.parameters.len(),
+            );
+            let code = self.dispatch_selection_with_entry(
+                &words,
+                CommandDispatchSelection::LookupAt(
+                    lookup,
+                    tcl_registry::command_lookup::CommandLookupOrigin::EnsembleInvocation,
+                ),
+                false,
+            );
+            let current = originals.check().and_then(|()| selected_words.check());
+            if current.is_ok() && code == Code::Error && default_target_was_missing {
+                if let Some(name) = default_name {
+                    let reached_head = selected_words.bytes(0);
+                    if let Err(error) = originals
+                        .check_for(self)
+                        .and_then(|()| selected_words.check_for(self))
+                    {
+                        if root {
+                            let _ = self.clear_ensemble_rewrite_checked();
+                        }
+                        return self.report_cmd_error(error);
+                    }
+                    let actual_head = match reached_head {
+                        Ok(head) => head,
+                        Err(error) => {
+                            if root {
+                                let _ = self.clear_ensemble_rewrite_checked();
+                            }
+                            return self.report_cmd_error(error);
+                        }
+                    };
+                    let expected = [
+                        b"invalid command name \"".as_slice(),
+                        actual_head.as_ref(),
+                        b"\"",
+                    ]
+                    .concat();
+                    let result = self.get_obj_result();
+                    let selected_result =
+                        match native_arguments::OriginalArguments::enter(self, &[result]) {
+                            Ok(arguments) => arguments,
+                            Err(error) => {
+                                if root {
+                                    let _ = self.clear_ensemble_rewrite_checked();
+                                }
+                                return self.report_cmd_error(error);
+                            }
+                        };
+                    let presented = selected_result.bytes(0);
+                    if self.result.get() != result {
+                        self.refuse_completion_value_access(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original ensemble error result replaced",
+                            ),
+                        );
+                    }
+                    if originals
+                        .check()
+                        .and_then(|()| selected_words.check())
+                        .is_ok()
+                    {
+                        match presented {
+                            Ok(presented) if presented.as_ref() == expected => {
+                                let message =
+                                    [b"invalid command name \"".as_slice(), name, b"\""].concat();
+                                self.set_result_bytes(&message);
+                            }
+                            Ok(_) => {}
+                            Err(error) => {
+                                self.report_cmd_error(error);
+                            }
+                        }
+                    }
                 }
             }
-        }
-        if root {
-            self.clear_ensemble_rewrite();
-        }
-        drop(invocation);
-        drop(prefix);
-        code
+            let cleared = if root {
+                self.clear_ensemble_rewrite_checked()
+            } else {
+                Ok(())
+            };
+            drop(invocation);
+            drop(prefix);
+            if let Err(first) = cleared {
+                self.refuse_native_execution(first);
+            }
+            code
+        })();
+        originals.finish(code)
     }
 
     /// Invoke an ensemble's `-unknown` handler on a subcommand miss
@@ -17894,17 +18096,27 @@ impl Interp {
         prefix_words: usize,
         suffix: &[u8],
     ) -> Code {
-        let mut usage = match self.argument_usage_prefix(arguments, prefix_words) {
-            Ok(usage) => usage,
-            Err(code) => return code,
+        let originals = match native_arguments::OriginalArguments::enter(self, arguments) {
+            Ok(originals) => originals,
+            Err(error) => return self.report_cmd_error(error),
         };
-        if !suffix.is_empty() {
-            if !usage.is_empty() {
-                usage.push(b' ');
+        let code = (|| {
+            let mut usage = match self.argument_usage_prefix(arguments, prefix_words) {
+                Ok(usage) => usage,
+                Err(code) => return code,
+            };
+            if let Err(error) = originals.check() {
+                return self.report_cmd_error(error);
             }
-            usage.extend_from_slice(suffix);
-        }
-        self.wrong_args(&usage)
+            if !suffix.is_empty() {
+                if !usage.is_empty() {
+                    usage.push(b' ');
+                }
+                usage.extend_from_slice(suffix);
+            }
+            self.wrong_args(&usage)
+        })();
+        originals.finish(code)
     }
 
     /// Render only the retained actual handler header, without touching operands.
@@ -17922,84 +18134,18 @@ impl Interp {
                 ),
             ));
         };
-        // The typed tuples preserve canonical Index expansion through prefix
-        // rewrites. Their byte allocations confer no object ownership roles.
-        let mut header = Vec::new();
-        for &original in arguments.iter().take(prefix_words) {
-            let (bytes, index) = self
-                .native_index_usage_bytes(original)
-                .map_err(|error| self.report_cmd_error(error.into()))?;
-            header.push((bytes, index, false));
-        }
-        let mut rewrites = Vec::new();
-        if let Some(rewrite) = self.ensemble_rewrite() {
-            let mut original_prefix = Vec::new();
-            for word in rewrite.source.iter().take(rewrite.removed) {
-                let (bytes, index) = self
-                    .native_index_usage_bytes(word.as_ptr())
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                original_prefix.push((bytes, index, true));
-            }
-            rewrites.push(tcl_cmd_core::ensemble::ArgumentUsageRewrite {
-                original_prefix,
-                removed_words: rewrite.inserted,
-            });
-        }
-        // Lifetime-only pointers borrow the installed handler's original words;
-        // native string/canonical updaters invoke no guest callback here.
-        let adapter = self
-            .handler_usage_adapters
-            .borrow()
-            .iter()
-            .rev()
-            .find(|adapter| arguments.starts_with(&adapter.parse_prefix))
-            .map(|adapter| {
-                (
-                    adapter.parse_prefix.len(),
-                    adapter
-                        .original_prefix
-                        .iter()
-                        .map(|word| word.as_ptr())
-                        .collect::<Vec<_>>(),
-                )
-            });
-        if let Some((removed_words, originals)) = adapter {
-            if prefix_words < removed_words {
-                rewrites.clear();
-            } else {
-                let mut original_prefix = Vec::new();
-                for original in originals {
-                    let (bytes, index) = self
-                        .native_index_usage_bytes(original)
-                        .map_err(|error| self.report_cmd_error(error.into()))?;
-                    original_prefix.push((bytes, index, true));
-                }
-                rewrites.push(tcl_cmd_core::ensemble::ArgumentUsageRewrite {
-                    original_prefix,
-                    removed_words,
-                });
-            }
-        }
-        let header = tcl_cmd_core::ensemble::rewrite_argument_usage(&header, &rewrites);
-        let operands = header
-            .iter()
-            .map(|(bytes, index, rewritten)| {
-                if !*index {
-                    tcl_registry::native_usage::NativeUsageWord::Original(bytes)
-                } else if *rewritten {
-                    tcl_registry::native_usage::NativeUsageWord::RewrittenIndex(bytes)
-                } else {
-                    tcl_registry::native_usage::NativeUsageWord::CanonicalIndex(bytes)
-                }
-            })
-            .collect::<Vec<_>>();
-        protocol.render_header(&operands).ok_or_else(|| {
-            self.refuse_native_access(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "argument usage",
-                ),
-            )
-        })
+        let original = native_argument_usage::OriginalArgumentUsage::capture(
+            self,
+            arguments,
+            prefix_words,
+            true,
+        )
+        .map_err(|error| self.report_cmd_error(error))?;
+        let outcome = original.render_header(self, protocol);
+        original
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        outcome.map_err(|error| self.report_cmd_error(error))
     }
 
     pub(crate) fn wrong_args(&mut self, usage: &[u8]) -> Code {
@@ -18024,12 +18170,12 @@ impl Interp {
     /// original `source` replace the rewritten prefix, and the formal parameters
     /// already satisfied by the inserted arguments are dropped.
     pub(crate) fn proc_wrong_args<O: obj::ObjectPointer>(
-        &self,
+        &mut self,
         called: &[u8],
         params: &[Param<O>],
         supplied: usize,
         quote_name: bool,
-    ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+    ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
         let protocol = self
             .native_invocation_dialect()
             .usage_protocol(Some(
@@ -18038,34 +18184,18 @@ impl Interp {
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "procedure usage",
             ))?;
-        if let Some(rw) = self.ensemble_rewrite() {
-            // Print the first `removed` words of `source` (the chained
-            // `numRemovedObjs`) in place of the target prefix, then the formal
-            // parameters not already satisfied by the supplied arguments. Using
-            // the runtime `supplied` count (rather than the static `inserted`)
-            // keeps the dropped-parameter count right across an OO forward, where
-            // the inserted prefix words (`my method …`) are dispatch verbs that do
-            // not themselves fill the target's parameters.
-            let user_args = rw.source.len().saturating_sub(rw.removed);
-            let drop = supplied.saturating_sub(user_args);
-            // Only rewrite when the dropped parameters are actually present (C's
-            // `objc < toSkip` guard); otherwise fall back to the plain message.
-            if drop <= params.len() {
-                let values: Vec<_> = rw
-                    .source
-                    .iter()
-                    .take(rw.removed)
-                    .map(|word| obj_bytes(word.as_ptr()))
-                    .collect();
-                let prefix: Vec<_> = values.iter().map(Vec::as_slice).collect();
-                return Ok(proc_usage_words(
-                    protocol,
-                    &prefix,
-                    &params[drop..],
-                    self.native_invocation_dialect().parameter_grammar(),
-                ));
-            }
+        let original = native_argument_usage::OriginalArgumentUsage::capture(self, &[], 0, false)?;
+        if let Some((words, drop_parameters)) = original.procedure_prefix(supplied, params.len())? {
+            let words: Vec<_> = words.iter().map(|word| word.as_ref()).collect();
+            original.check()?;
+            return Ok(proc_usage_words(
+                protocol,
+                &words,
+                &params[drop_parameters..],
+                self.native_invocation_dialect().parameter_grammar(),
+            ));
         }
+        original.check()?;
         Ok(proc_usage(
             protocol,
             called,
