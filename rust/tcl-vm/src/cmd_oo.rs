@@ -53,6 +53,7 @@ mod native_bootstrap;
 pub(crate) mod native_context;
 pub(crate) mod native_method_cache;
 pub(crate) mod native_variables;
+mod variable_mapping;
 mod original_name_operands;
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 
@@ -122,6 +123,25 @@ impl Method {
 struct DeclaredVariable {
     original: Value,
     name: NameBytes,
+    /// The selected private map's actual stored full-name object reference.
+    full_name: Option<DeclaredVariableFullName>,
+}
+
+/// Private map's actual constructor header and exact correspondence bytes.
+#[derive(Clone)]
+struct DeclaredVariableFullName {
+    original: Value,
+    name: NameBytes,
+}
+impl DeclaredVariable {
+    /// A selected mapping keeps its stored private target across whole copies.
+    /// Legacy authored records have no selected full-name role.
+    fn private_storage(&self, creation: u64) -> NameBytes {
+        self.full_name.as_ref().map_or_else(
+            || private_storage_name_bytes(creation, self.name.as_bytes()),
+            |full_name| full_name.name.clone(),
+        )
+    }
 }
 
 /// The class facet of an entity: what its *instances* inherit.
@@ -273,6 +293,8 @@ pub(crate) struct OoState {
     property_origins:
         BTreeMap<(OoId, bool), tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
 
+    /// Matching old-visible declaration retirement tickets, never lookup authority.
+    variable_mapping_retirements: BTreeMap<(OoId, bool, bool), std::rc::Weak<()>>,
     classes: BTreeMap<OoId, Class>,
     objects: BTreeMap<OoId, Object>,
     /// Current Tcl-facing command spelling, indexed one-way by stable token.
@@ -2062,14 +2084,22 @@ fn run_step_inner(
     // class-defined method sees that class's declarations.
     let mut decl: Vec<DeclaredVariable> = Vec::new();
     let mut private_decl: Vec<DeclaredVariable> = Vec::new();
+    let selected_mapping = vm.name_policy_protocol().is_some_and(variable_mapping::selected);
+    let staging = |entry: &DeclaredVariable| {
+        if selected_mapping {
+            variable_mapping::observation(entry)
+        } else {
+            entry.clone()
+        }
+    };
     if step.is_object {
         if let Some(o) = vm.oo.objects.get(&step.provider) {
-            decl.extend(o.variables.iter().cloned());
-            private_decl.extend(o.private_variables.iter().cloned());
+            decl.extend(o.variables.iter().map(&staging));
+            private_decl.extend(o.private_variables.iter().map(&staging));
         }
     } else if let Some(c) = vm.oo.classes.get(&step.provider) {
-        decl.extend(c.variables.iter().cloned());
-        private_decl.extend(c.private_variables.iter().cloned());
+        decl.extend(c.variables.iter().map(&staging));
+        private_decl.extend(c.private_variables.iter().map(&staging));
     }
     // A class is an object too, so the declaring provider's creation id is in
     // `objects` either way; it names the private storage slot below.
@@ -2088,7 +2118,7 @@ fn run_step_inner(
         if shadowed(&variable.name) || link_vars.iter().any(|(local, _)| *local == variable.name) {
             continue;
         }
-        let storage = private_storage_name_bytes(provider_creation_id, variable.name.as_bytes());
+        let storage = variable.private_storage(provider_creation_id);
         link_vars.push((variable.name, storage));
     }
     for variable in decl {
@@ -3041,6 +3071,7 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
                 "TclOO variable declaration protocol is unavailable".to_owned(),
             );
         };
+        let selected_mapping = variable_mapping::selected(policy);
         let mut incoming = Vec::new();
         for original in args {
             let bytes = match original_names.read(vm, original) {
@@ -3048,8 +3079,13 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
                 Err(error) => return crate::command::completion_from_cmd_error(vm, error),
             };
             incoming.push(DeclaredVariable {
-                original: original.clone(),
+                original: if selected_mapping {
+                    original.native_lifetime_lease().into_value()
+                } else {
+                    original.clone()
+                },
                 name: NameBytes::from(bytes.as_ref()),
+                full_name: None,
             });
         }
         let selection = match native_oo_variable_slot(
@@ -3087,7 +3123,15 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
         {
             return ok(Value::empty());
         }
-        let existing = declared_variable_snapshot(vm, is_class, target, private);
+        let existing = if selected_mapping
+            && matches!(selection.operation, NativeOoVariableSlotOperation::Set | NativeOoVariableSlotOperation::Clear)
+        {
+            Some(Vec::new())
+        } else if selected_mapping {
+            variable_mapping::snapshot(vm, is_class, target, private)
+        } else {
+            declared_variable_snapshot(vm, is_class, target, private)
+        };
         let Some(mut existing) = existing else {
             return ok(Value::empty());
         };
@@ -3098,12 +3142,15 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
             };
             entry.name = NameBytes::from(bytes.as_ref());
         }
-        let updated = tcl_syntax::naming::apply_native_oo_variable_slot(
-            existing,
-            incoming,
-            selection.operation,
-            |entry| entry.name.as_bytes(),
-        );
+        let updated = if selected_mapping {
+            tcl_syntax::naming::apply_native_oo_slot_records(
+                existing, incoming, selection.operation, |entry| entry.name.as_bytes(),
+            )
+        } else {
+            tcl_syntax::naming::apply_native_oo_variable_slot(
+                existing, incoming, selection.operation, |entry| entry.name.as_bytes(),
+            )
+        };
         for entry in &updated {
             match validate_native_oo_variable(policy.recipe(), entry.name.as_bytes()) {
                 Ok(None) => {}
@@ -3111,7 +3158,19 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
                 Err(error) => return vm.refuse_host_command(format!("{error:?}")),
             }
         }
-        publish_declared_variables(vm, is_class, target, private, updated);
+        if selected_mapping {
+            if let Err(error) = variable_mapping::install(
+                vm, original_names, is_class, target, private, policy, &updated,
+            ) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            drop(updated);
+            if let Err(error) = original_names.check(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+        } else {
+            publish_declared_variables(vm, is_class, target, private, updated);
+        }
         if let Err(error) = original_names.check_target(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
@@ -3210,10 +3269,7 @@ fn frame_private_storage_name(
         ) == Ok(true)
     })?;
     let creation = vm.oo.objects.get(&step.provider)?.creation_id;
-    Some(private_storage_name_bytes(
-        creation,
-        declaration.name.as_bytes(),
-    ))
+    Some(declaration.private_storage(creation))
 }
 
 /// A definition-body command (`method`, `superclass`, …). Resolves the active

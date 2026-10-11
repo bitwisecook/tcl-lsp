@@ -460,7 +460,11 @@ pub(super) fn compare(
 pub(super) struct PrivateVariableRoster {
     provider: OoId,
     object: bool,
-    originals: Vec<(tcl_core_types::NameBytes, NativeObjectLifetimeLease)>,
+    originals: Vec<(
+        tcl_core_types::NameBytes,
+        NativeObjectLifetimeLease,
+        Option<NativeObjectLifetimeLease>,
+    )>,
 }
 impl PrivateVariableRoster {
     pub(super) fn capture(vm: &Vm, provider: OoId, object: bool) -> Result<Self, CmdError> {
@@ -481,6 +485,10 @@ impl PrivateVariableRoster {
                     (
                         variable.name.clone(),
                         variable.original.native_lifetime_lease(),
+                        variable
+                            .full_name
+                            .as_ref()
+                            .map(|full_name| full_name.original.native_lifetime_lease()),
                     )
                 })
                 .collect(),
@@ -505,12 +513,19 @@ impl PrivateVariableRoster {
         };
         let same = current.is_some_and(|current| {
             current.len() == self.originals.len()
-                && current
-                    .iter()
-                    .zip(&self.originals)
-                    .all(|(current, (name, original))| {
-                        &current.name == name && current.original.is_same_object(original.value())
-                    })
+                && current.iter().zip(&self.originals).all(
+                    |(current, (name, original, full_name))| {
+                        &current.name == name
+                            && current.original.is_same_object(original.value())
+                            && match (&current.full_name, full_name) {
+                                (None, None) => true,
+                                (Some(current), Some(original)) => {
+                                    current.original.is_same_object(original.value())
+                                }
+                                _ => false,
+                            }
+                    },
+                )
         });
         operation.require(vm, same, "original property private-variable roster")
     }
@@ -521,12 +536,17 @@ impl PrivateVariableRoster {
         original: &Value,
     ) -> Result<Option<Vec<u8>>, CmdError> {
         self.check(vm, operation)?;
-        for (name, variable) in &self.originals {
+        for (name, variable, full_name) in &self.originals {
             if compare(vm, operation, variable.value(), original, |vm| {
                 self.check(vm, operation)
             })? == std::cmp::Ordering::Equal
             {
                 self.check(vm, operation)?;
+                if let Some(full_name) = full_name {
+                    let bytes = operation.string(vm, full_name.value());
+                    self.check(vm, operation)?;
+                    return Ok(Some(bytes?.to_vec()));
+                }
                 let creation = vm
                     .oo
                     .objects

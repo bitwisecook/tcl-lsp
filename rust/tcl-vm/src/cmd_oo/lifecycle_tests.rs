@@ -121,6 +121,7 @@ fn original_oo_class_cleanup_retires_actual_names_properties_and_whole_records()
         .push(DeclaredVariable {
             original: variable,
             name: NameBytes::from(b"stored_declaration".as_slice()),
+            full_name: None,
         });
     let member = vm.oo.property_members[&(class, true, false)]
         .values()

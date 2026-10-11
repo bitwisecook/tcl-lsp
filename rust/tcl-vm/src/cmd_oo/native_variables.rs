@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Declaring-provider variable resolution in the actual selected method frame.
 
-use super::{DeclaredVariable, NsId, Vm, private_storage_name_bytes};
+use super::{DeclaredVariable, NsId, Vm};
 use tcl_core_types::NameBytes;
 use tcl_syntax::naming::{
     NameProjectionUnavailable, NativeNameProtocol, NativeOoVariableResolverPurpose,
@@ -85,7 +85,7 @@ pub(crate) fn runtime_target(
         )? {
             return Ok(Some((
                 namespace,
-                private_storage_name_bytes(epoch, declaration.name.as_bytes()),
+                declaration.private_storage(epoch),
             )));
         }
     }
@@ -117,7 +117,7 @@ pub(crate) fn reported_bindings(
             (
                 namespace,
                 entry.name.clone(),
-                private_storage_name_bytes(epoch, entry.name.as_bytes()),
+                entry.private_storage(epoch),
             )
         }))
         .collect())

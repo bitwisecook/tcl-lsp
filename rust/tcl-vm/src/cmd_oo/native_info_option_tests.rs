@@ -16,6 +16,7 @@ fn variable_info_validates_original_options_before_target_lookup() {
         let declaration = DeclaredVariable {
             original: name.clone(),
             name: NameBytes::from(name.string_bytes().as_ref()),
+            full_name: None,
         };
         vm.oo
             .objects
@@ -139,6 +140,7 @@ fn variable_info_matches_original_native_option_and_target_failures() {
         let declared = |name: &str| DeclaredVariable {
             original: Value::string(name),
             name: NameBytes::from(name.as_bytes()),
+            full_name: None,
         };
         // This test selects introspection on the captured setup's retained
         // declaration rows. It does not test the declaration installer.

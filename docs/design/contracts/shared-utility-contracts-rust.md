@@ -3661,3 +3661,32 @@ alias-generation cleanup and unset-callback dispatch have separate owners.
 Entered encoding system and source adapters call the shared byte-name resolver. They retain the original String header and operation across getter, Host capability lookup, catalogue lookup, file open, encoding configuration, read, close, evaluation and cleanup. The resolver uses literal-zero C-string extent and exact bytes; an unavailable catalogue returns a typed refusal, while a supplied catalogue can establish an actual miss. Implemented codec spellings use the existing channel conversion workers. Empty system reset restores the independently captured Host default, which remains distinct from the mutable current encoding and is shared by an interpreter tree.
 
 An explicit source encoding String is obtained before the path and file access. Its catalogue lookup follows successful Host file open and precedes the first read, so an open failure precedes a later encoding failure and a lookup failure prevents reading. Runtime source consumes the selected encoding operand. C8 source uses the current system default, C9 plain source selects UTF-8, and Jim retains its filename-only byte path. Identity source conversion preserves bytes. `Filesystem::open_source_bytes` supplies an owned `SourceFile`; the shared coordinator always closes that same handle under the original operation, including refusal paths. Typed stage refusals are retained before mandatory close; an unmapped Host I/O result cannot supply a fabricated errno diagnostic. The native Host retains the actual opened OS file, and the VFS retains its original immutable file backing. Whole-file `read_bytes` remains an independent neutral surface; an absent staged handle cannot substitute a premature read. Complete streaming, codec/profile/EOF/BOM behavior, OS close-error capability, and external callback or native-reference chronology require their own owners and evidence.
+
+
+The selected TclOO declaration-map publisher delegates to
+`tcl_cmd_core::native_oo_variable_mapping::install_original_variable_mapping`.
+The embedding first supplies genuinely validated original descriptors and fixes
+the actual Object/Class facet, activation, naming provider and operation
+currency. The coordinator acquires every incoming stored reference before it
+releases the old stored references. A matching retirement ticket leaves an
+allocation-only view of the old map visible through that release, then removes
+only that view before sequential original String/hash stages and first-unique
+installation. The ticket permits mandatory physical cleanup of its own original
+or parked owner; it grants no lookup, current operation or replacement authority.
+Displaced roles and unused incoming roles retire outside OO storage access.
+Complete typed failures are retained before cleanup and checked before later
+hashing, adoption or publication. Ordinary recursive declaration and method
+changes remain legal when the actual target and currency remain current.
+
+Private mapping records retain both their original declared-name header and the
+actual reached full-name header. The counted declaration key remains distinct
+from the CString input at the private full-name constructor. Whole-record copy
+retains both stored roles, and variable/property consumers use the stored full
+name rather than reconstructing it from a destination creation identifier.
+Allocation-only roster observations and selected method-link staging preserve
+identity without acquiring either stored role. Actual whole-record copy remains
+distinct from those read-only descriptors. Public mapping is selected for genuine audited C TclOO providers;
+private mapping additionally requires its genuine C9 provider. Authored neutral
+slot publication remains a separate worker. Inspected C source stages and
+software role/formatter controls establish no external callback chronology,
+Native Class/Method lifetime or whole-object cleanup equivalence.

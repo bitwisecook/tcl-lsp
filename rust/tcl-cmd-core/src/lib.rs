@@ -89,3 +89,6 @@ pub mod var;
 pub use error::{CmdError, CmdErrorCodeUpdate, CmdErrorDetails, ResolvedCmdErrorCodeUpdate};
 /// Original array search handlers, caches and persistent cursor matching.
 pub mod native_array_search;
+
+/// Original TclOO declared-variable mapping stages and embedding role adapters.
+pub mod native_oo_variable_mapping;
