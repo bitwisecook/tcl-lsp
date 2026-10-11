@@ -69,9 +69,14 @@ mod destruction;
 mod materialisation;
 #[cfg(test)]
 mod materialisation_tests;
+#[cfg(test)]
+mod member_materialisation_tests;
 mod retired_variable;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
-pub(crate) use materialisation::PreparedVariableReplacement;
+pub(crate) use materialisation::{
+    OriginalVariableLinkObservation, PreparedArrayMember, PreparedVariableReplacement,
+    VariablePublicationObservation,
+};
 pub(crate) use retired_variable::RetiredVariableParts;
 mod native_element_entry;
 pub(crate) use native_element_entry::NativeElementAliasEntry;
@@ -483,6 +488,12 @@ impl CellContents {
             self.array_search_epoch = self.array_search_epoch.wrapping_add(1);
             self.array_searches.clear();
         }
+        self.adopt_member_entry(key);
+    }
+
+    /// Metadata adoption after the caller has retired the actual search chain.
+    /// This stage contains no Native header release or String getter.
+    fn adopt_member_entry(&mut self, key: &[u8]) {
         self.member_order.insert(key);
         let id = *self
             .element_ids

@@ -377,8 +377,18 @@ fn follow_links(frames: &FrameStack, ns: &Namespaces, place: Place) -> Result<Pl
 fn follow_selected_links(
     frames: &FrameStack,
     ns: &Namespaces,
+    place: Place,
+    trace_registration: bool,
+) -> Result<Place, VarError> {
+    follow_selected_links_observed(frames, ns, place, trace_registration, None)
+}
+
+fn follow_selected_links_observed(
+    frames: &FrameStack,
+    ns: &Namespaces,
     mut place: Place,
     trace_registration: bool,
+    mut observed: Option<&mut Vec<OriginalCLinkSelection>>,
 ) -> Result<Place, VarError> {
     for _ in 0..LINK_LIMIT {
         if place.array_cell.is_some() || place.scalar_entry.is_some() {
@@ -388,6 +398,18 @@ fn follow_selected_links(
             break;
         };
         let self_link = link.home == place.home && link.name == place.name && link.elem.is_none();
+        if !self_link {
+            if let Some(observed) = observed.as_deref_mut() {
+                let selected =
+                    table(frames, ns, place.home).ok_or(VarError::NameProtocolUnavailable)?;
+                observed.push(OriginalCLinkSelection {
+                    home: place.home,
+                    table: entered_container::TableObservation::capture(frames, ns, place.home)
+                        .ok_or(VarError::NameProtocolUnavailable)?,
+                    link: selected.observe_original_c_link(&place.name)?,
+                });
+            }
+        }
         let next = follow_selected_link(
             frames,
             ns,
@@ -2787,6 +2809,284 @@ fn prepare_original_c_variable_cell_at_place(
     }
     Some(NativeOriginalNameCell { compiled: local })
 }
+/// The selected cell and actual table/frame birth survive the reached array
+/// and search retirement stages without retaining their Native roles.
+pub(crate) struct OriginalArrayMemberPreparation {
+    selected: crate::frame::PreparedArrayMember,
+    home: VarHome,
+    root: Vec<u8>,
+    table: entered_container::TableObservation,
+    links: Vec<OriginalCLinkSelection>,
+    element: Vec<u8>,
+    retained_array: bool,
+}
+struct OriginalCLinkSelection {
+    home: VarHome,
+    table: entered_container::TableObservation,
+    link: crate::frame::OriginalVariableLinkObservation,
+}
+impl OriginalCLinkSelection {
+    fn check(
+        &self,
+        interpreter: &crate::interp::Interp,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        entered_container::same_table(interpreter, self.home, &self.table)?;
+        self.link.check_current()
+    }
+}
+
+/// The actual target chosen before metadata retirement, without native holds.
+pub(crate) struct OriginalArrayMemberSelection {
+    currency: crate::interp::native_operation_currency::NativeOperationCurrency,
+    observation: crate::frame::VariablePublicationObservation,
+    epoch: u64,
+    home: VarHome,
+    root: Vec<u8>,
+    element: Vec<u8>,
+    table: entered_container::TableObservation,
+    links: Vec<OriginalCLinkSelection>,
+    retained_array: bool,
+    member: Option<VarId>,
+}
+impl OriginalArrayMemberSelection {
+    fn check(
+        &self,
+        interpreter: &crate::interp::Interp,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.currency
+            .ensure_current_or_refuse()
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        currency
+            .ensure_current_or_refuse()
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        let physical = (|| {
+            entered_container::same_table(interpreter, self.home, &self.table)?;
+            for link in &self.links {
+                link.check(interpreter)?;
+            }
+            let frames = interpreter.frames.borrow();
+            let namespaces = interpreter.namespaces();
+            if !table(&frames, &namespaces, self.home)
+                .is_some_and(|table| self.observation.matches_root(table, &self.root))
+            {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original materialised root slot",
+                ));
+            }
+            self.observation
+                .check_array_current(self.epoch)
+                .and_then(|()| {
+                    self.member.map_or(Ok(()), |member| {
+                        self.observation.check_member_current(&self.element, member)
+                    })
+                })
+        })();
+        physical.map_err(|error| {
+            tcl_cmd_core::CmdError::from_execution_refusal(
+                interpreter.clone().refuse_completion_value_access(error),
+            )
+        })
+    }
+    pub(crate) fn capture_receiver(
+        &self,
+        interpreter: &crate::interp::Interp,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(crate::frame::VariableReceiver, TraceHome), tcl_cmd_core::CmdError> {
+        self.check(interpreter, currency)?;
+        let member = self.member.ok_or_else(|| {
+            tcl_cmd_core::CmdError::from_execution_refusal(
+                interpreter.clone().refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "unissued original array member",
+                    ),
+                ),
+            )
+        })?;
+        let receiver = self
+            .observation
+            .capture_array_receiver(
+                self.epoch,
+                member,
+                self.element.clone(),
+                self.root.clone(),
+                self.retained_array,
+            )
+            .map_err(|error| {
+                tcl_cmd_core::CmdError::from_execution_refusal(
+                    interpreter.clone().refuse_completion_value_access(error),
+                )
+            })?;
+        let (ns, level) = match self.home {
+            VarHome::Namespace(namespace) => (Some(namespace), None),
+            VarHome::Frame(level) => (None, Some(level)),
+        };
+        let home = TraceHome {
+            binding_id: receiver.binding_id(),
+            selected_member: receiver.trace_member(),
+            ns,
+            level,
+            base: self.root.clone(),
+            link_elem: Some(self.element.clone()),
+        };
+        self.check(interpreter, currency)?;
+        Ok((receiver, home))
+    }
+    pub(crate) fn capture_link_target(
+        &self,
+        interpreter: &crate::interp::Interp,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<Link, tcl_cmd_core::CmdError> {
+        self.check(interpreter, currency)?;
+        let member = self.member.ok_or_else(|| {
+            tcl_cmd_core::CmdError::from_execution_refusal(
+                interpreter.clone().refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "unissued original array member",
+                    ),
+                ),
+            )
+        })?;
+        let array = self
+            .observation
+            .capture_array_cell(self.epoch, &self.element, member)
+            .map_err(|error| {
+                tcl_cmd_core::CmdError::from_execution_refusal(
+                    interpreter.clone().refuse_completion_value_access(error),
+                )
+            })?;
+        let target = Link {
+            original_jim_target: None,
+            native_scalar_entry: None,
+            native_element_entry: None,
+            array_identity: Some(array.identity()),
+            array_cell: Some(array),
+            home: self.home,
+            name: self.root.clone(),
+            elem: Some(self.element.clone()),
+        };
+        self.check(interpreter, currency)?;
+        Ok(target)
+    }
+}
+impl OriginalArrayMemberPreparation {
+    pub(crate) fn finish(
+        self,
+        interpreter: &crate::interp::Interp,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<OriginalArrayMemberSelection, tcl_cmd_core::CmdError> {
+        let observation = self.selected.observation();
+        let epoch = self.selected.array_epoch();
+        let home = self.home;
+        let root = self.root;
+        let original_table = self.table;
+        let links = self.links;
+        let selected = self.selected;
+        let check = || {
+            currency
+                .ensure_current_or_refuse()
+                .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+            let physical = entered_container::same_table(interpreter, home, &original_table)
+                .and_then(|()| {
+                    for link in &links {
+                        link.check(interpreter)?;
+                    }
+                    let frames = interpreter.frames.borrow();
+                    let namespaces = interpreter.namespaces();
+                    let table = table(&frames, &namespaces, home).ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original member preparation table",
+                        ),
+                    )?;
+                    if observation.matches_root(table, &root) {
+                        Ok(())
+                    } else {
+                        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original member preparation root slot",
+                        ))
+                    }
+                });
+            physical.map_err(|error| {
+                tcl_cmd_core::CmdError::from_execution_refusal(
+                    interpreter.clone().refuse_completion_value_access(error),
+                )
+            })
+        };
+        selected.finish(check, |error| {
+            tcl_cmd_core::CmdError::from_execution_refusal(
+                interpreter.clone().refuse_completion_value_access(error),
+            )
+        })?;
+        let member = observation.member_identity(&self.element);
+        Ok(OriginalArrayMemberSelection {
+            currency: currency.clone(),
+            observation,
+            epoch,
+            home,
+            root,
+            table: original_table,
+            links,
+            element: self.element,
+            retained_array: self.retained_array,
+            member,
+        })
+    }
+}
+
+/// Same original classifier and link walk, returning before any old owner is
+/// released so the actual caller can leave its frame/namespace borrows first.
+pub(crate) fn capture_original_c_element_materialisation(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    scope: NativeOriginalNameScope,
+    root: &[u8],
+    element: &[u8],
+    original: Option<*mut TclObj>,
+    create_element: bool,
+    protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
+) -> Result<OriginalArrayMemberPreparation, crate::frame::JimLinkStoreError> {
+    let NativeOriginalNameScope { current, namespace } = scope;
+    let mut links = Vec::new();
+    let place = match classify_original_name(frames, ns, current, root, namespace) {
+        Resolved::Place(place) => {
+            follow_selected_links_observed(frames, ns, place, false, Some(&mut links))?
+        }
+        Resolved::Error(error) => return Err(error.into()),
+    };
+    if place.elem.is_some() {
+        return Err(VarError::IsScalar.into());
+    }
+    let observation = entered_container::TableObservation::capture(frames, ns, place.home)
+        .ok_or(VarError::NameProtocolUnavailable)?;
+    let member = create_element.then_some(element);
+    let original = protocol
+        .element_table_retains_original()
+        .then_some(original)
+        .flatten();
+    let selected = if let Some(array) = &place.array_cell {
+        array.prepare_original_array_member(member, original)?
+    } else if let Some(entry) = &place.scalar_entry {
+        entry.prepare_original_array_member(member, original)?
+    } else {
+        table_mut(frames, ns, place.home).prepare_original_array_member(
+            &place.name,
+            member,
+            original,
+        )?
+    };
+    Ok(OriginalArrayMemberPreparation {
+        selected,
+        home: place.home,
+        root: place.name,
+        table: observation,
+        links,
+        element: element.to_vec(),
+        retained_array: place.array_cell.is_some(),
+    })
+}
+
+/// Existing neutral fixture preparation retains its independent caller contract.
+#[cfg(test)]
 /// The actual array hash owns the selected original element object at birth.
 pub(crate) fn prepare_original_c_element_cell(
     frames: &mut FrameStack,

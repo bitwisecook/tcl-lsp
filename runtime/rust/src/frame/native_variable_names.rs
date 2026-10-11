@@ -12,6 +12,14 @@ pub(super) struct NativeHashKey {
 pub(super) type NativeHashKeys = Rc<RefCell<BTreeMap<Vec<u8>, NativeHashKey>>>;
 
 impl VarTable {
+    pub(crate) fn prepare_original_array_member(
+        &mut self,
+        name: &[u8],
+        element: Option<&[u8]>,
+        original: Option<*mut TclObj>,
+    ) -> Result<super::PreparedArrayMember, super::JimLinkStoreError> {
+        super::PreparedArrayMember::table(self, name, element, original)
+    }
     #[cfg(test)]
     pub(crate) fn original_native_key_is(&self, name: &[u8], original: *mut TclObj) -> bool {
         self.native_keys
@@ -23,6 +31,7 @@ impl VarTable {
     pub(crate) fn native_name_cell_identity(&self, name: &[u8]) -> Option<tcl_runtime_api::VarId> {
         self.contents(name)?.borrow().binding_id
     }
+    #[cfg(test)]
     pub(crate) fn prepare_original_native_element(
         &mut self,
         name: &[u8],
@@ -33,6 +42,7 @@ impl VarTable {
         let slot = self.lookup_slot(name).expect("selected array");
         self.prepare_original_native_element_at(slot, element, original)
     }
+    #[cfg(test)]
     pub(super) fn prepare_original_native_element_at(
         &mut self,
         slot: usize,

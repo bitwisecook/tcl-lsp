@@ -103,6 +103,25 @@ impl PartialEq for RetainedArrayCell {
 impl Eq for RetainedArrayCell {}
 
 impl RetainedArrayCell {
+    pub(crate) fn prepare_original_array_member(
+        &self,
+        element: Option<&[u8]>,
+        original: Option<*mut TclObj>,
+    ) -> Result<super::PreparedArrayMember, super::JimLinkStoreError> {
+        {
+            let cell = self.contents.borrow();
+            if cell.detached_arrays.contains_key(&self.id)
+                || cell.binding_id != Some(self.id)
+                || cell.rmw_array_epoch != self.epoch
+                || !matches!(cell.var.as_ref(), Some(Var::Array(_)))
+            {
+                return Err(VarError::DeletedArray.into());
+            }
+        }
+        super::PreparedArrayMember::selected(&self.contents, None, element, original)
+    }
+
+    #[cfg(test)]
     pub(crate) fn prepare_original_native_element(
         &self,
         element: &[u8],

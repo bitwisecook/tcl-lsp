@@ -28,6 +28,7 @@ struct OriginalCNameSelection {
     element: Option<Vec<u8>>,
     compiled: Option<usize>,
     namespace: Option<crate::namespace::NsId>,
+    materialised: Option<crate::vars::OriginalArrayMemberSelection>,
 }
 
 /// Reporting bytes captured by the same original-name lookup that selected the
@@ -472,14 +473,19 @@ impl Interp {
             self.install_original_c_name_cache(root, selected.compiled)
                 .map_err(|error| self.report_cmd_error(error.into()))?;
         }
+        let mut materialised = None;
         if create
             && selected.compiled.is_none()
             && (protocol.version() >= tcl_dialect::TclVersion::V8_5
                 || purpose == NativeVariableNameLookupPurpose::Define)
         {
             if let Some(element) = &element {
+                let operation = super::native_operation_currency::NativeOperationScope::enter(self)
+                    .map_err(|error| {
+                        self.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+                    })?;
                 let retained_key = self.original_c_parsed_element_key(original);
-                let prepared = crate::vars::prepare_original_c_element_cell(
+                let prepared = crate::vars::capture_original_c_element_materialisation(
                     &mut self.frames.borrow_mut(),
                     &mut self.namespaces.borrow_mut(),
                     crate::vars::NativeOriginalNameScope {
@@ -490,8 +496,32 @@ impl Interp {
                     element,
                     retained_key.as_ref().map(Owned::as_ptr),
                     purpose.creates_element_entries(),
+                    protocol,
                 );
-                prepared.map_err(|error| {
+                let reached = match prepared {
+                    Ok(prepared) => prepared.finish(self, operation.currency()).map_err(Ok),
+                    Err(crate::frame::JimLinkStoreError::Variable(error)) => Err(Err(error)),
+                    Err(crate::frame::JimLinkStoreError::Command(error)) => Err(Ok(error)),
+                };
+                if let Err(Ok(error)) = &reached {
+                    if let Some(first) = error.native_execution_refusal() {
+                        self.refuse_native_execution(first.clone());
+                    }
+                }
+                // The real parsed-key temporary retires after its selected
+                // preparation, before any ordinary diagnostic continuation.
+                drop(retained_key);
+                operation
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                self.check_original_c_name_operation(&[original, root])
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                materialised = Some(reached.map_err(|error| {
+                    let error = match error {
+                        Ok(error) => return self.report_cmd_error(error),
+                        Err(error) => error,
+                    };
                     let reason = match error {
                         crate::frame::VarError::IsScalar if purpose == NativeVariableNameLookupPurpose::Define => tcl_syntax::naming::NativeVariableDiagnosticReason::ArrayElement,
                         crate::frame::VarError::IsScalar => tcl_syntax::naming::NativeVariableDiagnosticReason::NotArray,
@@ -500,7 +530,7 @@ impl Interp {
                     };
                     self.original_c_variable_failure_for_object(original, purpose, reason,
                         tcl_syntax::naming::NativeVariableFailureSite::NameLookup)
-                })?;
+                })?);
             }
         }
         Ok(Some(OriginalCNameSelection {
@@ -508,6 +538,7 @@ impl Interp {
             element,
             compiled: selected.compiled,
             namespace,
+            materialised,
         }))
     }
 
@@ -560,6 +591,7 @@ impl Interp {
                 element,
                 compiled: selected.compiled,
                 namespace,
+                materialised: None,
             })),
             Err(crate::frame::VarError::NameProtocolUnavailable) => Err(self.report_cmd_error(
                 ValueError::CommandProtocolUnavailable("actual original byte variable cell").into(),
@@ -586,17 +618,11 @@ impl Interp {
             }
             Err(code) => return code,
         };
-        let target = crate::vars::original_namespace_link_target(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            namespace,
-            &selection.root,
-            selection.element.clone(),
-        );
-        let mut link = match target {
-            Ok(link) => link,
-            Err(error) => return self.original_c_lookup_var_error(original, purpose, error),
-        };
+        let mut link =
+            match self.original_c_selection_namespace_link(original, &selection, namespace) {
+                Ok(target) => target,
+                Err(code) => return code,
+            };
         if let Err(error) = self.prepare_upvar_target(&mut link) {
             return self.original_c_lookup_var_error(original, purpose, error);
         }
@@ -892,23 +918,11 @@ impl Interp {
             }
             Err(code) => return Err(code),
         };
-        let target = crate::vars::original_namespace_link_target(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            namespace,
-            &selected.root,
-            selected.element,
-        );
-        let mut target = match target {
-            Ok(target) => target,
-            Err(error) => {
-                return Err(self.original_c_lookup_var_error(
-                    original,
-                    NativeVariableNameLookupPurpose::Link,
-                    error,
-                ));
-            }
-        };
+        let mut target =
+            match self.original_c_selection_namespace_link(original, &selected, namespace) {
+                Ok(target) => target,
+                Err(code) => return Err(code),
+            };
         if let Err(error) = self.prepare_upvar_target(&mut target) {
             return Err(self.original_c_lookup_var_error(
                 original,
@@ -937,17 +951,11 @@ impl Interp {
             }
             Err(code) => return code,
         };
-        let target = crate::vars::original_namespace_link_target(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            namespace,
-            &selected.root,
-            selected.element.clone(),
-        );
-        let mut target = match target {
-            Ok(target) => target,
-            Err(error) => return self.original_c_lookup_var_error(original, purpose, error),
-        };
+        let mut target =
+            match self.original_c_selection_namespace_link(original, &selected, namespace) {
+                Ok(target) => target,
+                Err(code) => return code,
+            };
         if let Err(error) = self.prepare_upvar_target(&mut target) {
             return self.original_c_lookup_var_error(original, purpose, error);
         }
@@ -1066,6 +1074,9 @@ impl Interp {
             else {
                 return Ok(None);
             };
+            if let Some(target) = self.capture_original_c_materialised_link(&selection)? {
+                return Ok(Some(target));
+            }
             if let Some(index) = selection.compiled {
                 let selected = crate::vars::original_indexed_link_target(
                     &mut self.frames.borrow_mut(),
@@ -1404,6 +1415,46 @@ impl Interp {
         })
     }
 
+    fn original_c_selection_namespace_link(
+        &mut self,
+        original: *mut TclObj,
+        selected: &OriginalCNameSelection,
+        namespace: crate::namespace::NsId,
+    ) -> Result<crate::frame::Link, Code> {
+        if let Some(target) = self.capture_original_c_materialised_link(selected)? {
+            return Ok(target);
+        }
+        let target = crate::vars::original_namespace_link_target(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            namespace,
+            &selected.root,
+            selected.element.clone(),
+        );
+        target.map_err(|error| {
+            self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
+        })
+    }
+
+    fn capture_original_c_materialised_link(
+        &mut self,
+        selected: &OriginalCNameSelection,
+    ) -> Result<Option<crate::frame::Link>, Code> {
+        let Some(original_target) = &selected.materialised else {
+            return Ok(None);
+        };
+        let operation = super::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let target = original_target.capture_link_target(self, operation.currency());
+        operation
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        target
+            .map(Some)
+            .map_err(|error| self.report_cmd_error(error))
+    }
+
     fn capture_original_c_selection_receiver(
         &mut self,
         original: *mut TclObj,
@@ -1413,6 +1464,27 @@ impl Interp {
         Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>,
         crate::frame::VarError,
     > {
+        if let Some(original_target) = &selected.materialised {
+            let operation = super::native_operation_currency::NativeOperationScope::enter(self)
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    crate::frame::VarError::NameProtocolUnavailable
+                })?;
+            let reached = original_target.capture_receiver(self, operation.currency());
+            operation
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    crate::frame::VarError::NameProtocolUnavailable
+                })?;
+            return reached.map(Some).map_err(|error| {
+                // The captured owner has already retained the full first cause;
+                // VarError is only the existing outer diagnostic unwind port.
+                self.report_cmd_error(error);
+                crate::frame::VarError::NameProtocolUnavailable
+            });
+        }
         let captured = if let Some(namespace) = selected.namespace {
             crate::vars::capture_original_namespace_receiver(
                 &mut self.frames.borrow_mut(),

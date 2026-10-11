@@ -92,6 +92,20 @@ impl NativeScalarAliasEntry {
             .then(|| cell.element_ids.get(key).copied())
             .flatten()
     }
+    pub(crate) fn prepare_original_array_member(
+        &self,
+        element: Option<&[u8]>,
+        original: Option<*mut crate::obj::TclObj>,
+    ) -> Result<super::PreparedArrayMember, super::JimLinkStoreError> {
+        {
+            let cell = self.contents.borrow();
+            if cell.binding_id != Some(self.binding) || cell.rmw_retirement.is_some() {
+                return Err(super::VarError::DeletedNamespace.into());
+            }
+        }
+        super::PreparedArrayMember::selected(&self.contents, Some(&self.name), element, original)
+    }
+
     pub(crate) fn prepare_original_element(
         &self,
         key: &[u8],
