@@ -66,6 +66,8 @@ This original-source implementation contract supplies no native process, reached
 
 No evidence artifact is attached.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
@@ -99,3 +101,14 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-core-consumer-tests347` | 1 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

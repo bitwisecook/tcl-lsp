@@ -64,7 +64,7 @@ No external-provider observation for this Rust borrowing contract.
 
 ## Exact evidence
 
-- `original-world-query-owner` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `3ecb3f09347b7fe9402db4ac54a7b1751e44f6a1208b7b961563517f2db2ba2c`. Current actual borrowed/owned source-world query, same original policy guard and three direct software test definitions. No successful executable inventory or assertion outcome is attached.
+- `original-world-query-owner` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `a499f01c057db89f68c07adf8894c2a34d72d22be3857709e2ad9a7b8bc098a9`. Current actual borrowed/owned source-world query, same original policy guard and three direct software test definitions. No successful executable inventory or assertion outcome is attached.
 - `original-world-query-consumers` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `7da52e49ba59f8b3bf9bfed828dfda9d53bbeaa18ecbf3a482a171424522c9a4`. Seven actual readonly table/geometry consumers delegate the same query owner and count only reached owned clone work. Source linkage supplies no timing improvement, Native completion or producer result.
 
 ## Source inspection

@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-diagnostics-original-w216-literal-source-replacement-tests.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs). SHA-256 `bcca63dc0a5a9bc7394192f81d42f5115113351f33e441a0cbee15da2bf168ac`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-w216-literal-source-replacement-usage.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/usage.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/usage.rs). SHA-256 `2261c39f34f52bf281743316aaa388da38860c8a2c084641d7a9427d31fdae3f`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-w216-literal-source-replacement-tests.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs). SHA-256 `c32023859fec28ef44f7e303b9dfe8aa89f8ca7efb816150119efec568ed786d`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-w216-literal-source-replacement-usage.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/usage.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/usage.rs). SHA-256 `9b0afce5d78d7bc5e472aeabd737237cff363db7cc3db0608f555caa2796125e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-diagnostics-original-w216-literal-source-replacement-backslash.rs` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). SHA-256 `afdbb8dcf02748133b483f7b29c9b8edfa0b5e280f71e406ece9367bcf89c02e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection

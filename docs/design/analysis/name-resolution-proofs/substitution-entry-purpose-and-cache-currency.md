@@ -67,7 +67,7 @@ This record is a Rust implementation contract; no native or Rust execution is cl
 - `e0` (implementation): [rust/tcl-runtime-api/src/native_substitution.rs](../../../../rust/tcl-runtime-api/src/native_substitution.rs). SHA-256 `25e8c49e680c9b5706488cd00fa8f52e8e3debbea654bf2ae28743e8a316dc3e`. Implementation source at the recorded digest. It is not native execution evidence.
 - `e1` (implementation): [rust/tcl-compiler/src/codegen/native_substitution.rs](../../../../rust/tcl-compiler/src/codegen/native_substitution.rs). SHA-256 `d3843f2992315380b7255af10f3499034ae1632a7934e1d740d95aa2f5d12ec7`. Implementation source at the recorded digest. It is not native execution evidence.
 - `e2` (implementation): [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs). SHA-256 `d26f4995fe1178068ad587a6ba8567976d7131ef63f6350198dc390c3cd73133`. Implementation source at the recorded digest. It is not native execution evidence.
-- `e3` (implementation): [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs). SHA-256 `fbfed88d783f58b85760d6b564d5481c8d91886594e3d3bc9f1b466c0a6f8200`. Implementation source at the recorded digest. It is not native execution evidence.
+- `e3` (implementation): [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs). SHA-256 `52b13c74f652f327c77299c3834972a4fee13c119e8614954857cbebe2b44dae`. Implementation source at the recorded digest. It is not native execution evidence.
 
 ## Source inspection
 

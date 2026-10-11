@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-core-original-member-reference-hazard-source_scoped_body.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs). SHA-256 `6d81a9315820da3cca4b7fdcc4bc5bc4cdcc5f248608627eeaef22bcd657650e`. Current selected source/API owner; no executed assertion or native provider observation.
-- `naming-core-original-member-reference-hazard-definer.rs` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). SHA-256 `1aaaa03cd163362f18496690bd878f1c0fcaa9edae34ff42b629d429da88e3e8`. Current selected source/API owner; no executed assertion or native provider observation.
+- `naming-core-original-member-reference-hazard-source_scoped_body.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs). SHA-256 `d260e580e2337038e3c2c5ed6559c44e89b16e037685ff7c1ce5e29e9073ef0d`. Current selected source/API owner; no executed assertion or native provider observation.
+- `naming-core-original-member-reference-hazard-definer.rs` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). SHA-256 `d73eca05046b2e483597bde652eb3e1509d7540bb8b3f520650e3e078db44593`. Current selected source/API owner; no executed assertion or native provider observation.
 
 ## Source inspection
 

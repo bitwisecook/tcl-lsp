@@ -68,7 +68,9 @@ This original-source implementation contract supplies no native process, reached
 - `naming-navigation-retained-path-source-inventory-rust-tcl-compiler-src-auto_path_eval.rs` (implementation): [rust/tcl-compiler/src/auto_path_eval.rs](../../../../rust/tcl-compiler/src/auto_path_eval.rs). SHA-256 `fb32d6cbcda03388011613b139ca9535423bd5855adacae12b05c26c31febcd1`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 - `naming-navigation-retained-path-source-inventory-rust-tcl-registry-src-source_navigation.rs` (implementation): [rust/tcl-registry/src/source_navigation.rs](../../../../rust/tcl-registry/src/source_navigation.rs). SHA-256 `cd3685768ae97e7e46bfb843a23fda10c2248dc83a7e2ac259a2b6108052e834`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 - `naming-navigation-retained-path-source-inventory-rust-tcl-registry-src-resolved_invocation.rs` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). SHA-256 `12d1f3c565dc15873c51778f436969d36cdc7b6ea410150530a492fa27441e5f`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-navigation-retained-path-source-inventory-rust-tcl-lsp-core-src-document_links.rs` (implementation): [rust/tcl-lsp-core/src/document_links.rs](../../../../rust/tcl-lsp-core/src/document_links.rs). SHA-256 `0dd523eac7d0a8ec66d5ae101742786ae30d8e4f2e4370e1d10d9dc0fc04cd48`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-navigation-retained-path-source-inventory-rust-tcl-lsp-core-src-document_links.rs` (implementation): [rust/tcl-lsp-core/src/document_links.rs](../../../../rust/tcl-lsp-core/src/document_links.rs). SHA-256 `ecb09ac2fdf86b5740dbd68a23f8d6dd2dbadc9c8c1d5ff835f6dc62308e3057`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
@@ -133,3 +135,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 0 | 1 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

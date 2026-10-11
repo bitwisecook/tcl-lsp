@@ -66,6 +66,8 @@ This positioned Compiler implementation contract retains source ownership and bo
 
 No evidence artifact is attached.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
@@ -78,6 +80,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs), `analyser::diagnostics::original_positioned_callee::positioned_body_availability_refuses_unproved_native_labels_and_future_definitions` (linked): Unproved Native statements remain opaque despite a later procedure and donated created-instance/class/alias report names; the resolver retains original procedure sites without enabling compatibility.
 - [rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs), `analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_requires_positive_logical_inputs` (linked): Positively retained Logical input enables its own existing procedure-name compatibility and still refuses a missing definition.
 - [rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/original_positioned_callee.rs), `analyser::diagnostics::original_positioned_callee::reporting_procedure_compatibility_refuses_missing_input_and_uses_shared_qualification` (linked): Real Logical namespace procedure assistance uses canonical qualified candidates; absent actual input/copying flags withdraws reporting compatibility without recapturing a Native source body.
+
+- [rust/tcl-compiler/src/analyser/diagnostics.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics.rs), `analyser::diagnostics::original_logical_command_availability_tests::original_logical_body_availability_uses_closed_root_and_nested_captured_targets` (linked): Logical body availability uses closed root and nested captured targets. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/analyser/diagnostics.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics.rs), `analyser::diagnostics::original_logical_command_availability_tests::original_logical_procedure_body_availability_keeps_the_selected_declaration_separate_from_allocation` (linked): Logical procedure body availability keeps the selected declaration separate from allocation. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/analyser/diagnostics.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics.rs), `analyser::diagnostics::original_logical_command_availability_tests::original_logical_body_availability_refuses_absent_and_opaque_original_callees` (linked): Logical body availability refuses absent and opaque original callees. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/analyser/diagnostics.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics.rs), `analyser::diagnostics::original_logical_command_availability_tests::original_logical_body_availability_requires_full_input_vector_and_actual_generation` (linked): Logical body availability requires full input vector and actual generation. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs), `command_binding::declaration_layout::logical_purpose_tests::logical_callee_projection_retains_declaration_but_not_physical_allocation` (linked): Logical callee projection retains declaration but not physical allocation. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs), `command_binding::declaration_layout::logical_purpose_tests::native_callee_advice_keeps_its_independently_retained_allocation` (linked): Native callee advice keeps its independently retained allocation. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
 A named test is a coverage binding, not a claim that it executed.
 
@@ -95,3 +104,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 3 | 4 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 3 | 4 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

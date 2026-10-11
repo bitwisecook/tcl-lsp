@@ -68,7 +68,9 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-source-original-declaration-layout-visits-declaration_preview.rs` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). SHA-256 `2833603d716aaf89df31f2c2408db927ad07abe91afda30d6e8df5de985c43ba`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-source-original-declaration-layout-visits-declaration_preview.rs` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). SHA-256 `7b9174d771935c408b9bb253a64bc7856ddc707f96b8aeccc1ae9a143831fefb`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
@@ -89,6 +91,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::nested_layout_syntax_shares_only_exact_original_geometry` (linked): Two exact source/config requests share one lexical tape and one parse. Changed full lexer policy, materialised origin/mapping or source channel yields distinct tapes; tokens carry no source binding, variable access or nested binding facts.
 - [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::nested_layout_syntax_reuse_keeps_original_owner_refusal` (linked): A positive original parent layout is independently selected from the shared tape. Withdrawing source origin or selected frame keeps that layout refused despite unchanged lexical storage.
 - [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::nested_layout_syntax_memo_matches_original_parser_world_inventory` (linked): Fixed authentic nested sources retain equal complete parent-world visit counts and full bindings under shared versus independently parsed lexical tapes. Parse reuse supplies no entered-body, native provider or elapsed-time outcome.
+
+- [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::original_declared_body_parse_cut_keeps_only_the_complete_original_prefix` (linked): Declared body parse cut keeps only the complete original prefix. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::original_declared_body_parse_cut_uses_geometry_after_f5_segment_merging` (linked): Declared body parse cut uses geometry after f5 segment merging. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::original_declared_body_parse_cut_keeps_unavailable_distinct_from_empty` (linked): Declared body parse cut keeps unavailable distinct from empty. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
 A named test is a coverage binding, not a claim that it executed.
 
@@ -111,3 +117,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 7 | 0 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 7 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

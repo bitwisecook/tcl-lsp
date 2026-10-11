@@ -71,6 +71,9 @@ No guest execution of this Rust implementation question is claimed.
 - `unset-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json). SHA-256 `96fec322d5375fee8e5b5ae37cc3964a2039c1e4946f871df662031b3150e686`. JSON pointer `/source_anchors/0/snippet`. Exact LF source window for SetVariableFromAny; no native execution claim.
 - `unset-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json). SHA-256 `96fec322d5375fee8e5b5ae37cc3964a2039c1e4946f871df662031b3150e686`. JSON pointer `/source_anchors/1/snippet`. Exact LF source window for Jim_UnsetVariable; no native execution claim.
 
+- `current-primary-table-owner-0` (implementation): [runtime/rust/src/vars/entered_container.rs](../../../../runtime/rust/src/vars/entered_container.rs). SHA-256 `8e2cc207bbc826b6450bb042f520241766bd1254d84e7d307c4552ae497e528b`. Current checked primary-table source/API owner. Static membership, links, original operation currency and frame identity retain independent guards; no C/Jim process or software assertion outcome is attached.
+- `current-primary-table-owner-1` (implementation): [runtime/rust/src/interp/native_jim_links.rs](../../../../runtime/rust/src/interp/native_jim_links.rs). SHA-256 `a1d7b7561ec122869328bd0891b39ab51b8e2db337995897c5d0818b94f33d7e`. Current checked primary-table source/API owner. Static membership, links, original operation currency and frame identity retain independent guards; no C/Jim process or software assertion outcome is attached.
+
 ## Source inspection
 
 jim source version not independently recorded, revision `Source revision unrecorded; exact retained full-file SHA identifies the inspected bytes.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `SetVariableFromAny`, lines 4623–4686. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `3408b0521d97ced6a6b6bcb0cf0cbe7d01a722c2a2a570e575f0f18a9107bf9b`; retained evidence `unset-window-0`.
@@ -203,9 +206,8 @@ int Jim_UnsetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
 
 ## Consumer bindings
 
-- [runtime/rust/src/frame/jim_lookup.rs](../../../../runtime/rust/src/frame/jim_lookup.rs), `remove_jim_primary`: Actual primary variable-table membership before removal; static fallback is not primary membership.
-- [runtime/rust/src/vars.rs](../../../../runtime/rust/src/vars.rs), `unset_jim_primary_variable`: Selected Jim policy, actual resolved home and successful frame-incarnation update.
-- [runtime/rust/src/interp/native_jim_links.rs](../../../../runtime/rust/src/interp/native_jim_links.rs), `unset_original_jim_variable`: Original target recursion and dictionary sugar remain independent before plain primary removal.
+- [runtime/rust/src/vars/entered_container.rs](../../../../runtime/rust/src/vars/entered_container.rs), `EnteredVariablePlace::remove_jim_primary`: Use the captured original table/frame/root/link observation and operation currency. The existing primary-table predicate excludes static-only membership; removal uses that same captured owner and updates its actual frame incarnation.
+- [runtime/rust/src/interp/native_jim_links.rs](../../../../runtime/rust/src/interp/native_jim_links.rs), `Interp::unset_original_jim_variable_entered`: Retain selected original target recursion and dictionary-member separation, capture the actual plain primary-table place before removal, preserve the first full cause and release the captured owner before the final original currency check.
 - [runtime/rust/src/cmd_proc.rs](../../../../runtime/rust/src/cmd_proc.rs), `cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement` (linked): Static fallback unset refuses without destroying retained storage, while the existing literal/copy/raw-link/formal/array-member and command-retirement cases retain their separate outcomes.
 
 A named test is a coverage binding, not a claim that it executed.

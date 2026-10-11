@@ -1,0 +1,44 @@
+
+running 14 tests
+test caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes ... FAILED
+test code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry ... ok
+test declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry ... FAILED
+test executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates ... ok
+test formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config ... ok
+test formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose ... ok
+test formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias ... ok
+test formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry ... ok
+test minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config ... ok
+test package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom ... ok
+test package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue ... ok
+test package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry ... FAILED
+test refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence ... ok
+test references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config ... ok
+
+failures:
+
+---- caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes stdout ----
+
+thread 'caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes' (1323671) panicked at rust/tcl-lsp-core/src/caller_frame.rs:2304:9:
+assertion failed: binding_region_commands(body, 0, body.len(), config, true)[0].is_partial
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry stdout ----
+
+thread 'declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry' (1323681) panicked at rust/tcl-lsp-core/src/declaration.rs:1189:9:
+assertion failed: declaration_region_commands(value, region, config, true)[0].is_partial
+
+---- package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry stdout ----
+
+thread 'package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry' (1323697) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:507:9:
+assertion failed: super::super::walk_command_words_with_config(body,
+        config.at_depth(1)).is_empty()
+
+
+failures:
+    caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes
+    declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry
+    package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry
+
+test result: FAILED. 11 passed; 3 failed; 0 ignored; 0 measured; 2953 filtered out; finished in 12.97s
+

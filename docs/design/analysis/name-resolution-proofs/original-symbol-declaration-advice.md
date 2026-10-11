@@ -68,7 +68,7 @@ This is a Rust implementation assertion; no native provider observation answers 
 
 ## Exact evidence
 
-- `source-handlers` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). SHA-256 `fab679c51c4039669df9cd8babc80af3b272a5a6ed5a6c5f32a0bb8fc25e06b2`. Reviewed current implementation and linked fixed assertions; no execution receipt.
+- `source-handlers` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). SHA-256 `7cd575463b1080c95664f5b52d61c68e8aa9d9f39f9808accf5b2bf88bc4db4d`. Reviewed current implementation and linked fixed assertions; no execution receipt.
 
 ## Source inspection
 

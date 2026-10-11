@@ -70,7 +70,7 @@ No external provider execution answers this source/API implementation contract. 
 
 - `naming-compiler-retained-representation-metadata-rust-tcl-compiler-src-compiler_checks.rs` (implementation): [rust/tcl-compiler/src/compiler_checks.rs](../../../../rust/tcl-compiler/src/compiler_checks.rs). SHA-256 `8d68a72400c7aba8638a719af5c04a7863c396de997f4f4e2cd80ade36e3cc38`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
 - `naming-compiler-retained-representation-metadata-rust-tcl-compiler-src-shimmer-source_context.rs` (implementation): [rust/tcl-compiler/src/shimmer/source_context.rs](../../../../rust/tcl-compiler/src/shimmer/source_context.rs). SHA-256 `445f7aae53a5c36b3f45a3fcb50a4c8151ac7564102708390ce3ba1fd2f4ce00`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
-- `naming-compiler-retained-representation-metadata-rust-tcl-compiler-src-word_subst.rs` (implementation): [rust/tcl-compiler/src/word_subst.rs](../../../../rust/tcl-compiler/src/word_subst.rs). SHA-256 `ad3883257378268c459223232badc067d771454265fa0fd387e56095360009ca`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
+- `naming-compiler-retained-representation-metadata-rust-tcl-compiler-src-word_subst.rs` (implementation): [rust/tcl-compiler/src/word_subst.rs](../../../../rust/tcl-compiler/src/word_subst.rs). SHA-256 `bb9bc163bd811fd8ea77283e4700d2eef0440ca2f20523c3fefeda44beea0438`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

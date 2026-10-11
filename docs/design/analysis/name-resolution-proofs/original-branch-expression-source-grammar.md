@@ -64,7 +64,7 @@ No external provider execution answers this original branch source-parser contra
 
 ## Exact evidence
 
-- `naming-optimiser-original-branch-expression-source-grammar-definition` (implementation): [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs). SHA-256 `3eb4667563adbb04480181f7b2db0d63dba68f565c05ff2e8471de4db7e15aa9`. Current source parser and authored software control definitions; no executed assertion or external provider result.
+- `naming-optimiser-original-branch-expression-source-grammar-definition` (implementation): [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs). SHA-256 `c8b18433a0f21526e975bc71fb4e2345beec1dc53e80451a7a13c73af8b5fcc5`. Current source parser and authored software control definitions; no executed assertion or external provider result.
 
 ## Source inspection
 

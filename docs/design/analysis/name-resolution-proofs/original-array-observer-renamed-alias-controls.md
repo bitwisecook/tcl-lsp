@@ -88,6 +88,8 @@ No appliance observation of these exact original array rename/alias controls.
 - `array-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/jim/stdout](../../../../rust/tcl-registry/tests/data/native_original_array_observer/jim/stdout). SHA-256 `e39048acf5c06d5cf754ce50f64cc4f3c75f3cf3f3b6bc982eb96b2abaedc9a6`. Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
 - `array-sdk-queue.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/sdk-queue.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/sdk-queue.json). SHA-256 `3eb6871f7e4def2770d65bde01d20ccbe7e7840b3128da03ba072c473292db7e`. Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
@@ -121,3 +123,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 0 | 1 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

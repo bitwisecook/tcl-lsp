@@ -65,7 +65,7 @@ This original-source implementation contract supplies no native process, reached
 ## Exact evidence
 
 - `naming-runtime-original-literal-owner-retirement-rust-tcl-runtime-api-src-native_literal.rs` (implementation): [rust/tcl-runtime-api/src/native_literal.rs](../../../../rust/tcl-runtime-api/src/native_literal.rs). SHA-256 `01d42be470ac2a1b6fc085308efb01cb388f67509a02754b0d187c684c1a0988`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-runtime-original-literal-owner-retirement-runtime-rust-src-interp-native_literal_pool.rs` (implementation): [runtime/rust/src/interp/native_literal_pool.rs](../../../../runtime/rust/src/interp/native_literal_pool.rs). SHA-256 `59ff78967c8fff4c53174d3c6f432fa58ca201aa69369ac0a9047094ebddaee5`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-runtime-original-literal-owner-retirement-runtime-rust-src-interp-native_literal_pool.rs` (implementation): [runtime/rust/src/interp/native_literal_pool.rs](../../../../runtime/rust/src/interp/native_literal_pool.rs). SHA-256 `2a7033f929b6ae8927841cfd1d8f08dc70da02624bab65a5eae6abc294813633`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 - `naming-runtime-original-literal-owner-retirement-rust-tcl-vm-src-literal_pool.rs` (implementation): [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs). SHA-256 `b9ae6506d187a2e9b683b3d08e65f9ba6f0cf38b17a63a65e240616f484539a7`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection

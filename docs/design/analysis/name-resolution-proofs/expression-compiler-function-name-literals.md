@@ -101,6 +101,8 @@ No modern C command-literal compiler recipe is selected for this provider. No na
 - `tcl9.1-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/17/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
 - `tcl9.1-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). SHA-256 `dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c`. Pinned whole source file for exact source-window reproduction.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2196–2221. Full-source SHA-256 `0a6d97e0800151eeb85e60635c9862ac111022a56d8535d38d8d2fd34fd779f5`; snippet SHA-256 `a0db87fa298968aa1d6d909087509ffc6911971328e64f1231e06025d3a76c2e`; retained evidence `tcl8.5-0`.
@@ -1544,3 +1546,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 1 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

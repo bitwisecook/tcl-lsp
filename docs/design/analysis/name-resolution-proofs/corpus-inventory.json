@@ -13,6 +13,309 @@
   ],
   "files": [
     {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/receipt.json",
+      "sha256": "270ac743fdbff2852b78ac95d24149a1b21b0bad38abe53fea93c7865e54aec3",
+      "bytes": 1378,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/stderr",
+      "sha256": "0148ca6af20c7a2ea1547a5a09c23ec73cf9d53a679834684cf1fbbeb4c997c8",
+      "bytes": 189,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/version.stdout",
+      "sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/receipt.json",
+      "sha256": "5aa72a2413b5603e3e4a5925cdaf9f3241bb0c5fac971e6af2ac61d115cdf778",
+      "bytes": 1377,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/stderr",
+      "sha256": "0148ca6af20c7a2ea1547a5a09c23ec73cf9d53a679834684cf1fbbeb4c997c8",
+      "bytes": 189,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/version.stdout",
+      "sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/receipt.json",
+      "sha256": "51ac03527920ac578fed226859160b70a8c051b9500f25d4c1d043c491888e26",
+      "bytes": 1377,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/stderr",
+      "sha256": "0148ca6af20c7a2ea1547a5a09c23ec73cf9d53a679834684cf1fbbeb4c997c8",
+      "bytes": 189,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/version.stdout",
+      "sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/receipt.json",
+      "sha256": "de5ea6440df58cde25f2b7840a9af4944c7e8148ca42f5b31746e57ecc17bfe2",
+      "bytes": 1866,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/stdout",
+      "sha256": "517891c0c8b9b97c4935d6d7ed8f2051cb7706a5fcaa765d17a5bc913df8a6e3",
+      "bytes": 477,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/version.stdout",
+      "sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+      "bytes": 71,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/receipt.json",
+      "sha256": "95787a776784a859921f973c180e86446567e9cade946c47cfcfbed5ef5631d3",
+      "bytes": 1866,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/stdout",
+      "sha256": "517891c0c8b9b97c4935d6d7ed8f2051cb7706a5fcaa765d17a5bc913df8a6e3",
+      "bytes": 477,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/version.stdout",
+      "sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+      "bytes": 71,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/canonical-provider-joins.json",
+      "sha256": "3c1c604f980964b3ce58fc7dbcc4c653b2af6aa258c63e26eb309f3724ebd464",
+      "bytes": 5056,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Exact retained launcher/provider/source/ELF mapping. It supplies only the stated byte joins and replay limits, not an additional semantic observation."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/receipt.json",
+      "sha256": "a09054170e3442937141e709c707cba031ea9978c7974b3bb5eec374980d9047",
+      "bytes": 1413,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/stderr",
+      "sha256": "7d325b3073b28d5d44fd33f9d13024c22d5f8bea9f457e79241050a0ebd37f04",
+      "bytes": 256,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/version.stdout",
+      "sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+      "bytes": 87,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/manufacturer-visibility.tcl",
+      "sha256": "64e38f62b21ea36750bbbdb0ee3bc59df59ace76699a2ad31656a611d35d556c",
+      "bytes": 1029,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/matrix.json",
+      "sha256": "30774c551483771891874879918311797f531d04bb823942d81c08a984cb19e0",
+      "bytes": 9598,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/retained-source.json",
+      "sha256": "bd13c8e6e47e9b9a902d4bdb80072ef4f1d5e2e9e8da1a6e2cb27f4bb293277d",
+      "bytes": 1369,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.tcloo.original-abstract-manufacturer-public-visibility"
+      ],
+      "reason": "Exact original source/document bytes and lossless source mapping; source inspection is separate from public worker outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-0.txt",
+      "sha256": "456357e2bf70a9fdb38a7956dd6f3c9fa42ccbb41611faa300ad9e2396d85e58",
+      "bytes": 419,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-1.txt",
+      "sha256": "0565c213458f2b15e5ec533bee422c960d2f51094797a1947408da21b5d2687a",
+      "bytes": 1016,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-2.txt",
+      "sha256": "4a49951c89d492bf787047c9189de2c4e3affe142334ef378df78ff218da4515",
+      "bytes": 526,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-3.txt",
+      "sha256": "0565c213458f2b15e5ec533bee422c960d2f51094797a1947408da21b5d2687a",
+      "bytes": 1016,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/90/doc/abstract.n.gz",
+      "sha256": "0e0ed5ebcf84d10f9424a56a788019c372112acedadeb6bc32a2dc9c5529ed8a",
+      "bytes": 1128,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/90/generic/tclOO.c.gz",
+      "sha256": "b1c664defdf2b7f5308bf580db03fd18010db2eaa7719ee94aa46a3f49c84468",
+      "bytes": 21302,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/91/doc/abstract.n.gz",
+      "sha256": "0e0ed5ebcf84d10f9424a56a788019c372112acedadeb6bc32a2dc9c5529ed8a",
+      "bytes": 1128,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/91/generic/tclOO.c.gz",
+      "sha256": "84ba97815d87fa815902e8e5c1efabffe636ba0355126b35e48a27719cc60082",
+      "bytes": 21187,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/version.tcl",
+      "sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+      "bytes": 88,
+      "candidate": false
+    },
+    {
       "path": "runtime/rust/tests/data/native_active_read_unset/8.4.20.txt",
       "sha256": "564a5811a5f2d66ed9b81300e8ffcc59f14dc139e409455ac998f26e9d58cc2a",
       "bytes": 80,
@@ -16797,13 +17100,149 @@
         "naming.namespace-compiler.global-prefix-residual",
         "naming.namespace-compiler.qualified-variable-value-residual"
       ],
-      "reason": "Independent5 bodies\u00d75 C declined-attempt literal/local observations; exact executed source and whole output checksums verified, distinct from20-body opcode matrix."
+      "reason": "Independent5 bodies×5 C declined-attempt literal/local observations; exact executed source and whole output checksums verified, distinct from20-body opcode matrix."
     },
     {
       "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/probe.c",
       "sha256": "5fdf3a2e8474bfd6f10c4a36e31bdb316d1eb1d2b400be46d3c5f47e87b0faa9",
       "bytes": 2503,
       "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/8.4.20/stdout",
+      "sha256": "dff7c14e0383416a31ed505955302e545a9af5c70c6a2756f6be0b1d91266b42",
+      "bytes": 33,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/8.5.19/stdout",
+      "sha256": "9a9519b74117bf8d0bc6dc2084157f8ccd9b8e8fa1ff658dfaac1b807c72ff0f",
+      "bytes": 33,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/8.6.18/stdout",
+      "sha256": "fd9fe4b8863e3313bf2ad445e50708709dbf1b9ce1e56560552b378752a3f95b",
+      "bytes": 33,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/9.0.4/stdout",
+      "sha256": "99c709b6223a7dcb78be3e5460ded3646d806fa954bd88af717bccecfe70853f",
+      "bytes": 32,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/9.1.0/stdout",
+      "sha256": "12fc71750f37f5f65b57322fcdef8713924aedbfed09dbb61bbd383e5479dc10",
+      "bytes": 32,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/jim/stdout",
+      "sha256": "16273d47ee5d32fe8c846468f282b29d413c047edea888fb26ac71fb1373b3bc",
+      "bytes": 42,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/probe.tcl",
+      "sha256": "53223d6fdc8dd5c273307c9c420a073797c8aee6a15de2e0ff4ea7214bd98fa7",
+      "bytes": 147,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/receipt.json",
+      "sha256": "6ad46b5f4e9d8ab7b6e852c51fe468eeef4e527761f4496bdc87d6e08579c072",
+      "bytes": 3712,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.namespace.procedure-call-level-context"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.4.20/wrapper.sh",
+      "sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "bytes": 124,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.5.19/wrapper.sh",
+      "sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "bytes": 124,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/8.6.18/wrapper.sh",
+      "sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "bytes": 124,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/9.0.4/wrapper.sh",
+      "sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "bytes": 122,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/9.1.0/wrapper.sh",
+      "sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "bytes": 122,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/jim/invoked-jimsh.elf.gz",
+      "sha256": "1a6a367de6dd5d1b0f918870a62880f27d3934b292e33c640aac9674d4c6c611",
+      "bytes": 193362,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files/retention.json",
+      "sha256": "95399b303eaee64512e272d86da240af9c6fa8d419f887e376855ead798a3523",
+      "bytes": 4082,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.namespace.procedure-call-level-context"
+      ],
+      "reason": "Exact retained launcher/provider/source/ELF mapping. It supplies only the stated byte joins and replay limits, not an additional semantic observation."
     },
     {
       "path": "runtime/rust/tests/data/native_namespace_origin/original_probe.c",
@@ -18068,6 +18507,746 @@
       "path": "runtime/rust/tests/data/native_property_clientdata/probe.c",
       "sha256": "3104127ec7a6553d9506914baf25c8fc7365dfe5d09a4cf63ded6f6c0492f783",
       "bytes": 2428,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/receipt.json",
+      "sha256": "9b1eea9d1437a095e7437b3e1767c26ac72e61d89d1073137f9969c10300404f",
+      "bytes": 1169,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/stderr",
+      "sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+      "bytes": 312,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/configure-all-configurable/version.stdout",
+      "sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/receipt.json",
+      "sha256": "b5cb4f8f010b2c58b2074808b0ec9a64df3162aa00a8f5d005359133ec8c3841",
+      "bytes": 1165,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/stderr",
+      "sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+      "bytes": 310,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/84/multi-write-configurable/version.stdout",
+      "sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/receipt.json",
+      "sha256": "c762f4438e96dec27b9d4a3fafd96f936ec97c2adaaba2924670d4c765d4a75c",
+      "bytes": 1169,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/stderr",
+      "sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+      "bytes": 312,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/configure-all-configurable/version.stdout",
+      "sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/receipt.json",
+      "sha256": "f83dacebe1ed4aec5e3fbd0dd91ad017f640dd45fcff56ef9c4b9359b440ad2a",
+      "bytes": 1165,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/stderr",
+      "sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+      "bytes": 310,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/85/multi-write-configurable/version.stdout",
+      "sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/receipt.json",
+      "sha256": "c7ad100405a75b5f2f66240197e523869a6821bc6d57b993f0f7731aad4732d6",
+      "bytes": 1169,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/stderr",
+      "sha256": "32ab00fd10205660070f4e1eb3f3d0bef4241eb47fca342883e2b848d503a541",
+      "bytes": 312,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/configure-all-configurable/version.stdout",
+      "sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/receipt.json",
+      "sha256": "4ced5f30e40f34ca9c49c6a4415407b95c487fcf0b5e43d7a0293d5bf898f847",
+      "bytes": 1165,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/stderr",
+      "sha256": "9543d12e63583969894d41c150234f8ff70e472e5593cc4f55ce4071a8cd09c4",
+      "bytes": 310,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/86/multi-write-configurable/version.stdout",
+      "sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/receipt.json",
+      "sha256": "2e2afea092a3e794c1150d6c81716c7d6a9f675dc2f5dfd15159a6c5578fdeea",
+      "bytes": 1169,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/stdout",
+      "sha256": "d144c19f27db833224ec594d22af0aeba951367d98ac4fa4772dd16c9ea5c309",
+      "bytes": 61,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/configure-all-configurable/version.stdout",
+      "sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+      "bytes": 71,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/receipt.json",
+      "sha256": "a55329f4d45cda0f5c6b170c6f68f2f4998994959ee07c3127efc008d9e1ed7a",
+      "bytes": 1165,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/stdout",
+      "sha256": "3895d8ce2308703009139185084af03dee5dfc6e7776f4b9e1e0df64de34afcc",
+      "bytes": 52,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/90/multi-write-configurable/version.stdout",
+      "sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+      "bytes": 71,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/receipt.json",
+      "sha256": "0adc0d57c6fb9063a6e171dc9ff15ddbe48b809128643056eaab57673da46389",
+      "bytes": 1169,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/stdout",
+      "sha256": "d144c19f27db833224ec594d22af0aeba951367d98ac4fa4772dd16c9ea5c309",
+      "bytes": 61,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/configure-all-configurable/version.stdout",
+      "sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+      "bytes": 71,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/receipt.json",
+      "sha256": "52fea2d702c77bccebbcaa9e5c88a64c00644d2eb2bdbf789fd896692099609b",
+      "bytes": 1165,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/stdout",
+      "sha256": "3895d8ce2308703009139185084af03dee5dfc6e7776f4b9e1e0df64de34afcc",
+      "bytes": 52,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/91/multi-write-configurable/version.stdout",
+      "sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+      "bytes": 71,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configurable-receipt.json",
+      "sha256": "afe5a503a13596b541f10776b2fd700e48f52d16885ed19159c833d003ca74bf",
+      "bytes": 1223,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-configurable.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-configurable.stdout",
+      "sha256": "d144c19f27db833224ec594d22af0aeba951367d98ac4fa4772dd16c9ea5c309",
+      "bytes": 61,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-configurable.tcl",
+      "sha256": "f32e501e32060df1b2657732e66bf8f89b7f394b42e4e64e1b7e54c2e7b58290",
+      "bytes": 473,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-submitted.stderr",
+      "sha256": "811a9e04c76050533be5b15716c2bb62ab6f8b76d7b7f20d56b854ed179db3e0",
+      "bytes": 531,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-submitted.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/configure-all-submitted.tcl",
+      "sha256": "475701e60bc5ee3d0fd496bc4d0d4d75101b8d3fa7393e299e0e82b706a8040a",
+      "bytes": 466,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/receipt.json",
+      "sha256": "96949be436959f3bf80cf4a9c1ac9ab2c98908ac72824c14cff7a0cca0ae5ada",
+      "bytes": 1200,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/stderr",
+      "sha256": "ba8c5b6f5f11b1aad7a095c8ce1b867155047ec4370e6727a8b994555eb3889f",
+      "bytes": 254,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/configure-all-configurable/version.stdout",
+      "sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+      "bytes": 87,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/receipt.json",
+      "sha256": "5a30b1b1ca50c31c85d11d6b6d14e2371e3959db052d7a3ee578840d9e63e33e",
+      "bytes": 1195,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/stderr",
+      "sha256": "91daf4b9065a360f5cb67415b12004217807028447ecb8d5f0937be3b61e5a06",
+      "bytes": 250,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/jim/multi-write-configurable/version.stdout",
+      "sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+      "bytes": 87,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/matrix.json",
+      "sha256": "264239231a59437b8dd2099f2d4406f530d157dcbd3837dea011b8acba69cd3f",
+      "bytes": 17814,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Original closed process receipt/public stream association for the exact question. Supported intended observations and initialized unavailable/unreached workers retain their independent provider scope."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-configurable.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-configurable.stdout",
+      "sha256": "3895d8ce2308703009139185084af03dee5dfc6e7776f4b9e1e0df64de34afcc",
+      "bytes": 52,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-configurable.tcl",
+      "sha256": "ec3701e9be1a215a4deef521d3c3d1f166dd481d27889bb399476313c069be80",
+      "bytes": 425,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-submitted.stderr",
+      "sha256": "82274ba2140b4296aeb226afc4054996baadf798e3101ed801f2a5ab2d61b1f8",
+      "bytes": 518,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-submitted.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/multi-write-submitted.tcl",
+      "sha256": "8715c0fdf3ec71f863c7ebc1b7a22d7db9225e24ac45c071034769d773ce3905",
+      "bytes": 418,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/executable.elf.gz",
+      "sha256": "0ef35bc55b478afbee73fdeaad303290df5449989182a55e9535b339d8ed1f28",
+      "bytes": 407064,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/ldd.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/ldd.stdout",
+      "sha256": "322fce485c073c190020aa0b1592e59e8da792787e87eef2ab643f7b6826f7eb",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/wrapper.sh",
+      "sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+      "bytes": 124,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/executable.elf.gz",
+      "sha256": "47cba54ad641a54ba11e204d74a5ce4232e847fc198142f5a4846078ec5c6c58",
+      "bytes": 583706,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/ldd.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/ldd.stdout",
+      "sha256": "889f87ad90d1610bb864bbf25706a6d801265f0ecd7a9381c97ba943b58aa783",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/wrapper.sh",
+      "sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+      "bytes": 124,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/executable.elf.gz",
+      "sha256": "7f604661926c1c5237e7423365f39c9ffda3bd849441190a130d903f046a8ba8",
+      "bytes": 828694,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/ldd.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/ldd.stdout",
+      "sha256": "16279183390cbadc66886bce49b5d5f2e6e37e39c6a71ce1ea4f14adbc184cc5",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/wrapper.sh",
+      "sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+      "bytes": 124,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/executable.elf.gz",
+      "sha256": "efd77c98ed7007ad21ec1b50feb70b2533301fa372379cc17f17ce85333cea3a",
+      "bytes": 1982642,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/ldd.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/ldd.stdout",
+      "sha256": "0eaff2aa38de4eb9b9dfd0b8cdb9847c3abe24cfffe0825b26bc4356844d8ebf",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/tclOOProp.c.gz",
+      "sha256": "7c91177bd05c0cffa3fee909749df371b089b10ac2a6a00267118c7b230f0cc9",
+      "bytes": 7816,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/wrapper.sh",
+      "sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+      "bytes": 122,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/executable.elf.gz",
+      "sha256": "fc6c12552b3f4c0e1e5d023322046330cecaafa80f3fb45d46727cf1261262a2",
+      "bytes": 2050708,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/ldd.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/ldd.stdout",
+      "sha256": "24871b07178963e8dc2df2ae1a86a7e5a6ae7e45944f2de2e79961852dc286ac",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/tclOOProp.c.gz",
+      "sha256": "794ef09bb04b32ddd5a7a12aabb5542b43414197cd86572f5de1d0877d791438",
+      "bytes": 8649,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/wrapper.sh",
+      "sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+      "bytes": 122,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/executable.elf.gz",
+      "sha256": "4bb1e19e71a50cfeaf339019c06cb10c52ce4110a385229e99c95f89e92be8ea",
+      "bytes": 193362,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/ldd.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/ldd.stdout",
+      "sha256": "4429c9cfdc881a14d6b2a1d86cc3d7cca4367f991b6ef145bcca954ec4eb25a9",
+      "bytes": 510,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+      "sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+      "bytes": 4660,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Exact retained launcher/provider/source/ELF mapping. It supplies only the stated byte joins and replay limits, not an additional semantic observation."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-163-232.c",
+      "sha256": "01f8eaa50b99a7223632096ce6176a5dae8786ad8ac91d58823e256699c2fdae",
+      "bytes": 2418,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-236-249.c",
+      "sha256": "6104be04b61fb5e6243ad46ce99e4c414e3d9d421e7932b83c2b18138f483c36",
+      "bytes": 330,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-254-298.c",
+      "sha256": "6a042e426c201fc8e00149facae37076cbfa9f0fe91bec3150dd572364d8f665",
+      "bytes": 1218,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.0.4-305-355.c",
+      "sha256": "43b5eefd3b3b6d1776c8c1d226125349ba46b8ea273e24f6ea7ce2d2040a7a6d",
+      "bytes": 1222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-274-343.c",
+      "sha256": "343a1ba048fc015da66373af15de4e9a6d99d4fe96fff45de55b38242fa7249c",
+      "bytes": 2433,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-347-360.c",
+      "sha256": "6104be04b61fb5e6243ad46ce99e4c414e3d9d421e7932b83c2b18138f483c36",
+      "bytes": 330,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-365-409.c",
+      "sha256": "c97921ab14cabd97832031611208646c5a4ada47cc748732bc16fc8b8d6d542b",
+      "bytes": 1212,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/source-windows/tcl9.1.0-416-466.c",
+      "sha256": "38c1be425b81bb92d3bb125434474674da38459769b0cf220c59aaf29ecc53ac",
+      "bytes": 1180,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/submitted-receipt.json",
+      "sha256": "cb669feccbdc08d46bfcc356703332b7631f46f56f74d66936ab273f8d70007b",
+      "bytes": 2192,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.property.original-configure-retained-table-and-read-snapshot"
+      ],
+      "reason": "Actual generic-producer attempts failed before the intended configurable worker. Retained only as those exact unsuccessful inputs and process results; no intended property behavior is inferred."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/version.tcl",
+      "sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+      "bytes": 88,
       "candidate": false
     },
     {
@@ -23760,7 +24939,7 @@
         "naming.list-storage.original-prefix-and-span-geometry",
         "naming.list-storage.original-shared-header-versus-store"
       ],
-      "reason": "Exact private probe SHA and both full output digests checked;144case\u00d73snapshot rows each preserve real original/share/duplicate/result owners. Whole publication, unshared prefix/span and header-versus-store sharing are independently scoped; C8/Jim not-tested and native implementation hashes are not source excerpts."
+      "reason": "Exact private probe SHA and both full output digests checked;144case×3snapshot rows each preserve real original/share/duplicate/result owners. Whole publication, unshared prefix/span and header-versus-store sharing are independently scoped; C8/Jim not-tested and native implementation hashes are not source excerpts."
     },
     {
       "path": "rust/tcl-cmd-core/tests/data/native_list_storage/probe.c",
@@ -101435,7 +102614,7 @@
         "naming.namespace-compiler.mixed-dynamic-prefix",
         "naming.namespace-compiler.literal-expansion-and-empty-call"
       ],
-      "reason": "Exact20 bodies\u00d75 C original physical compiler observations: probe and all full stdout digests checked; separate hook/opcode/local purposes and bytecode-absence sentinel retained."
+      "reason": "Exact20 bodies×5 C original physical compiler observations: probe and all full stdout digests checked; separate hook/opcode/local purposes and bytecode-absence sentinel retained."
     },
     {
       "path": "rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json",
@@ -101886,7 +103065,7 @@
       "proof_ids": [
         "naming.namespace-parser.final-original-token"
       ],
-      "reason": "Exact8 source parser controls\u00d75 release stdout; original source checksum and every retained complete stdout matched, build attribution gaps preserved."
+      "reason": "Exact8 source parser controls×5 release stdout; original source checksum and every retained complete stdout matched, build attribution gaps preserved."
     },
     {
       "path": "rust/tcl-registry/tests/data/native_namespace_final_token/probe.c",
@@ -153452,7 +154631,7 @@
       "proof_ids": [
         "naming.numeric.primitive-int-original-width-cache"
       ],
-      "reason": "Exact source checksum verified; each embedded original JSON row array exactly matches its retained TSV projection for14 cases\u00d75 releases. No missing original full JSONL stdout/header/build/status data is invented."
+      "reason": "Exact source checksum verified; each embedded original JSON row array exactly matches its retained TSV projection for14 cases×5 releases. No missing original full JSONL stdout/header/build/status data is invented."
     },
     {
       "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c",
@@ -153632,7 +154811,7 @@
         "naming.numeric.get-bignum-interpreter",
         "naming.numeric.increment-original-object"
       ],
-      "reason": "Exact source and six full JSONL SHA/status/row-count checks matched. Four\u00d748 numeric windows assigned by actual stage, and two single compile-out sentinels retained as non-attempt limitations, not guest unavailable claims."
+      "reason": "Exact source and six full JSONL SHA/status/row-count checks matched. Four×48 numeric windows assigned by actual stage, and two single compile-out sentinels retained as non-attempt limitations, not guest unavailable claims."
     },
     {
       "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c",
@@ -154388,7 +155567,7 @@
         "naming.variable.original-local-cache-before-getter",
         "naming.variable.original-local-cache-unavailable-updater"
       ],
-      "reason": "Exact source SHA and all 25 separate original process captures inspected; projected paths exactly derived. Fatal signals\u22126/\u22124 and empty stdout are retained as process outcomes, not erased or labeled ordinary guest Errors."
+      "reason": "Exact source SHA and all 25 separate original process captures inspected; projected paths exactly derived. Fatal signals−6/−4 and empty stdout are retained as process outcomes, not erased or labeled ordinary guest Errors."
     },
     {
       "path": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt",

@@ -64,7 +64,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-optimiser-original-definition-resurrection-guard-manager.rs` (implementation): [rust/tcl-compiler/src/optimiser/manager.rs](../../../../rust/tcl-compiler/src/optimiser/manager.rs). SHA-256 `e789cfd9176b2cd3dd98417f51ac9bba3e9445d56c4073319464d5b8b56b2fa0`. Current selected source/API owner; no executed assertion or native provider observation.
+- `naming-optimiser-original-definition-resurrection-guard-manager.rs` (implementation): [rust/tcl-compiler/src/optimiser/manager.rs](../../../../rust/tcl-compiler/src/optimiser/manager.rs). SHA-256 `3c70e2c9d77675a874a1d87d90cec00e2d7e8ac923b01ab54777ffa08f48f13b`. Current selected source/API owner; no executed assertion or native provider observation.
 
 ## Source inspection
 

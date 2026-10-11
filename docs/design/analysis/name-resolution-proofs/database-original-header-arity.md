@@ -64,7 +64,7 @@ This database declaration-header/arity invariant is a Rust implementation contra
 
 ## Exact evidence
 
-- `database-source-owner` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `16c45c1c4106233d782d15d74b462620e6461157f0f928eba6373a3ea678b228`. Current body-free header aggregation, exact byte/policy arity key, shared lookup matcher and concrete cache regression assertions.
+- `database-source-owner` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `f8add3e39e66650ed0570d72ce9477cdb1fcece2d8e5d45f9ecdc1c748fd46f5`. Current body-free header aggregation, exact byte/policy arity key, shared lookup matcher and concrete cache regression assertions.
 
 ## Source inspection
 

@@ -66,9 +66,9 @@ This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP exec
 
 - `owner-0` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `7da52e49ba59f8b3bf9bfed828dfda9d53bbeaa18ecbf3a482a171424522c9a4`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
-- `owner-1` (implementation): [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs). SHA-256 `af1f747d8aa4e98fb1ce59a983891789cd9ac7475211a7d2ebe33072cee6d629`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-1` (implementation): [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs). SHA-256 `86814c50ebbbf1e419f34575393319efae9e4db13d62ef53c6a50d54cdc4cbc5`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
-- `owner-2` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `3ecb3f09347b7fe9402db4ac54a7b1751e44f6a1208b7b961563517f2db2ba2c`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-2` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `a499f01c057db89f68c07adf8894c2a34d72d22be3857709e2ad9a7b8bc098a9`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
 ## Source inspection
 

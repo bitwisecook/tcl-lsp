@@ -72,7 +72,7 @@ No appliance observation for this question.
 - `implementation-1` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). SHA-256 `b01a7f5c810fbbb97e0d6aea8160d99bd439da7c12c41e84a21083ccf9ecb76d`. Retain exact native payload and effective operand ordinal as independent metadata.
 - `implementation-2` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). SHA-256 `b01a7f5c810fbbb97e0d6aea8160d99bd439da7c12c41e84a21083ccf9ecb76d`. Discharge only represented identity obligations without validating control operands or execution.
 - `implementation-3` (implementation): [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs). SHA-256 `fe251a0f72d92c30151e7948602017c09cd25375465d5b1278b935e5b7ff034d`. Prevent byte-only values from colliding with logical values in the legacy hook shape cache.
-- `implementation-4` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `16b1b86ce69bae76b82aec5e6dc99154edd7cf95b9b1d3f08c06e539915dd9e9`. Preserve byte-only evaluated values at the shared Compiler/Registry seam.
+- `implementation-4` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `ece7adebe04e55374e255d93ac9ed5d35fdacaf4fb5bd13fd7dac7cf71d62f69`. Preserve byte-only evaluated values at the shared Compiler/Registry seam.
 
 ## Source inspection
 

@@ -64,7 +64,7 @@ Storage sharing is a Rust implementation contract; no external interpreter ran i
 
 ## Exact evidence
 
-- `publication-rows-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `33c4053059c6ae97ace6d58e050648efedb00148a65001c75f7d3f2cfdd98192`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
+- `publication-rows-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `b457884e90c6a20e065b5e07235eed843683dae103366495d20905721ce31928`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
 - `publication-rows-source-command-world` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `a499f01c057db89f68c07adf8894c2a34d72d22be3857709e2ad9a7b8bc098a9`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
 - `publication-rows-lib` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). SHA-256 `00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
 

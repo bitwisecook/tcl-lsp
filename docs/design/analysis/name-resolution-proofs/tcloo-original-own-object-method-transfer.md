@@ -66,6 +66,8 @@ This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP 
 
 - `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json). SHA-256 `1ec16579b42c78b8dc2012d2b1cd8b6ed57901487f6aabdef55c2949f333d512`. JSON pointer `/source_anchors`. Retained complete function snippets and full original C source file hashes for the setter, procedure method creation, own object table replacement and known procedure deletion boundaries.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 1548–1592. Full-source SHA-256 `56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81`; snippet SHA-256 `149f61556901b38088f841f849e86b9e55a4b7d2730a1fa0ccd39871531f1ca4`; retained evidence `c-source`.
@@ -680,3 +682,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 1 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

@@ -65,7 +65,7 @@ This Rust consumer contract has no native execution receipt.
 ## Exact evidence
 
 - `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). SHA-256 `c96d983aa91a639d27bd4e0416eee420b0ec9be1aab8523aa4a49638a51229fe`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). SHA-256 `ef09ecff001237bafa091e32eb95c92fc0239640816c47435a4f13c9a3677b60`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). SHA-256 `2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

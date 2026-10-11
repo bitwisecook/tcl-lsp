@@ -66,6 +66,8 @@ This original source package-action context and reviewed insertion contract supp
 
 No evidence artifact is attached.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
@@ -83,8 +85,21 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::original_package_suggestion_tests::original_package_action_uses_genuine_provision_and_requirement_operands` (linked): Genuine version-supplying provision and escaped -exact requirement values remain selected independently of mutated requirement/provision reporting names; provide-name queries and literal data cannot create that metadata.
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input` (linked): A positively sealed no-Native-policy Jim0.79 Logical source input under independently supplied C8.6 authoring context retains the actual unresolved head and one package insertion despite changed reporting names; changed BOM input and Native-domain projection decline.
 
+- [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry` (linked): Logical package hint keeps shared written colon geometry. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Body-marked selectors bind source metadata, current input and reviewed proposal geometry. Exact Rust outcomes remain independently recorded; no native provider process, package installation or loader result is attached.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-core-consumer-tests347` | 1 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

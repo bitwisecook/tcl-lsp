@@ -64,13 +64,15 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-source-namespace-inventory-selection-sharing-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). SHA-256 `479a813919f0408628d242082b462156efc8e4bb56fe24c026aa61e3d594892a`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-source-namespace-inventory-selection-sharing-pre_handler_failure.rs` (implementation): [rust/tcl-compiler/src/command_binding/pre_handler_failure.rs](../../../../rust/tcl-compiler/src/command_binding/pre_handler_failure.rs). SHA-256 `91688e2f36e1b036ba357cbb442ef6a33a6f8c21d91c463b9c5c1bdd7b672459`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-source-namespace-inventory-selection-sharing-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). SHA-256 `3ae89834cca6d621f64291636489d8a6417b436ee42f2fd52ffb4729d2601e23`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-source-namespace-inventory-selection-sharing-pre_handler_failure.rs` (implementation): [rust/tcl-compiler/src/command_binding/pre_handler_failure.rs](../../../../rust/tcl-compiler/src/command_binding/pre_handler_failure.rs). SHA-256 `82f1e3fc7dfd08dc4a5506007b5f2a25024ac7a364d7e0cf1ab1b4c6f54d1ab7`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-source-namespace-inventory-selection-sharing-shared_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/shared_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/shared_inventory.rs). SHA-256 `ca79b99c5450149e0eb269d5d05f09e57dd597535f003149f4151ba45be02a49`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `implementation-source-0` (implementation): [rust/tcl-compiler/src/command_binding/retained_body_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/retained_body_inventory.rs). SHA-256 `936c422c9abe44c837a665ac04e877edaf94cb7c56b2b9350a51c10528d291c6`. Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
 - `implementation-source-1` (implementation): [rust/tcl-compiler/src/command_binding/namespace_context.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_context.rs). SHA-256 `f10f446e0076bac46970a2c63d4c28562a16b6d70a6e064734fad17d5aad4268`. Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
-- `implementation-source-2` (implementation): [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs). SHA-256 `83e641f4f8b4cb7738f717c19aac398e7183e18a33adbfbc8d9c06006b05b86f`. Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
-- `implementation-source-3` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `f96a2f7a39927cf1187bd55f0bc2d9d776907032eca0f7666230dec33b6b2a72`. Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
+- `implementation-source-2` (implementation): [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs). SHA-256 `9ed2cb7441b9e4ce0abdb457a39c3a8b3d7b3aa72ee8c296b663d64b6a079915`. Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
+- `implementation-source-3` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `b457884e90c6a20e065b5e07235eed843683dae103366495d20905721ce31928`. Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
@@ -107,3 +109,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 3 | 0 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 3 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

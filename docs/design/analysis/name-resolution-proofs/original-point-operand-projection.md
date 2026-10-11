@@ -70,6 +70,8 @@ No interpreter observation is attached to this immutable original operand projec
 
 No evidence artifact is attached.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
@@ -85,6 +87,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/realm/original_bindings.rs](../../../../rust/tcl-compiler/src/realm/original_bindings.rs), `realm::original_bindings::tests::original_point_operand_projection_retains_frozen_values_and_full_currency` (linked): The authentic frozen computed input survives exact projection; changed full config/image/channel and unknown entry cannot borrow it.
 - [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs), `analyser::handlers::tests::namespace_scope_geometry_retains_the_actual_point_operand` (linked): Actual computed and nested namespace operands retain their exact point inputs and child naming geometry; an unknown dynamic operand cannot fabricate it.
 - [rust/tcl-compiler/src/analyser/name_producer_tests.rs](../../../../rust/tcl-compiler/src/analyser/name_producer_tests.rs), `analyser::name_producer_tests::original_namespace_producer_preserves_alias_written_origins_and_known_shadowing` (linked): A namespace-exists alias retains the genuine written N input despite captured namespace/selector operands. A known namespace procedure replacement yields no nominal namespace references.
+
+- [rust/tcl-compiler/src/lowering/structured.rs](../../../../rust/tcl-compiler/src/lowering/structured.rs), `lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace` (linked): Structured body caller keeps parent ordinal and namespace. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/lowering/structured.rs](../../../../rust/tcl-compiler/src/lowering/structured.rs), `lowering::structured::original_body_word_caller_tests::original_structured_body_word_caller_refuses_full_extent_and_changed_parent` (linked): Structured body word caller refuses full extent and changed parent. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/command_binding/original_body_namespace.rs](../../../../rust/tcl-compiler/src/command_binding/original_body_namespace.rs), `command_binding::original_body_namespace::tests::original_body_word_extent_keeps_inner_and_whole_geometry_separate` (linked): Body word extent keeps inner and whole geometry separate. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
 A named test is a coverage binding, not a claim that it executed.
 
@@ -112,3 +118,15 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 1 | 2 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 1 | 2 |
+| `integration-compiler-original-source-trace347` | 0 | 2 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

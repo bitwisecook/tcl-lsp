@@ -66,6 +66,8 @@ No native observation for this implementation question.
 
 No evidence artifact is attached.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
@@ -84,6 +86,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/signature_scan/walker.rs](../../../../rust/tcl-compiler/src/signature_scan/walker.rs), `signature_scan::walker::tests::selected_scan_captured_prefixes_cannot_borrow_written_body_tokens` (linked): A captured alias prefix cannot borrow representative written body tokens, and expanded body words cannot issue source signatures; the original invocation inventory remains independently retained.
 - [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs), `lowering::original_script_purpose_tests::original_selected_nested_body_keeps_parent_metadata_for_known_command_advice` (linked): Finite source-defined control: original selected nested body keeps parent metadata for known command advice. Authentic selected original eval body/origin/site joins parent complete input with known puts readonly Registry advice; strict changed input refuses. No entered/Normal/execution claim. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
+- [rust/tcl-compiler/src/type_infer.rs](../../../../rust/tcl-compiler/src/type_infer.rs), `type_infer::tests::original_generic_precision_uses_current_builtin_alias_and_rename_selection` (linked): Generic precision uses current builtin alias and rename selection. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/type_infer.rs](../../../../rust/tcl-compiler/src/type_infer.rs), `type_infer::tests::original_generic_precision_does_not_repair_unknown_or_absent_lookup_from_metadata` (linked): Generic precision does not repair unknown or absent lookup from metadata. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/type_infer.rs](../../../../rust/tcl-compiler/src/type_infer.rs), `type_infer::tests::original_generic_precision_withdraws_foreign_and_changed_source_owners` (linked): Generic precision withdraws foreign and changed source owners. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/type_infer.rs](../../../../rust/tcl-compiler/src/type_infer.rs), `type_infer::tests::original_generic_precision_retains_the_independent_declared_transition_predicate` (linked): Generic precision retains the independent declared transition predicate. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
@@ -100,3 +107,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 4 | 2 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 4 | 2 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

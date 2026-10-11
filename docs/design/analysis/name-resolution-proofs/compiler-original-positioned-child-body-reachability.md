@@ -64,9 +64,9 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-compiler-original-positioned-child-body-reachability-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). SHA-256 `479a813919f0408628d242082b462156efc8e4bb56fe24c026aa61e3d594892a`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). SHA-256 `3ae89834cca6d621f64291636489d8a6417b436ee42f2fd52ffb4729d2601e23`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-compiler-original-positioned-child-body-reachability-interprocedural.rs` (implementation): [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs). SHA-256 `02ae211cc258d4d2ba96c6b86d1a963478e9663231ea9776ae83162b50ed14cb`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-compiler-original-positioned-child-body-reachability-realm.rs` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). SHA-256 `beac0f46f328d8a1301a5eee4eb42d91c05fd6bc6e2f4e85268d565077af4cc9`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-realm.rs` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). SHA-256 `1ec2575611039c76ce295b3af3440073c74b622baab70413d5b389e25e57d07e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 
@@ -75,7 +75,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs), `scan_positioned_reachability`: Consume genuine positioned parent and each retained possible child invocation independently of purity/effects.
-- [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs), `Realm::possible_entered_body_invocations`: Project the retained original child dispatch inventory with source lookup context and ownership intact.
+- [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs), `CommandBindingRealm::possible_entered_body_invocations`: Project the retained original child dispatch inventory with source lookup context and ownership intact.
 - [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs), `possible_entered_body_invocations`: Retain each genuine body child and selected source target rather than recapture decoded argument roles.
 - [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs), `interprocedural::tests::original_positioned_child_bodies_preserve_replacements_and_aliases` (linked): Inside authentic time source, stock catch, its captured alias and original rename preserve a possible leaf edge; genuine catch replacement and nominal held procedure heads do not supply body vocabulary. Source-only reachability does not close runtime effects/purity/frame entry.
 

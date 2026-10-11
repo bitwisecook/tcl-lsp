@@ -1,0 +1,225 @@
+{
+  "name": "tcl-lsp-core-lib",
+  "package": "tcl-lsp-core",
+  "target": "lib",
+  "source_manifest": "Cargo.toml",
+  "root_owned_build_selector_arguments": [
+    "-p",
+    "tcl-lsp-core",
+    "--lib"
+  ],
+  "selectors": [
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes",
+      "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_sha256": "f27182baa0464af6955e2686feefecbc818f1e09b60db65241a38e2ec383ebd0",
+      "scope": "Actual analysis scope chooses original proc body versus whole frame; local body BOM remains content, body at zero and FirstClose remain separate. Existing source/frame/template eligibility is unchanged.",
+      "canonical_question": "naming.source.original-configured-script-completeness",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md",
+      "category": "GrammarBodyParserPurpose475",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 2261
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+      "scope": "Explicit whole-document versus genuine selected body region, independent body value at zero, FirstClose lexical outcome and unchanged complete actual analysis input/image; foreign image refusal. Parent schema/token config unchanged.",
+      "canonical_question": "naming.source.original-configured-script-completeness",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md",
+      "category": "GrammarBodyParserPurpose475",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 1143
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates",
+      "path": "rust/tcl-lsp-core/src/executable_regions.rs",
+      "source_sha256": "6ad6d645f56077e0c40bfc9cb3fb82e37a07d9519eed247f629bed2911526d3e",
+      "scope": "Original whole source and compound argument BOM-before-comment boundary with FirstClose; genuine child source coordinates remain absolute. Content comparison and out-of-range foreign span refusal. No child execution/frame.",
+      "canonical_question": "naming.core.original-executable-region-context",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md",
+      "category": "GrammarExtractedConsumerPurpose483",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 1121
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "scope": "Root-applied genuine selected body presentation, BOM content and complete parent config remain independent; no execution permission.",
+      "category": "RootLocalFormattingMinifyPurpose",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.source.original-configured-script-completeness",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md",
+      "line": 2480,
+      "source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "scope": "Root-applied selected range carries actual parser purpose and preserves document/body prologue distinction; client source coordinate guards remain independent.",
+      "category": "RootLocalFormattingMinifyPurpose",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.source.original-configured-script-completeness",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md",
+      "line": 2533,
+      "source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "scope": "Unchanged genuine analysis-backed method body expansion with original LF/CRLF/loneCR geometry or same-spelling global alias; independent complete input/member vocabulary retained.",
+      "category": "GrammarMemberPresentation471",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 589
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "scope": "Unchanged genuine analysis-backed method body expansion with original LF/CRLF/loneCR geometry or same-spelling global alias; independent complete input/member vocabulary retained.",
+      "category": "GrammarMemberPresentation471",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 568
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "scope": "Root-applied local minifier syntax uses genuine body purpose, preserves complete parent identity/config and source geometry; no body execution permission.",
+      "category": "RootLocalFormattingMinifyPurpose",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "canonical_question": "naming.source.original-configured-script-completeness",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md",
+      "line": 3565,
+      "source_sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom",
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+      "scope": "Original file prologue and stored source/file-join child; ordinary filename/count-name projected, distinct BOM-prefixed child withheld. Supplied FirstClose versus incompatible nesting affects authored path syntax only, without evaluating variable paths or loading.",
+      "canonical_question": "naming.package.original-reachability-source-controls",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md",
+      "category": "GrammarExtractedConsumerPurpose483",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 1219
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue",
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+      "scope": "Actual original auto_index stored script, whole-file BOM prologue versus nested script head, original counted name/file projections retained. No autoload execution grant.",
+      "canonical_question": "naming.package.original-reachability-source-controls",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md",
+      "category": "GrammarChildParserPurpose476",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 1175
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry",
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "source_sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+      "scope": "Actual complete analysis image and original native body word vector join, nested BOM as content and selected FirstClose geometry. Parent NativeWords retain their full config; no loader/effect closure.",
+      "canonical_question": "naming.package.original-reachability-source-controls",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md",
+      "category": "GrammarChildParserPurpose476",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 450
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence",
+      "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "source_sha256": "d073ddf8eb73d95abd3cd4c6308b2004193ba94e1246afc4f1a151951c74e4a6",
+      "scope": "Genuine supplied complete analysis input/current original procedure literal; body BOM head and absolute coordinates retained, changed document/full parent config refuse original word. Body shape only, no inline edit permission.",
+      "canonical_question": "naming.refactor.original-procedure-inline-binding",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md",
+      "category": "GrammarSelectedBodyAndTaintSourcePurpose486",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 1529
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lib",
+      "selector": "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config",
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "source_sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+      "scope": "Genuine authored source-dispatch route with same selected context: BOM-prefixed method body head refuses same-spelling command; FirstClose actual source admits selected later dispatch; changed config/foreign source refuse. No live object/member/admission grant.",
+      "canonical_question": "naming.core.original-dispatch-region-context",
+      "canonical_document": "docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md",
+      "category": "GrammarBodyParserPurpose475",
+      "test_harness_arguments": [
+        "--exact"
+      ],
+      "existing_ignored_gate": false,
+      "line": 8129
+    }
+  ],
+  "source_manifest_sha256": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+  "status": "Immutable current source-only request; no owned image/list/assertion credit",
+  "expected_selected_inventory_count": 13,
+  "test_execution": "Not launched by Grammar",
+  "freshness_requirement": "Root matching immutable own producer and strict own target list must admit every literal selector before execution",
+  "package_manifest": "rust/tcl-lsp-core/Cargo.toml",
+  "package_manifest_sha256": "d43b2fdd4fde0b21e08f20ecf9683b7f5e5d9f7e90e86b3808405038be838640",
+  "own_image_admission": "Root successful own target build, strict complete --list, every exact selector count1; no dependency image or zero-test admission"
+}

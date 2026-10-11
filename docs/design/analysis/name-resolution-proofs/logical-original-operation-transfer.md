@@ -64,8 +64,10 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-source-logical-original-operation-transfer-logical_definition.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs). SHA-256 `b03c057aaef40df29e0847f606c4a4c770d53c91a502c6bf111ae0674ecb8dbe`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
-- `naming-source-logical-original-operation-transfer-logical_operation.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs). SHA-256 `cdf9ad88ae18112f1e28faecde83d61f6df3b0eb0db5e0dfd81d0010b5ae0c0c`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
+- `naming-source-logical-original-operation-transfer-logical_definition.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs). SHA-256 `111a2bd05e4b14b054aa4540f562034eb24762c5b1dd6177a781a4879d8be6bb`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
+- `naming-source-logical-original-operation-transfer-logical_operation.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs). SHA-256 `b1ea5c08741cf3f73de35e4569efea4eecea1bab5692ae896224aa534c68cc36`. Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
+
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
@@ -111,3 +113,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 5 | 1 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 5 | 1 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

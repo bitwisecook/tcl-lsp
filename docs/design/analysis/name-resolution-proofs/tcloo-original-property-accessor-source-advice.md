@@ -64,8 +64,8 @@ This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP ex
 
 ## Exact evidence
 
-- `option-purpose` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). SHA-256 `84728ea1eedd310af189cccd0bf9b1bab077dd33245254ba8ed072e18a34778e`. Selected option-format purpose and regression assertions; no native execution outcome is attached.
-- `accessor-protocol` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). SHA-256 `1aaaa03cd163362f18496690bd878f1c0fcaa9edae34ff42b629d429da88e3e8`. Grammar-owned source accessor layout and its independently retained immutable protocol.
+- `option-purpose` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). SHA-256 `454c5ce1d26aab463294b56a0c455b852c85c54a1711a87ed9be0d26ec2b5c61`. Selected option-format purpose and regression assertions; no native execution outcome is attached.
+- `accessor-protocol` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). SHA-256 `d73eca05046b2e483597bde652eb3e1509d7540bb8b3f520650e3e078db44593`. Grammar-owned source accessor layout and its independently retained immutable protocol.
 - `original-property` (implementation): [rust/tcl-compiler/src/analyser/types/original_properties.rs](../../../../rust/tcl-compiler/src/analyser/types/original_properties.rs). SHA-256 `b878ef9e12157b68ecb7983415a9d7880919c98d19a8604045b055cf606390ca`. Metadata retains original producer, selected protocol and distinct option projection.
 
 ## Source inspection

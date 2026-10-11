@@ -495,6 +495,8 @@ No original appliance primitive or expression-truth process was requested or exe
 - `native_primitive_boolean_expression_truth_original-observations.json` (reconfirmation): [rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/observations.json](../../../../rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/observations.json). SHA-256 `eceb27afad68e6336a20945d26d94498bede1d9c09fc19bd0898299a43edba28`. Derived paired constructor/cache/identity/completion/output/result/error and selected route review; no new process or software assertion.
 - `native_primitive_boolean_expression_truth_original-recorded-path-map.json` (provider): [rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/recorded-path-map.json](../../../../rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original/recorded-path-map.json). SHA-256 `4ba721b0ea9c95b268e5817a3013e8fe809ecd7711887afd66585314d6e6b63c`. 400 exact original required input associations with published restore paths, independently full-byte verified.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 tcl8.4 8.4.20, revision `Exact original release bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclObj.c`, function `Tcl_GetBooleanFromObj`, lines 1422–1439. Full-source SHA-256 `6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c`; snippet SHA-256 `f7d0675d35b15c64cd961b8d01eb0a8c3d0daab6c4f088fc1b5a94ceb6b9358f`; retained evidence `native_ensemble_map_prefix312-map-source-8.4.20-tclObj.c`.
@@ -2357,3 +2359,15 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-original-child-guards344` | 0 | 1 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 3 | 1 |
+| `integration-compiler-original-source-trace347` | 0 | 1 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

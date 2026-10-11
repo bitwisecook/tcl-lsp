@@ -132,6 +132,8 @@ No original BIG-IP response is attached. Authored profiles and these local C/Jim
 - `source-window-3` (source-anchor): [runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-3.txt](../../../../runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-3.txt). SHA-256 `0565c213458f2b15e5ec533bee422c960d2f51094797a1947408da21b5d2687a`. Exact physical-LF excerpt from the retained full-source SHA. The code explicitly unexports three manufacturers; the manual describes visibility and inherited construction. It supplies no execution, Method payload lifetime or physical frame grant.
 - `canonical-provider-joins` (provider): [runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/canonical-provider-joins.json](../../../../runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/canonical-provider-joins.json). SHA-256 `3c1c604f980964b3ce58fc7dbcc4c653b2af6aa258c63e26eb309f3724ebd464`. Explicit mapping from unchanged original relative receipt bindings to shared canonical property335 payloads, including exact packed/original ELF SHA and size restoration joins.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 tcl9.0 9.0.4, revision `Configured source tree joined by complete SHA; configure/build replay is unrecorded`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c`, function `MakeAdditionalClasses`, lines 701–713. Full-source SHA-256 `2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7`; snippet SHA-256 `456357e2bf70a9fdb38a7956dd6f3c9fa42ccbb41611faa300ad9e2396d85e58`; retained evidence `source-window-0`.
@@ -257,3 +259,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 1 | 2 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 1 | 2 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

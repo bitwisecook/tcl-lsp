@@ -65,8 +65,8 @@ This original-source implementation contract supplies no native process, reached
 ## Exact evidence
 
 - `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-lsp-core-src-refactor-datagroup-source_subject.rs` (implementation): [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs). SHA-256 `70ca2dc4502649faa12acd8cc25cf3f5030fdefed3fab16d38423b8a5a2bf41e`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-lsp-core-src-refactor-if_to_switch.rs` (implementation): [rust/tcl-lsp-core/src/refactor/if_to_switch.rs](../../../../rust/tcl-lsp-core/src/refactor/if_to_switch.rs). SHA-256 `632664a15089572611e95421de23644d54b0d760fce4d91b1281fff863d7cb58`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-mcp-src-datagroup.rs` (implementation): [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs). SHA-256 `8775ca29c6b275ef3ef2108b160a8d3800a10ea646f8ccec5961ae3995718535`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-lsp-core-src-refactor-if_to_switch.rs` (implementation): [rust/tcl-lsp-core/src/refactor/if_to_switch.rs](../../../../rust/tcl-lsp-core/src/refactor/if_to_switch.rs). SHA-256 `fd2ba90708728c0f23c809ff1709eb130cbaf97a7381ff98227645be65304933`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-mcp-src-datagroup.rs` (implementation): [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs). SHA-256 `c75e39e628cbefb399a3a38ef0c222a4ab9ac297661732eb6ecad8268834ae74`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

@@ -75,6 +75,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 No implementation binding is claimed by this observation record.
 
+- [runtime/rust/src/cmd_oo/original_object_resolution_tests.rs](../../../../runtime/rust/src/cmd_oo/original_object_resolution_tests.rs), `cmd_oo::original_object_resolution_tests::original_oo_lookup_keeps_stringless_command_and_import_token_roles` (linked): Oo lookup keeps stringless command and import token roles. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [runtime/rust/src/cmd_oo/original_object_resolution_tests.rs](../../../../runtime/rust/src/cmd_oo/original_object_resolution_tests.rs), `cmd_oo::original_object_resolution_tests::original_import_projection_never_substitutes_a_recreated_source_spelling` (linked): Import projection never substitutes a recreated source spelling. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay

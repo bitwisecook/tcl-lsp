@@ -1016,6 +1016,8 @@ No BIG-IP/appliance process or transfer of a C/Jim original compiler/cache contr
 - `native-info-commands-literal-rust-tcl-registry-tests-data-native_info_commands_literal_original-projection.json` (input): [rust/tcl-registry/tests/data/native_info_commands_literal_original/projection.json](../../../../rust/tcl-registry/tests/data/native_info_commands_literal_original/projection.json). SHA-256 `b1a7a059d81c1f8a3e78a8402239789e2beddb8890457533dd0f33543ba09c09`. Derived lossless comparison fixture from the exact original request/observations/closure; independently verified against counted inputs and captured fields, not an additional native observation or backend result.
 - `native-info-commands-literal-rust-tcl-registry-tests-data-native_info_commands_literal_original-recorded-path-map.json` (provider): [rust/tcl-registry/tests/data/native_info_commands_literal_original/recorded-path-map.json](../../../../rust/tcl-registry/tests/data/native_info_commands_literal_original/recorded-path-map.json). SHA-256 `efc90508cd905cf5a2a464b684f30499db185e335cfa393c37e636a83b174c1b`. Exact recorded input/capture to published byte-identity map, preserving the replay prerequisites without rewriting command paths.
 
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+
 ## Source inspection
 
 tcl8.4 8.4.20, revision `Independently pinned original configured SDK/extension source; source-control revision unrecorded.`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c`, function `InfoCommandsCmd`, lines 717–877. Full-source SHA-256 `92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a`; snippet SHA-256 `30b7ae2ff997ebf6efeb9461eb96c8df958265bb6a375da0699fc11874deed4a`; retained evidence `native-info-commands-literal-rust-tcl-registry-tests-data-native_info_original_dispatch292-tcl84-tclCmdIL.c`.
@@ -5098,3 +5100,14 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
 [Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
+
+
+## Exact original-source347 software outcomes
+
+These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
+
+| Original operation | Passed | Failed |
+| --- | ---: | ---: |
+| `integration-compiler-focused-consumer-tests347` | 1 | 0 |
+
+[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

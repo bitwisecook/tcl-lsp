@@ -69,7 +69,7 @@ No external provider execution answers this source/API implementation contract. 
 ## Exact evidence
 
 - `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-existence_query.rs` (implementation): [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs). SHA-256 `a8aa40ae91bf84400722a17b2fe9614069c697ba7db8b04b2d5b8d6da90457f2`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
-- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-registry_invocation-metadata_context.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). SHA-256 `1d7c997e43cf8aedbfdf9ca0991f12a4e0c6833517a89eadcff680552501d2f4`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
+- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-registry_invocation-metadata_context.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). SHA-256 `d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

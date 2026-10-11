@@ -64,7 +64,7 @@ No native provider was invoked for this Rust callback-consumer contract.
 
 ## Exact evidence
 
-- `database-callback-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `16c45c1c4106233d782d15d74b462620e6461157f0f928eba6373a3ea678b228`. Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression.
+- `database-callback-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `f8add3e39e66650ed0570d72ce9477cdb1fcece2d8e5d45f9ecdc1c748fd46f5`. Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression.
 
 ## Source inspection
 
