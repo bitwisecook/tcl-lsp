@@ -142,7 +142,7 @@ static KEY: obj::TclObjType = obj::TclObjType {
 };
 fn key(bytes: &[u8]) -> Owned {
     let key = text(bytes);
-    obj::change_type(key.as_ptr(), Some(&KEY), 0);
+    obj::change_type(key.as_ptr(), &KEY, 0);
     key
 }
 fn assert_first(interpreter: &Interp, mode: u8) {
