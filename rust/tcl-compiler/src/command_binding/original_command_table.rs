@@ -310,6 +310,95 @@ fn metadata_slots(
     slots
 }
 
+type AdviceRows = super::BTreeMap<String, String>;
+
+/// Pure descriptor geometry over one actual immutable metadata map. The weak
+/// map observation prevents a warmed index from surviving in-place COW edits.
+#[derive(Debug)]
+struct RegistryAdviceSlotIndex {
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    rows: std::sync::Weak<AdviceRows>,
+    slots: std::collections::HashMap<tcl_core_types::ByteCommandSlot, Option<(String, String)>>,
+}
+
+impl RegistryAdviceSlotIndex {
+    fn new(
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        rows: &std::sync::Arc<AdviceRows>,
+    ) -> Self {
+        let names = rows.keys().cloned().collect();
+        let slots = metadata_slots(policy, &names)
+            .into_iter()
+            .map(|(slot, metadata)| {
+                let row = metadata.map(|metadata| {
+                    let name = rows[&metadata].clone();
+                    (metadata, name)
+                });
+                (slot, row)
+            })
+            .collect();
+        Self {
+            policy,
+            rows: std::sync::Arc::downgrade(rows),
+            slots,
+        }
+    }
+
+    fn matches(
+        &self,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        rows: &std::sync::Arc<AdviceRows>,
+    ) -> bool {
+        self.policy == policy && self.rows.ptr_eq(&std::sync::Arc::downgrade(rows))
+    }
+}
+
+/// Bounded derived indexes shared by baseline forks. Map birth and the complete
+/// policy select cache reuse only; original live lookup barriers remain outside.
+#[derive(Debug, Default)]
+pub(super) struct RegistryAdviceSlotMemo {
+    entries: std::sync::Mutex<Vec<std::sync::Arc<RegistryAdviceSlotIndex>>>,
+}
+
+impl RegistryAdviceSlotMemo {
+    fn index(
+        &self,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        rows: &std::sync::Arc<AdviceRows>,
+    ) -> Option<std::sync::Arc<RegistryAdviceSlotIndex>> {
+        const MAX_RETAINED_MAPS: usize = 16;
+        if rows.len() > MAX_BASELINE_METADATA_NAMES {
+            return None;
+        }
+        {
+            let mut entries = self
+                .entries
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            entries.retain(|entry| entry.rows.strong_count() != 0);
+            if let Some(entry) = entries.iter().find(|entry| entry.matches(policy, rows)) {
+                return Some(std::sync::Arc::clone(entry));
+            }
+            if entries.len() >= MAX_RETAINED_MAPS {
+                return None;
+            }
+        }
+        let index = std::sync::Arc::new(RegistryAdviceSlotIndex::new(policy, rows));
+        let mut entries = self
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        entries.retain(|entry| entry.rows.strong_count() != 0);
+        if let Some(entry) = entries.iter().find(|entry| entry.matches(policy, rows)) {
+            return Some(std::sync::Arc::clone(entry));
+        }
+        if entries.len() < MAX_RETAINED_MAPS {
+            entries.push(std::sync::Arc::clone(&index));
+        }
+        Some(index)
+    }
+}
+
 /// One barrier classifier shared by separately owned Native and vendor source
 /// coordinates. It grants schema applicability only, never a live lookup.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -805,8 +894,8 @@ mod tests {
                 );
             }
             let mut declared = state.clone();
-            super::super::Arc::make_mut(&mut declared.baseline)
-                .declared_commands
+            let baseline = super::super::Arc::make_mut(&mut declared.baseline);
+            super::super::Arc::make_mut(&mut baseline.declared_commands)
                 .insert(candidate.slot, "document-proc".to_owned());
             let (document, catalogue) =
                 declared.original_advice_candidates_for_input(&root, &input);
@@ -831,8 +920,8 @@ mod tests {
         let input = catalogue_input("class", config, policy);
         assert!(state.namespaces.contains(&own));
         let mut proposal = state.clone();
-        super::super::Arc::make_mut(&mut proposal.baseline)
-            .catalogue_commands
+        let baseline = super::super::Arc::make_mut(&mut proposal.baseline);
+        super::super::Arc::make_mut(&mut baseline.catalogue_commands)
             .insert("::class".to_owned(), "root-proposal".to_owned());
         assert_eq!(
             proposal
@@ -1852,15 +1941,32 @@ impl ModuleCommandBindings {
         obligations: &mut Vec<super::OriginalCatalogueSourceObligation>,
     ) -> Option<super::DeclaredCommandCandidate> {
         use super::OriginalCatalogueSourceObligation as Obligation;
+        let index = self
+            .baseline
+            .advice_slots
+            .index(policy, &self.baseline.catalogue_commands);
+        let declared_index = self
+            .baseline
+            .advice_slots
+            .index(policy, &self.baseline.declared_commands);
         let mut selected = None;
         for slot in path {
-            let mut candidates = self.baseline.catalogue_commands.iter().filter(|(name, _)| {
-                original_registry_metadata_slot(policy, name).as_ref() == Some(slot)
-            });
-            let candidate = candidates.next();
-            if candidates.next().is_some() {
-                return None;
-            }
+            let candidate = if let Some(index) = &index {
+                match index.slots.get(slot) {
+                    Some(Some((metadata, name))) => Some((metadata, name)),
+                    Some(None) => return None,
+                    None => None,
+                }
+            } else {
+                let mut candidates = self.baseline.catalogue_commands.iter().filter(|(name, _)| {
+                    original_registry_metadata_slot(policy, name).as_ref() == Some(slot)
+                });
+                let first = candidates.next();
+                if candidates.next().is_some() {
+                    return None;
+                }
+                first
+            };
             let bindings = self.original_catalogue_bindings_for_slot(slot, policy);
             match classify_catalogue_source_cell(
                 &bindings,
@@ -1875,12 +1981,14 @@ impl ModuleCommandBindings {
                 }
                 CatalogueSourceCell::Pass => {}
             }
-            if self
-                .baseline
-                .declared_commands
-                .keys()
-                .any(|name| original_registry_metadata_slot(policy, name).as_ref() == Some(slot))
-            {
+            if declared_index.as_ref().map_or_else(
+                || {
+                    self.baseline.declared_commands.keys().any(|name| {
+                        original_registry_metadata_slot(policy, name).as_ref() == Some(slot)
+                    })
+                },
+                |index| index.slots.contains_key(slot),
+            ) {
                 return None;
             }
             if let Some((metadata, name)) = candidate {
@@ -2086,6 +2194,21 @@ impl ModuleCommandBindings {
         )
     }
 
+    fn original_advice_index_for_rows(
+        &self,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        rows: &AdviceRows,
+    ) -> Option<std::sync::Arc<RegistryAdviceSlotIndex>> {
+        let original = if std::ptr::eq(rows, self.baseline.declared_commands.as_ref()) {
+            &self.baseline.declared_commands
+        } else if std::ptr::eq(rows, self.baseline.catalogue_commands.as_ref()) {
+            &self.baseline.catalogue_commands
+        } else {
+            return None;
+        };
+        self.baseline.advice_slots.index(policy, original)
+    }
+
     fn original_advice_candidate_from_paths(
         &self,
         current: &SourceNamespaceKey,
@@ -2094,6 +2217,14 @@ impl ModuleCommandBindings {
         declarations: &super::BTreeMap<String, String>,
         catalogue: bool,
     ) -> Option<super::DeclaredCommandCandidate> {
+        let index = self.original_advice_index_for_rows(policy, declarations);
+        let declared_index = if catalogue {
+            self.baseline
+                .advice_slots
+                .index(policy, &self.baseline.declared_commands)
+        } else {
+            None
+        };
         let mut unanimous = None;
         for path in paths {
             let mut selected = None;
@@ -2116,19 +2247,33 @@ impl ModuleCommandBindings {
                     return None;
                 }
                 if catalogue
-                    && self
-                        .baseline
-                        .declared_commands
-                        .keys()
-                        .any(|name| metadata_slot(name))
+                    && declared_index.as_ref().map_or_else(
+                        || {
+                            self.baseline
+                                .declared_commands
+                                .keys()
+                                .any(|name| metadata_slot(name))
+                        },
+                        |index| index.slots.contains_key(slot),
+                    )
                 {
                     return None;
                 }
-                let mut matching = declarations.iter().filter(|(name, _)| metadata_slot(name));
-                if let Some((metadata, name)) = matching.next() {
+                let candidate = if let Some(index) = &index {
+                    match index.slots.get(slot) {
+                        Some(Some((metadata, name))) => Some((metadata, name)),
+                        Some(None) => return None,
+                        None => None,
+                    }
+                } else {
+                    let mut matching = declarations.iter().filter(|(name, _)| metadata_slot(name));
+                    let first = matching.next();
                     if matching.next().is_some() {
                         return None;
                     }
+                    first
+                };
+                if let Some((metadata, name)) = candidate {
                     selected = Some(super::DeclaredCommandCandidate {
                         name: name.clone(),
                         lookup_namespace: current.display().unwrap_or_default(),
@@ -2912,3 +3057,7 @@ mod conditional_catalogue_source_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "original_advice_slot_tests.rs"]
+mod advice_slot_tests;

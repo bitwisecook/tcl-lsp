@@ -1057,6 +1057,8 @@ an incremental cache key.
 
 The conditional procedure and declared receiver-body workers select innermost source intervals through `DeferredBodyIndexCache`. Reuse requires the exact live retained deferred inventory; a copy-on-write change replaces that derived index. Its weak inventory observation retains no earlier body-table payloads. All equal-span candidates still reach the existing conflict, original source, execution frame, event, future, formal and namespace checks. Collector clones begin with an empty derived cache. Optional `TCL_LSP_TRACE_SOURCE_PHASES` timings measure reached owner work only and participate in no semantic equality, source proof or admission.
 
+Original declared and catalogue metadata maps share immutable rows. `RegistryAdviceSlotMemo` projects fixed descriptors through the existing `original_registry_metadata_slot` owner under the exact live map allocation and complete `NamePolicyProtocol`. Distinct names that collide in one slot remain ambiguous; a declared collision still blocks catalogue advice. Weak map observations force copy-on-write edits to use a new map birth, and dead indexes are discarded. Bounded or external maps use the same uncached projection. Index warmth is excluded from semantic equality and hashing. Current original input, namespace/path geometry, live bindings and tombstones, Native entry absence, compiler world, point, frame, Registry and realm checks remain with their original callers; the index grants no selected target, native token, compiler admission or effects.
+
 A package catalogue and a loaded implementation are different evidence. A
 Tcllib factory's authored successful object return describes a selected known
 handler; the command spelling alone does not establish that handler. Positive

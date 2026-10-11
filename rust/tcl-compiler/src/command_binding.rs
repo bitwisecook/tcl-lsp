@@ -773,13 +773,15 @@ struct BindingBaseline {
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     fingerprint: u64,
     registry_snapshot: Option<tcl_registry::RegistrySemanticKey>,
-    declared_commands: BTreeMap<String, String>,
+    declared_commands: Arc<BTreeMap<String, String>>,
     declared_surface: Option<Arc<source_analysis_entry::SourceDeclaredCommandContracts>>,
-    catalogue_commands: BTreeMap<String, String>,
+    catalogue_commands: Arc<BTreeMap<String, String>>,
     /// Registry-owned, generation-specific facts shared with CFG construction.
     semantics: Arc<EffectiveRegistrySemantics>,
     /// Derived fixed descriptor projection, excluded from equality and hashing.
     metadata_slots: OnceLock<Option<original_command_table::RegistryMetadataSlotIndex>>,
+    /// Derived descriptor geometry keyed by the actual immutable map and policy.
+    advice_slots: Arc<original_command_table::RegistryAdviceSlotMemo>,
     import_binding: Option<tcl_dialect::NamespaceImportBinding>,
     trusted_loaders: BTreeMap<String, TrustedPackageLoader>,
     trusted_source_modules: Vec<TrustedSourceModuleLoader>,
@@ -845,12 +847,14 @@ impl BindingBaseline {
             ),
             fingerprint: 0,
             registry_snapshot: Some(registry.snapshot().semantic_key()),
-            declared_commands: BTreeMap::new(),
+            declared_commands: Arc::default(),
             declared_surface: None,
-            catalogue_commands: registry
-                .command_names()
-                .map(|name| (nqn(name), name.to_owned()))
-                .collect(),
+            catalogue_commands: Arc::new(
+                registry
+                    .command_names()
+                    .map(|name| (nqn(name), name.to_owned()))
+                    .collect(),
+            ),
             semantics: registry.profile().map_or_else(
                 || registry.effective_semantics(),
                 |profile| {
@@ -861,6 +865,7 @@ impl BindingBaseline {
                 },
             ),
             metadata_slots: OnceLock::new(),
+            advice_slots: Arc::default(),
             import_binding: registry
                 .profile()
                 .and_then(tcl_dialect::DialectProfile::namespace_import_binding),
@@ -12956,11 +12961,12 @@ impl ModuleCommandBindings {
         baseline.unknown_entry = options.unknown_entry;
         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
         baseline.declared_surface = options.retained_declared_command_contracts();
-        baseline.declared_commands =
+        baseline.declared_commands = Arc::new(
             tcl_registry::model::DocumentCommandSurface::new(registry, options.declared_commands)
                 .declared_names()
                 .map(|name| (nqn(name), name.to_owned()))
-                .collect();
+                .collect(),
+        );
         baseline.trusted_source_modules = options.trusted_source_modules.to_vec();
         baseline.trusted_loaders = options
             .trusted_package_loaders
