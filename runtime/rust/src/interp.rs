@@ -5845,11 +5845,12 @@ impl Interp {
             .currency()
             .ensure_current_or_refuse()
             .map_err(|first| self.refuse_native_execution(first))?;
-        self.install_native_precision_trace();
+        let installed = self.install_native_precision_trace_checked();
         scope
             .currency()
             .ensure_current_or_refuse()
             .map_err(|first| self.refuse_native_execution(first))?;
+        installed.map_err(|first| self.refuse_native_execution(first))?;
         Ok(())
     }
 
@@ -7892,13 +7893,9 @@ impl Interp {
         if !any {
             self.fire_native_error_variable_trace(home, access, op);
             self.check_entered_native_operation()?;
-            let failed = self.native_precision_trace(home, access, op);
+            let outcome = self.native_precision_trace(home, access, op);
             self.check_entered_native_operation()?;
-            return Ok(if failed {
-                VariableTraceGuestOutcome::GuestError
-            } else {
-                VariableTraceGuestOutcome::Complete
-            });
+            return outcome;
         }
         // C aborts the chain on the first callback error for every op *except*
         // unset — "ignore errors in unset traces" (tclTrace.c 9.0.4:2600). An
@@ -8053,10 +8050,22 @@ impl Interp {
                 }
             }
             if whole_array {
-                let failed = self.native_precision_trace(home, access, op);
-                if self.check_entered_native_operation().is_err() || failed {
+                let outcome = self.native_precision_trace(home, access, op);
+                if self.check_entered_native_operation().is_err() {
                     errored = true;
                     break;
+                }
+                match outcome {
+                    Ok(VariableTraceGuestOutcome::Complete) => {}
+                    Ok(VariableTraceGuestOutcome::GuestError) => {
+                        errored = true;
+                        break;
+                    }
+                    Err(first) => {
+                        self.refuse_native_execution(first);
+                        errored = true;
+                        break;
+                    }
                 }
             }
         }

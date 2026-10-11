@@ -295,6 +295,15 @@ impl tcl_platform::NumericEnvironment for CheckedNumericEnvironment<'_> {
     {
         self.call(|| self.actual.unsigned(input, offset, base))
     }
+    fn unsigned_long(
+        &self,
+        input: &[u8],
+        offset: usize,
+        base: u32,
+    ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
+    {
+        self.call(|| self.actual.unsigned_long(input, offset, base))
+    }
     fn signed_long(
         &self,
         input: &[u8],

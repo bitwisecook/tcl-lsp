@@ -15,7 +15,7 @@ pub struct NumericErrorState {
 /// A reached unsigned C conversion, including its real thread-state effects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnsignedNumericConversion {
-    /// Converted unsigned long long value.
+    /// Exact C unsigned result widened from the selected long or long-long worker.
     pub value: u64,
     /// End-pointer byte offset in the original counted input.
     pub end: usize,
@@ -112,6 +112,20 @@ pub trait NumericEnvironment {
         offset: usize,
         base: u32,
     ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable>;
+
+    /// Execute strtoul on the selected original input suffix. This is an
+    /// independently selected unsigned-long stage, not the base-zero C8.4
+    /// primitive or an unsigned-long-long conversion. It never resets errno.
+    /// Default absence supplies no target operation or primitive recipe.
+    fn unsigned_long(
+        &self,
+        input: &[u8],
+        offset: usize,
+        base: u32,
+    ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
+        let _ = (input, offset, base);
+        Err(NumericEnvironmentUnavailable::Target)
+    }
 
     /// Execute strtol on original input under the actual host long layout.
     /// Base is zero or 2..=36. This operation never resets errno; availability

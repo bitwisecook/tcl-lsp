@@ -4,32 +4,76 @@
 
 //! Hidden precision callbacks follow the selected physical variable cell.
 
-use super::{Interp, TraceAccess};
+use super::{
+    native_operation_currency::{
+        CheckedNumericEnvironment, NativeOperationCurrency, NativeOperationScope,
+    },
+    Interp, TraceAccess, VariableTraceGuestOutcome,
+};
 use crate::{frame::VariableReceiver, obj, vars::TraceHome};
+use tcl_runtime_api::NativeExecutionError;
+use tcl_syntax::{raw_string::NativeValueAccessRefusal, value::ValueError};
+
+#[cfg(test)]
+mod original_stage_tests;
 
 impl Interp {
     pub(super) fn install_native_precision_trace(&mut self) {
+        if let Err(first) = self.install_native_precision_trace_checked() {
+            self.refuse_native_execution(first);
+        }
+    }
+
+    pub(super) fn install_native_precision_trace_checked(
+        &mut self,
+    ) -> Result<(), NativeExecutionError> {
+        let operation = NativeOperationScope::enter(self)?;
+        operation.currency().ensure_current_or_refuse()?;
         self.native_precision_cell.set(None);
         if self
             .native_invocation_dialect()
             .native_bootstrap_protocol()
             .is_none()
         {
-            return;
+            return Ok(());
         }
         if let Some(name) = self
             .native_invocation_dialect()
             .double_string_policy()
             .and_then(tcl_dialect::DoubleStringPolicy::precision_variable)
         {
-            self.install_native_precision_trace_at(name.as_bytes());
+            self.install_native_precision_trace_at_checked(name.as_bytes())?;
         }
+        operation.currency().ensure_current_or_refuse()
     }
 
     pub(super) fn install_native_precision_trace_at(&mut self, name: &[u8]) {
+        if let Err(first) = self.install_native_precision_trace_at_checked(name) {
+            self.refuse_native_execution(first);
+        }
+    }
+
+    fn install_native_precision_trace_at_checked(
+        &mut self,
+        name: &[u8],
+    ) -> Result<(), NativeExecutionError> {
+        let operation = NativeOperationScope::enter(self)?;
+        let currency = operation.currency();
+        currency.ensure_current_or_refuse()?;
         self.native_precision_cell.set(None);
-        if self.pending_delete.get() || self.require_variable_name_protocol().is_err() {
-            return;
+        if self.pending_delete.get()
+            || self
+                .native_invocation_dialect()
+                .native_bootstrap_protocol()
+                .is_none()
+        {
+            return Ok(());
+        }
+        let naming = self.require_variable_name_protocol();
+        currency.ensure_current_or_refuse()?;
+        if naming.is_err() {
+            // The naming owner retains its precise operational cause.
+            return self.check_entered_native_operation();
         }
         // TclPrecTraceProc reinstalls with GLOBAL_ONLY and the original
         // callback name. A proc-local upvar spelling can relocate this trace.
@@ -39,8 +83,12 @@ impl Interp {
             name,
             0,
         );
+        currency.ensure_current_or_refuse()?;
+        // The original callback ignores a Guest trace-registration failure.
+        // Operational refusal and reached retirement remain checked separately.
         self.native_precision_cell
             .set(home.ok().and_then(|home| home.binding_id));
+        currency.ensure_current_or_refuse()
     }
 
     pub(super) fn native_precision_trace_at(&self, home: &TraceHome) -> bool {
@@ -73,60 +121,70 @@ impl Interp {
         home: &TraceHome,
         access: &TraceAccess,
         op: &[u8],
-    ) -> bool {
-        if !self.native_precision_trace_at(home) {
-            return false;
-        }
-        if op == b"unset" {
-            if access.match_elem.is_none() {
-                self.install_native_precision_trace_at(&access.reported);
+    ) -> Result<VariableTraceGuestOutcome, NativeExecutionError> {
+        let operation = NativeOperationScope::enter(self)?;
+        let currency = operation.currency();
+        currency.ensure_current_or_refuse()?;
+        let outcome = (|| {
+            if !self.native_precision_trace_at(home) {
+                return Ok(VariableTraceGuestOutcome::Complete);
             }
-            return false;
-        }
-        if op == b"array" {
-            return false;
-        }
-        // The intrinsic belongs to the containing array. C8.x element aliases
-        // suppress that array's callbacks, including the hidden callback.
-        if access.match_elem.is_some() {
-            let cell = self.variable_trace_scope(home, access.match_elem.as_deref());
-            if !access.whole_array
-                || self
-                    .active_var_trace_scopes
-                    .borrow()
-                    .contains(&cell.array())
-            {
-                return false;
+            if op == b"unset" {
+                if access.match_elem.is_none() {
+                    self.install_native_precision_trace_at_checked(&access.reported)?;
+                }
+                return Ok(VariableTraceGuestOutcome::Complete);
             }
-        }
-        let Some(receiver) = self.native_precision_receiver(home, access.match_elem.as_deref())
-        else {
-            return false;
-        };
-        let policy = self
-            .native_invocation_dialect()
-            .double_string_policy()
-            .expect("selected hidden precision callback");
-        if op == b"read" {
-            restore_precision(&receiver, policy);
-            return false;
-        }
-        self.write_native_precision(&receiver, policy)
+            if op == b"array" {
+                return Ok(VariableTraceGuestOutcome::Complete);
+            }
+            // The intrinsic belongs to the containing array. C8.x element
+            // aliases suppress that array's callbacks, including this one.
+            if access.match_elem.is_some() {
+                let cell = self.variable_trace_scope(home, access.match_elem.as_deref());
+                if !access.whole_array
+                    || self
+                        .active_var_trace_scopes
+                        .borrow()
+                        .contains(&cell.array())
+                {
+                    return Ok(VariableTraceGuestOutcome::Complete);
+                }
+            }
+            let receiver = self.native_precision_receiver(home, access.match_elem.as_deref());
+            currency.ensure_current_or_refuse()?;
+            let Some(receiver) = receiver else {
+                return Ok(VariableTraceGuestOutcome::Complete);
+            };
+            let policy = self
+                .native_invocation_dialect()
+                .double_string_policy()
+                .expect("selected hidden precision callback");
+            if op == b"read" {
+                self.restore_native_precision(&receiver, policy, currency)?;
+                return Ok(VariableTraceGuestOutcome::Complete);
+            }
+            self.write_native_precision(&receiver, policy, currency)
+        })();
+        // Selected receivers and original objects retire before this check.
+        currency.ensure_current_or_refuse()?;
+        outcome
     }
 
     fn write_native_precision(
         &mut self,
         receiver: &VariableReceiver,
         policy: tcl_dialect::DoubleStringPolicy,
-    ) -> bool {
-        let value = receiver.read().ok().flatten().map(super::obj_bytes);
-        let precision = value
-            .as_ref()
-            .and_then(|value| std::str::from_utf8(value).ok())
-            .and_then(|value| tcl_syntax::number::parse_double_precision(policy, value));
+        currency: &NativeOperationCurrency,
+    ) -> Result<VariableTraceGuestOutcome, NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        // TclPrecTraceProc tests safety before either original getter.
         let error = if self.is_safe() {
             Some(b"can't modify precision from a safe interpreter".as_slice())
-        } else if let Some(precision) = precision {
+        } else if let Some(precision) =
+            self.original_native_precision(receiver, policy, currency)?
+        {
+            currency.ensure_current_or_refuse()?;
             obj::set_double_precision(policy, precision);
             None
         } else {
@@ -134,20 +192,154 @@ impl Interp {
         };
         if let Some(error) = error {
             if policy == tcl_dialect::DoubleStringPolicy::Tcl84Precision {
-                restore_precision(receiver, policy);
+                self.restore_native_precision(receiver, policy, currency)?;
             }
+            currency.ensure_current_or_refuse()?;
             self.traces.borrow_mut().pending_err = Some(error.to_vec());
-            return true;
+            return Ok(VariableTraceGuestOutcome::GuestError);
         }
-        false
+        currency.ensure_current_or_refuse()?;
+        Ok(VariableTraceGuestOutcome::Complete)
     }
-}
 
-fn restore_precision(receiver: &VariableReceiver, policy: tcl_dialect::DoubleStringPolicy) {
-    let value = obj::Owned::fresh(obj::new_wide_int_obj(i64::from(obj::double_precision(
-        policy,
-    ))));
-    let _ = receiver.store(value.as_ptr());
+    fn original_native_precision(
+        &mut self,
+        receiver: &VariableReceiver,
+        policy: tcl_dialect::DoubleStringPolicy,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Option<u8>, NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let pointer = receiver.read().ok().flatten();
+        currency.ensure_current_or_refuse()?;
+        let original = if let Some(pointer) = pointer {
+            self.precision_original_current(currency, pointer)?;
+            // The pinned GetVar2/GetVar2Ex workers borrow the cell's native
+            // reference. Retain only allocation safety through a callback.
+            Some(obj::NativeObjectLifetime::retain(pointer))
+        } else {
+            None
+        };
+        let outcome = (|| {
+            let host = self.host();
+            if policy == tcl_dialect::DoubleStringPolicy::Tcl84Precision {
+                // C8.4 reaches String before its decimal strtoul stage. Its
+                // original NULL getter result explicitly selects the empty
+                // C string; it still reaches the decimal conversion worker.
+                let bytes = match &original {
+                    Some(original) => {
+                        let reached = self.native_object_string_bytes(original.as_ptr());
+                        let bytes = self.precision_access_outcome(currency, reached)?;
+                        self.precision_original_current(currency, original.as_ptr())?;
+                        bytes.unwrap_or_default()
+                    }
+                    None => std::rc::Rc::<[u8]>::default(),
+                };
+                let actual = host.numeric_environment();
+                currency.ensure_current_or_refuse()?;
+                let actual = actual.ok_or_else(|| self.precision_numeric_unavailable())?;
+                let abi = std::cell::Cell::new(None);
+                let environment = CheckedNumericEnvironment::new(actual, Some(currency), &abi);
+                let converted =
+                    tcl_cmd_core::native_numeric::c84_precision_from_host(&bytes, &environment);
+                return Ok(self
+                    .precision_access_outcome(currency, converted)?
+                    .flatten());
+            }
+            let Some(original) = &original else {
+                return Ok(None);
+            };
+            // C8.5/C8.6 reach the error-neutral Int getter on this original;
+            // a cached numeric failure does not require String or diagnostics.
+            let actual = host.numeric_environment();
+            currency.ensure_current_or_refuse()?;
+            let abi = std::cell::Cell::new(None);
+            let environment =
+                actual.map(|actual| CheckedNumericEnvironment::new(actual, Some(currency), &abi));
+            let converted = crate::typed_value::native_scalar_probe_with_environment_and_currency(
+                original.as_ptr(),
+                self.native_invocation_dialect(),
+                tcl_syntax::scalar_getter::NativeScalarGetterKind::Int,
+                environment
+                    .as_ref()
+                    .map(|environment| environment as &dyn tcl_platform::NumericEnvironment),
+                Some(currency),
+            );
+            let converted = self.precision_access_outcome(currency, converted)?;
+            self.precision_original_current(currency, original.as_ptr())?;
+            Ok(match converted {
+                Some(Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(integer))) => {
+                    tcl_syntax::number::double_precision_from_native_integer(policy, integer)
+                }
+                Some(Err(_)) | None => None,
+                // The selected Int worker has no Double/Boolean success.
+                Some(Ok(_)) => return Err(self.precision_numeric_unavailable()),
+            })
+        })();
+        drop(original);
+        currency.ensure_current_or_refuse()?;
+        outcome
+    }
+
+    fn precision_original_current(
+        &mut self,
+        currency: &NativeOperationCurrency,
+        original: *mut obj::TclObj,
+    ) -> Result<(), NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let reached = obj::check_native_liveness(original);
+        match self.precision_access_outcome(currency, reached)? {
+            Some(()) => Ok(()),
+            None => Err(self.precision_numeric_unavailable()),
+        }
+    }
+
+    fn precision_access_outcome<T>(
+        &mut self,
+        currency: &NativeOperationCurrency,
+        reached: Result<T, ValueError>,
+    ) -> Result<Option<T>, NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        match reached {
+            Ok(value) => Ok(Some(value)),
+            Err(error) => match error.native_access_refusal() {
+                Some(cause) => {
+                    let first = NativeExecutionError::ValueAccessRefusal(cause);
+                    self.refuse_native_execution(first.clone());
+                    Err(first)
+                }
+                // Tcl_GetVar2/Int(NULL) failing as Guest selects the callback's
+                // fixed improper-precision reason, not primitive presentation.
+                None => Ok(None),
+            },
+        }
+    }
+
+    fn precision_numeric_unavailable(&mut self) -> NativeExecutionError {
+        let first = NativeExecutionError::ValueAccessRefusal(
+            NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+        );
+        self.refuse_native_execution(first.clone());
+        first
+    }
+
+    fn restore_native_precision(
+        &mut self,
+        receiver: &VariableReceiver,
+        policy: tcl_dialect::DoubleStringPolicy,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), NativeExecutionError> {
+        currency.ensure_current_or_refuse()?;
+        let value = obj::Owned::fresh(obj::new_wide_int_obj(i64::from(obj::double_precision(
+            policy,
+        ))));
+        let reached = receiver.store(value.as_ptr());
+        currency.ensure_current_or_refuse()?;
+        // The pinned read/safe/invalid callback ignores this Guest setter
+        // outcome. A free hook's actual Host cause remains an outer refusal.
+        let _ = reached;
+        drop(value);
+        currency.ensure_current_or_refuse()
+    }
 }
 
 #[cfg(test)]

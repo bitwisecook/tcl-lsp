@@ -542,6 +542,41 @@ pub fn format_double(f: f64) -> String {
     if neg { format!("-{out}") } else { out }
 }
 
+/// Validate the integer reached by the independently selected precision getter.
+/// Fixed formatting policies have no linked variable and accept no write.
+#[must_use]
+pub fn double_precision_from_native_integer(
+    policy: tcl_dialect::DoubleStringPolicy,
+    integer: i64,
+) -> Option<u8> {
+    if !policy.has_precision_variable() {
+        return None;
+    }
+    let precision = u8::try_from(integer).ok()?;
+    policy.format(precision).map(|_| precision)
+}
+
+/// Validate the original C8.4 decimal unsigned-long stage with the checked
+/// 8/4/8 target. The actual libc caller owns errno and conversion; this kernel
+/// only selects full C-string consumption, native int narrowing and bounds.
+#[must_use]
+pub fn c84_double_precision_from_unsigned_long(
+    original: &[u8],
+    value: u64,
+    end: usize,
+    _target: crate::scalar_getter::NativeScalarGetterTarget,
+) -> Option<u8> {
+    let original = tcl_core_types::c_string_extent(original);
+    if end == 0 || end != original.len() {
+        return None;
+    }
+    let signed = i64::from_ne_bytes(value.to_ne_bytes());
+    double_precision_from_native_integer(
+        tcl_dialect::DoubleStringPolicy::Tcl84Precision,
+        i64::from(native_int32_low_bits(signed)),
+    )
+}
+
 /// Parse a write to C Tcl's linked precision variable through its native grammar.
 /// Fixed policies have no linked variable and therefore return `None`.
 #[must_use]
@@ -581,8 +616,7 @@ pub fn parse_double_precision(policy: tcl_dialect::DoubleStringPolicy, text: &st
         }
         DoubleStringPolicy::Shortest | DoubleStringPolicy::JimTwelve => return None,
     };
-    let precision = u8::try_from(native_integer).ok()?;
-    policy.format(precision).map(|_| precision)
+    double_precision_from_native_integer(policy, i64::from(native_integer))
 }
 
 /// Shared C `%g` rendering, including precision-dependent notation, exponent

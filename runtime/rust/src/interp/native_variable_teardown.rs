@@ -45,7 +45,9 @@ impl Interp {
         self.detach_destroyed_trace_group(home, access.match_elem.as_deref());
         self.fire_unset_callbacks(callbacks);
         self.fire_native_error_variable_trace(home, &access, b"unset");
-        self.native_precision_trace(home, &access, b"unset");
+        if let Err(first) = self.native_precision_trace(home, &access, b"unset") {
+            self.refuse_native_execution(first);
+        }
     }
 
     pub(super) fn unset_byte_variable_at(

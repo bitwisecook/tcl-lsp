@@ -93,37 +93,16 @@ mod native {
         offset: usize,
         long: bool,
     ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
-        let original = input(bytes);
-        if offset > original.as_bytes().len() {
-            return Err(NumericEnvironmentUnavailable::Conversion);
-        }
-        let before = state();
-        let mut end = std::ptr::null_mut();
-        // SAFETY: admitted offset lies in the owned NUL-terminated allocation;
-        // both libc calls receive a writable local end pointer and radix zero.
-        let (value, consumed) = unsafe {
-            // C8.4 aliases its wide parser to the long parser when both
-            // native C types have the same width (TCL_WIDE_INT_IS_LONG).
-            let value = if long
-                || core::mem::size_of::<libc::c_long>() == core::mem::size_of::<libc::c_longlong>()
-            {
-                libc::strtoul(original.as_ptr().add(offset), &raw mut end, 0) as u64
-            } else {
-                libc::strtoull(original.as_ptr().add(offset), &raw mut end, 0) as u64
-            };
-            (value, end.offset_from(original.as_ptr()))
-        };
-        let end =
-            usize::try_from(consumed).map_err(|_| NumericEnvironmentUnavailable::Conversion)?;
-        if end > original.as_bytes().len() {
-            return Err(NumericEnvironmentUnavailable::Conversion);
-        }
-        Ok(UnsignedNumericConversion {
-            value,
-            end,
-            before,
-            after: state(),
-        })
+        // Retain the existing C8.4 selected long/wide worker. This call always
+        // uses radix zero; it does not donate the decimal precision purpose.
+        unsigned_stage(
+            bytes,
+            offset,
+            0,
+            long || core::mem::size_of::<libc::c_long>()
+                == core::mem::size_of::<libc::c_longlong>(),
+            false,
+        )
     }
 
     pub(super) fn unsigned(
@@ -131,23 +110,42 @@ mod native {
         offset: usize,
         base: u32,
     ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
+        unsigned_stage(bytes, offset, base, false, true)
+    }
+
+    pub(super) fn unsigned_long(
+        bytes: &[u8],
+        offset: usize,
+        base: u32,
+    ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
+        unsigned_stage(bytes, offset, base, true, false)
+    }
+
+    fn unsigned_stage(
+        bytes: &[u8],
+        offset: usize,
+        base: u32,
+        long: bool,
+        require_wide64: bool,
+    ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
         let original = input(bytes);
         if offset > original.as_bytes().len()
             || !(base == 0 || (2..=36).contains(&base))
-            || std::mem::size_of::<libc::c_ulonglong>() != 8
+            || (require_wide64 && std::mem::size_of::<libc::c_ulonglong>() != 8)
         {
             return Err(NumericEnvironmentUnavailable::Conversion);
         }
         let before = state();
         let mut end = std::ptr::null_mut();
-        // SAFETY: offset lies in the owned NUL-terminated allocation, base is
-        // admitted by strtoull, and end points to a writable local pointer.
+        // SAFETY: offset lies in the owned NUL-terminated allocation, the
+        // selected libc worker admits the radix, and end is a writable local.
         let (value, consumed) = unsafe {
-            let value = libc::strtoull(
-                original.as_ptr().add(offset),
-                &raw mut end,
-                libc::c_int::try_from(base).expect("admitted strtoull radix fits c_int"),
-            );
+            let radix = libc::c_int::try_from(base).expect("admitted C radix fits c_int");
+            let value = if long {
+                libc::strtoul(original.as_ptr().add(offset), &raw mut end, radix) as u64
+            } else {
+                libc::strtoull(original.as_ptr().add(offset), &raw mut end, radix) as u64
+            };
             (value, end.offset_from(original.as_ptr()))
         };
         let after = state();
@@ -336,6 +334,35 @@ impl NumericEnvironment for NativeNumericEnvironment {
         ))]
         {
             native::unsigned(input, offset, base)
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
+        )))]
+        {
+            let _ = (input, offset, base);
+            Err(NumericEnvironmentUnavailable::Target)
+        }
+    }
+
+    fn unsigned_long(
+        &self,
+        input: &[u8],
+        offset: usize,
+        base: u32,
+    ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd",
+            all(target_arch = "wasm32", target_os = "wasi", target_env = "p1")
+        ))]
+        {
+            native::unsigned_long(input, offset, base)
         }
         #[cfg(not(any(
             target_os = "linux",

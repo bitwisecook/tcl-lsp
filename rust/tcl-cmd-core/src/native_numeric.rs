@@ -47,6 +47,28 @@ pub fn scalar_getter_recipe_abi(
         .map_err(|_| ValueError::ScalarNumericInputUnavailable)
 }
 
+/// Execute the selected C8.4 precision callback's decimal strtoul stage.
+/// This is neither GetLong nor a Boolean conversion. Original String access,
+/// callback entry and thread precision publication belong to the caller.
+///
+/// # Errors
+/// Refuses unavailable actual environment/target facts without a Guest parser.
+pub fn c84_precision_from_host(
+    original: &[u8],
+    environment: &dyn NumericEnvironment,
+) -> Result<Option<u8>, ValueError> {
+    let target = scalar_getter_target(environment)?;
+    let executed = environment
+        .unsigned_long(original, 0, 10)
+        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+    Ok(tcl_syntax::number::c84_double_precision_from_unsigned_long(
+        original,
+        executed.value,
+        executed.end,
+        target,
+    ))
+}
+
 /// Observe C8.4's reached nonfinite result without resetting thread state.
 /// Finite values and known NaN domain errors require no environment query;
 /// infinity requires an actual EDOM fact before selecting overflow.
