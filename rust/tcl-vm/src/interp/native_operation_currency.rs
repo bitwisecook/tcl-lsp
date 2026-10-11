@@ -157,7 +157,10 @@ mod tests {
             .eval_source("set ordinary VALUE; proc p {} {return RESULT}; rename p q; q")
             .unwrap();
         assert_eq!(result.code, Code::Ok);
-        assert_eq!(result.result.resident_string_bytes().unwrap().as_ref(), b"RESULT");
+        assert_eq!(
+            result.result.resident_string_bytes().unwrap().as_ref(),
+            b"RESULT"
+        );
         scope.check(&mut vm).unwrap();
         assert!(vm.execution_refusal.is_none());
     }

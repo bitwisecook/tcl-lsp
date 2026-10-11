@@ -408,9 +408,21 @@ fn object_message(vm: &Vm, id: OoId, before: &[u8], after: &[u8]) -> Vec<u8> {
 }
 
 fn native_method_key(vm: &mut Vm, original: &Value) -> Result<String, Completion<Value>> {
-    let bytes = vm
-        .native_name_operand_bytes(original)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = vm.native_name_operand_bytes(original);
+    scope
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let bytes = reached.map_err(|error| {
+        crate::command::completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::from(
+                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+            )
+            .into(),
+        )
+    })?;
     let policy = vm.name_policy_protocol().ok_or_else(|| {
         vm.refuse_host_command("native TclOO method protocol unavailable".to_owned())
     })?;
@@ -1166,6 +1178,23 @@ pub(crate) fn oo_dispatch(
     invoked: &Value,
     argv: &[Value],
 ) -> Completion<Value> {
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let reached = oo_dispatch_entered(vm, key, invoked, argv);
+    match scope.check(vm) {
+        Ok(()) => reached,
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
+    }
+}
+
+fn oo_dispatch_entered(
+    vm: &mut Vm,
+    key: OoId,
+    invoked: &Value,
+    argv: &[Value],
+) -> Completion<Value> {
     if argv.is_empty() {
         let mut usage = match vm.native_argument_usage_header(std::slice::from_ref(invoked)) {
             Ok(usage) => usage,
@@ -1619,6 +1648,11 @@ fn oo_invoke_value_with_head(
     external: bool,
     invocation_heads: (&Value, Option<&Value>),
 ) -> Completion<Value> {
+    let original_scope =
+        match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
     let (invoked, private_head) = invocation_heads;
     if !vm.oo.objects.contains_key(&obj_key) {
         return err(object_message(
@@ -1660,7 +1694,7 @@ fn oo_invoke_value_with_head(
     };
     let call_identity =
         original_call_words([&original_head, original_method].into_iter().chain(args));
-    run_step(
+    let result = run_step(
         vm,
         obj_key,
         &chain,
@@ -1671,7 +1705,13 @@ fn oo_invoke_value_with_head(
         invoked.clone(),
         usage,
         call_identity,
-    )
+    );
+    drop(chain);
+    if let Err(error) = original_scope.check(vm) {
+        drop(result);
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    result
 }
 
 fn invocation_method_chain(
@@ -1703,9 +1743,12 @@ fn invocation_method_chain(
         };
         methods.is_some_and(|methods| methods.values().any(|method| method.borrow().private))
     });
-    let cached = cacheable
-        .then(|| native_method_cache::lookup(vm, obj_key, method, original_method, external))
-        .flatten();
+    let cached = if cacheable {
+        native_method_cache::lookup(vm, obj_key, method, original_method, external)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+    } else {
+        None
+    };
     Ok(if let Some(chain) = cached {
         chain
     } else {
@@ -1829,6 +1872,11 @@ fn run_step(
     usage_prefix: Vec<Value>,
     call_identity: Vec<Value>,
 ) -> Completion<Value> {
+    let original_scope =
+        match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
     if let Err(c) = vm.enter_oo_dispatch() {
         return c;
     }
@@ -1845,6 +1893,10 @@ fn run_step(
         call_identity,
     );
     vm.exit_oo_dispatch();
+    if let Err(error) = original_scope.check(vm) {
+        drop(result);
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
     result
 }
 
@@ -2253,6 +2305,18 @@ fn builtin_variable(vm: &mut Vm, obj_key: OoId, args: &[Value]) -> Completion<Va
 // self / my / next / nextto
 
 fn cmd_my(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(vm) {
+        Ok(scope) => scope,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let reached = cmd_my_entered(vm, args);
+    match scope.check(vm) {
+        Ok(()) => reached,
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
+    }
+}
+
+fn cmd_my_entered(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = native_context::current_method(vm) else {
         return err("invalid command name \"my\"");
     };
@@ -2599,7 +2663,8 @@ fn teardown(vm: &mut Vm, obj_key: OoId) {
     drop(retired_name);
     let class = vm.oo.classes.contains_key(&obj_key);
     vm.native_method_structure_changed(obj_key, class);
-    vm.oo.retire_native_properties(obj_key);
+    let retired_method_cache = vm.oo.retire_native_properties(obj_key);
+    drop(retired_method_cache);
     vm.oo.objects.remove(&obj_key);
     vm.oo.classes.remove(&obj_key);
     // Reporting bytes remain attached to the never-reused retired object token.

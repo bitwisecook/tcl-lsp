@@ -18,10 +18,14 @@ pub(super) struct NativePropertyCache {
     writable: Option<Value>,
 }
 impl OoState {
-    pub(super) fn retire_native_properties(&mut self, target: OoId) {
-        self.native_methods.retire(target);
+    pub(super) fn retire_native_properties(
+        &mut self,
+        target: OoId,
+    ) -> Option<super::native_method_cache::RetiredMethodTable> {
+        let retired_methods = self.native_methods.retire(target);
         self.property_members.retain(|(id, _, _), _| *id != target);
         self.property_caches.retain(|(id, _), _| *id != target);
+        retired_methods
     }
     fn apply_property_invalidation(&mut self, target: OoId, action: NativePropertyInvalidation) {
         match action {
@@ -809,6 +813,22 @@ pub(super) fn configure_native(vm: &mut Vm, target: OoId, args: &[Value]) -> Com
     ok(Value::empty())
 }
 fn invoke_original_accessor(
+    vm: &mut Vm,
+    target: OoId,
+    property: &Value,
+    writable: bool,
+    value: Option<&Value>,
+) -> Result<Value, Completion<Value>> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let reached = invoke_original_accessor_entered(vm, target, property, writable, value);
+    scope
+        .check(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    reached
+}
+
+fn invoke_original_accessor_entered(
     vm: &mut Vm,
     target: OoId,
     property: &Value,

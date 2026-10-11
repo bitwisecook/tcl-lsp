@@ -173,29 +173,60 @@ pub fn textmate_variable_name_body() -> &'static str {
 /// `TclGetNamespaceForQualName`'s component walk (`tclNamesp.c`).
 #[must_use]
 pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
-    let mut out = Vec::new();
-    let mut seg_start = 0;
-    let mut i = 0;
-    while i < name.len() {
-        if name[i] == b':' && i + 1 < name.len() && name[i + 1] == b':' {
-            if i > seg_start {
-                out.push(&name[seg_start..i]);
+    qualifier_component_extents(name)
+        .map(|extent| &name[extent])
+        .collect()
+}
+
+/// Exact original byte extents of the nonempty components of a written name.
+/// The same owner supplies [`qualifier_segments`]: a complete run of at least
+/// two colons is one separator; a lone colon remains a component character.
+/// Leading and trailing separators produce no empty component. Consumers that
+/// distinguish a namespace operand from an empty terminal command or variable
+/// must retain that independently selected purpose.
+///
+/// Extents retain original Unicode/NUL bytes and all separator widths. This
+/// iterator does not select a native input prefix, invert a constructed key,
+/// establish a namespace or grant an editable source container.
+///
+/// ```
+/// use tcl_syntax::naming::qualifier_component_extents;
+/// assert_eq!(qualifier_component_extents(b"::::a:::b::").collect::<Vec<_>>(),
+///            vec![4..5, 8..9]);
+/// assert_eq!(qualifier_component_extents(b"a:b").collect::<Vec<_>>(),
+///            vec![0..3]);
+/// ```
+#[must_use]
+pub fn qualifier_component_extents(
+    name: &[u8],
+) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
+    let mut next = 0;
+    std::iter::from_fn(move || {
+        while next < name.len() {
+            let start = next;
+            let mut at = start;
+            while at < name.len() {
+                if name[at] == b':' && name.get(at + 1) == Some(&b':') {
+                    let end = at;
+                    at += 2;
+                    while name.get(at) == Some(&b':') {
+                        at += 1;
+                    }
+                    next = at;
+                    if start < end {
+                        return Some(start..end);
+                    }
+                    break;
+                }
+                at += 1;
             }
-            // C skips the `::` then every subsequent `:`, so a colon run of any
-            // length is a single separator.
-            i += 2;
-            while i < name.len() && name[i] == b':' {
-                i += 1;
+            if at == name.len() && next == start {
+                next = at;
+                return Some(start..at);
             }
-            seg_start = i;
-        } else {
-            i += 1;
         }
-    }
-    if seg_start < name.len() {
-        out.push(&name[seg_start..]);
-    }
-    out
+        None
+    })
 }
 
 /// Does `name` end with a namespace separator (a run of ≥2 colons)? In a
@@ -2471,5 +2502,34 @@ mod tests {
         assert!(!is_qualified(b"plain"));
         assert!(!is_qualified(b"a:b"));
         assert!(!is_qualified(b""));
+    }
+
+    #[test]
+    fn written_component_extents_share_segmentation_and_preserve_original_byte_geometry() {
+        // naming.editor.logical-written-component-geometry
+        // docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md
+        // Written segmentation only; no native input/namespace or edit admission.
+        for (written, wanted) in [
+            (&b"::a::b"[..], vec![2..3, 5..6]),
+            (&b":::a:::b"[..], vec![3..4, 7..8]),
+            (&b"::::a::::b"[..], vec![4..5, 9..10]),
+            (&b":::::a:::::b:::::"[..], vec![5..6, 11..12]),
+            (&b"a:b"[..], vec![0..3]),
+            (&b"::"[..], vec![]),
+            (&b":::::"[..], vec![]),
+            (&b""[..], vec![]),
+            (&b"a\0x:::b"[..], vec![0..3, 6..7]),
+            ("::::é:::旧::".as_bytes(), vec![4..6, 9..12]),
+        ] {
+            let extents = qualifier_component_extents(written).collect::<Vec<_>>();
+            assert_eq!(extents, wanted, "{written:?}");
+            assert_eq!(
+                qualifier_segments(written),
+                extents
+                    .iter()
+                    .map(|extent| &written[extent.clone()])
+                    .collect::<Vec<_>>()
+            );
+        }
     }
 }

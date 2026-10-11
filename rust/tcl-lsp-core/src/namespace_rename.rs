@@ -46,8 +46,8 @@
 //! gets none: inside `namespace eval ::app::old`, a bare `p` still resolves
 //! to the same proc after the block's own name changes.
 //! The shared native namespace projector selects byte components; the common
-//! original-input edit planner preserves containers. `written_cell_segment`
-//! remains only for the explicitly selected lexical advice domain.
+//! original-input edit planner preserves containers. Shared written component
+//! extents supply the explicitly selected Logical advice domain separately.
 //!
 //! # The refusal gate
 //!
@@ -140,13 +140,37 @@ fn lexical_namespace_rename_edits(
     new_tail: &str,
 ) -> Result<Vec<TextEdit>, RenameRefusal> {
     let line_index = LineIndex::new(source);
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)
+        .ok_or_else(|| RenameRefusal::at(
+            format!("cannot rename `{cell}`: the complete original source and metadata are unavailable"),
+            source, &line_index, None,
+        ))?;
+    let variable_config = current.config();
     let mut considered: Vec<Span> = Vec::new();
     let mut spans: Vec<Span> = Vec::new();
-    let mut record = |word: Span, resolved: &str, considered: &mut Vec<Span>| {
-        considered.push(word);
-        if let Some(segment) = written_cell_segment(source, word, resolved, cell) {
-            spans.push(segment);
+    let mut record = |word: Span,
+                      resolved: &str,
+                      purpose: WrittenNamePurpose,
+                      considered: &mut Vec<Span>|
+     -> Result<(), RenameRefusal> {
+        match written_cell_occurrence(source, word, resolved, cell, purpose) {
+            Some(WrittenCellOccurrence::Written(segment)) => spans.push(segment),
+            Some(WrittenCellOccurrence::Inherited) => {}
+            None => {
+                return Err(RenameRefusal::at(
+                    format!(
+                        "cannot rename `{cell}`: the selected namespace component cannot be mapped to its complete written name"
+                    ),
+                    source,
+                    &line_index,
+                    Some(word),
+                ));
+            }
         }
+        // An inherited omission and an exact mapping are independently
+        // established. Failed mappings never count as covered occurrences.
+        considered.push(word);
+        Ok(())
     };
 
     // 1. Every `NamespaceName`-role word naming the namespace or one beneath
@@ -157,14 +181,24 @@ fn lexical_namespace_rename_edits(
     //    at all — it has no declaring word of its own.
     for nref in &analysis.namespace_refs {
         if names_at_or_under(cell, &nref.qualified_name) {
-            record(nref.span, &nref.qualified_name, &mut considered);
+            record(
+                nref.span,
+                &nref.qualified_name,
+                WrittenNamePurpose::Namespace,
+                &mut considered,
+            )?;
         }
     }
     // 2. Qualified variable occurrences beneath it (`$::old::v`, `set
     //    app::old::v 1`).
     for vref in &analysis.qualified_var_refs {
         if names_under(cell, &vref.qualified_name) {
-            record(vref.span, &vref.qualified_name, &mut considered);
+            record(
+                vref.span,
+                &vref.qualified_name,
+                WrittenNamePurpose::Variable(variable_config),
+                &mut considered,
+            )?;
         }
     }
     // 3. Command call sites resolved beneath it.  An indirect site's span is
@@ -178,7 +212,12 @@ fn lexical_namespace_rename_edits(
         if inv.indirect || !names_under(cell, resolved) {
             continue;
         }
-        record(inv.range, resolved, &mut considered);
+        record(
+            inv.range,
+            resolved,
+            WrittenNamePurpose::Entity,
+            &mut considered,
+        )?;
     }
     // 4. Declaration name words beneath it — `proc ::old::p`, `oo::class
     //    create ::old::C`.
@@ -187,8 +226,9 @@ fn lexical_namespace_rename_edits(
             record(
                 proc_def.name_span,
                 &proc_def.qualified_name,
+                WrittenNamePurpose::Entity,
                 &mut considered,
-            );
+            )?;
         }
     }
     for class_def in analysis.all_classes.values() {
@@ -196,8 +236,9 @@ fn lexical_namespace_rename_edits(
             record(
                 class_def.name_span,
                 &class_def.qualified_name,
+                WrittenNamePurpose::Entity,
                 &mut considered,
-            );
+            )?;
         }
     }
     // 5. Import / forget patterns naming it.  `namespace export` patterns are
@@ -208,7 +249,12 @@ fn lexical_namespace_rename_edits(
         if let Some(source) = &imp.source {
             let pattern = source.constructed_pattern();
             if names_under(cell, &pattern) {
-                record(imp.range, &pattern, &mut considered);
+                record(
+                    imp.range,
+                    &pattern,
+                    WrittenNamePurpose::Entity,
+                    &mut considered,
+                )?;
             }
         }
     }
@@ -222,7 +268,12 @@ fn lexical_namespace_rename_edits(
         // The recorded span covers the whole pattern word (`::old::p`), and
         // the pattern's own namespace is what names the renamed one.
         let resolved = format!("{}::{}", source_ns.trim_end_matches("::"), forget.pattern);
-        record(forget.range, &resolved, &mut considered);
+        record(
+            forget.range,
+            &resolved,
+            WrittenNamePurpose::Entity,
+            &mut considered,
+        )?;
     }
 
     if let Some(refusal) =
@@ -276,11 +327,21 @@ pub fn namespace_segment_at(
     if !analysis.allows_lexical_declaration_advice() {
         return None;
     }
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let hit = analysis
         .namespace_refs
         .iter()
         .find(|r| r.span.start() <= cursor && cursor < r.span.end())?;
-    written_cell_segment(source, hit.span, &hit.qualified_name, cell)
+    match written_cell_occurrence(
+        source,
+        hit.span,
+        &hit.qualified_name,
+        cell,
+        WrittenNamePurpose::Namespace,
+    )? {
+        WrittenCellOccurrence::Written(span) => Some(span),
+        WrittenCellOccurrence::Inherited => None,
+    }
 }
 
 /// Prepare an original namespace edit at the cursor. Literal source returns
@@ -349,67 +410,110 @@ fn names_under(cell: &str, candidate: &str) -> bool {
     crate::namespace_symbol::namespace_strictly_contains(cell, candidate)
 }
 
-/// The byte span, inside the name word at `word`, of the segment that spells
-/// the **final segment of `cell`** — the one byte range this rename rewrites.
-///
-/// `resolved` is the fully-qualified name the word denotes, which is what
-/// says *how many* leading segments the word leaves unwritten: `namespace
-/// eval sub {}` inside `::old` writes one segment of `::old::sub`, so `old`
-/// is not written there and the answer is `None`.  A word that does not spell
-/// the namespace needs no edit — after the enclosing block's own name changes
-/// it still resolves to the same thing.
-///
-/// Variable decoration (`$name`, `${name}`) and an array-element suffix are
-/// stripped first: they surround the name, they are not part of it.
-#[must_use]
-fn written_cell_segment(source: &str, word: Span, resolved: &str, cell: &str) -> Option<Span> {
-    let start = word.start() as usize;
-    let end = word.end() as usize;
-    if start > end || end > source.len() {
-        return None;
-    }
-    let raw = &source[start..end];
-    // Leading `$` / `${` decoration, and the matching `}` / element suffix.
-    let (offset, text) = if let Some(rest) = raw.strip_prefix("${") {
-        (2usize, rest.strip_suffix('}').unwrap_or(rest))
-    } else if let Some(rest) = raw.strip_prefix('$') {
-        (1usize, rest)
+/// Written namespace and entity operands retain different trailing-separator
+/// meanings. These purposes are issued by the actual Logical occurrence role.
+#[derive(Clone, Copy)]
+enum WrittenNamePurpose {
+    Namespace,
+    Entity,
+    /// An entity occurrence with independently recorded variable decoration.
+    Variable(tcl_lexer::LexerConfig),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum WrittenCellOccurrence {
+    Written(Span),
+    Inherited,
+}
+
+/// Map a positively selected Logical namespace through the shared written-name
+/// owner. Constructed-key projections are analytical in this domain only.
+/// Native original input and authentic container edit admission remain separate.
+fn written_cell_occurrence(
+    source: &str,
+    word: Span,
+    resolved: &str,
+    cell: &str,
+    purpose: WrittenNamePurpose,
+) -> Option<WrittenCellOccurrence> {
+    let start = usize::try_from(word.start()).ok()?;
+    let raw = source.get(word.as_range())?;
+    let (decoration, text, braced_scalar) = if let WrittenNamePurpose::Variable(config) = purpose {
+        if raw.starts_with("${") {
+            // The actual Var span may end immediately before its closer.
+            // The shared grammar owner selects the original header in the
+            // complete source; only its contained name supplies geometry.
+            let (name, _) =
+                tcl_syntax::naming::split_braced_var_ref(source.get(start..)?, config.braced_var)?;
+            if 2usize.checked_add(name.len())? > raw.len() {
+                return None;
+            }
+            (2usize, name, true)
+        } else if let Some(rest) = raw.strip_prefix('$') {
+            (1usize, rest, false)
+        } else {
+            (0usize, raw, false)
+        }
     } else {
-        (0usize, raw)
+        (0usize, raw, false)
     };
-    let text = text.split_once('(').map_or(text, |(base, _)| base);
-    // A word whose name is computed spells nothing statically; the gate
-    // decides what to do about it.
-    if text.contains(['$', '[']) {
+    let text = if matches!(purpose, WrittenNamePurpose::Variable(_)) {
+        let root = tcl_syntax::naming::split_element_ref_bytes(text.as_bytes())
+            .map_or(text.as_bytes(), |(root, _)| root);
+        text.get(..root.len())?
+    } else {
+        text
+    };
+    // Direct unbraced geometry cannot authenticate an escaped/computed
+    // container. The shared braced header already owns its literal name.
+    if !braced_scalar && text.contains(['$', '[', '\\']) {
         return None;
     }
-    let cell_body = cell.trim_start_matches("::");
-    let cell_depth = cell_body.split("::").count();
-    let resolved_depth = resolved.trim_start_matches("::").split("::").count();
-    let rooted = text.starts_with("::");
-    let written = text.trim_start_matches("::");
-    if written.is_empty() {
+    let cell_segments = tcl_syntax::naming::key_segments(cell);
+    let resolved_segments = tcl_syntax::naming::key_segments(resolved);
+    if cell_segments.is_empty() || !resolved_segments.starts_with(&cell_segments) {
         return None;
     }
-    let written_segments: Vec<&str> = written.split("::").collect();
-    // How many leading segments of `resolved` this word does not spell.
-    let unwritten = resolved_depth.checked_sub(written_segments.len())?;
-    // The namespace's final segment is `cell_depth - 1` segments in.
-    let index = (cell_depth - 1).checked_sub(unwritten)?;
-    let segment = written_segments.get(index)?;
-    // Spelling check: the word must really write this segment.  A word that
-    // reaches the name some other way (an alias, an ensemble spelling) is not
-    // a namespace occurrence and must not be rewritten.
-    if *segment != cell_body.rsplit("::").next().unwrap_or(cell_body) {
+    let extents =
+        tcl_syntax::naming::qualifier_component_extents(text.as_bytes()).collect::<Vec<_>>();
+    let mut written_segments = extents
+        .iter()
+        .map(|extent| text.get(extent.clone()))
+        .collect::<Option<Vec<_>>>()?;
+    if !matches!(purpose, WrittenNamePurpose::Namespace)
+        && tcl_syntax::naming::ends_with_separator(text.as_bytes())
+    {
+        written_segments.push("");
+    }
+    let unwritten = resolved_segments
+        .len()
+        .checked_sub(written_segments.len())?;
+    if (text.starts_with("::") && unwritten != 0)
+        || !resolved_segments[unwritten..]
+            .iter()
+            .map(String::as_str)
+            .eq(written_segments.iter().copied())
+    {
         return None;
     }
-    let mut at = offset + usize::from(rooted) * 2;
-    for prior in written_segments.iter().take(index) {
-        at += prior.len() + 2;
+    let Some(index) = (cell_segments.len() - 1).checked_sub(unwritten) else {
+        return Some(WrittenCellOccurrence::Inherited);
+    };
+    let extent = extents.get(index)?;
+    let at = start.checked_add(decoration)?;
+    Some(WrittenCellOccurrence::Written(Span::new(
+        u32::try_from(at.checked_add(extent.start)?).ok()?,
+        u32::try_from(at.checked_add(extent.end)?).ok()?,
+    )))
+}
+
+// Entity occurrence geometry used by the finite source mapper controls.
+#[cfg(test)]
+fn written_cell_segment(source: &str, word: Span, resolved: &str, cell: &str) -> Option<Span> {
+    match written_cell_occurrence(source, word, resolved, cell, WrittenNamePurpose::Entity)? {
+        WrittenCellOccurrence::Written(span) => Some(span),
+        WrittenCellOccurrence::Inherited => None,
     }
-    let seg_start = u32::try_from(start + at).ok()?;
-    let seg_end = u32::try_from(start + at + segment.len()).ok()?;
-    Some(Span::new(seg_start, seg_end))
 }
 
 /// Why this document makes the namespace rename unprovable, if it does.
@@ -1056,5 +1160,305 @@ mod tests {
         assert!(
             written_cell_segment("v\n", Span::new(0, 1), "::app::old::v", "::app::old").is_none()
         );
+    }
+
+    #[test]
+    fn logical_written_namespace_geometry_retains_complete_separator_runs_and_purpose() {
+        // naming.editor.logical-written-component-geometry
+        // docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md
+        for written in [
+            "::app:::old::v",
+            "::app::::old::v",
+            "::::app::old::v",
+            "app:::::old::v",
+            "${::::app:::old::v}",
+            "$::::app:::old::v(index)",
+        ] {
+            let span = Span::new(0, u32::try_from(written.len()).unwrap());
+            let Some(WrittenCellOccurrence::Written(selected)) = written_cell_occurrence(
+                written,
+                span,
+                "::app::old::v",
+                "::app::old",
+                if written.starts_with('$') {
+                    WrittenNamePurpose::Variable(tcl_lexer::LexerConfig::for_profile(Some(
+                        tcl_dialect::DialectProfile::plain_tcl(),
+                    )))
+                } else {
+                    WrittenNamePurpose::Entity
+                },
+            ) else {
+                panic!("{written}")
+            };
+            assert_eq!(written.get(selected.as_range()), Some("old"), "{written}");
+        }
+        for (written, resolved, purpose) in [
+            (
+                "::::app:::old::::",
+                "::app::old",
+                WrittenNamePurpose::Namespace,
+            ),
+            (
+                "::::app:::old::::",
+                "::app::old::",
+                WrittenNamePurpose::Entity,
+            ),
+            ("::::é:::旧::v", "::é::旧::v", WrittenNamePurpose::Entity),
+        ] {
+            let span = Span::new(0, u32::try_from(written.len()).unwrap());
+            let cell = if written.contains('é') {
+                "::é::旧"
+            } else {
+                "::app::old"
+            };
+            let Some(WrittenCellOccurrence::Written(selected)) =
+                written_cell_occurrence(written, span, resolved, cell, purpose)
+            else {
+                panic!("{written}")
+            };
+            assert_eq!(
+                written.get(selected.as_range()),
+                Some(tcl_syntax::naming::key_tail(cell))
+            );
+        }
+        for (resolved, purpose) in [
+            ("::app::old", WrittenNamePurpose::Entity),
+            ("::app::old::", WrittenNamePurpose::Namespace),
+        ] {
+            let written = "::::app:::old::::";
+            assert!(
+                written_cell_occurrence(
+                    written,
+                    Span::new(0, u32::try_from(written.len()).unwrap()),
+                    resolved,
+                    "::app::old",
+                    purpose
+                )
+                .is_none()
+            );
+        }
+        let written = "::::app:::old(x)::v";
+        let Some(WrittenCellOccurrence::Written(selected)) = written_cell_occurrence(
+            written,
+            Span::new(0, u32::try_from(written.len()).unwrap()),
+            "::app::old(x)::v",
+            "::app::old(x)",
+            WrittenNamePurpose::Entity,
+        ) else {
+            panic!("{written}")
+        };
+        assert_eq!(written.get(selected.as_range()), Some("old(x)"));
+        assert_eq!(
+            written_cell_occurrence(
+                "v",
+                Span::new(0, 1),
+                "::app::old::v",
+                "::app::old",
+                WrittenNamePurpose::Entity
+            ),
+            Some(WrittenCellOccurrence::Inherited)
+        );
+        assert!(
+            written_cell_occurrence(
+                "::app::other::v",
+                Span::new(0, 15),
+                "::app::old::v",
+                "::app::old",
+                WrittenNamePurpose::Entity
+            )
+            .is_none()
+        );
+        assert!(
+            written_cell_occurrence(
+                "::app::\\u006fold::v",
+                Span::new(0, 19),
+                "::app::old::v",
+                "::app::old",
+                WrittenNamePurpose::Entity
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_braced_variable_geometry_uses_the_actual_header_span_and_close_rule() {
+        // naming.editor.logical-written-component-geometry
+        // docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md
+        // Actual produced source span; no Native cell or edit admission.
+        let source = "namespace eval {::app::old(x)} {}\nset {::app::old(x)::v} 1\nputs ${::::app:::old(x)::v}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let row = analysis
+            .qualified_var_refs
+            .iter()
+            .find(|row| {
+                source
+                    .get(row.span.as_range())
+                    .is_some_and(|raw| raw.starts_with("${"))
+            })
+            .expect("actual braced variable occurrence");
+        let config = analysis.body_lexer_config.unwrap();
+        assert_eq!(source.as_bytes().get(row.span.end() as usize), Some(&b'}'));
+        let Some(WrittenCellOccurrence::Written(selected)) = written_cell_occurrence(
+            source,
+            row.span,
+            &row.qualified_name,
+            "::app::old(x)",
+            WrittenNamePurpose::Variable(config),
+        ) else {
+            panic!("{row:?}")
+        };
+        assert_eq!(source.get(selected.as_range()), Some("old(x)"));
+        let cursor = source.find("${").unwrap();
+        for style in [
+            tcl_dialect::BracedVarStyle::FirstClose,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let mut actual = config;
+            actual.braced_var = style;
+            let extent = Span::new(u32::try_from(cursor).unwrap(), row.span.end());
+            let Some(WrittenCellOccurrence::Written(selected)) = written_cell_occurrence(
+                source,
+                extent,
+                "::app::old(x)::v",
+                "::app::old(x)",
+                WrittenNamePurpose::Variable(actual),
+            ) else {
+                panic!("{style:?}")
+            };
+            assert_eq!(source.get(selected.as_range()), Some("old(x)"));
+        }
+        let original = "${::app::old{a}b::v}";
+        let mut nesting = config;
+        nesting.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        let span = Span::new(0, u32::try_from(original.len() - 1).unwrap());
+        let Some(WrittenCellOccurrence::Written(selected)) = written_cell_occurrence(
+            original,
+            span,
+            "::app::old{a}b::v",
+            "::app::old{a}b",
+            WrittenNamePurpose::Variable(nesting),
+        ) else {
+            panic!("nesting original header")
+        };
+        assert_eq!(original.get(selected.as_range()), Some("old{a}b"));
+        let mut first_close = config;
+        first_close.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        assert!(
+            written_cell_occurrence(
+                original,
+                span,
+                "::app::old{a}b::v",
+                "::app::old{a}b",
+                WrittenNamePurpose::Variable(first_close)
+            )
+            .is_none()
+        );
+        let malformed = "${::app::old(x)::v";
+        assert!(
+            written_cell_occurrence(
+                malformed,
+                Span::new(0, u32::try_from(malformed.len()).unwrap()),
+                "::app::old(x)::v",
+                "::app::old(x)",
+                WrittenNamePurpose::Variable(config)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage() {
+        // naming.editor.logical-written-component-geometry
+        // docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md
+        let source = "namespace eval ::::app:::old {}\nset ::::app::::old:::v 1\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let profile = analysis.resolved_profile().unwrap();
+        let edits =
+            namespace_rename_edits(source, profile, &analysis, "::app::old", "new").unwrap();
+        assert_eq!(edits.len(), 2);
+        let index = LineIndex::new(source);
+        let mut changed = source.to_owned();
+        let mut ranges = edits
+            .iter()
+            .map(|edit| {
+                let start = crate::definition::byte_offset_at(
+                    &index,
+                    source,
+                    edit.range.start_line,
+                    edit.range.start_character,
+                ) as usize;
+                let end = crate::definition::byte_offset_at(
+                    &index,
+                    source,
+                    edit.range.end_line,
+                    edit.range.end_character,
+                ) as usize;
+                assert_eq!(source.get(start..end), Some("old"));
+                (start, end, edit.new_text.as_str())
+            })
+            .collect::<Vec<_>>();
+        ranges.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+        for (start, end, replacement) in ranges {
+            changed.replace_range(start..end, replacement);
+        }
+        assert_eq!(
+            changed,
+            "namespace eval ::::app:::new {}\nset ::::app::::new:::v 1\n"
+        );
+        let mut mismatched = analysis.clone();
+        let row = mismatched
+            .namespace_refs
+            .iter_mut()
+            .find(|row| row.qualified_name == "::app::old")
+            .unwrap();
+        row.qualified_name = "::app::old::foreign".into();
+        assert!(namespace_rename_edits(source, profile, &mismatched, "::app::old", "new").is_err());
+        assert!(
+            namespace_rename_edits(
+                &format!("#{source}"),
+                profile,
+                &analysis,
+                "::app::old",
+                "new"
+            )
+            .is_err()
+        );
+        let cursor = u32::try_from(source.find("old").unwrap()).unwrap();
+        assert_eq!(
+            source.get(
+                namespace_segment_at(source, &analysis, cursor, "::app::old")
+                    .unwrap()
+                    .as_range()
+            ),
+            Some("old")
+        );
+        assert!(
+            namespace_segment_at(&format!("#{source}"), &analysis, cursor, "::app::old").is_none()
+        );
+        let mut foreign_config = analysis.clone();
+        foreign_config
+            .body_lexer_config
+            .as_mut()
+            .unwrap()
+            .strict_quoting = !analysis.body_lexer_config.unwrap().strict_quoting;
+        assert!(namespace_segment_at(source, &foreign_config, cursor, "::app::old").is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(namespace_rename_edits(source, profile, &missing, "::app::old", "new").is_err());
+        assert!(namespace_segment_at(source, &missing, cursor, "::app::old").is_none());
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let native = Analyser::new().analyse(source, dialect);
+            assert!(!native.allows_lexical_declaration_advice(), "{dialect}");
+        }
     }
 }
