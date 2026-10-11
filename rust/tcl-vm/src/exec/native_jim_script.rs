@@ -464,4 +464,5 @@ impl Vm {
 }
 
 #[cfg(test)]
+#[path = "native_jim_script/original_tuple_consumers_tests.rs"]
 mod original_tuple_consumers_tests;
