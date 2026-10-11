@@ -36,6 +36,7 @@ use crate::value::Value;
 
 #[cfg(test)]
 mod native_definition_order_tests;
+mod native_encoding_source;
 #[cfg(test)]
 mod native_encoding_tests;
 mod native_procedure;
@@ -469,121 +470,7 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// Source original file bytes through the selected native file boundary.
 fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let dialect = vm.native_invocation_dialect();
-    let Some(grammar) = dialect.source_file_grammar() else {
-        return vm.refuse_host_command("source file protocol is unavailable".into());
-    };
-    let first = match args
-        .first()
-        .map(|value| vm.native_name_operand_bytes_checked(value))
-        .transpose()
-    {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return completion_from_cmd_error(vm, error);
-        }
-    };
-    let tcl_registry::source_file::SourceFileSelection::Selected(selected) =
-        grammar.select_original(args.len(), first.as_deref())
-    else {
-        return native_wrong_args(vm, grammar.synopsis());
-    };
-    let path = match vm.native_name_operand_bytes_checked(&args[selected.path_at]) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return completion_from_cmd_error(vm, error);
-        }
-    };
-    let path = tcl_core_types::c_string_extent(&path);
-    let encoding = match selected.encoding_at {
-        Some(index) => {
-            let name = match vm.native_name_operand_bytes_checked(&args[index]) {
-                Ok(name) => name,
-                Err(error) => return completion_from_cmd_error(vm, error),
-            };
-            let name = match std::str::from_utf8(tcl_core_types::c_string_extent(&name)) {
-                Ok(name) => name,
-                Err(error) => {
-                    return completion_from_cmd_error(
-                        vm,
-                        tcl_syntax::raw_string::UnicodeAccessError::from(error).into(),
-                    );
-                }
-            };
-            match tcl_cmd_core::channel::resolve_system_encoding(name) {
-                Ok(encoding) => encoding,
-                Err(error) => return completion_from_cmd_error(vm, error),
-            }
-        }
-        None if dialect
-            .tcl_version
-            .is_some_and(|release| release >= tcl_dialect::TclVersion::V9_0) =>
-        {
-            tcl_platform::SystemEncoding::Utf8
-        }
-        None => vm.system_encoding(),
-    };
-    let contents = match vm
-        .host()
-        .filesystem()
-        .map_or(Err(tcl_platform::HostError::NotFound), |fs| {
-            fs.read_bytes(path)
-        }) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return err_with_code(
-                [
-                    b"couldn't read file \"".as_slice(),
-                    path,
-                    b"\": ",
-                    error.reason().as_bytes(),
-                ]
-                .concat(),
-                b"NONE",
-            );
-        }
-    };
-    let decoded = tcl_cmd_core::channel::decode_text(&contents, encoding);
-    let contents = if let Some(version) = dialect.tcl_version {
-        let units: Vec<u32> = if version < tcl_dialect::TclVersion::V9_0 {
-            decoded.encode_utf16().map(u32::from).collect()
-        } else {
-            decoded.chars().map(u32::from).collect()
-        };
-        let Some(bytes) =
-            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).encode_units(&units)
-        else {
-            return vm.refuse_host_command("source text conversion is unavailable".into());
-        };
-        bytes
-    } else {
-        decoded.into_bytes()
-    };
-    let scope = selected.no_package.then(|| vm.take_package_file_scope());
-    if let Err(error) = vm.record_package_source_file(path) {
-        if let Some(scope) = scope {
-            vm.restore_package_file_scope(scope);
-        }
-        return completion_from_cmd_error(vm, error.into());
-    }
-    vm.enter_package_source_path(path);
-    let label = std::str::from_utf8(path).ok();
-    if let Some(label) = label {
-        vm.push_script(label.to_owned());
-    }
-    let image = tcl_lexer::SourceImage::native(std::sync::Arc::<[u8]>::from(contents));
-    let completion = match vm.eval_source_image_at_internal(&image, None) {
-        Ok(completion) => completion,
-        Err(error) => completion_from_tcl_error(vm, error),
-    };
-    if label.is_some() {
-        vm.pop_script();
-    }
-    vm.leave_package_source_path();
-    if let Some(scope) = scope {
-        vm.restore_package_file_scope(scope);
-    }
-    vm.settle_package_source_completion(completion)
+    native_encoding_source::source(vm, args)
 }
 
 /// `tcl::build-info ?option?` — report build-time configuration. With no
@@ -2884,11 +2771,39 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 const ENCODING_SUBS: &[&str] = &["convertfrom", "convertto", "dirs", "names", "system"];
 
 fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let names = match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
+        Ok(names) => names,
+        Err(error) => return completion_from_cmd_error(vm, error),
+    };
+    let operation = names.operation_scope().clone();
+    let reached = cmd_encoding_in_scope(vm, args, &names);
+    if let Err(error) = names.finish(vm) {
+        drop(reached);
+        let first = operation.check(vm).err().unwrap_or(error);
+        return completion_from_cmd_error(vm, first);
+    }
+    if let Err(error) = operation.check(vm) {
+        drop(reached);
+        let first = operation.check(vm).err().unwrap_or(error);
+        return completion_from_cmd_error(vm, first);
+    }
+    reached
+}
+
+fn cmd_encoding_in_scope(
+    vm: &mut Vm,
+    args: &[Value],
+    names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+) -> Completion<Value> {
     let Some(sub) = args.first() else {
         return native_wrong_arguments_message(
             vm,
             "wrong # args: should be \"encoding subcommand ?arg ...?\"",
         );
+    };
+    let sub = match names.read(vm, sub) {
+        Ok(bytes) => bytes,
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     // `dirs` arrives in 8.5, so the table follows the emulated release.
     let subs = crate::environment::release_subcommands(
@@ -2896,29 +2811,22 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "encoding",
         ENCODING_SUBS,
     );
-    let canon =
-        match tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.to_str().as_bytes(), true) {
-            Some(index) => subs[index],
-            None => {
-                return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
-                    subs,
-                    sub.to_str().as_bytes(),
-                    true,
-                    b"::tcl::encoding",
-                ));
-            }
-        };
+    let canon = match tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_ref(), true) {
+        Some(index) => subs[index],
+        None => {
+            return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                sub.as_ref(),
+                true,
+                b"::tcl::encoding",
+            ));
+        }
+    };
     match canon {
         "dirs" => ok(Value::empty()),
         "system" => match args {
             [_] => ok(Value::string(vm.system_encoding().as_str())),
-            [_, value] => match tcl_cmd_core::channel::resolve_system_encoding(&value.to_str()) {
-                Ok(encoding) => {
-                    vm.set_system_encoding(encoding);
-                    ok(Value::empty())
-                }
-                Err(error) => completion_from_cmd_error(vm, error),
-            },
+            [_, value] => native_encoding_source::set_system(vm, value),
             _ => err_wrong_args(vm, "encoding system ?encoding?"),
         },
         "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),

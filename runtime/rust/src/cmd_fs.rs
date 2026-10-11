@@ -30,10 +30,10 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
-use tcl_dialect::model::{surface_admits, SurfaceQuery};
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use tcl_platform::{Filesystem, HostError};
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::TclObj;
 
 /// Register `source`, `file`, `glob`, `pwd`, `cd`.
@@ -158,8 +158,34 @@ fn as_str(b: &[u8]) -> &str {
 
 /// Read a file after the actual native source grammar selects its operands.
 fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use tcl_registry::source_file::SourceFileSelection;
-    use tcl_syntax::value::ValueOps;
+    use crate::interp::{
+        native_arguments::OriginalArguments, native_operation_currency::NativeOperationScope,
+    };
+    let operation = match NativeOperationScope::enter(interp) {
+        Ok(operation) => operation,
+        Err(error) => {
+            return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error));
+        }
+    };
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = source_in_scope(interp, argv, &arguments);
+    let reached = arguments.finish(reached);
+    drop(arguments);
+    if operation.currency().ensure_current_or_refuse().is_err() {
+        return Code::Error;
+    }
+    reached
+}
+
+fn source_in_scope(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
+    use tcl_registry::source_file::{SourceFileGrammar, SourceFileSelection};
     let dialect = interp.native_invocation_dialect();
     let Some(grammar) = dialect.source_file_grammar() else {
         return interp.report_cmd_error(
@@ -167,47 +193,54 @@ fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .into(),
         );
     };
-    let args = &argv[1..];
-    let selector = if args.len() > 1 {
-        match interp.native_string_bytes(&args[0]) {
+    let Some(protocol) = dialect.native_source_file_protocol() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native source file protocol",
+            )
+            .into(),
+        );
+    };
+    let count = argv.len().saturating_sub(1);
+    let selector = if count > 1 && grammar != SourceFileGrammar::Filename {
+        match arguments.bytes(1) {
             Ok(bytes) => Some(bytes),
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error(error),
         }
     } else {
         None
     };
     let SourceFileSelection::Selected(selected) =
-        grammar.select_original(args.len(), selector.as_deref())
+        grammar.select_original(count, selector.as_deref())
     else {
         return interp.wrong_args_for_invocation(argv, grammar.usage_suffix().as_bytes());
     };
-    let path = match interp.native_string_bytes(&args[selected.path_at]) {
-        Ok(bytes) => bytes,
-        Err(error) => return interp.report_cmd_error(error.into()),
+    let prepared = tcl_cmd_core::encoding::prepare_source_file(
+        &mut crate::interp::native_encoding_source::SourceOps {
+            interpreter: interp,
+            arguments,
+            encoding_at: selected.encoding_at,
+            reached: Vec::new(),
+        },
+        protocol,
+        selected.path_at,
+        selected.encoding_at,
+    );
+    let prepared = match prepared {
+        Ok(prepared) => prepared,
+        Err(error) => return interp.report_cmd_error(arguments.retain_refusal(error)),
     };
-    let read = interp
-        .host()
-        .filesystem()
-        .map_or(Err(HostError::NotFound), |fs| fs.read_bytes(&path));
-    match read {
-        Ok(bytes) => {
-            let scope = selected
-                .no_package
-                .then(|| interp.take_package_file_scope());
-            let code = interp.eval_sourced(&bytes, &path);
-            if let Some(scope) = scope {
-                interp.restore_package_file_scope(scope);
-            }
-            code
-        }
-        Err(e) => {
-            let mut m = b"couldn't read file \"".to_vec();
-            m.extend_from_slice(&path);
-            m.extend_from_slice(b"\": ");
-            m.extend_from_slice(e.reason().as_bytes());
-            interp.set_error(&m)
-        }
+    if let Err(error) = arguments.check_for(interp) {
+        return interp.report_cmd_error(error);
     }
+    let package_scope = selected
+        .no_package
+        .then(|| interp.take_package_file_scope());
+    let code = interp.eval_sourced(&prepared.script, &prepared.path);
+    if let Some(scope) = package_scope {
+        interp.restore_package_file_scope(scope);
+    }
+    arguments.finish(code)
 }
 
 // file

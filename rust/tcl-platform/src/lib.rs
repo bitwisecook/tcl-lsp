@@ -198,6 +198,8 @@ pub enum SystemEncoding {
     /// ISO-8859-1 (`iso8859-1`), Tcl's byte-for-byte Tcl 9 binary-channel
     /// encoding and the Unix `C`/`POSIX` locale default.
     Iso88591,
+    /// Identity conversion: native String bytes are left unchanged.
+    Identity,
     /// Seven-bit ASCII.
     Ascii,
     /// Native-endian UTF-16 (`unicode` in Tcl's encoding catalogue).
@@ -211,9 +213,43 @@ impl SystemEncoding {
         match self {
             Self::Utf8 => "utf-8",
             Self::Iso88591 => "iso8859-1",
+            Self::Identity => "identity",
             Self::Ascii => "ascii",
             Self::Unicode => "unicode",
         }
+    }
+}
+
+/// Independently supplied encoding catalogue for names beyond implemented codecs.
+/// The exact C-string extent is supplied without Unicode or case rewriting.
+pub trait EncodingCatalogue {
+    /// Resolve an original name. `None` means an actual catalogue miss;
+    /// `Err` means this host cannot establish that lookup result.
+    ///
+    /// # Errors
+    /// Returns unavailable when the actual catalogue cannot decide the key.
+    fn lookup(&self, name: &[u8]) -> Result<Option<SystemEncoding>, EncodingCatalogueUnavailable>;
+}
+
+/// The actual host catalogue cannot establish a requested lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EncodingCatalogueUnavailable;
+
+/// An actually opened source file, independent of its encoding-name lookup.
+/// The owned handle remains attached to the same file through read and close.
+pub trait SourceFile {
+    /// Read remaining bytes after the caller selects its encoding configuration.
+    ///
+    /// # Errors
+    /// Returns the actual selected handle's read failure.
+    fn read_all(&mut self) -> Result<Vec<u8>, HostError>;
+
+    /// Consume and retire the reached handle on both success and failure paths.
+    ///
+    /// # Errors
+    /// Returns an actual close failure when the supplied backend reports one.
+    fn close(self: Box<Self>) -> Result<(), HostError> {
+        Ok(())
     }
 }
 
@@ -240,6 +276,15 @@ pub trait Filesystem {
     fn read_bytes(&self, path: &[u8]) -> Result<Vec<u8>, HostError> {
         let path = core::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
         self.read(path)
+    }
+    /// Open an original byte path without reading its file contents.
+    /// Source can select encoding after successful open and before the first read.
+    /// A whole-file-only backend cannot donate these separate stages.
+    ///
+    /// # Errors
+    /// Returns actual open failure, or `Unsupported` when no owned staged handle exists.
+    fn open_source_bytes(&self, _path: &[u8]) -> Result<Box<dyn SourceFile>, HostError> {
+        Err(HostError::Unsupported)
     }
     /// Write (creating/truncating) an entire file.
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError>;
@@ -390,6 +435,12 @@ pub trait Host {
     /// Restricted hosts have no process locale and therefore keep UTF-8.
     fn system_encoding(&self) -> SystemEncoding {
         SystemEncoding::Utf8
+    }
+
+    /// Actual encoding catalogue beyond the runtime's implemented codecs.
+    /// Absence cannot establish a guest unknown-encoding result.
+    fn encoding_catalogue(&self) -> Option<&dyn EncodingCatalogue> {
+        None
     }
 
     /// The filesystem, or `None` on a host without one (e.g. a no-VFS browser).

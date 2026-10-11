@@ -57,6 +57,8 @@ pub enum ChannelEncoding {
     Unicode,
     /// Tcl 8's `binary` pseudo-encoding (low eight bits of each character).
     Tcl8Binary,
+    /// Identity conversion preserves native String bytes.
+    Identity,
 }
 
 impl ChannelEncoding {
@@ -69,11 +71,26 @@ impl ChannelEncoding {
             Self::Ascii => "ascii",
             Self::Unicode => "unicode",
             Self::Tcl8Binary => "binary",
+            Self::Identity => "identity",
         }
     }
 
-    fn from_system(encoding: SystemEncoding) -> Self {
+    /// System catalogue representation; the C8 channel pseudo-encoding is separate.
+    #[must_use]
+    pub const fn system_encoding(self) -> Option<SystemEncoding> {
+        match self {
+            Self::Utf8 => Some(SystemEncoding::Utf8),
+            Self::Iso88591 => Some(SystemEncoding::Iso88591),
+            Self::Identity => Some(SystemEncoding::Identity),
+            Self::Ascii => Some(SystemEncoding::Ascii),
+            Self::Unicode => Some(SystemEncoding::Unicode),
+            Self::Tcl8Binary => None,
+        }
+    }
+
+    pub(crate) fn from_system(encoding: SystemEncoding) -> Self {
         match encoding {
+            SystemEncoding::Identity => Self::Identity,
             SystemEncoding::Utf8 => Self::Utf8,
             SystemEncoding::Iso88591 => Self::Iso88591,
             SystemEncoding::Ascii => Self::Ascii,
@@ -87,16 +104,17 @@ impl ChannelEncoding {
 /// # Errors
 /// An unknown encoding, with Tcl's structured lookup identity.
 pub fn resolve_system_encoding(value: &str) -> Result<SystemEncoding, CmdError> {
-    match value {
-        "utf-8" => Ok(SystemEncoding::Utf8),
-        "" | "iso8859-1" => Ok(SystemEncoding::Iso88591),
-        "ascii" => Ok(SystemEncoding::Ascii),
-        "unicode" => Ok(SystemEncoding::Unicode),
-        _ => Err(CmdError::with_error_code(
-            format!("unknown encoding \"{value}\""),
-            tcl_syntax::list::join_list(["TCL", "LOOKUP", "ENCODING", value]),
-        )),
+    if value.is_empty() {
+        return Ok(SystemEncoding::Iso88591);
     }
+    crate::encoding::implemented_encoding(value.as_bytes())
+        .filter(|encoding| *encoding != SystemEncoding::Identity)
+        .ok_or_else(|| {
+            CmdError::with_error_code(
+                format!("unknown encoding \"{value}\""),
+                tcl_syntax::list::join_list(["TCL", "LOOKUP", "ENCODING", value]),
+            )
+        })
 }
 
 /// The text a script file's bytes are under `encoding`, for `source`.
@@ -109,7 +127,9 @@ pub fn resolve_system_encoding(value: &str) -> Result<SystemEncoding, CmdError> 
 #[must_use]
 pub fn decode_text(bytes: &[u8], encoding: SystemEncoding) -> String {
     match encoding {
-        SystemEncoding::Utf8 => String::from_utf8_lossy(bytes).into_owned(),
+        SystemEncoding::Identity | SystemEncoding::Utf8 => {
+            String::from_utf8_lossy(bytes).into_owned()
+        }
         SystemEncoding::Iso88591 => bytes.iter().copied().map(char::from).collect(),
         SystemEncoding::Ascii => bytes
             .iter()
@@ -353,11 +373,13 @@ impl ChannelConfig {
     /// # Errors
     /// An unknown encoding, including Tcl 9's removed empty/`binary` spellings.
     pub fn set_encoding(&mut self, version: TclVersion, value: &str) -> Result<(), CmdError> {
+        if let Some(encoding) = crate::encoding::implemented_encoding(value.as_bytes())
+            .filter(|encoding| *encoding != SystemEncoding::Identity)
+        {
+            self.encoding = ChannelEncoding::from_system(encoding);
+            return Ok(());
+        }
         self.encoding = match value {
-            "utf-8" => ChannelEncoding::Utf8,
-            "iso8859-1" => ChannelEncoding::Iso88591,
-            "ascii" => ChannelEncoding::Ascii,
-            "unicode" => ChannelEncoding::Unicode,
             "" | "binary" if version < TclVersion::V9_0 => ChannelEncoding::Tcl8Binary,
             "" | "binary" => {
                 return Err(CmdError::new(format!(
@@ -736,7 +758,10 @@ pub fn encode_output(text: &str, newline: bool, config: ChannelConfig) -> Encode
         translated.push_str(ending);
     }
 
-    if config.encoding == ChannelEncoding::Utf8 {
+    if matches!(
+        config.encoding,
+        ChannelEncoding::Utf8 | ChannelEncoding::Identity
+    ) {
         return EncodedOutput {
             bytes: translated.into_bytes(),
             error: None,
@@ -769,7 +794,9 @@ pub fn encode_output(text: &str, newline: bool, config: ChannelConfig) -> Encode
                 };
             }
             ChannelEncoding::Iso88591 | ChannelEncoding::Ascii => bytes.push(b'?'),
-            ChannelEncoding::Utf8 => unreachable!("UTF-8 returned above"),
+            ChannelEncoding::Utf8 | ChannelEncoding::Identity => {
+                unreachable!("direct encoding returned above")
+            }
         }
     }
     EncodedOutput { bytes, error: None }
@@ -786,7 +813,10 @@ pub fn encode_output_bytes(bytes: &[u8], newline: bool, config: ChannelConfig) -
     if let Ok(text) = core::str::from_utf8(bytes) {
         return encode_output(text, newline, config);
     }
-    if config.encoding != ChannelEncoding::Utf8 {
+    if !matches!(
+        config.encoding,
+        ChannelEncoding::Utf8 | ChannelEncoding::Identity
+    ) {
         let text: String = bytes.iter().copied().map(char::from).collect();
         return encode_output(&text, newline, config);
     }

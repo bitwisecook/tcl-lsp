@@ -142,9 +142,11 @@ pub mod native_tcloo_method_definition;
 pub mod native_tcloo_registration;
 pub mod native_try_compilation;
 
+pub mod native_boolean_truth;
 pub mod native_bytecode;
 pub mod native_compiler_pass;
 pub mod native_each_loop;
+pub mod native_encoding;
 pub mod native_ensemble;
 pub mod native_ensemble_rewrite;
 /// Actual native command-source error-info formatting.
@@ -170,7 +172,6 @@ pub mod native_namespace_code;
 pub mod native_namespace_name;
 pub mod native_namespace_upvar;
 pub mod native_numeric_conversion;
-pub mod native_boolean_truth;
 pub mod native_numeric_error;
 pub mod native_object_append;
 pub mod native_object_vector;

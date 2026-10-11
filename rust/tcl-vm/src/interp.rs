@@ -586,6 +586,7 @@ pub struct Vm {
     /// host supplies its initial value; changing it affects only channels
     /// opened afterwards.
     system_encoding: tcl_platform::SystemEncoding,
+    default_system_encoding: tcl_platform::SystemEncoding,
     /// Cross-interp alias records for the target-death sweep. Appended when a
     /// [`Command::CrossAlias`] registers; entries are validated lazily at
     /// sweep time (a stale entry — alias since removed or source dead — is
@@ -2785,11 +2786,11 @@ impl Vm {
             state.command_surface_point = Some(crate::environment::surface_point(profile));
             state.profile_registry = Some(crate::environment::store_for_profile(profile));
         }
+        let system_encoding = state.host.system_encoding();
         let standard_channels = RefCell::new(tcl_cmd_core::channel::StandardChannelConfigs::new(
             state.runtime_version,
-            state.host.system_encoding(),
+            system_encoding,
         ));
-        let system_encoding = state.host.system_encoding();
         let mut vm = Self {
             owner_nonce,
             state,
@@ -2807,6 +2808,7 @@ impl Vm {
             host_execution_depth: 0,
             standard_channels,
             system_encoding,
+            default_system_encoding: system_encoding,
             alias_backrefs: Vec::new(),
         };
         if native.is_some() {
@@ -4229,6 +4231,7 @@ impl Vm {
         // not reset configuration established by the root or another child.
         if self.cur == ROOT_INTERP {
             self.system_encoding = system_encoding;
+            self.default_system_encoding = system_encoding;
             self.reset_standard_channel_configs();
         }
         self.rebootstrap_host_globals();
@@ -22352,6 +22355,10 @@ impl Vm {
     #[must_use]
     pub(crate) const fn system_encoding(&self) -> tcl_platform::SystemEncoding {
         self.system_encoding
+    }
+
+    pub(crate) const fn default_system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.default_system_encoding
     }
 
     /// Set the system encoding used by channels opened in the future. Existing

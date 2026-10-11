@@ -113,6 +113,7 @@ mod execution_name_policy;
 mod native_argument_usage;
 pub(crate) mod native_arguments;
 mod native_command_rename;
+pub(crate) mod native_encoding_source;
 #[cfg(test)]
 #[path = "interp/native_eval_object_tests.rs"]
 mod native_eval_object_tests;
@@ -135,6 +136,7 @@ use std::rc::{Rc, Weak};
 
 use native_error_headers::{NativeErrorStack, NativeReturnOptions};
 use tcl_core_types::{OoId, RecursionLimit};
+use tcl_runtime_api::RegisteredBacking;
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::error_stack::validate_error_stack;
 use tcl_runtime_api::guard::{
@@ -142,14 +144,13 @@ use tcl_runtime_api::guard::{
     OwnedGuardManager,
 };
 use tcl_runtime_api::jim_error_stack::{
-    capture_jim_error_frames, JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation,
-    NativeErrorStackProtocol,
+    JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
+    capture_jim_error_frames,
 };
-use tcl_runtime_api::RegisteredBacking;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
+use crate::namespace::{CommandBinding, GLOBAL, Namespaces, NsId, RenameOutcome};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -2577,6 +2578,10 @@ impl Interp {
     #[must_use]
     pub(crate) fn system_encoding(&self) -> tcl_platform::SystemEncoding {
         self.channels.borrow().system_encoding()
+    }
+
+    pub(crate) fn default_system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.channels.borrow().default_system_encoding()
     }
 
     /// Replace the system encoding used to initialise subsequently opened
@@ -14013,7 +14018,7 @@ impl Interp {
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
     fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
-        use crate::cmd_trace::{ops, StepActive};
+        use crate::cmd_trace::{StepActive, ops};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
@@ -14208,7 +14213,7 @@ impl Interp {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Result<Box<PreparedMissingCommand>, Code> {
         use tcl_registry::command_lookup::{
-            native_lookup_fallback_policy, UnknownHandlerNamespace,
+            UnknownHandlerNamespace, native_lookup_fallback_policy,
         };
         use tcl_syntax::value::ValueOps;
         let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
@@ -18768,10 +18773,12 @@ mod tests {
         state.calls.set(state.calls.get() + 1);
         let currency =
             native_operation_currency::NativeOperationCurrency::issue(&interpreter).unwrap();
-        assert!(interpreter
-            .namespaces()
-            .command_in(state.namespace, b"retiring")
-            .is_none());
+        assert!(
+            interpreter
+                .namespaces()
+                .command_in(state.namespace, b"retiring")
+                .is_none()
+        );
         interpreter.delete_namespace_by_id(state.namespace);
         state
             .recreated

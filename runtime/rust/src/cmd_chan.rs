@@ -32,12 +32,12 @@ use std::io::{BufRead, BufReader, Cursor, Read, Seek, Write};
 use std::rc::Rc;
 
 use tcl_cmd_core::channel::{
-    channel_output_error, config_list, config_value, encode_output_bytes, resolve_open_access_mode,
-    set_config_value, ChannelConfig, OpenAccess, StandardChannelConfigs,
+    ChannelConfig, OpenAccess, StandardChannelConfigs, channel_output_error, config_list,
+    config_value, encode_output_bytes, resolve_open_access_mode, set_config_value,
 };
 use tcl_platform::SystemEncoding;
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::obj::TclObj;
 
 /// A seekable read source for a channel: a real file (native) or an in-memory
@@ -61,6 +61,7 @@ pub struct ChannelTable {
     next: usize,
     standard: Rc<RefCell<StandardChannelConfigs>>,
     system_encoding: Rc<Cell<SystemEncoding>>,
+    default_system_encoding: Rc<Cell<SystemEncoding>>,
     owns_process_state: bool,
 }
 
@@ -71,6 +72,7 @@ impl ChannelTable {
             next: 0,
             standard: Rc::new(RefCell::new(StandardChannelConfigs::new(version, system))),
             system_encoding: Rc::new(Cell::new(system)),
+            default_system_encoding: Rc::new(Cell::new(system)),
             owns_process_state: true,
         }
     }
@@ -78,6 +80,7 @@ impl ChannelTable {
     pub(crate) fn share_process_state_from(&mut self, parent: &Self) {
         self.standard = Rc::clone(&parent.standard);
         self.system_encoding = Rc::clone(&parent.system_encoding);
+        self.default_system_encoding = Rc::clone(&parent.default_system_encoding);
         self.owns_process_state = false;
     }
 
@@ -88,6 +91,7 @@ impl ChannelTable {
     ) {
         if self.owns_process_state {
             self.system_encoding.set(system);
+            self.default_system_encoding.set(system);
             *self.standard.borrow_mut() = StandardChannelConfigs::new(version, system);
         }
     }
@@ -101,6 +105,10 @@ impl ChannelTable {
 
     pub(crate) fn system_encoding(&self) -> SystemEncoding {
         self.system_encoding.get()
+    }
+
+    pub(crate) fn default_system_encoding(&self) -> SystemEncoding {
+        self.default_system_encoding.get()
     }
 
     pub(crate) fn set_system_encoding(&self, encoding: SystemEncoding) {

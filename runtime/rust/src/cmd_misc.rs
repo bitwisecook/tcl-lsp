@@ -23,7 +23,7 @@
 //! store because this runtime does not load encoding files. C ref
 //! `tclEncoding.c`.
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::obj::TclObj;
 
 /// Register the misc bootstrap commands.
@@ -124,10 +124,40 @@ fn noop(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 const ENCODING_SUBS: &[&[u8]] = &[b"convertfrom", b"convertto", b"dirs", b"names", b"system"];
 
 fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use crate::interp::{
+        native_arguments::OriginalArguments, native_operation_currency::NativeOperationScope,
+    };
+    let operation = match NativeOperationScope::enter(interp) {
+        Ok(operation) => operation,
+        Err(error) => {
+            return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error));
+        }
+    };
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = encoding_in_scope(interp, argv, &arguments);
+    let reached = arguments.finish(reached);
+    drop(arguments);
+    if operation.currency().ensure_current_or_refuse().is_err() {
+        return Code::Error;
+    }
+    reached
+}
+
+fn encoding_in_scope(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"encoding subcommand ?arg ...?");
     }
-    let word = obj_bytes(argv[1]);
+    let word = match arguments.bytes(1) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let subs = crate::environment::release_subcommands(
         interp.runtime_version().dialect_profile_name(),
         "encoding",
@@ -152,10 +182,40 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp.set_result_bytes(interp.system_encoding().as_str().as_bytes());
                 Code::Ok
             }
-            [_, _, value] => {
-                let value = obj_bytes(*value);
-                let value = String::from_utf8_lossy(&value);
-                match tcl_cmd_core::channel::resolve_system_encoding(&value) {
+            [_, _, _value] => {
+                let Some(protocol) = interp
+                    .native_invocation_dialect()
+                    .native_encoding_name_protocol()
+                else {
+                    return interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original encoding system protocol",
+                        )
+                        .into(),
+                    );
+                };
+                let bytes = match arguments.bytes(2) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return interp.report_cmd_error(error),
+                };
+                let default = interp.default_system_encoding();
+                let encoding = crate::interp::native_encoding_source::lookup(
+                    interp,
+                    arguments,
+                    2,
+                    protocol,
+                    tcl_cmd_core::encoding::NativeEncodingNamePurpose::System(default),
+                    &bytes,
+                )
+                .and_then(|encoding| {
+                    encoding.system_encoding().ok_or_else(|| {
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "system encoding representation",
+                        )
+                        .into()
+                    })
+                });
+                match encoding {
                     Ok(encoding) => {
                         interp.set_system_encoding(encoding);
                         interp.set_result_bytes(b"");
@@ -198,7 +258,7 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                             "external system encoding target",
                         )
                         .into(),
-                    )
+                    );
                 }
                 _ => return interp.wrong_args(b"encoding convertto ?encoding? data"),
             };

@@ -47,6 +47,13 @@ impl Host for FixedSourceHost {
         self.base.process()
     }
 }
+struct FixedSourceFile(&'static [u8]);
+impl tcl_platform::SourceFile for FixedSourceFile {
+    fn read_all(&mut self) -> Result<Vec<u8>, HostError> {
+        Ok(self.0.to_vec())
+    }
+}
+
 impl Filesystem for FixedSourceHost {
     fn exists(&self, path: &str) -> bool {
         self.files.iter().any(|(name, _)| *name == path)
@@ -70,6 +77,19 @@ impl Filesystem for FixedSourceHost {
             .ok_or(HostError::Unsupported)?
             .read_bytes(path)
     }
+    fn open_source_bytes(
+        &self,
+        path: &[u8],
+    ) -> Result<Box<dyn tcl_platform::SourceFile>, HostError> {
+        if let Some((_, source)) = self.files.iter().find(|(name, _)| name.as_bytes() == path) {
+            return Ok(Box::new(FixedSourceFile(source)));
+        }
+        self.base
+            .filesystem()
+            .ok_or(HostError::Unsupported)?
+            .open_source_bytes(path)
+    }
+
     fn write(&self, _path: &str, _data: &[u8]) -> Result<(), HostError> {
         Err(HostError::Unsupported)
     }

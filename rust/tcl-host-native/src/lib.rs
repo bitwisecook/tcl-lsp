@@ -289,6 +289,15 @@ impl Env for NativeEnv {
     }
 }
 
+struct NativeSourceFile(std::fs::File);
+impl tcl_platform::SourceFile for NativeSourceFile {
+    fn read_all(&mut self) -> Result<Vec<u8>, HostError> {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut self.0, &mut bytes).map_err(|error| map_io(&error))?;
+        Ok(bytes)
+    }
+}
+
 struct NativeFs;
 
 impl Filesystem for NativeFs {
@@ -321,6 +330,22 @@ impl Filesystem for NativeFs {
             let path = std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
             self.read(path)
         }
+    }
+
+    fn open_source_bytes(
+        &self,
+        path: &[u8],
+    ) -> Result<Box<dyn tcl_platform::SourceFile>, HostError> {
+        #[cfg(unix)]
+        let file = {
+            use std::os::unix::ffi::OsStrExt as _;
+            std::fs::File::open(std::ffi::OsStr::from_bytes(path))
+        };
+        #[cfg(not(unix))]
+        let file =
+            std::fs::File::open(std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?);
+        file.map(|file| Box::new(NativeSourceFile(file)) as Box<dyn tcl_platform::SourceFile>)
+            .map_err(|error| map_io(&error))
     }
 
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError> {

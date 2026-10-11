@@ -73,7 +73,13 @@ mod seam {
     };
     use tcl_vm::host_native::NativeHost;
 
-    pub struct Files(pub BTreeMap<String, Vec<u8>>);
+    pub struct Files(pub BTreeMap<String, std::rc::Rc<Vec<u8>>>);
+    struct SourceFile(std::rc::Rc<Vec<u8>>);
+    impl tcl_platform::SourceFile for SourceFile {
+        fn read_all(&mut self) -> Result<Vec<u8>, HostError> {
+            Ok(self.0.as_ref().clone())
+        }
+    }
 
     impl Filesystem for Files {
         fn exists(&self, path: &str) -> bool {
@@ -83,7 +89,18 @@ mod seam {
             Err(HostError::Unsupported)
         }
         fn read(&self, path: &str) -> Result<Vec<u8>, HostError> {
-            self.0.get(path).cloned().ok_or(HostError::NotFound)
+            self.0
+                .get(path)
+                .map(|bytes| bytes.as_ref().clone())
+                .ok_or(HostError::NotFound)
+        }
+        fn open_source_bytes(
+            &self,
+            path: &[u8],
+        ) -> Result<Box<dyn tcl_platform::SourceFile>, HostError> {
+            let path = std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
+            let file = self.0.get(path).cloned().ok_or(HostError::NotFound)?;
+            Ok(Box::new(SourceFile(file)))
         }
         fn write(&self, _path: &str, _data: &[u8]) -> Result<(), HostError> {
             Err(HostError::Unsupported)
@@ -112,7 +129,7 @@ mod seam {
                 files: Some(Files(
                     files
                         .iter()
-                        .map(|(path, bytes)| ((*path).to_owned(), bytes.to_vec()))
+                        .map(|(path, bytes)| ((*path).to_owned(), std::rc::Rc::new(bytes.to_vec())))
                         .collect(),
                 )),
                 system: SystemEncoding::Utf8,

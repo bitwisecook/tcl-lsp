@@ -132,7 +132,10 @@ pub fn convert_to_utf8<O: ValueOps>(
 
 impl Utf8EncodingError {
     fn command_error(self, version: TclVersion) -> CmdError {
-        let message = format!("unexpected character at index {}: 'U+{:06X}'", self.character_index, self.unit);
+        let message = format!(
+            "unexpected character at index {}: 'U+{:06X}'",
+            self.character_index, self.unit
+        );
         let code = format!("TCL ENCODING ILLEGALSEQUENCE {}", self.byte_offset);
         CmdError::with_error_code_bytes(message.into_bytes(), code.into_bytes())
             .with_native_string_result(NativeStringProtocol::C(version))
@@ -141,3 +144,11 @@ impl Utf8EncodingError {
 
 #[cfg(test)]
 mod native_controls;
+
+mod original_names;
+pub use original_names::{
+    NativeEncodingNameProtocol, NativeEncodingNamePurpose, NativeSourceFileProtocol,
+    OriginalSourceFileOps, PreparedSourceFile, prepare_source_file, resolve_original_encoding_name,
+};
+
+pub(crate) use original_names::implemented_encoding;
