@@ -19912,6 +19912,9 @@ impl Vm {
     }
 
     fn native_integer_error(&mut self, error: &tcl_syntax::value::ValueError) -> Completion<Value> {
+        if let Some(first) = self.refused_completion() {
+            return first;
+        }
         if let Some(refusal) = error.native_access_refusal() {
             return self.refuse_host_command(refusal.to_string());
         }

@@ -116,9 +116,25 @@ impl<'a> OriginalNumericOps<'a> {
             .map_err(CmdError::from_execution_refusal)
     }
 
-    fn current_value_for_value(&self, value: &Value) -> Result<(), ValueError> {
+    pub(crate) fn current_value_for_value(&self, value: &Value) -> Result<(), ValueError> {
         self.current_for_value_native(value)
             .map_err(|_| Self::value_unwind())
+    }
+
+    pub(crate) fn cache_value_number(
+        &self,
+        value: &Value,
+        number: Number,
+    ) -> Result<(), ValueError> {
+        let protocol = self
+            .dialect
+            .native_string_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        value.cache_numeric_representation_checked(
+            number,
+            &mut || self.current_value_for_value(value),
+            &mut || self.string_value(value, protocol),
+        )
     }
 
     pub(crate) fn with_environment<T>(

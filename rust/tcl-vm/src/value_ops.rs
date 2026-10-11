@@ -52,44 +52,88 @@ use crate::interp::Vm;
 use crate::value::Value;
 
 /// Integer addition through the selected native numeral and arithmetic owners.
-/// `dict incr` captures the same dialect before its callback borrows the VM.
+#[cfg(test)]
 pub(crate) fn int_add<'a>(
     dialect: impl Into<crate::expr::NumericContext<'a>>,
     a: Option<&Value>,
     b: &Value,
 ) -> Result<Value, ValueError> {
+    int_add_using(dialect.into(), a, b, None)
+}
+
+/// The original integer-only parser, with an optional current operation owner.
+fn integer_number(
+    context: crate::expr::NumericContext<'_>,
+    value: &Value,
+    syntax: tcl_dialect::NumberSyntax,
+    cache: bool,
+    original: Option<&crate::interp::native_numeric_ops::OriginalNumericOps<'_>>,
+) -> Result<Number, ValueError> {
+    if let Some(simulation) = context.simulation {
+        return logical_integer_number(simulation, value);
+    }
+    if let Some(original) = original {
+        original.current_value_for_value(value)?;
+    }
+    let input = context
+        .scalar_numeric_input_policy()
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    if let Some(number @ (Number::Int(_) | Number::Big { .. })) = value.number_representation() {
+        if let Some(original) = original {
+            original.current_value_for_value(value)?;
+        }
+        return Ok(number);
+    }
+    let protocol = context
+        .dialect
+        .native_string_protocol()
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    let reached = if let Some(original) = original {
+        original.string_value(value, protocol)
+    } else {
+        value
+            .native_string_bytes(protocol)
+            .map_err(|_| ValueError::ScalarNumericInputUnavailable)
+    };
+    if let Some(original) = original {
+        original.current_value_for_value(value)?;
+    }
+    let bytes = reached?;
+    let text = std::str::from_utf8(input.input_bytes(&bytes))
+        .map_err(|_| ValueError::NotIntegerBytes(bytes.to_vec()))?;
+    let mut flags = number::ParseFlags::for_syntax(syntax);
+    flags.integer_only = true;
+    let parsed = number::parse_whole_with(text, flags)
+        .ok_or_else(|| ValueError::NotIntegerBytes(bytes.to_vec()))?;
+    if let Some(original) = original {
+        original.current_value_for_value(value)?;
+    }
+    if cache && let Number::Int(integer) = parsed {
+        if let Some(original) = original {
+            original.cache_value_number(value, Number::Int(integer))?;
+        } else {
+            value.cache_integer_representation(integer);
+        }
+    }
+    Ok(parsed)
+}
+
+fn int_add_using(
+    context: crate::expr::NumericContext<'_>,
+    a: Option<&Value>,
+    b: &Value,
+    original: Option<&crate::interp::native_numeric_ops::OriginalNumericOps<'_>>,
+) -> Result<Value, ValueError> {
     use tcl_dialect::NativeArithmetic;
-    let context = dialect.into();
     let dialect = context.dialect;
     let policy = dialect.arithmetic().ok_or(ValueError::IntegerOverflow)?;
-    let input = dialect.scalar_numeric_input_policy();
     let parse = |value: &Value| {
-        if let Some(simulation) = context.simulation {
-            return logical_integer_number(simulation, value);
-        }
-        let input = input.ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        if let Some(number @ (Number::Int(_) | Number::Big { .. })) = value.number_representation()
-        {
-            return Ok(number);
-        }
-        let protocol = dialect
-            .native_string_protocol()
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        let original = value
-            .native_string_bytes(protocol)
-            .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-        let text = std::str::from_utf8(input.input_bytes(&original))
-            .map_err(|_| ValueError::NotIntegerBytes(original.to_vec()))?;
-        let mut flags = number::ParseFlags::for_syntax(dialect.numbers);
-        flags.integer_only = true;
-        match number::parse_whole_with(text, flags) {
-            Some(parsed @ (Number::Int(_) | Number::Big { .. })) => {
-                if let Number::Int(integer) = parsed {
-                    value.cache_integer_representation(integer);
-                }
-                Ok(parsed)
+        let parsed = integer_number(context, value, dialect.numbers, true, original)?;
+        match parsed {
+            integer @ (Number::Int(_) | Number::Big { .. }) => Ok(integer),
+            Number::Double(_) | Number::Nan { .. } => {
+                Err(ValueError::NotIntegerBytes(value.string_bytes().to_vec()))
             }
-            _ => Err(ValueError::NotIntegerBytes(original.to_vec())),
         }
     };
     let left = a.map(parse).transpose()?.unwrap_or(Number::Int(0));
@@ -117,6 +161,49 @@ pub(crate) fn int_add<'a>(
         Number::Double(_) | Number::Nan { .. } => unreachable!("integer-only parser"),
     };
     Ok(crate::expr::big_value(&(to_big(left) + to_big(right))))
+}
+
+fn original_integer_axes(
+    selected: tcl_registry::InvocationDialect,
+    original: &crate::interp::native_numeric_ops::OriginalNumericOps<'_>,
+) -> Result<(), ValueError> {
+    let actual = original.dialect();
+    if selected.arithmetic() != actual.arithmetic()
+        || selected.native_scalar_getter_protocol() != actual.native_scalar_getter_protocol()
+        || selected.native_string_protocol() != actual.native_string_protocol()
+    {
+        return Err(ValueError::ScalarNumericInputUnavailable);
+    }
+    Ok(())
+}
+
+fn integer_magnitude_using(
+    context: crate::expr::NumericContext<'_>,
+    value: &Value,
+    radix: Radix,
+    syntax: tcl_dialect::NumberSyntax,
+    original: Option<&crate::interp::native_numeric_ops::OriginalNumericOps<'_>>,
+) -> Result<IntegerMagnitude, ValueError> {
+    let parsed = integer_number(context, value, syntax, false, original)?;
+    let value = match parsed {
+        Number::Int(value) => num_bigint::BigInt::from(value),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => {
+            let value = num_bigint::BigInt::parse_bytes(digits.as_bytes(), radix as u32)
+                .ok_or_else(|| ValueError::NotIntegerBytes(value.string_bytes().to_vec()))?;
+            if negative { -value } else { value }
+        }
+        Number::Double(_) | Number::Nan { .. } => {
+            return Err(ValueError::NotIntegerBytes(value.string_bytes().to_vec()));
+        }
+    };
+    Ok(IntegerMagnitude {
+        negative: value.sign() == num_bigint::Sign::Minus,
+        digits: value.magnitude().to_str_radix(radix as u32),
+    })
 }
 
 /// Authenticated modern C increment operations on borrowed physical members.
@@ -754,56 +841,30 @@ impl ValueOps for Vm {
         radix: Radix,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<IntegerMagnitude, ValueError> {
-        let context = self.numeric_context();
-        let parsed = if let Some(simulation) = context.simulation {
-            logical_integer_number(simulation, v)?
-        } else {
-            let input = context
-                .scalar_numeric_input_policy()
-                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-            if let Some(integer @ (Number::Int(_) | Number::Big { .. })) = v.number_representation()
-            {
-                integer
-            } else {
-                let protocol = context
-                    .dialect
-                    .native_string_protocol()
-                    .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-                let original = v
-                    .native_string_bytes(protocol)
-                    .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-                let text = std::str::from_utf8(input.input_bytes(&original))
-                    .map_err(|_| ValueError::NotIntegerBytes(original.to_vec()))?;
-                let mut flags = number::ParseFlags::for_syntax(syntax);
-                flags.integer_only = true;
-                number::parse_whole_with(text, flags)
-                    .ok_or_else(|| ValueError::NotIntegerBytes(original.to_vec()))?
-            }
-        };
-        let value = match parsed {
-            Number::Int(value) => num_bigint::BigInt::from(value),
-            Number::Big {
-                negative,
-                radix,
-                digits,
-            } => {
-                let value = num_bigint::BigInt::parse_bytes(digits.as_bytes(), radix as u32)
-                    .ok_or_else(|| ValueError::NotIntegerBytes(v.string_bytes().to_vec()))?;
-                if negative { -value } else { value }
-            }
-            Number::Double(_) | Number::Nan { .. } => {
-                return Err(ValueError::NotIntegerBytes(v.string_bytes().to_vec()));
-            }
-        };
-        Ok(IntegerMagnitude {
-            negative: value.sign() == num_bigint::Sign::Minus,
-            digits: value.magnitude().to_str_radix(radix as u32),
-        })
+        let context = self.numeric_policy_context();
+        if context.simulation.is_some() {
+            return integer_magnitude_using(context, v, radix, syntax, None);
+        }
+        let selected = context.dialect;
+        let original = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
+        original_integer_axes(selected, &original)?;
+        let reached = integer_magnitude_using(context, v, radix, syntax, Some(&original));
+        original.current_value()?;
+        reached
     }
 
-    /// Native addition shared with `dict incr` under the actual interpreter.
+    /// Integer addition uses the selected parser and actual current operand owners.
     fn int_add(&mut self, a: Option<&Value>, b: &Value) -> Result<Value, ValueError> {
-        int_add(self.numeric_context(), a, b)
+        let context = self.numeric_policy_context();
+        if context.simulation.is_some() {
+            return int_add_using(context, a, b, None);
+        }
+        let selected = context.dialect;
+        let original = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
+        original_integer_axes(selected, &original)?;
+        let reached = int_add_using(context, a, b, Some(&original));
+        original.current_value()?;
+        reached
     }
 
     fn as_double(&mut self, v: &Value) -> Result<f64, ValueError> {

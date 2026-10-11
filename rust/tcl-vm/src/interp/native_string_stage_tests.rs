@@ -959,3 +959,153 @@ fn original_expression_cache_publication_checks_actual_header_before_replacement
         *error.native_execution_refusal().unwrap()
     );
 }
+
+#[test]
+fn original_integer_operations_keep_selected_cache_and_magnitude_reference_roles() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    use tcl_syntax::{number::Radix, value::ValueOps};
+    let (mut vm, formatter, acquisitions) = provided();
+    let current = value(&vm, -6);
+    let refs = current.native_object_reference_count();
+    let before = current.native_object_snapshot();
+    let magnitude = vm
+        .integer_magnitude(&current, Radix::Hex, tcl_dialect::NumberSyntax::Tcl84)
+        .unwrap();
+    assert!(magnitude.negative);
+    assert_eq!(magnitude.digits, "6");
+    assert_eq!(current.native_object_snapshot(), before);
+    assert_eq!(current.native_object_reference_count(), refs);
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    let amount = Value::new_native_string_bytes(b"06".as_slice());
+    let result = ValueOps::int_add(&mut vm, Some(&current), &amount).unwrap();
+    assert_eq!(result.integer_representation(), Some(0));
+    assert_eq!(amount.integer_representation(), Some(6));
+    assert_eq!(amount.resident_string_bytes().unwrap().as_ref(), b"06");
+    assert_eq!(current.native_object_reference_count(), refs);
+    assert!(vm.execution_refusal.is_none());
+    let mut modern = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+    let magnitude = Value::new_native_string_bytes(b"18446744073709551617".as_slice());
+    let before = magnitude.native_object_snapshot();
+    let formatted = tcl_cmd_core::format::format_cmd_with_syntax(
+        &mut modern,
+        &[Value::string("%lld"), magnitude.clone()],
+        tcl_dialect::NumberSyntax::Tcl90,
+    )
+    .unwrap();
+    assert_eq!(
+        formatted.resident_string_bytes().unwrap().as_ref(),
+        b"18446744073709551617"
+    );
+    assert_eq!(magnitude.native_object_snapshot(), before);
+    assert!(modern.execution_refusal.is_none());
+}
+
+#[test]
+fn original_integer_magnitude_stops_actual_formatter_header_withdrawal_before_guest_render() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The supplied software formatter retires a genuine VM root, without an external C callback claim.
+    use tcl_syntax::{number::Radix, value::ValueOps};
+    let (mut vm, formatter, _) = provided();
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let original = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
+    let held = original.native_lifetime_lease();
+    *formatter.retire_owner.borrow_mut() = Some(original);
+    formatter.retire_at.set(Some("format"));
+    let error = vm
+        .integer_magnitude(held.value(), Radix::Dec, tcl_dialect::NumberSyntax::Tcl84)
+        .unwrap_err();
+    let first = vm.execution_refusal.clone().unwrap();
+    assert!(error.native_access_refusal().is_some());
+    assert!(matches!(
+        first,
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(_)
+    ));
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    assert!(held.value().resident_string_bytes().is_none());
+    assert!(held.value().native_scalar_cache().is_none());
+    let calls = formatter.calls.borrow().len();
+    let guest = vm.native_integer_error(&error);
+    assert_eq!(guest.code, tcl_runtime_api::Code::Error);
+    assert!(guest.result.resident_string_bytes().unwrap().is_empty());
+    assert_eq!(formatter.calls.borrow().len(), calls);
+    assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+    assert_eq!(vm.finish_host_execution(guest).unwrap_err(), first);
+}
+
+#[test]
+fn original_integer_addition_stops_withdrawn_compound_before_cache_and_result_publication() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    use tcl_syntax::value::ValueOps;
+    let (mut vm, formatter, _) = provided();
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let original = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
+    let held = original.native_lifetime_lease();
+    *formatter.retire_owner.borrow_mut() = Some(original);
+    formatter.retire_at.set(Some("format"));
+    let error = ValueOps::int_add(&mut vm, None, held.value()).unwrap_err();
+    let first = vm.execution_refusal.clone().unwrap();
+    assert!(error.native_access_refusal().is_some());
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    assert!(held.value().resident_string_bytes().is_none());
+    assert!(held.value().native_scalar_cache().is_none());
+    let calls = formatter.calls.borrow().len();
+    let repeated = ValueOps::int_add(&mut vm, None, &Value::int(1)).unwrap_err();
+    assert!(repeated.native_access_refusal().is_some());
+    assert_eq!(formatter.calls.borrow().len(), calls);
+    assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
+}
+
+#[test]
+fn original_integer_operations_preserve_guest_input_and_authored_routing_without_host_queries() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    use tcl_syntax::{number::Radix, value::ValueOps};
+    let (mut vm, formatter, acquisitions) = provided();
+    for addition in [false, true] {
+        let original = Value::new_native_string_bytes(b"\xffBAD\0tail".as_slice());
+        let before = original.native_object_snapshot();
+        let error = if addition {
+            ValueOps::int_add(&mut vm, None, &original).unwrap_err()
+        } else {
+            vm.integer_magnitude(&original, Radix::Dec, tcl_dialect::NumberSyntax::Tcl84)
+                .unwrap_err()
+        };
+        assert_eq!(
+            error,
+            ValueError::NotIntegerBytes(b"\xffBAD\0tail".to_vec())
+        );
+        assert_eq!(original.native_object_snapshot(), before);
+        assert!(vm.execution_refusal.is_none());
+    }
+    vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+    assert!(vm.set_logical_numeric_provider(
+        tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+    ));
+    let amount = Value::new_native_string_bytes(b"06".as_slice());
+    let result = ValueOps::int_add(&mut vm, Some(&Value::int(1)), &amount).unwrap();
+    assert_eq!(result.integer_representation(), Some(7));
+    assert!(amount.integer_representation().is_none());
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    assert!(vm.execution_refusal.is_none());
+}
+
+#[test]
+fn original_integer_error_keeps_prior_typed_cause_before_misleading_guest_projection() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let (mut vm, formatter, acquisitions) = provided();
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let _ = vm.refuse_host_command("original integer operation".into());
+    let first = vm.execution_refusal.clone().unwrap();
+    let guest = vm.native_integer_error(&ValueError::NotIntegerBytes(b"misleading guest".to_vec()));
+    assert!(guest.result.resident_string_bytes().unwrap().is_empty());
+    assert_eq!(acquisitions.get(), 0);
+    assert!(formatter.calls.borrow().is_empty());
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    assert_eq!(vm.finish_host_execution(guest).unwrap_err(), first);
+}

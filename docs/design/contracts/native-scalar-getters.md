@@ -314,7 +314,14 @@ only to unwind a retained Host cause. That token is not a reconstructed cause.
 Consumers must propagate it before Guest rendering or later work; the real
 VM completion boundary checks `native_access_refusal` and the public checked
 execution boundary returns the full retained first cause. Genuine primitive
-Guest scalar records keep their existing typed fields. Quiet ListIndex misses
+Guest scalar records keep their existing typed fields. Integer magnitude and
+integer addition use their existing integer-only grammar under that same
+original owner. The optional operation stages check String success and failure
+before parsing, and check cache backing retirement before publication. Magnitude
+keeps its no-cache purpose; addition keeps its existing accepted Int cache.
+The integer diagnostic boundary consults the retained full cause before any
+Guest message. Explicit authored numeric simulation and independent pure
+conversion controls use the same kernels without an original operation receipt. Quiet ListIndex misses
 and Event option fallback may swallow only genuine Guest failure.
 
 ## Add or migrate a consumer
