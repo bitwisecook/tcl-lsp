@@ -39,6 +39,8 @@ use std::sync::atomic::AtomicBool;
 use tcl_dialect::{ByteStringEncoding, StringCharacterModel, TclVersion};
 use tcl_syntax::value::{ValueError, ValueOps};
 
+use crate::error::CmdError;
+use crate::index::NativeIndexOps;
 use crate::prefix::OptionTable;
 
 /// The "did not participate" sentinel for a subexpression's offset (mirrors the
