@@ -175,19 +175,14 @@ fn illegal_binary<T>(
     value: *mut TclObj,
     side: tcl_syntax::expr::errors::OperandSide,
     op: BinOp,
-    integer: bool,
+    stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+    floating_operand: bool,
 ) -> Result<T, ExprError> {
-    use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
     let bytes = operation.string(value)?;
-    let stage = if integer {
-        Stage::Integer
-    } else {
-        Stage::FloatingPoint
-    };
     let error = match operation.dialect().expression_operand_error_presentation() {
         Some(presentation) => ExprError::from_bytes(presentation.message(stage, &bytes)),
         None => super::operand_type_err(
-            super::operand_desc(value, integer, &bytes, operation.dialect()),
+            super::operand_desc(value, floating_operand, &bytes, operation.dialect()),
             &bytes,
             side,
             super::binop_sym(op),
@@ -217,15 +212,21 @@ fn binary_operand(
     } else {
         None
     };
-    let Some(number) = accepted_number(operation, value, integer)? else {
-        return illegal_binary(operation, value, side, op, false);
-    };
-    if matches!(
+    use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
+    let integer_required = matches!(
         op,
         BinOp::Mod | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::LShift | BinOp::RShift
-    ) && matches!(number, Number::Double(_) | Number::Nan { .. })
-    {
-        return illegal_binary(operation, value, side, op, true);
+    );
+    let Some(number) = accepted_number(operation, value, integer)? else {
+        let stage = if integer_required {
+            Stage::Integer
+        } else {
+            Stage::FloatingPoint
+        };
+        return illegal_binary(operation, value, side, op, stage, false);
+    };
+    if integer_required && matches!(number, Number::Double(_) | Number::Nan { .. }) {
+        return illegal_binary(operation, value, side, op, Stage::Integer, true);
     }
     Ok((integer, number))
 }
