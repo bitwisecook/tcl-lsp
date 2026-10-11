@@ -483,18 +483,25 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
         .map(|(name, proc)| (name.clone(), proc.span.start()))
         .collect();
     let config = module.lexer_config;
-    let bindings = crate::command_binding::SourceCommandBindings::analyse_in_namespace_with_options(
-        source,
-        &module.top_level_namespace,
-        config,
-        registry,
-        module.source_entry.options(),
-    );
+    // naming.source.retained-positioned-command-realm
+    // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+    // Keep the actual producer alive independently of the Module mutations.
+    // Refusal stops the rewrite before any statement is moved or changed.
+    let Some(retained) = module
+        .retained_source_bindings
+        .as_ref()
+        .map(std::sync::Arc::clone)
+    else {
+        return;
+    };
+    let Some(bindings) = retained.positioned_for_module(module, registry) else {
+        return;
+    };
     let context = InlineContext {
         candidates: &candidates,
         generations: &generations,
         registry,
-        bindings: &bindings,
+        bindings,
         config,
         entry: &module.source_entry,
         source,
@@ -1101,6 +1108,43 @@ mod tests {
         // The callsite ``reset`` should now be a Statement::Block
         // splicing in the body.
         assert_eq!(count_blocks(&m.top_level), 1);
+    }
+
+    #[test]
+    fn rewriter_uses_the_original_positioned_owner_and_stops_before_writes_on_refusal() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        // Model rewrite and exact original-owner refusal only; this fixture
+        // does not execute an external uplevel or observe a physical frame.
+        let registry = reg();
+        for source in [
+            "proc reset {} {uplevel 1 {set counter 0}}; reset",
+            "proc dispatcher {body} {uplevel 1 $body}; dispatcher {set counter 0}",
+        ] {
+            let original = lower_to_ir(source, &registry);
+            assert!(!detect_passthrough_candidates(&original, &registry).is_empty());
+            assert!(original.retained_source_bindings.is_some());
+            let mut accepted = original.clone();
+            inline_uplevel_passthrough(&mut accepted, &registry);
+            assert_eq!(count_blocks(&accepted.top_level), 1);
+            let mut missing = original.clone();
+            missing.retained_source_bindings = None;
+            let mut changed_source = original.clone();
+            changed_source.source = tcl_lexer::SourceImage::document("set counter WRONG");
+            let mut changed_grammar = original.clone();
+            changed_grammar.lexer_config.strict_quoting =
+                !changed_grammar.lexer_config.strict_quoting;
+            let mut missing_snapshot = original.clone();
+            missing_snapshot.registry_snapshot = None;
+            for mut refused in [missing, changed_source, changed_grammar, missing_snapshot] {
+                let before = refused.clone();
+                inline_uplevel_passthrough(&mut refused, &registry);
+                assert_eq!(
+                    refused, before,
+                    "refusal must leave the complete Module unchanged"
+                );
+            }
+        }
     }
 
     #[test]
