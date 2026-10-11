@@ -3499,3 +3499,58 @@ restores SHA-256 `baa9ca821a5eb85d6d0fb2af93bd02df79c7b0e90a1a1b3cdac36846f12563
 source value. The [whole original log](frozen319/integration-compiler-own-test-build319/tests.log) retains
 SHA-256 `f5d5df577ae0b7b40234bd7b06f6f9bce19f34731995eefc89200d79c8f48c49`. All original command arguments, compiler spans,
 messages and source associations remain unchanged.
+
+## Source320 independent Compiler and Core producers and inventories
+
+Both independent own library-test no-run producers succeed with uniform
+source `true`. Their complete immutable 35,388-leaf Source320 input retains
+HEAD `e5bcb153c4fba5a1d2c4b6adb02d055d9def6fab`. The Compiler producer
+closes after 216.77991808499792 seconds and its strict image lists
+9,254 tests after 0.016974149009911343 seconds. The Core producer closes
+after 169.73502292798366 seconds and its strict image lists 2,938 tests
+after 0.012971238989848644 seconds. Both actual Cargo library-test artifacts
+are `fresh: false` with features `[]`; both inventories report zero
+benchmarks. These four commands execute no assertions.
+
+| Closed operation | Exact scope | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-compiler-own-test-build320` | `compile-passed`, exit `0`; no assertions | [lossless original](frozen320/integration-compiler-own-test-build320/receipt.json.gz) | [whole log](frozen320/integration-compiler-own-test-build320/tests.log) |
+| `integration-compiler-own-list320` | `listed`, exit `0`; no assertions | [lossless original](frozen320/integration-compiler-own-list320/receipt.json.gz) | [whole log](frozen320/integration-compiler-own-list320/tests.log) |
+| `integration-core-own-test-build320` | `compile-passed`, exit `0`; no assertions | [lossless original](frozen320/integration-core-own-test-build320/receipt.json.gz) | [whole log](frozen320/integration-core-own-test-build320/tests.log) |
+| `integration-core-own-list320` | `listed`, exit `0`; no assertions | [lossless original](frozen320/integration-core-own-list320/receipt.json.gz) | [whole log](frozen320/integration-core-own-list320/tests.log) |
+
+The [complete common source snapshot](frozen320/sealed-own-images/source-snapshot.json.gz)
+restores SHA-256 `6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0`
+and exactly joins all four original source values. Whole original source
+leaves independently match that retained map. The strict
+[Compiler metadata](frozen320/sealed-own-images/pinned-compiler320.json),
+[Core metadata](frozen320/sealed-own-images/pinned-core320.json),
+[Compiler lossless map](frozen320/sealed-own-images/lossless-compiler-image-storage.json)
+and [Core lossless map](frozen320/sealed-own-images/lossless-core-image-storage.json)
+retain each actual own producer and original executable bytes/hash/mode.
+
+Restore either complete measured executable only after both whole-payload
+integrity checks; this snippet launches no assertion:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images")
+owner = "compiler"  # The independently sealed "core" image uses its own map.
+record = json.loads((base / f"lossless-{owner}-image-storage.json").read_text())
+packed = (base / f"pinned-{owner}320.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path(f"/tmp/pinned-{owner}320.elf")
+restored.write_bytes(original)
+restored.chmod(record["original_mode"])
+```
+
+Restoration does not replace or retire an active original executable.
+Selected Compiler/Core assertions and the independent Runtime producer
+retain their distinct receipts and source boundaries. No complete suite,
+Native provider parity or combined gate result is inferred from these
+own producers, inventories or source-only current definitions.
