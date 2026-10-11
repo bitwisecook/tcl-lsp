@@ -147,6 +147,7 @@ use tcl_runtime_api::jim_error_stack::{
     JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
     capture_jim_error_frames,
 };
+use tcl_syntax::value::ValueError;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
