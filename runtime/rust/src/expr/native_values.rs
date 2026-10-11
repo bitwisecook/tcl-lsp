@@ -265,7 +265,7 @@ mod tests {
             );
             assert_eq!(context.0.get_obj_result(), prior);
             assert_eq!(context.0.result_bytes(), b"PRIOR\0\xff");
-            assert!(context.0.entered_native_operations.borrow().is_empty());
+            assert_eq!(context.0.entered_native_operation_count(), 0);
             crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
         }
     }
@@ -327,7 +327,7 @@ mod tests {
         assert_eq!(CALLS.with(Cell::get), 1);
         assert_eq!(obj::obj_type_ptr(list.ptr()), core::ptr::null());
         assert!(!context.0.host_refusal_pending());
-        assert!(context.0.entered_native_operations.borrow().is_empty());
+        assert_eq!(context.0.entered_native_operation_count(), 0);
         RETIRE_LIST.with(|slot| slot.set(core::ptr::null_mut()));
     }
     #[test]
@@ -358,11 +358,12 @@ mod tests {
             invalid,
             Owned::fresh(obj::new_string_bytes(b"x")),
         )
-        .unwrap_err();
+        .err()
+        .expect("original predicate must refuse");
         assert!(error.native_execution_refusal.is_some());
         assert_eq!(unsafe { (*invalid_view.ptr()).ref_count }, 1);
         assert_eq!(obj::bytes_of(invalid_view.ptr()), &[0xff]);
-        assert!(context.0.entered_native_operations.borrow().is_empty());
+        assert_eq!(context.0.entered_native_operation_count(), 0);
     }
     #[test]
     fn authored_f5_getter_first_host_stops_before_later_operand_and_result() {
@@ -386,7 +387,9 @@ mod tests {
         let before = obj::native_object_snapshot(right.ptr()).unwrap();
         CALLS.with(|calls| calls.set(0));
         crate::codegen_abi::tcl_runtime_set_current_interp(&mut context.0);
-        let error = f5_predicate(&mut context, BinOp::Contains, left, right).unwrap_err();
+        let error = f5_predicate(&mut context, BinOp::Contains, left, right)
+            .err()
+            .expect("original predicate must refuse");
         let first = context.0.native_execution_refusal().unwrap();
         assert!(
             matches!(&first, NativeExecutionError::HostCommandRefusal(first) if first.reason == "first original expression value updater")
@@ -403,7 +406,7 @@ mod tests {
         assert_eq!(unsafe { (*right_view.ptr()).ref_count }, 1);
         assert_eq!(context.0.get_obj_result(), prior);
         assert_eq!(context.0.result_bytes(), b"PRIOR\0\xff");
-        assert!(context.0.entered_native_operations.borrow().is_empty());
+        assert_eq!(context.0.entered_native_operation_count(), 0);
         crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
     }
 }

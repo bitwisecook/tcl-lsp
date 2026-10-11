@@ -409,13 +409,8 @@ mod tests {
             "set seasoning {salt and pepper}\nputs $seasoning"
         );
         assert!(extract_variable(source, (5, end), "seasoning", &analyse(older), &index).is_none());
-        assert!(
-            analysis
-                .resolved_input
-                .as_ref()
-                .unwrap()
-                .has_logical_source_name_context()
-        );
+        assert!(crate::original_context::CurrentSourceContext::capture(source, &analysis).is_some());
+        assert!(analysis.allows_retained_logical_declaration_advice());
 
         let mut missing = analysis.clone();
         missing.resolved_input = None;

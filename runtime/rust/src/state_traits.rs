@@ -806,52 +806,31 @@ fn api_code(code: crate::interp::Code) -> tcl_runtime_api::Code {
     }
 }
 
-/// Snapshot one runtime completion as the shared [`Completion`] contract.
+/// Capture one Guest completion from the original entered interpreter.
 ///
-/// Both returned object handles own one reference. The caller must release
-/// each exactly once, or transfer it to a runtime slot that takes ownership.
-/// The return-options dict is built by the same live error/return-state helper
-/// used by `catch` and `try`; it is not a placeholder.
-pub(crate) fn capture_completion(
-    interp: &mut Interp,
-    code: crate::interp::Code,
-) -> Completion<*mut TclObj> {
-    if interp.host_refusal_pending() {
-        // Transport only: callers inspect the retained host channel before publication.
-        return Completion::new(api_code(code), core::ptr::null_mut(), core::ptr::null_mut());
-    }
-    let result = obj::Owned::retain(interp.result_obj());
-    let options = match crate::cmd_error::completion_options(interp, code) {
-        Ok(options) => obj::Owned::fresh(options),
-        Err(error) => {
-            interp.refuse_native_execution(error);
-            return Completion::new(api_code(code), core::ptr::null_mut(), core::ptr::null_mut());
-        }
-    };
-    Completion::new(api_code(code), result.into_raw(), options.into_raw())
-}
-
-/// Capture a Guest completion from the original entered interpreter only.
-///
-/// Getter effects remain reached. A first Host refusal prevents publication;
-/// any handles retained by the real capture owner are released exactly once.
+/// The result and live return-options dictionary each transfer one independent
+/// owning reference on success. Getter effects remain reached; a first Host
+/// refusal returns its typed cause and releases any partially retained handles.
 pub(crate) fn capture_completion_checked(
     interp: &mut Interp,
     currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
     code: crate::interp::Code,
 ) -> Result<Completion<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
     currency.ensure_current_or_refuse()?;
-    let completion = capture_completion(interp, code);
-    if let Err(first) = currency.ensure_current_or_refuse() {
-        // SAFETY: the capture owner returns an owned reference for each
-        // non-null slot. Refusal placeholders and release are null-safe.
-        unsafe {
-            obj::decr_ref_count(completion.result);
-            obj::decr_ref_count(completion.options);
-        }
-        return Err(first);
-    }
-    Ok(completion)
+    let result = obj::Owned::retain(interp.result_obj());
+    let options = crate::cmd_error::completion_options(interp, code)
+        .map(obj::Owned::fresh)
+        .map_err(|first| {
+            interp.refuse_native_execution(first.clone());
+            interp.native_execution_refusal().unwrap_or(first)
+        });
+    currency.ensure_current_or_refuse()?;
+    let options = options?;
+    Ok(Completion::new(
+        api_code(code),
+        result.into_raw(),
+        options.into_raw(),
+    ))
 }
 
 /// Run a full, prebuilt command argv through the inherent dispatcher, then
@@ -864,9 +843,10 @@ pub(crate) fn capture_completion_checked(
 pub(crate) fn dispatch_prebuilt_argv(
     interp: &mut Interp,
     argv: &[*mut TclObj],
-) -> Completion<*mut TclObj> {
+) -> Result<Completion<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)?;
     let code = Interp::dispatch(interp, argv);
-    capture_completion(interp, code)
+    capture_completion_checked(interp, scope.currency(), code)
 }
 
 /// Run `name` + `argv` through the inherent dispatch and snapshot a [`Completion`]
@@ -885,7 +865,8 @@ fn dispatch_named(
     interp: &mut Interp,
     name: &[u8],
     argv: &[*mut TclObj],
-) -> Completion<*mut TclObj> {
+) -> Result<Completion<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)?;
     let name_obj = new_string(name);
     let mut full: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
     full.push(name_obj);
@@ -901,14 +882,17 @@ fn dispatch_named(
     for &w in &full {
         unsafe { obj::decr_ref_count(w) };
     }
-    capture_completion(interp, code)
+    capture_completion_checked(interp, scope.currency(), code)
 }
 
 /// The error completion for a fabricated/stale `CommandId` (rc-balanced like a
 /// real one: `result`/`options` each `+1`).
-fn invalid_command_id(interp: &mut Interp) -> Completion<*mut TclObj> {
+fn invalid_command_id(
+    interp: &mut Interp,
+    currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+) -> Result<Completion<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
     let code = interp.set_error(b"invalid command id");
-    capture_completion(interp, code)
+    capture_completion_checked(interp, currency, code)
 }
 
 /// Command dispatch by name ([`dispatch`](Commands::dispatch)) or by a resolved
@@ -918,14 +902,23 @@ fn invalid_command_id(interp: &mut Interp) -> Completion<*mut TclObj> {
 impl Commands for Interp {
     type Value = *mut TclObj;
 
-    fn dispatch(&mut self, name: &str, argv: &[*mut TclObj]) -> Completion<*mut TclObj> {
+    fn dispatch(
+        &mut self,
+        name: &str,
+        argv: &[*mut TclObj],
+    ) -> Result<Completion<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
         dispatch_named(self, name.as_bytes(), argv)
     }
 
-    fn dispatch_id(&mut self, cmd: CommandId, argv: &[*mut TclObj]) -> Completion<*mut TclObj> {
+    fn dispatch_id(
+        &mut self,
+        cmd: CommandId,
+        argv: &[*mut TclObj],
+    ) -> Result<Completion<*mut TclObj>, tcl_runtime_api::NativeExecutionError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
         match self.dispatch_command_id(cmd.0, argv) {
-            Some(code) => capture_completion(self, code),
-            None => invalid_command_id(self),
+            Some(code) => capture_completion_checked(self, scope.currency(), code),
+            None => invalid_command_id(self, scope.currency()),
         }
     }
 }
@@ -1726,7 +1719,7 @@ mod tests {
             // syntax (a generic `T: Commands` consumer is unaffected).
             let lst = new_string(b"a b c");
             unsafe { obj::incr_ref_count(lst) };
-            let c = Commands::dispatch(i, "llength", &[lst]);
+            let c = Commands::dispatch(i, "llength", &[lst]).unwrap();
             assert_eq!(c.code, Code::Ok);
             assert_eq!(obj_bytes(c.result), b"3");
             unsafe {
@@ -1736,7 +1729,7 @@ mod tests {
             }
 
             // An unknown command name is an error completion.
-            let c = Commands::dispatch(i, "no_such_command", &[]);
+            let c = Commands::dispatch(i, "no_such_command", &[]).unwrap();
             assert_eq!(c.code, Code::Error);
             assert!(obj_bytes(c.result).starts_with(b"invalid command name"));
             unsafe {
@@ -1818,7 +1811,7 @@ mod tests {
             let id = Namespaces::find_command(i, ROOT_NS, "list").expect("list resolves");
             let arg = new_string(b"x");
             unsafe { obj::incr_ref_count(arg) };
-            let c = Commands::dispatch_id(i, id, &[arg]);
+            let c = Commands::dispatch_id(i, id, &[arg]).unwrap();
             assert_eq!(c.code, Code::Ok);
             assert_eq!(obj_bytes(c.result), b"x");
             unsafe {
@@ -1827,7 +1820,7 @@ mod tests {
                 obj::decr_ref_count(arg);
             }
             // A fabricated id yields an error completion (no such command).
-            let c = Commands::dispatch_id(i, CommandId(9999), &[]);
+            let c = Commands::dispatch_id(i, CommandId(9999), &[]).unwrap();
             assert_eq!(c.code, Code::Error);
             assert_eq!(obj_bytes(c.result), b"invalid command id");
             unsafe {
@@ -1852,7 +1845,7 @@ mod tests {
             let new = Namespaces::find_command(i, ROOT_NS, "p").expect("new p resolves");
             assert_ne!(old, new);
 
-            let stale = Commands::dispatch_id(i, old, &[]);
+            let stale = Commands::dispatch_id(i, old, &[]).unwrap();
             assert_eq!(stale.code, Code::Error);
             assert_eq!(obj_bytes(stale.result), b"invalid command id");
             unsafe {
@@ -1860,7 +1853,7 @@ mod tests {
                 obj::decr_ref_count(stale.options);
             }
 
-            let live = Commands::dispatch_id(i, new, &[]);
+            let live = Commands::dispatch_id(i, new, &[]).unwrap();
             assert_eq!(live.code, Code::Ok);
             assert_eq!(obj_bytes(live.result), b"NEW");
             unsafe {
@@ -1868,5 +1861,419 @@ mod tests {
                 obj::decr_ref_count(live.options);
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod original_completion_capture_tests {
+    use super::*;
+    use crate::interp::native_operation_currency::NativeOperationScope;
+    use crate::obj::Owned;
+    use std::cell::Cell;
+    use tcl_runtime_api::NativeExecutionError;
+
+    #[derive(Clone, Copy)]
+    enum Update {
+        Host,
+        Reenter,
+    }
+
+    thread_local! {
+        static UPDATE: Cell<Update> = const { Cell::new(Update::Host) };
+        static GETTERS: Cell<usize> = const { Cell::new(0) };
+        static SCRIPT_CODE: Cell<i32> = const { Cell::new(0) };
+    }
+
+    extern "C" fn materialize(original: *mut TclObj) {
+        GETTERS.with(|calls| calls.set(calls.get() + 1));
+        // The original extension updater is invoked by the selected C8.4
+        // completion-options getter, not by a fabricated cache observation.
+        let mut interpreter = unsafe { crate::codegen_abi::current_interp().as_ref() }
+            .expect("original live extension interpreter")
+            .clone();
+        match UPDATE.with(Cell::get) {
+            Update::Host => {
+                interpreter.refuse_host_command("original options getter first cause");
+            }
+            Update::Reenter => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("completion-currency-test".to_owned(), "1.0".to_owned())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+        }
+        // Effects and the genuine original header remain reached on refusal.
+        unsafe { obj::set_string_rep(original, b"REACHED\0\xff") };
+    }
+
+    static ORIGINAL_METADATA: obj::TclObjType = obj::TclObjType {
+        name: c"originalCompletionOptionsGetter".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(materialize),
+        set_from_any_proc: None,
+    };
+
+    struct Current(*mut Interp);
+    impl Current {
+        fn enter(interpreter: &mut Interp) -> Self {
+            let previous = crate::codegen_abi::current_interp();
+            crate::codegen_abi::tcl_runtime_set_current_interp(interpreter);
+            Self(previous)
+        }
+    }
+    impl Drop for Current {
+        fn drop(&mut self) {
+            crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
+        }
+    }
+
+    fn original() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment("tcl8.4").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    fn stale() -> NativeExecutionError {
+        NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "stale entered native operation",
+            ),
+        )
+    }
+
+    #[test]
+    fn original_completion_capture_keeps_options_getter_host_cause_and_owned_handles() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for route in 0..3 {
+            let mut interpreter = original();
+            let original = Owned::fresh(obj::alloc_typed(&ORIGINAL_METADATA, 0));
+            interpreter.set_error_state(b"ORIGINAL CODE");
+            interpreter.set_result(original.as_ptr());
+            interpreter.set_return_state(2, crate::interp::Code::Other(7));
+            let refs = unsafe { (*original.as_ptr()).ref_count };
+            let _current = Current::enter(&mut interpreter);
+            UPDATE.with(|mode| mode.set(Update::Host));
+            GETTERS.with(|calls| calls.set(0));
+            let error = match route {
+                0 => {
+                    let scope = NativeOperationScope::enter(&interpreter).unwrap();
+                    capture_completion_checked(
+                        &mut interpreter,
+                        scope.currency(),
+                        crate::interp::Code::Error,
+                    )
+                    .unwrap_err()
+                }
+                1 => crate::completion::capture_bytes(&mut interpreter, crate::interp::Code::Error)
+                    .unwrap_err(),
+                _ => {
+                    let mut out = crate::codegen_abi::TclCompletionAbi {
+                        code: 91,
+                        result: original.as_ptr(),
+                        options: original.as_ptr(),
+                    };
+                    assert_eq!(
+                        unsafe {
+                            crate::engine_abi::value_carriers::tcl_engine_capture_original(
+                                &mut interpreter,
+                                1,
+                                &mut out,
+                            )
+                        },
+                        1
+                    );
+                    assert_eq!(out.code, 91);
+                    assert_eq!(out.result, original.as_ptr());
+                    assert_eq!(out.options, original.as_ptr());
+                    interpreter.native_execution_refusal().unwrap()
+                }
+            };
+            GETTERS.with(|calls| assert_eq!(calls.get(), 1, "route {route}"));
+            let NativeExecutionError::HostCommandRefusal(ref first) = error else {
+                panic!("original options getter Host cause was replaced");
+            };
+            assert_eq!(first.reason, "original options getter first cause");
+            assert_eq!(
+                first.source_profile,
+                interpreter.dialect_profile().cache_key()
+            );
+            assert_eq!(
+                first.native_profile,
+                interpreter.dialect_profile().cache_key()
+            );
+            assert_eq!(interpreter.native_execution_refusal(), Some(error.clone()));
+            assert_eq!(interpreter.result_obj(), original.as_ptr());
+            assert_eq!(obj::bytes_of(original.as_ptr()), b"REACHED\0\xff");
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, refs);
+            assert_eq!(interpreter.pending_return_level(), 2);
+            assert_eq!(
+                interpreter.pending_return_code(),
+                crate::interp::Code::Other(7)
+            );
+            interpreter.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable,
+            );
+            assert_eq!(interpreter.native_execution_refusal(), Some(error));
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
+    }
+
+    #[test]
+    fn original_completion_capture_refuses_restored_context_before_abi_publication() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for route in 0..3 {
+            let mut interpreter = original();
+            let original_context = interpreter.runtime_context();
+            let original = Owned::fresh(obj::alloc_typed(&ORIGINAL_METADATA, 0));
+            interpreter.set_error_state(b"ORIGINAL CODE");
+            interpreter.set_result(original.as_ptr());
+            let refs = unsafe { (*original.as_ptr()).ref_count };
+            let _current = Current::enter(&mut interpreter);
+            UPDATE.with(|mode| mode.set(Update::Reenter));
+            GETTERS.with(|calls| calls.set(0));
+            match route {
+                0 => {
+                    let scope = NativeOperationScope::enter(&interpreter).unwrap();
+                    assert_eq!(
+                        capture_completion_checked(
+                            &mut interpreter,
+                            scope.currency(),
+                            crate::interp::Code::Error,
+                        )
+                        .unwrap_err(),
+                        stale()
+                    );
+                }
+                1 => assert_eq!(
+                    crate::completion::capture_bytes(&mut interpreter, crate::interp::Code::Error)
+                        .unwrap_err(),
+                    stale()
+                ),
+                _ => {
+                    let mut out = crate::codegen_abi::TclCompletionAbi {
+                        code: 91,
+                        result: original.as_ptr(),
+                        options: original.as_ptr(),
+                    };
+                    assert_eq!(
+                        unsafe {
+                            crate::engine_abi::value_carriers::tcl_engine_capture_original(
+                                &mut interpreter,
+                                1,
+                                &mut out,
+                            )
+                        },
+                        1
+                    );
+                    assert_eq!(out.code, 91);
+                    assert_eq!(out.result, original.as_ptr());
+                    assert_eq!(out.options, original.as_ptr());
+                }
+            }
+            GETTERS.with(|calls| assert_eq!(calls.get(), 1, "route {route}"));
+            assert_eq!(interpreter.runtime_context(), original_context);
+            assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
+            assert_eq!(interpreter.result_obj(), original.as_ptr());
+            assert_eq!(obj::bytes_of(original.as_ptr()), b"REACHED\0\xff");
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, refs);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
+    }
+    #[test]
+    fn original_completion_capture_preserves_counted_guest_codes_options_and_references() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for code in 0..=7 {
+            let mut interpreter = original();
+            let original = Owned::fresh(crate::interp::new_string(b"GUEST\0\xff"));
+            interpreter.set_error_state(b"ORIGINAL ERROR CODE");
+            interpreter.set_result(original.as_ptr());
+            interpreter.set_return_state(2, crate::interp::Code::Other(7));
+            let refs = unsafe { (*original.as_ptr()).ref_count };
+            let scope = NativeOperationScope::enter(&interpreter).unwrap();
+            let completion = capture_completion_checked(
+                &mut interpreter,
+                scope.currency(),
+                crate::interp::Code::from_int(code),
+            )
+            .unwrap();
+            assert_eq!(completion.code, tcl_runtime_api::Code::from_int(code));
+            assert_eq!(completion.result, original.as_ptr());
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, refs + 1);
+            let result = unsafe { Owned::from_raw(completion.result) };
+            let options = unsafe { Owned::from_raw(completion.options) };
+            assert_eq!(
+                interpreter
+                    .native_object_string_bytes(result.as_ptr())
+                    .unwrap()
+                    .as_ref(),
+                b"GUEST\0\xff"
+            );
+            let actual_code = crate::dict::dict_get(options.as_ptr(), b"-code").unwrap();
+            let actual_level = crate::dict::dict_get(options.as_ptr(), b"-level").unwrap();
+            assert_eq!(
+                obj::bytes_of(actual_code),
+                if code == 2 {
+                    b"7".to_vec()
+                } else {
+                    code.to_string().into_bytes()
+                }
+            );
+            assert_eq!(
+                obj::bytes_of(actual_level),
+                if code == 2 {
+                    b"2".as_slice()
+                } else {
+                    b"0".as_slice()
+                }
+            );
+            if code == 1 {
+                assert_eq!(
+                    obj::bytes_of(crate::dict::dict_get(options.as_ptr(), b"-errorcode").unwrap()),
+                    b"ORIGINAL ERROR CODE"
+                );
+            }
+            drop(options);
+            drop(result);
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, refs);
+            let bytes = crate::completion::capture_bytes(
+                &mut interpreter,
+                crate::interp::Code::from_int(code),
+            )
+            .unwrap();
+            assert_eq!(bytes.code, tcl_runtime_api::Code::from_int(code));
+            assert_eq!(bytes.result, b"GUEST\0\xff");
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, refs);
+            assert!(interpreter.native_execution_refusal().is_none());
+            scope.currency().ensure_current().unwrap();
+            drop(scope);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
+    }
+
+    fn return_original(interpreter: &mut Interp, argv: &[*mut TclObj]) -> crate::interp::Code {
+        interpreter.set_error_state(b"ORIGINAL CALLBACK CODE");
+        interpreter.set_result(argv[1]);
+        crate::interp::Code::Error
+    }
+
+    #[test]
+    fn original_command_roles_keep_typed_capture_refusal_and_borrowed_argv() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for route in 0..3 {
+            let mut interpreter = original();
+            interpreter.register_builtin(b"original_completion_probe", return_original);
+            let metadata = Owned::fresh(obj::alloc_typed(&ORIGINAL_METADATA, 0));
+            let head = Owned::fresh(crate::interp::new_string(b"original_completion_probe"));
+            interpreter.set_result(metadata.as_ptr());
+            let refs = unsafe { (*metadata.as_ptr()).ref_count };
+            let head_refs = unsafe { (*head.as_ptr()).ref_count };
+            let _current = Current::enter(&mut interpreter);
+            UPDATE.with(|mode| mode.set(Update::Host));
+            GETTERS.with(|calls| calls.set(0));
+            let error = match route {
+                0 => Commands::dispatch(
+                    &mut interpreter,
+                    "original_completion_probe",
+                    &[metadata.as_ptr()],
+                )
+                .unwrap_err(),
+                1 => {
+                    let id = Namespaces::find_command(
+                        &interpreter,
+                        tcl_runtime_api::ROOT_NS,
+                        "original_completion_probe",
+                    )
+                    .unwrap();
+                    Commands::dispatch_id(&mut interpreter, id, &[metadata.as_ptr()]).unwrap_err()
+                }
+                _ => dispatch_prebuilt_argv(&mut interpreter, &[head.as_ptr(), metadata.as_ptr()])
+                    .unwrap_err(),
+            };
+            let NativeExecutionError::HostCommandRefusal(ref first) = error else {
+                panic!("command role lost the actual options getter cause");
+            };
+            assert_eq!(first.reason, "original options getter first cause");
+            assert_eq!(interpreter.native_execution_refusal(), Some(error.clone()));
+            GETTERS.with(|calls| assert_eq!(calls.get(), 1));
+            assert_eq!(obj::bytes_of(metadata.as_ptr()), b"REACHED\0\xff");
+            assert_eq!(unsafe { (*metadata.as_ptr()).ref_count }, refs);
+            assert_eq!(unsafe { (*head.as_ptr()).ref_count }, head_refs);
+            assert_eq!(interpreter.result_obj(), metadata.as_ptr());
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+            assert_eq!(
+                Commands::dispatch_id(&mut interpreter, CommandId(u32::MAX), &[]).unwrap_err(),
+                error,
+                "invalid command ids cannot replace an earlier Host cause"
+            );
+        }
+    }
+
+    fn reenter_script(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::interp::Code {
+        interpreter.set_result_bytes(b"REACHED SCRIPT\0\xff");
+        let original = interpreter.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("completion-script-test".to_owned(), "1.0".to_owned())];
+        interpreter.pin_context(&changed).unwrap();
+        interpreter.pin_context(&original).unwrap();
+        crate::interp::Code::from_int(SCRIPT_CODE.with(Cell::get))
+    }
+
+    #[test]
+    fn original_public_completion_keeps_before_body_currency_and_reached_script_effects() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for (sourced, guest_code) in [
+            (false, 0),
+            (false, 1),
+            (false, 7),
+            (true, 0),
+            (true, 1),
+            (true, 7),
+        ] {
+            let mut interpreter = original();
+            interpreter.register_builtin(b"original_reenter_script", reenter_script);
+            SCRIPT_CODE.with(|code| code.set(guest_code));
+            let original_context = interpreter.runtime_context();
+            let script = b"set ::before ORIGINAL; original_reenter_script; set ::after LATER";
+            let completion = if sourced {
+                interpreter.eval_sourced_completion(script, b"original-source.tcl")
+            } else {
+                interpreter.eval_completion(script)
+            };
+            assert_eq!(completion.unwrap_err(), stale());
+            assert_eq!(interpreter.runtime_context(), original_context);
+            assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
+            assert_eq!(
+                obj::bytes_of(interpreter.result_obj()),
+                b"REACHED SCRIPT\0\xff"
+            );
+            let before = crate::vars::get(
+                &interpreter.frames.borrow(),
+                &interpreter.namespaces(),
+                interpreter.current_ns(),
+                b"::before",
+            )
+            .unwrap();
+            assert_eq!(obj::bytes_of(before), b"ORIGINAL");
+            assert!(
+                crate::vars::get(
+                    &interpreter.frames.borrow(),
+                    &interpreter.namespaces(),
+                    interpreter.current_ns(),
+                    b"::after",
+                )
+                .is_none()
+            );
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
     }
 }

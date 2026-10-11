@@ -732,7 +732,7 @@ impl Analyser {
         let segment = crate::segmenter::segment_commands_with_offset_and_config(
             text,
             head.span.start(),
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         )
         .into_iter()
         .next()?;
@@ -757,7 +757,7 @@ impl Analyser {
         if !self.head_identities.matches_resolved_analysis_input(&input)
             || !self
                 .head_identities
-                .matches_original_source_image(&image, self.lexer_config())
+                .matches_original_source_image(&image, self.file_lexer_config())
         {
             return None;
         }
@@ -783,7 +783,7 @@ impl Analyser {
             &image,
             tokens.words(),
             argv.first()?.span.start(),
-            self.lexer_config(),
+            self.file_lexer_config(),
         )
         .or_else(|| self.original_child_body_words(argv))
     }
@@ -911,7 +911,7 @@ impl Analyser {
             crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
         ) {
             if region.original_container().span() != requested
-                || !region.matches_source(&image, self.lexer_config())
+                || !region.matches_source(&image, self.file_lexer_config())
                 || !region.matches_context(&context)
             {
                 continue;
@@ -1636,7 +1636,7 @@ impl Analyser {
             let Some(segment) = crate::segmenter::segment_commands_with_offset_and_config(
                 text,
                 body.start(),
-                word.config(),
+                word.config().nested(),
             )
             .into_iter()
             .next() else {
@@ -1928,6 +1928,65 @@ mod tests {
             .iter()
             .filter_map(super::super::Diagnostic::conditional_interpreter_visibility)
             .collect()
+    }
+
+    #[test]
+    fn original_child_visibility_keeps_default_and_supplied_whole_parent_config() {
+        // naming.interpreter.original-source-visibility-advice
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-source-visibility-advice.md
+        // Conditional source visibility; no child interpreter/worker admission.
+        let body = "interp create -safe s; interp eval s {source a.tcl}";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let source = format!("\u{feff}{body}");
+        let result = Analyser::new().analyse(&source, "tcl9.1");
+        let observed = subjects(&result);
+        assert_eq!(observed.len(), 1, "{:?}", result.diagnostics);
+        assert!(observed[0].matches_source(&SourceImage::document(&source), &input));
+        assert!(
+            observed[0]
+                .original_words()
+                .iter()
+                .all(|word| word.config() == input.lexer_config())
+        );
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            supplied.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let result = Analyser::new()
+                .with_resolved_input(supplied.clone())
+                .analyse(body, "display-only");
+            let observed = subjects(&result);
+            assert_eq!(observed.len(), 1, "{bom:?}: {:?}", result.diagnostics);
+            let original = observed[0];
+            let image = SourceImage::document(body);
+            assert!(original.matches_source(&image, &supplied));
+            assert!(
+                original
+                    .original_words()
+                    .iter()
+                    .all(|word| word.image() == &image && word.config() == supplied.lexer_config())
+            );
+            assert!(
+                !original
+                    .matches_source(&SourceImage::document(&(body.to_owned() + "\n")), &supplied)
+            );
+            assert!(!original.matches_source(&SourceImage::native(body.as_bytes()), &supplied));
+            let mut foreign = supplied.clone();
+            foreign.context = std::sync::Arc::new(
+                supplied
+                    .context
+                    .with_command_store(std::sync::Arc::clone(supplied.context.commands())),
+            );
+            assert!(!original.matches_source(&image, &foreign));
+            let mut stale = supplied.clone();
+            stale.config.leading_bom = if bom == tcl_lexer::LeadingBom::Skip {
+                tcl_lexer::LeadingBom::Content
+            } else {
+                tcl_lexer::LeadingBom::Skip
+            };
+            assert!(!original.matches_source(&image, &stale));
+        }
     }
 
     #[test]

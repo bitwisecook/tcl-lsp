@@ -5510,9 +5510,13 @@ impl Interp {
         name: &[u8],
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
-        if self.check_entered_native_operation().is_err() {
-            return project(self, Code::Error);
-        }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return project(self, Code::Error);
+            }
+        };
         self.reset_outermost_native_error();
         if let Err(error) = self.record_package_source_file(name) {
             let code = self.report_cmd_error(error.into());
@@ -5535,7 +5539,13 @@ impl Interp {
             self.eval_framed_unpublished(script, frame)
         };
         self.script_stack.borrow_mut().pop();
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return project(self, Code::Error);
+        }
         let code = self.settle_source_return(code);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return project(self, Code::Error);
+        }
         let projected = project(self, code);
         if self
             .native_invocation_dialect()
@@ -5545,6 +5555,7 @@ impl Interp {
             self.exc.borrow_mut().already_logged = false;
         }
         self.finish_outermost_eval(code);
+        let _ = scope.currency().ensure_current_or_refuse();
         projected
     }
 
@@ -10482,9 +10493,13 @@ impl Interp {
         src: &[u8],
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
-        if self.check_entered_native_operation().is_err() {
-            return project(self, Code::Error);
-        }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return project(self, Code::Error);
+            }
+        };
         self.reset_outermost_native_error();
         if self.eval_depth.get() == 0 {
             self.clear_return_options();
@@ -10509,6 +10524,9 @@ impl Interp {
         } else {
             self.eval_script_mode_unpublished(src, owned, false)
         };
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return project(self, Code::Error);
+        }
         let projected = project(self, code);
         if self
             .native_invocation_dialect()
@@ -10518,6 +10536,7 @@ impl Interp {
             self.exc.borrow_mut().already_logged = false;
         }
         self.finish_outermost_eval(code);
+        let _ = scope.currency().ensure_current_or_refuse();
         projected
     }
 

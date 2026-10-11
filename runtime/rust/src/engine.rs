@@ -396,14 +396,27 @@ fn evaluate(
     interp: &mut Interp,
     body: impl FnOnce(&mut Interp) -> Code,
 ) -> Result<HostOutcome, EngineError> {
-    interp.reset_native_compilation_admission();
+    let scope =
+        crate::interp::native_operation_currency::NativeOperationScope::enter_engine_evaluation(
+            interp,
+        )
+        .map_err(value_error)?;
     interp.begin_evaluation();
     let entered = interp.codegen_activation_enter();
     let code = if entered { body(interp) } else { Code::Error };
-    let answer = capture_answer(interp, code);
+    let answer = scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)
+        .and_then(|()| capture_answer(interp, code));
     if entered {
         interp.codegen_activation_leave(code);
     }
+    // Cleanup may reach a callback too; keep the original entered cause.
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
     if let Some(error) = host_error(interp) {
         return Err(error);
     }
@@ -1740,4 +1753,54 @@ mod tests {
         ));
         assert!(engine.interp.var_get(b"after").is_none());
     }
+    #[test]
+    fn original_engine_completion_entry_distinguishes_independent_retry_and_nested_first_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut engine = engine("tcl8.6");
+        let calls = std::cell::Cell::new(0);
+        let scope =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(&engine.interp)
+                .unwrap();
+        engine.interp.set_result_bytes(b"PRIOR\0\xff");
+        let prior = engine.interp.result_obj();
+        engine
+            .interp
+            .refuse_host_command("original nested Engine completion cause");
+        let first = engine.interp.native_execution_refusal().unwrap();
+        let error = evaluate(&mut engine.interp, |interpreter| {
+            calls.set(calls.get() + 1);
+            interpreter.set_result_bytes(b"UNREACHED");
+            Code::Ok
+        })
+        .unwrap_err();
+        assert!(
+            matches!(error, EngineError::ExecutionRefusal(reason) if reason == first.to_string())
+        );
+        assert_eq!(calls.get(), 0);
+        assert_eq!(engine.interp.result_obj(), prior);
+        assert_eq!(engine.interp.native_execution_refusal(), Some(first));
+        drop(scope);
+        let completion = evaluate(&mut engine.interp, |interpreter| {
+            calls.set(calls.get() + 1);
+            interpreter.set_result_bytes(b"GUEST\0\xff");
+            Code::Other(7)
+        })
+        .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(completion.code, CompletionCode::Other(7));
+        assert_eq!(
+            value_bytes(&mut engine.interp, &completion.value).unwrap(),
+            b"GUEST\0\xff"
+        );
+        assert!(
+            value_bytes(&mut engine.interp, &completion.options)
+                .unwrap()
+                .windows(b"-code 7".len())
+                .any(|bytes| bytes == b"-code 7")
+        );
+        assert!(engine.interp.native_execution_refusal().is_none());
+        assert_eq!(engine.interp.entered_native_operation_count(), 0);
+    }
+
 }

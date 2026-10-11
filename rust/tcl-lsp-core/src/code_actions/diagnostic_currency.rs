@@ -52,6 +52,11 @@ impl<'a> DiagnosticEditSource<'a> {
         self.source
     }
 
+    #[cfg(test)]
+    pub(super) const fn analysis(&self) -> &'a AnalysisResult {
+        self.analysis
+    }
+
     /// A complete valid UTF-8 source extent, including end-of-file insertions.
     #[must_use]
     pub fn contains_span(&self, span: Span) -> bool {
@@ -389,7 +394,7 @@ incr x
             input.borrowed_context_registry().commands(),
             older_input.borrowed_context_registry().commands(),
         ));
-        assert_ne!(input, older_input);
+        assert_ne!(input, &older_input);
         let older = Analyser::new()
             .with_resolved_input(older_input)
             .analyse(source, profile.name);

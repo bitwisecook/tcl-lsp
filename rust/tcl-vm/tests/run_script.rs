@@ -105,12 +105,14 @@ fn commands_dispatch_runs_proc() {
     assert!(vm.run_module(&asm).code.is_ok());
 
     // Dispatch the proc by name with name-stripped argv.
-    let c = vm.dispatch("add", &[Value::string("3"), Value::string("4")]);
+    let c = vm
+        .dispatch("add", &[Value::string("3"), Value::string("4")])
+        .unwrap();
     assert_eq!(c.code, Code::Ok);
     assert_eq!(&*c.result.to_str(), "7");
 
     // Wrong arg count surfaces the proc usage error (the `enter_proc` Err path).
-    let c = vm.dispatch("add", &[Value::string("3")]);
+    let c = vm.dispatch("add", &[Value::string("3")]).unwrap();
     assert_eq!(c.code, Code::Error);
     assert_eq!(&*c.result.to_str(), "wrong # args: should be \"add a b\"");
 }

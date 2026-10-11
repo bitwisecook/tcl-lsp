@@ -1688,15 +1688,31 @@ pub trait Commands {
     type Value;
 
     /// Dispatch a command by name with its argv, resolving the name in the
-    /// current context.
-    fn dispatch(&mut self, name: &str, argv: &[Self::Value]) -> Completion<Self::Value>;
+    /// current context. Successful transport includes every Guest completion
+    /// code; a Host refusal returns its original typed cause separately.
+    ///
+    /// # Errors
+    /// Returns the first reached native execution refusal without fabricating
+    /// Guest result or options values.
+    fn dispatch(
+        &mut self,
+        name: &str,
+        argv: &[Self::Value],
+    ) -> Result<Completion<Self::Value>, NativeExecutionError>;
 
     /// Dispatch a command already resolved to a [`CommandId`] (by
     /// [`Namespaces::find_command`]) with its argv — the resolve-then-invoke
     /// pairing (mirrors Tcl's `Tcl_GetCommandFromObj` + `Tcl_NRCallObjProc`). A
-    /// stale or fabricated id yields an error completion. This is what makes a
-    /// `CommandId` *do* something: resolve once via `find_command`, invoke here.
-    fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
+    /// stale or fabricated id yields a Guest error completion.
+    ///
+    /// # Errors
+    /// Returns the first reached native execution refusal independently of
+    /// command-id validity and all Guest completion codes.
+    fn dispatch_id(
+        &mut self,
+        cmd: CommandId,
+        argv: &[Self::Value],
+    ) -> Result<Completion<Self::Value>, NativeExecutionError>;
 }
 
 /// The command flag selected by Jim's original inventory member.

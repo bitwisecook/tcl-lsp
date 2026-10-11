@@ -481,30 +481,52 @@ mod tests {
 
         let source = "if {$x eq \"a\"} {\n    puts \"alpha\"\n} elseif {$x eq \"b\"} {\n    puts \"beta\"\n}";
         let li = LineIndex::new(source);
+        let config = LexerConfig::default();
+        let analyse = |registry: &tcl_registry::CommandRegistry| {
+            let selected = super::super::source_rewrite::lexical_analysis(source, registry);
+            let original = selected.resolved_input.as_ref().unwrap();
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                original.analyser_profile(),
+                original.unit_profile(),
+                original.context_registry(),
+                config,
+            );
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, original.analyser_profile().name)
+        };
 
         let mut with_grammar = super::super::test_registry();
+        // Retain the independently selected baseline operation. These custom
+        // clauses supply source advice, not Native entry or rewrite equivalence.
+        let with_operation = with_grammar.get("if").unwrap().lowering_hook;
         with_grammar.insert(CommandSpec {
             name: "if",
             arity: Arity::at_least(2),
             arg_role_resolver_roles: &[ArgRole::Expr, ArgRole::Body],
             clause_grammar: Some(&PACK_GRAMMAR),
+            lowering_hook: with_operation,
             ..CommandSpec::DEFAULT
         });
-        let r = if_to_switch(source, 0, &with_grammar, &li, LexerConfig::default());
+        let with_analysis = analyse(&with_grammar);
+        let r = if_to_switch(source, 0, &with_analysis, &li);
         assert!(
             r.is_some(),
             "a pack-declared if-shaped grammar still converts"
         );
 
         let mut without_grammar = super::super::test_registry();
+        let without_operation = without_grammar.get("if").unwrap().lowering_hook;
         without_grammar.insert(CommandSpec {
             name: "if",
             arity: Arity::at_least(2),
             clause_grammar: None,
+            lowering_hook: without_operation,
             ..CommandSpec::DEFAULT
         });
+        let without_analysis = analyse(&without_grammar);
         assert!(
-            if_to_switch(source, 0, &without_grammar, &li, LexerConfig::default()).is_none(),
+            if_to_switch(source, 0, &without_analysis, &li).is_none(),
             "a command without a clause grammar is never converted"
         );
     }

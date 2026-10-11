@@ -31,7 +31,9 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+mod native_math;
 mod native_numeric;
+pub(crate) use native_math::MathOperation;
 mod native_values;
 use native_numeric::NumericOperation;
 
@@ -766,74 +768,24 @@ pub(crate) fn dispatch_shared_in(
     args: &[Owned],
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_protocol, NumValue};
-    let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
-        .expect("native math handler dispatch must retain its selected protocol");
-    let nums: Result<Option<Vec<NumValue<crate::bignum::TowerMp>>>, ExprError> = args
-        .iter()
-        .map(|operand| native_math_operand(operand.ptr(), dialect, protocol))
-        .collect();
-    let nums = nums?
-        .ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
-    // The standalone evaluator has no interp to ask for a release, so it uses
-    // the runtime's own target release (Tcl 9.0) for `int()`'s width; the
-    // interp path resolves it from `Interp::runtime_version` in
-    // `cmd_mathfunc`.
-    match try_dispatch_with_backend_protocol(
-        &name.to_ascii_lowercase(),
-        &nums,
-        int_width_for_dialect(dialect),
-        protocol,
-    ) {
-        Ok(NumValue::Int(integer))
-            if name == "abs"
-                && dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) =>
-        {
-            native_integer_result(
-                dialect,
-                integer,
-                &args.iter().map(Owned::as_ptr).collect::<Vec<_>>(),
-            )
+    struct StandaloneMath(tcl_registry::InvocationDialect);
+    impl ExprCtx for StandaloneMath {
+        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+            self.0
         }
-        Ok(num) => native_math_result(num, dialect).map(Owned::fresh),
-        Err(MathFuncError::UnknownFunction) => {
-            let mut m = b"unknown math function \"".to_vec();
-            m.extend_from_slice(name.as_bytes());
-            m.push(b'"');
-            Err(ExprError::from_bytes(m))
+        fn read_var(&mut self, _: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"standalone math variable"))
         }
-        Err(e) => Err(math_func_err(e)),
-    }
-}
-
-fn native_math_operand(
-    operand: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
-    protocol: tcl_syntax::expr::mathfunc::NativeMathProtocol,
-) -> Result<Option<tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>>, ExprError> {
-    use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NativeMathProtocol, NumValue};
-    if protocol == NativeMathProtocol::Tcl {
-        if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) {
-            if let Some(integer) = fixed_integer(operand, dialect)? {
-                return Ok(Some(NumValue::Int(integer)));
-            }
+        fn eval_command(&mut self, _: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"standalone math command"))
         }
-        return Ok(bignum::as_math_num(operand));
+        fn call_function(&mut self, _: &str, _: &[Owned]) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"standalone math function"))
+        }
     }
-    if !obj::has_string_rep(operand)
-        && std::ptr::eq(obj::obj_type_ptr(operand), &obj::TCL_DOUBLE_TYPE)
-    {
-        return Ok(Some(NumValue::Float(obj::double_of(operand))));
-    }
-    let Some(parsed) = crate::typed_value::scalar_number(operand, dialect, false)
-        .map_err(ExprError::host_refusal)?
-    else {
-        return Ok(None);
-    };
-    let Some(value) = jim_numeric_operand(&parsed) else {
-        return Ok(None);
-    };
-    Ok(Some(value))
+    // This explicit standalone context supplies no interpreter or native
+    // reporting owner. Actual commands enter through InterpExprCtx instead.
+    MathOperation::enter(&mut StandaloneMath(dialect))?.dispatch(name, args)
 }
 
 /// Select math integer conversion independently of the host runtime release.
@@ -1244,21 +1196,54 @@ pub(crate) fn eval_compiled_expression_node(
 /// yields an absent-string duplicate with the same long/wide distinction.
 pub(crate) fn normalize_compiled_primary84(
     value: Owned,
-    dialect: tcl_registry::InvocationDialect,
-    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    interpreter: &mut crate::interp::Interp,
 ) -> Result<Owned, ExprError> {
-    if dialect
+    use crate::interp::native_operation_currency::NativeOperationScope;
+    let scope =
+        NativeOperationScope::enter(interpreter).map_err(ExprError::from_execution_refusal)?;
+    let dialect = interpreter.native_invocation_dialect();
+    let result = if dialect
         .native_scalar_getter_protocol()
         .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
         != Some(tcl_dialect::TclVersion::V8_4)
     {
-        return Err(ExprError::from_cmd_error(
+        Err(ExprError::from_cmd_error(
             tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into(),
-        ));
-    }
-    crate::typed_value::normalize_boolean_result_in(value.as_ptr(), dialect,
-        tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression, environment)
-        .map_err(ExprError::from_cmd_error)
+        ))
+    } else {
+        crate::typed_value::normalize_numeric_instruction_for_interp(interpreter, value.ptr())
+            .map_err(ExprError::from_cmd_error)
+    };
+    drop(value);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(ExprError::from_execution_refusal)?;
+    result
+}
+
+/// Replay a selected instruction with explicitly supplied recorded host facts.
+/// This test-only context issues no interpreter or original source authority.
+#[cfg(test)]
+fn normalize_compiled_primary84_with_recorded_environment(
+    value: Owned,
+    dialect: tcl_registry::InvocationDialect,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+) -> Result<Owned, ExprError> {
+    let result = if dialect
+        .native_scalar_getter_protocol()
+        .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
+        != Some(tcl_dialect::TclVersion::V8_4)
+    {
+        Err(ExprError::from_cmd_error(
+            tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into(),
+        ))
+    } else {
+        crate::typed_value::normalize_numeric_instruction_in(value.ptr(), dialect, environment)
+            .map_err(ExprError::from_cmd_error)
+    };
+    drop(value);
+    result
 }
 
 /// Execute the compiler's temporary constant program without the public
@@ -1267,36 +1252,38 @@ pub(crate) fn eval_compiler_constant(
     node: &tcl_syntax::expr::NativeExprNode,
     ctx: &mut dyn ExprCtx,
 ) -> Result<Owned, ExprError> {
-    let dialect = ctx.invocation_dialect();
-    let value = eval_compiled_expression_node(node, ctx)?;
-    if matches!(node, ExprNode::Ternary { .. }) {
-        // CompileExprTree's root QUESTION emits TRY_CVT_TO_NUMERIC. Its
-        // failed numeric probe leaves the same original string result alive.
-        if let Some(number) = crate::typed_value::scalar_number(value.as_ptr(), dialect, false)
-            .map_err(ExprError::host_refusal)?
-        {
-            if obj::obj_type_ptr(value.as_ptr()).is_null() {
-                let protocol = dialect.native_scalar_getter_protocol().ok_or_else(|| {
-                    ExprError::host_refusal(
-                        tcl_syntax::value::ValueError::ScalarNumericInputUnavailable
-                            .native_access_refusal()
-                            .expect("scalar capability refusal"),
-                    )
-                })?;
-                obj::adopt_native_scalar_cache(
-                    value.as_ptr(),
-                    tcl_syntax::scalar_getter::NativeScalarCache::Number(number),
-                    protocol,
+    // Retain the original entry before evaluating any reached physical stage.
+    let operation = NumericOperation::enter_values(ctx)?;
+    let result = (|| {
+        let evaluated = eval_compiled_expression_node(node, ctx);
+        operation.check()?;
+        let value = evaluated?;
+        if matches!(node, ExprNode::Ternary { .. }) {
+            // The admitted constant program reaches its numeric instruction;
+            // an inline condition's skipped producer cannot replace it.
+            let result = if let Some(interpreter) = operation.interpreter() {
+                crate::typed_value::normalize_numeric_instruction_for_interp(
+                    &mut interpreter.clone(),
+                    value.ptr(),
                 )
-                .map_err(|error| {
-                    ExprError::host_refusal(
-                        error.native_access_refusal().expect("scalar cache refusal"),
+                .map_err(ExprError::from_cmd_error)
+            } else {
+                operation.with_environment(|environment| {
+                    crate::typed_value::normalize_numeric_instruction_in(
+                        value.ptr(),
+                        operation.dialect(),
+                        environment,
                     )
-                })?;
-            }
+                    .map_err(ExprError::from_cmd_error)
+                })
+            };
+            drop(value);
+            operation.after(result)
+        } else {
+            Ok(value)
         }
-    }
-    Ok(value)
+    })();
+    operation.after(result)
 }
 
 /// Evaluate an admitted Jim tree using its retained original terms. Safe mode
@@ -1507,19 +1494,6 @@ fn native_integer_result(
     Ok(result)
 }
 
-fn fixed_integer(
-    value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
-) -> Result<Option<i64>, ExprError> {
-    fixed_integer_with_environment(value, dialect, None)
-}
-fn fixed_integer_with_environment(
-    value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
-    environment: Option<&dyn tcl_platform::NumericEnvironment>,
-) -> Result<Option<i64>, ExprError> {
-    fixed_integer_with_currency(value, dialect, environment, None)
-}
 fn fixed_integer_with_currency(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,

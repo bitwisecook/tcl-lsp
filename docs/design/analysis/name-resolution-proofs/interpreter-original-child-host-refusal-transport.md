@@ -20,6 +20,8 @@ The central CmdCore refusal adapter preserves the first original typed ValueAcce
 
 The linked Wasm adapter control keeps an explicit host ExecutionRefusal outside guest catch and retains earlier guest effects. It observes the actual embedding API only when its required Wasm fixture is available; a skipped fixture supplies no executed outcome.
 
+Actual C child evaluation retains the entered child Scope through checked owning completion capture. Original custom Guest handles remain unrendered and are consumed once. Reached metadata getter Host refusal and context ABA preserve the first cause, reached original String effects and parent binary result while temporary completion handles settle. The independently selected Jim counted String-copy route supplies no C capture authority.
+
 ## Scope
 
 One fixed Runtime source/API control uses an explicit authored host worker in a created model child, with and without an existing parent refusal. It compares the actual retained typed cause in both states and unchanged parent result. All seven native providers are not tested; no external process or native object/header/frame observation answers this API question.
@@ -29,6 +31,8 @@ One additional embedding software control binds this typed-host boundary and pri
 One additional adapter-only current software control has no executed assertion receipt. Exact typed first-cause preservation does not issue child execution, Native invocation/frame or external provider identity.
 
 This secondary source binding does not measure original child-interpreter creation, argv, callback or C/Jim frame behaviour and supplies no Native equivalence. Original provider answers remain tied to their existing captures; the independent embedding transport contract describes this software adapter. No assertion outcome is attached.
+
+Current direct Rust and Tokio test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -76,7 +80,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-interpreter-original-child-host-refusal-transport-native_children.rs` (implementation): [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs). SHA-256 `aa128c45f51f1df3bf79b2a8f8767823380971a8f6dca12772a76d8c572c239f`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-interpreter-original-child-host-refusal-transport-native_children.rs` (implementation): [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs). SHA-256 `34932fd5f23fbb1e96d9948791f1d9373fb4b494b4f486bab8b59f5d148c5c6e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-interpreter-original-child-host-refusal-transport-native_compilation.rs` (implementation): [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs). SHA-256 `306715ec0226f5363594d4ec6a434791d6c5f7ddccaf3727d2b3844261dea659`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
@@ -107,6 +111,11 @@ These bindings are current software contracts without an executed assertion or e
 - [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `host_refusal_bypasses_guest_catch_and_keeps_prior_effects` (linked): The actual Wasm host adapter ExecutionRefusal bypasses guest catch and preserves a prior guest store; the following store is absent. Requires the Wasm build/toolchain; early unavailable return is not an executed pass. This is an adapter software control, not an original child-interpreter observation.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::completion_capture_tests::original_child_completion_capture_keeps_guest_handles_and_custom_code` (linked): The actual C8.6 child operation enters original List evaluation and checked capture through its retained child Scope. A custom Guest code7 keeps original result handles unrendered, performs no metadata getter and consumes the single added owning parent handle exactly once. Actual entered ledgers balance; the separately selected Jim String-copy path and external completion observations are not asserted.
+- [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::completion_capture_tests::original_child_completion_capture_transports_reached_metadata_host_and_aba` (linked): Two genuine checked child captures reach an original extension metadata getter: first Host refusal and child package-context change then restore. Actual child Scope currency preserves reached String and private errorInfo ownership effects, the exact first Host cause in parent and child, the prior parent binary result and balanced ledgers. Temporary owning handles retire once; neither external provider chronology nor C/Jim capture equivalence is inferred.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

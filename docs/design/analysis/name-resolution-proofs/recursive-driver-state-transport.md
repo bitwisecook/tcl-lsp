@@ -64,7 +64,7 @@ This is a Rust ownership contract. No interpreter or appliance observation is at
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `b8567c085877c1dd1834dee2a03207ab076fb70c9f2a4f58bbb18071b9eeb05e`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `3dad5e75f03fd88702843fe536fe710480356c20fbbc55937b7027e8b72c970a`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
 - `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/normal_result.rs](../../../../rust/tcl-compiler/src/command_binding/normal_result.rs). SHA-256 `d6a41edd775c2bec3bb62f1a4cdc0128bc22d1049dc3e4a7da2b5b1881b6c10f`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
 
 ## Source inspection

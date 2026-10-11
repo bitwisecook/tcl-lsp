@@ -935,9 +935,9 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
         let end = u32::try_from(src.len()).unwrap_or(0);
         let scan = DeclScan {
             source: src,
-            config: LexerConfig::for_profile(
+            config: LexerConfig::for_profile(Some(
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-            ),
+            )),
             target: DeclTarget::StandaloneName(target),
             visible: &[],
             registry: &registry,

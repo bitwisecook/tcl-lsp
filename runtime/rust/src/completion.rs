@@ -22,41 +22,27 @@ pub(crate) fn capture_bytes(
     interp: &mut Interp,
     code: RuntimeCode,
 ) -> Result<ScriptCompletion, NativeExecutionError> {
-    if let Some(error) = interp.native_execution_refusal() {
-        return Err(error);
-    }
-    let completion = crate::state_traits::capture_completion(interp, code);
-    if completion.result.is_null() || completion.options.is_null() {
-        // The pointer completion's transport placeholders grant no object access.
-        // Release any actual independent reference without touching a null slot.
-        unsafe {
-            if !completion.result.is_null() {
-                obj::decr_ref_count(completion.result);
-            }
-            if !completion.options.is_null() {
-                obj::decr_ref_count(completion.options);
-            }
-        }
-        interp.refuse_host_command("native completion contains no original guest object");
-        return Err(interp
-            .native_execution_refusal()
-            .expect("original host cause retained"));
-    }
-    // SAFETY: shared capture transfers one live independent reference to each.
-    let result = unsafe { obj::Owned::from_raw(completion.result) };
-    let options = unsafe { obj::Owned::from_raw(completion.options) };
-    if let Some(error) = interp.native_execution_refusal() {
-        return Err(error);
-    }
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)?;
+    let completion =
+        crate::state_traits::capture_completion_checked(interp, scope.currency(), code)?;
+    // SAFETY: successful checked capture transfers one live independent reference to each.
+    let result_owner = unsafe { obj::Owned::from_raw(completion.result) };
+    let options_owner = unsafe { obj::Owned::from_raw(completion.options) };
     let result = interp
-        .native_object_string_bytes(result.as_ptr())
-        .map_err(|error| refuse_access(interp, error))?;
+        .native_object_string_bytes(result_owner.as_ptr())
+        .map_err(|error| refuse_access(interp, error));
+    scope.currency().ensure_current_or_refuse()?;
+    let result = result?;
     let options = interp
-        .native_object_string_bytes(options.as_ptr())
-        .map_err(|error| refuse_access(interp, error))?;
-    if let Some(error) = interp.native_execution_refusal() {
-        return Err(error);
-    }
+        .native_object_string_bytes(options_owner.as_ptr())
+        .map_err(|error| refuse_access(interp, error));
+    scope.currency().ensure_current_or_refuse()?;
+    let options = options?;
+    // Release the independent transport references before exposing a projected
+    // completion. A reached retirement may refuse the original operation too.
+    drop(options_owner);
+    drop(result_owner);
+    scope.currency().ensure_current_or_refuse()?;
     let mut projected = ScriptCompletion::new(completion.code, result.to_vec(), options.to_vec());
     projected.option_origin = completion.option_origin;
     Ok(projected)

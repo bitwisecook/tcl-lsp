@@ -255,7 +255,7 @@ impl Analyser {
         let bindings = self.head_identities.source_bindings_ref();
         let target = bindings.original_class_configuration_target_at_span(
             target_span,
-            self.lexer_config(),
+            self.file_lexer_config(),
             registry,
         )?;
         let side = match target.layer() {
@@ -284,7 +284,7 @@ impl Analyser {
         let bindings = self.head_identities.source_bindings_ref();
         let target = bindings.original_object_configuration_target(
             target_span,
-            self.lexer_config(),
+            self.file_lexer_config(),
             registry,
         )?;
         let (members, relations, properties, special_members) = self.original_configuration_delta(
@@ -330,7 +330,7 @@ impl Analyser {
             origin.source_image(),
             tokens.words(),
             allocation_site.offset,
-            self.lexer_config(),
+            self.file_lexer_config(),
         )?;
         let first_member = target_index.checked_add(1)?;
         let words = native.get(first_member..)?;
@@ -368,7 +368,7 @@ impl Analyser {
                 0,
             )
         } else {
-            producer.configuration_body(words, side, &mut delta, self.lexer_config())
+            producer.configuration_body(words, side, &mut delta, self.file_lexer_config())
         };
         if complete.is_none() {
             delta.original_members.withdraw();
@@ -413,7 +413,7 @@ impl Analyser {
             class.original_properties.withdraw(MemberSide::ClassObject);
             return;
         }
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let tokens = CommandTokens::from_segmented(&SourceMap::from_image(image), config, command);
         let Some(native) = crate::registry_invocation::original_native_compiler_words(
             image,
@@ -503,7 +503,7 @@ impl Analyser {
                 bindings
                     .original_source_name_at_span(
                         token.span,
-                        self.lexer_config(),
+                        self.file_lexer_config(),
                         self.word_rules(),
                         policy,
                     )
@@ -775,7 +775,7 @@ impl Producer<'_> {
             let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
                 &selected,
                 region.start(),
-                body.lexer_config(),
+                body.lexer_config().nested(),
             )?;
             let [command] = commands.as_slice() else {
                 return None;
@@ -1373,7 +1373,7 @@ impl Producer<'_> {
         let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
             &selected,
             region.start(),
-            body.lexer_config(),
+            body.lexer_config().nested(),
         )?;
         for command in commands {
             if command.is_partial {
@@ -1420,7 +1420,7 @@ impl Producer<'_> {
         for command in crate::segmenter::segment_commands_image_with_offset_and_config(
             &image,
             region.start(),
-            config,
+            config.nested(),
         )? {
             if command.is_partial {
                 return None;

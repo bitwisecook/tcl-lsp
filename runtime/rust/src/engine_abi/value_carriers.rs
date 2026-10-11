@@ -287,40 +287,50 @@ pub(crate) fn complete(
     options: Option<*mut TclObj>,
     code: Code,
 ) -> Code {
-    if interp.host_refusal_pending() {
-        return Code::Error;
-    }
-    if let Some(options) = options {
-        let (mut ops, protocol) = match crate::return_options::NativeReturnOps::selected(interp) {
-            Ok(selected) => selected,
-            Err(error) => return interp.report_cmd_error(error),
-        };
-        let args = [
-            Owned::fresh(crate::interp::new_string(b"-options")),
-            Owned::retain(options),
-            Owned::retain(value),
-        ];
-        let prepared = match tcl_cmd_core::return_options::prepare_return(
-            &mut ops,
-            protocol,
-            &args,
-            tcl_cmd_core::return_options::ReturnOptionsPurpose::InternalDictionary,
-        ) {
-            Ok(prepared) => prepared,
-            Err(error) => return interp.report_cmd_error(error),
-        };
-        let published = crate::return_options::publish(interp, &mut ops, prepared);
-        if interp.host_refusal_pending() {
-            return Code::Error;
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(_) => return Code::Error,
+    };
+    let code = (|| {
+        if let Some(options) = options {
+            let (mut ops, protocol) = match crate::return_options::NativeReturnOps::selected(interp)
+            {
+                Ok(selected) => selected,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            let args = [
+                Owned::fresh(crate::interp::new_string(b"-options")),
+                Owned::retain(options),
+                Owned::retain(value),
+            ];
+            let prepared = match tcl_cmd_core::return_options::prepare_return(
+                &mut ops,
+                protocol,
+                &args,
+                tcl_cmd_core::return_options::ReturnOptionsPurpose::InternalDictionary,
+            ) {
+                Ok(prepared) => prepared,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            let published = crate::return_options::publish(interp, &mut ops, prepared);
+            if interp.host_refusal_pending() {
+                return Code::Error;
+            }
+            return if code == Code::Return {
+                published
+            } else {
+                code
+            };
         }
-        return if code == Code::Return {
-            published
-        } else {
-            code
-        };
+        interp.set_result(value);
+        code
+    })();
+    if scope.currency().ensure_current_or_refuse().is_err() {
+        Code::Error
+    } else {
+        code
     }
-    interp.set_result(value);
-    code
 }
 
 /// Settle original result/options with the explicit host completion code.
@@ -370,15 +380,19 @@ pub unsafe extern "C" fn tcl_engine_capture_original(
         interp.refuse_host_command("completion output is unavailable");
         return 1;
     }
-    let original = crate::state_traits::capture_completion(interp, Code::from_int(code));
-    if interp.host_refusal_pending() {
-        // SAFETY: original capture transferred both owned handles, possibly null.
-        unsafe {
-            obj::decr_ref_count(original.result);
-            obj::decr_ref_count(original.options);
-        }
-        return 1;
-    }
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(_) => return 1,
+    };
+    let original = match crate::state_traits::capture_completion_checked(
+        interp,
+        scope.currency(),
+        Code::from_int(code),
+    ) {
+        Ok(original) => original,
+        Err(_) => return 1,
+    };
     // SAFETY: caller retains aligned writable output; both real captured references transfer.
     unsafe {
         out.write(crate::codegen_abi::TclCompletionAbi {

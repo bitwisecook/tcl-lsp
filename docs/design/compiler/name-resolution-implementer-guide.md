@@ -8463,6 +8463,25 @@ See the [metadata contract](../analysis/name-resolution-proofs/original-analysis
 [source-body purpose](../analysis/name-resolution-proofs/original-script-region-purpose.md)
 and [callback target contract](../analysis/name-resolution-proofs/source-original-callback-procedure-target.md).
 
+### Whole parent input and extracted source bodies
+
+Use `Analyser::file_lexer_config()` when joining words, names, class members or
+child-interpreter visibility to the complete original document. An independently
+supplied `ResolvedAnalysisInput` retains its exact configuration; default file
+ingress uses the selected file grammar's BOM treatment. These joins must match
+the retained parent image and input, including availability and source channel.
+
+At a genuine extracted body or bracket interior, parse with the parent's
+`LexerConfig::nested()`. `descend_token` performs this projection itself. A BOM
+at the child's start remains script content even when the parent file skips its
+own leading BOM. Original `NativeWord`s retain their whole parent image and
+configuration; a child parse configuration cannot replace that correspondence.
+An isolated body analyser receives its actual retained input through
+`ResolvedAnalysisInput::for_nested_source()`. Neither projection supplies a
+Native entry, selected implementation, class allocation or method frame. See
+the [configured source contract](../analysis/name-resolution-proofs/source-original-configured-script-completeness.md)
+and [original receiver body contract](../analysis/name-resolution-proofs/tcloo-original-source-receiver-body-declaration.md).
+
 ### Executable IR and semantic metadata
 
 Use `build_linear_executable_ir_with_metadata_context` for executable source

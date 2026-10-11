@@ -21,19 +21,36 @@ pub(super) struct PreparedNativeExpression {
 }
 
 struct ConstantExpressionContext {
+    // Literal cleanup runs while the actual original entry is still held.
+    literals: HashMap<(u32, u32), obj::Owned>,
+    _scope: crate::interp::native_operation_currency::NativeOperationScope,
+    interpreter: Interp,
     dialect: tcl_registry::InvocationDialect,
     host: Rc<dyn tcl_platform::Host>,
-    literals: HashMap<(u32, u32), obj::Owned>,
 }
 impl ConstantExpressionContext {
     fn prepare(
         tree: &tcl_syntax::expr::NativeExprNode,
-        dialect: tcl_registry::InvocationDialect,
-        host: Rc<dyn tcl_platform::Host>,
+        interpreter: &Interp,
     ) -> Result<Self, ValueError> {
+        let scope =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(interpreter)
+                .map_err(|first| {
+                    interpreter.clone().refuse_native_execution(first);
+                    unavailable("original constant expression entry")
+                })?;
+        let dialect = interpreter.native_invocation_dialect();
+        let host = interpreter.host();
+        let current = || {
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|_| unavailable("original constant expression currency"))
+        };
         let mut literals = HashMap::new();
         let mut pending = vec![tree];
         while let Some(node) = pending.pop() {
+            current()?;
             match node {
                 ExprNode::Literal { text, start, end } => {
                     let original = obj::Owned::fresh(obj::new_string_bytes(text));
@@ -80,14 +97,20 @@ impl ConstantExpressionContext {
                 _ => return Err(unavailable("native constant expression leaf")),
             }
         }
+        current()?;
         Ok(Self {
+            literals,
+            _scope: scope,
+            interpreter: interpreter.clone(),
             dialect,
             host,
-            literals,
         })
     }
 }
 impl crate::expr::ExprCtx for ConstantExpressionContext {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(&mut self.interpreter)
+    }
     fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
         Some(Rc::clone(&self.host))
     }
@@ -298,17 +321,18 @@ impl Builder<'_> {
             )
             .is_some_and(|trees| trees.first().is_some_and(|tree| *tree == node))
             {
-                let dialect = self.interp.native_invocation_dialect();
                 let value = crate::expr::eval_compiler_constant(
                     node,
-                    &mut ConstantExpressionContext::prepare(node, dialect, self.interp.host())?,
+                    &mut ConstantExpressionContext::prepare(node, self.interp)?,
                 );
                 let folded = match value {
                     Ok(original) => {
                         let index = if tcl_registry::native_expression_program::native_expression_boolean_operator(node) {
-                            let boolean = crate::typed_value::native_boolean_in(original.as_ptr(), dialect,
-                                tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
-                                self.interp.host().numeric_environment()).map_err(|error| {
+                            let boolean = crate::typed_value::native_boolean_for_interp(self.interp, original.as_ptr(),
+                                tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump).map_err(|error| {
+                                    if let Some(first) = error.native_execution_refusal().cloned().or_else(|| error.native_access_refusal().map(tcl_runtime_api::NativeExecutionError::from)) {
+                                        self.interp.refuse_native_execution(first);
+                                    }
                                     error.native_access_refusal().map_or_else(
                                         || unavailable("native folded Boolean producer"),
                                         ValueError::from)
@@ -343,6 +367,16 @@ impl Builder<'_> {
                         if error.native_access_refusal.is_some()
                             || error.native_execution_refusal.is_some()
                         {
+                            if let Some(first) =
+                                error.native_execution_refusal.clone().or_else(|| {
+                                    error
+                                        .native_access_refusal
+                                        .clone()
+                                        .map(tcl_runtime_api::NativeExecutionError::from)
+                                })
+                            {
+                                self.interp.refuse_native_execution(first);
+                            }
                             return Err(unavailable("native constant expression execution"));
                         }
                         let message = self.expression_syntax_message(&error.msg);
@@ -375,8 +409,7 @@ impl Builder<'_> {
             match node {
                 ExprNode::Literal { text, start, end } => {
                     let index = if self.stamp.physical >= tcl_dialect::TclVersion::V8_5 {
-                        let dialect = self.interp.native_invocation_dialect();
-                        let original = ConstantExpressionContext::prepare(node, dialect, self.interp.host())?;
+                        let original = ConstantExpressionContext::prepare(node, self.interp)?;
                         let original = &original.literals[&(*start, *end)];
                         if let Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(number)) =
                             obj::native_scalar_cache(original.as_ptr())?
@@ -898,7 +931,6 @@ impl Interp {
         let NativeExpressionTree::Parsed(tree) = &prepared.program.tree else {
             unreachable!()
         };
-        let numeric_host = self.host();
         let mut context = CompiledExpressionContext {
             interp: self,
             artifact,
@@ -921,11 +953,7 @@ impl Interp {
                             | ExprNode::Call { .. }
                     )
                 {
-                    crate::expr::normalize_compiled_primary84(
-                        value,
-                        context.interp.native_invocation_dialect(),
-                        numeric_host.numeric_environment(),
-                    )
+                    crate::expr::normalize_compiled_primary84(value, context.interp)
                 } else {
                     Ok(value)
                 }
@@ -1309,5 +1337,106 @@ impl ControlOperation {
             hazards.push(Hazard::ScriptEvaluation);
         }
         hazards
+    }
+}
+
+#[cfg(test)]
+mod constant_owner_tests {
+    use super::*;
+
+    fn native() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+    fn tree() -> tcl_syntax::expr::NativeExprNode {
+        ExprNode::Ternary {
+            condition: Box::new(ExprNode::Literal {
+                text: b"1".to_vec(),
+                start: 0,
+                end: 1,
+            }),
+            true_branch: Box::new(ExprNode::String {
+                text: b"{17}".to_vec(),
+                start: 4,
+                end: 8,
+            }),
+            false_branch: Box::new(ExprNode::String {
+                text: b"{unused}".to_vec(),
+                start: 11,
+                end: 19,
+            }),
+        }
+    }
+
+    #[test]
+    fn original_constant_ternary_runs_numeric_instruction_under_retained_actual_entry() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software admitted constant/result owner, not original compiled code or pool identity.
+        let interpreter = native();
+        let tree = tree();
+        let mut context = ConstantExpressionContext::prepare(&tree, &interpreter).unwrap();
+        assert_eq!(interpreter.entered_native_operation_count(), 1);
+        assert_eq!(
+            context.interpreter.runtime_context(),
+            interpreter.runtime_context()
+        );
+        let literal = context.literals[&(4, 8)].as_ptr();
+        assert_eq!(obj::bytes_of(literal), b"17");
+        assert!(obj::native_scalar_cache(literal).unwrap().is_none());
+        let result = crate::expr::eval_compiler_constant(&tree, &mut context).unwrap();
+        assert_ne!(result.as_ptr(), literal);
+        assert!(matches!(
+            obj::native_scalar_cache(result.as_ptr()).unwrap(),
+            Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                tcl_syntax::number::Number::Int(17)
+            ))
+        ));
+        assert!(!obj::has_string_rep(result.as_ptr()));
+        assert_eq!(obj::bytes_of(literal), b"17");
+        assert_eq!(unsafe { (*literal).ref_count }, 1);
+        assert_eq!(interpreter.entered_native_operation_count(), 1);
+        drop(result);
+        drop(context);
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+        assert!(interpreter.native_execution_refusal().is_none());
+    }
+
+    #[test]
+    fn original_constant_entry_cannot_revive_after_context_restore_or_first_host() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual prepare owner and inherited currency, not external compiler equivalence.
+        for restored in [false, true] {
+            let mut interpreter = native();
+            let tree = tree();
+            let mut context = ConstantExpressionContext::prepare(&tree, &interpreter).unwrap();
+            let literal = context.literals[&(4, 8)].as_ptr();
+            let before = obj::native_object_snapshot(literal).unwrap();
+            if restored {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("constant-currency-control".to_owned(), "1.0".to_owned())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+                assert_eq!(interpreter.runtime_context(), original);
+            } else {
+                interpreter.refuse_host_command("first constant owner cause");
+            }
+            let error = crate::expr::eval_compiler_constant(&tree, &mut context)
+                .err()
+                .expect("original constant must refuse");
+            let first = interpreter.native_execution_refusal().unwrap();
+            assert_eq!(error.native_execution_refusal, Some(first));
+            assert_eq!(obj::native_object_snapshot(literal).unwrap(), before);
+            assert_eq!(unsafe { (*literal).ref_count }, 1);
+            assert_eq!(interpreter.entered_native_operation_count(), 1);
+            drop(context);
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+        }
     }
 }

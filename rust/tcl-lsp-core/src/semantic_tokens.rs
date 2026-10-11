@@ -10436,7 +10436,7 @@ mod selected_source_token_tests {
         let mut registry = CommandRegistry::build_default();
         let mut each = registry.get("foreach").unwrap().clone();
         each.name = "selected_each";
-        each.surface = Some(tcl_registry::model::SpecSurface::TCL90_PLUS);
+        each.surface = Some(tcl_dialect::model::SpecSurface::TCL90_PLUS);
         registry.insert(each);
         let registry = std::sync::Arc::new(registry);
         let source = "interp alias {} each {} selected_each {left right}

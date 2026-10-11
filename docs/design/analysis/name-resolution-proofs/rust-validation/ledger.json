@@ -206530,6 +206530,252 @@
           "uncompressed_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830"
         }
       }
+    },
+    {
+      "id": "rust.frozen315.integration-compiler-rich-source-trace315",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/integration-compiler-rich-source-trace315/receipt.json.gz",
+        "sha256": "e7f1123203276a0dbd28a1cb2a1ca7102ce27afff909e1ffd2709977afda1614",
+        "compression": "gzip",
+        "uncompressed_sha256": "e7ae36b0ce3e0299fd29454ae574a43b2fb370d4ed57acf38c1d0160c71192c8"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/integration-compiler-rich-source-trace315/tests.log",
+        "sha256": "df79a9ad7ef0579126e79adff3ff4362fe6cd278abfcd89eb48419cc73fff51e"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_DIAGNOSTIC_VALUES=1",
+        "TCL_LSP_TRACE_ORIGINAL_DECLARATION=1",
+        "/workspace/.proofs/pinned-compiler315.elf",
+        "native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers",
+        "analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 2.5656494150171056,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9210
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete original unchanged 33404-leaf Source315 source/head/archive associations exactly match its separately admitted own producer and sealed source companion. Original --list independently contains both exact selectors. Current source controls receive no retrospective pass or Native credit."
+      },
+      "tests": [
+        {
+          "selector": "analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point",
+          "status": "failed",
+          "purpose": "Exact source-point diagnostic carrier control; this owned image fails its unchanged assertion. Whole Module/FU metadata is reported current, while the trace does not retain a point input; source-value acceptance is not established.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers",
+          "status": "failed",
+          "purpose": "Exact inline/public expression producer distinction control; this owned image fails with SourceDeclined(MissingCommandTokens { statement_index: 0 }) despite current whole Module/FU metadata. No Native compilation/result-production acceptance is established.",
+          "proof_ids": [
+            "naming.numeric.original-primitive-boolean-vs-expression-truth"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-analysis-metadata-context",
+        "naming.numeric.original-primitive-boolean-vs-expression-truth"
+      ],
+      "limits": "The independent exact two-selector Source315 trace closes exit101 with0 passed,2 failed,9210 filtered. Original environment flags, selection order, whole source snapshot and strict owned image are retained. The complete log records current whole Module/FU owners with missing source-point input and the unchanged Native Boolean MissingCommandTokens refusal. No passing assertion, equality-based cause, convergence, Native outcome or changed-current-image acceptance follows. The successful build/list is a separate scope. Source315 full600 baseline and all performance commands are excluded.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/pinned-compiler315.elf.gz",
+        "sha256": "040a6c0ed0ed42cacb284f37d6da60845387c4e7ee6bdaeb4953059b89367ea8",
+        "compression": "gzip",
+        "uncompressed_sha256": "321a2d6d3f1a16161e0d8653bab5ca68c7cf1dbb85b32c66bd5661d6babaa03a",
+        "uncompressed_bytes": 206936520,
+        "compressed_bytes": 39952183,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/lossless-compiler-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/pinned-compiler315.json",
+        "metadata_sha256": "377324e8ea198ee890b332e6f2c62b89a8379645410b4f777f21b9c142ac0cac",
+        "build_receipt_id": "rust.frozen315.integration-compiler-clean-rebuilt-test-build315",
+        "original_source_snapshot_sha256": "40f20df0c954ff1568c127e6d05c1f0a2b2e6fc67e7e1188dcf3b0cf43b2e482",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image/source-snapshot.json.gz",
+          "sha256": "bd5d0574cb93d3f5c6e35cf206cc9be1da3322ff66fc4d76171752e3ae46e9fa",
+          "compression": "gzip",
+          "uncompressed_sha256": "40f20df0c954ff1568c127e6d05c1f0a2b2e6fc67e7e1188dcf3b0cf43b2e482"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen316.integration-compiler-rich-source-trace316",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-compiler-rich-source-trace316/receipt.json.gz",
+        "sha256": "137687b91883a24889d49aba47a3013a4d9e03f8b3824ace9aebef6c2b3b2be5",
+        "compression": "gzip",
+        "uncompressed_sha256": "498525899dab243d71267c5f326b3b760deb99c1fe3914c2e0778ea086da169c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-compiler-rich-source-trace316/tests.log",
+        "sha256": "6d2c9a95113de23e84b65a5f4e501fdbb9d96ede3dca3f849936a720280bcbb4"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_NATIVE_BOOLEAN_SOURCE=1",
+        "TCL_LSP_TRACE_DIAGNOSTIC_VALUES=1",
+        "TCL_LSP_TRACE_ORIGINAL_DECLARATION=1",
+        "/workspace/.proofs/pinned-compiler316.elf",
+        "analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point",
+        "native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 3.7375099389755633,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9210
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete original unchanged 33602-leaf Source316 source/head/archive associations exactly match its separately admitted own producer and sealed source companion. Original --list independently contains both exact selectors. Current source controls receive no retrospective pass or Native credit."
+      },
+      "tests": [
+        {
+          "selector": "analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point",
+          "status": "failed",
+          "purpose": "Exact source-point diagnostic carrier control; this owned image fails its unchanged assertion. Whole Module/FU metadata is reported current, while the trace does not retain a point input; source-value acceptance is not established.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers",
+          "status": "failed",
+          "purpose": "Exact inline/public expression producer distinction control; this owned image fails with SourceDeclined(MissingCommandTokens { statement_index: 0 }) despite current whole Module/FU metadata. No Native compilation/result-production acceptance is established.",
+          "proof_ids": [
+            "naming.numeric.original-primitive-boolean-vs-expression-truth"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-analysis-metadata-context",
+        "naming.numeric.original-primitive-boolean-vs-expression-truth"
+      ],
+      "limits": "The independent exact two-selector Source316 trace closes exit101 with0 passed,2 failed,9210 filtered. Original environment flags, selection order, whole source snapshot and strict owned image are retained. The complete log records current whole Module/FU owners with missing source-point input and the unchanged Native Boolean MissingCommandTokens refusal. No passing assertion, equality-based cause, convergence, Native outcome or changed-current-image acceptance follows. The successful build/list is a separate scope. Source315 full600 baseline and all performance commands are excluded.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.elf.gz",
+        "sha256": "3b63a82a7657d0f7e6a2809e55a911d47d147a6c153c0bb7a109de6b37131664",
+        "compression": "gzip",
+        "uncompressed_sha256": "eb61994952379f9df6ec9cd5f0ae3ce3ca3fd13fea689f1ee92e52bf7c5ed939",
+        "uncompressed_bytes": 206975000,
+        "compressed_bytes": 39947052,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/lossless-compiler-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.json",
+        "metadata_sha256": "c4d771bf0ca4102b088dc2d40d5d86f97b371bd5a54875a18a85229c9eb55ba5",
+        "build_receipt_id": "rust.frozen316.integration-compiler-own-test-build316",
+        "original_source_snapshot_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/source-snapshot.json.gz",
+          "sha256": "4fdb08702a001bdd93e9ae64bff6200a3051bf3312a3c04dc7cebf0db49abee8",
+          "compression": "gzip",
+          "uncompressed_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen316.integration-runtime-own-test-build316",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-runtime-own-test-build316/receipt.json.gz",
+        "sha256": "26708800d1005a9a5be705dfdce0d290f0f1d9ddb6c3d17a58e910b14522354d",
+        "compression": "gzip",
+        "uncompressed_sha256": "5338d61c8010473cab141a1e40f4455a1c8ae6f444275da04626cc422abae66f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-runtime-own-test-build316/tests.log",
+        "sha256": "6ddc4bd2b19311daa289b230295f57cf99c4bc3ebadaf3484c943a812244059b"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "TCL_TOMMATH_DIR=/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--features",
+        "engine",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 59.90319329200429,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged33602-leaf original Source316 source/head/command/archive associations; the complete association is byte-identical to the separately authenticated own Compiler316 snapshot and receipt. Source association exactly matches the separate successful own Compiler receipt and retained complete source snapshot."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent Runtime engine library-test no-run command closes exit101 with 21 compiler errors: one production E0603 imports private NativeIndexLookupFlags; 20 cfg(test) errors require Debug for LseqError/Owned or access the private entered-operation field. No test-executable creation event, successful Runtime producer, strict Runtime image, inventory or assertion is admitted. The successful own Compiler command and its inventory are separate scopes; the workspace Compiler command does not compile the Runtime engine crate. Current corrections to imports, owner queries and test matches supply no retrospective producer or assertion credit.",
+      "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen316.integration-core-own-test-build316",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-core-own-test-build316/receipt.json.gz",
+        "sha256": "484f32593d89a427f5c1fa1104b417b9e5bec13547ed27ef72ddaf94edf5b3f2",
+        "compression": "gzip",
+        "uncompressed_sha256": "12c7ef3f739235f2352c066e9594541e28d996ebc02c0634f2eaecda8931fb82"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-core-own-test-build316/tests.log",
+        "sha256": "b703d4b0f62fcb18fed0f43feeb8a755c55d23c169b85b6f96d2563e55d460ab"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-lsp-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 132.08643977399333,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged33602-leaf original Source316 source/head/command/archive associations; the complete association is byte-identical to the separately authenticated own Compiler316 snapshot and receipt. Source association exactly matches the separate successful own Compiler receipt and retained complete source snapshot."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent Core library-test no-run command closes exit101 with 14 compiler errors in test fixtures: removed SpecSurface lookup4, input-reference comparison1, absent diagnostic source method1, mismatched input/region types5, private logical-source query1 and obsolete argument arity2. No test-executable creation event, successful Core producer, strict Core image, inventory or assertion is admitted. The successful own Compiler command and inventory remain separate scopes; current fixture corrections supply no retrospective Core build or assertion credit.",
+      "sealed_images": {}
     }
   ]
 }

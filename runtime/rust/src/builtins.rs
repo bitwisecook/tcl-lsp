@@ -808,6 +808,19 @@ pub(crate) fn eval_binary_operands(
     crate::expr::eval_binary_operands(op, left, right, &mut context)
 }
 
+/// Enter an actual math-function operand operation through the same
+/// interpreter expression context as arithmetic and Boolean producers.
+#[cfg(have_tommath)]
+pub(crate) fn math_operation(
+    interp: &mut Interp,
+) -> Result<crate::expr::MathOperation, crate::expr_error::ExprError> {
+    crate::expr::MathOperation::enter(&mut InterpExprCtx {
+        interp,
+        propagated: false,
+        propagated_code: Code::Error,
+    })
+}
+
 #[cfg(have_tommath)]
 impl InterpExprCtx<'_> {
     fn propagated_error(&mut self, code: Code) -> crate::expr_error::ExprError {

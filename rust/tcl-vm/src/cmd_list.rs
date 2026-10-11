@@ -513,7 +513,12 @@ fn vm_compare(
     let mut argv: Vec<Value> = pre_args.to_vec();
     argv.push(a.clone());
     argv.push(b.clone());
-    let comp = vm.dispatch(&name.to_str(), &argv);
+    let comp = match vm.dispatch(&name.to_str(), &argv) {
+        Ok(completion) => completion,
+        Err(first) => {
+            return Err(vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first)));
+        }
+    };
     if !comp.code.is_ok() {
         return Err(comp);
     }

@@ -189,6 +189,22 @@ independently installed expression policy admits the operator. Their counted
 bytes remain separate from the checked Unicode inputs of the pure predicate;
 consumed operands retire before final result publication.
 
+Math function handlers and fixed-function calls enter through the actual
+interpreter expression context. Their selected
+numeric operands reach the pure function kernel as accepted magnitudes, so a
+rejected original spelling cannot be reparsed there. The shared function table
+selects primitive Boolean operand acceptance separately from expression truth.
+Integer-forward functions retain the original header and resident spelling
+only after selected integer classification; window conversion uses the accepted
+integer magnitude. Random-generator mutation follows successful seed access
+and classification on the same actual interpreter.
+
+Constant expression preparation retains the actual interpreter and entry
+through literal cleanup and evaluation. An admitted numeric-result instruction
+reaches its shared physical producer; a following Boolean peephole and a public
+expression API copy are separate obligations. Caller tags and source profiles
+cannot attest that conversion has occurred.
+
 Separate compiler frame and activation calls retain their actual interpreter
 and entered currency in a LIFO ledger. Ordinary facade calls, completion
 exports and Host-status reads use that owner while it is outstanding; explicit

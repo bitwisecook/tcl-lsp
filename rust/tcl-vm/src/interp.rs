@@ -24922,13 +24922,27 @@ impl Procs for Vm {
 impl Commands for Vm {
     type Value = Value;
 
-    fn dispatch(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
-        self.invoke_command(name, argv)
+    fn dispatch(
+        &mut self,
+        name: &str,
+        argv: &[Value],
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        if let Some(first) = self.take_host_boundary_refusal() {
+            return Err(first);
+        }
+        self.try_invoke_command(name, argv)
     }
 
-    fn dispatch_id(&mut self, cmd: CommandId, argv: &[Value]) -> Completion<Value> {
+    fn dispatch_id(
+        &mut self,
+        cmd: CommandId,
+        argv: &[Value],
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        if let Some(first) = self.take_host_boundary_refusal() {
+            return Err(first);
+        }
         let Some(key) = self.command_fqn(cmd.0) else {
-            return err("invalid command id");
+            return self.finish_host_execution(err("invalid command id"));
         };
         let Some(command) = self.commands.get(&key).cloned().or_else(|| {
             self.name_world
@@ -24938,10 +24952,14 @@ impl Commands for Vm {
                 .values()
                 .find_map(|record| record.commands.get(&key).cloned())
         }) else {
-            return err("invalid command id");
+            return self.finish_host_execution(err("invalid command id"));
         };
         let display = format!("::{}", self.command_display_key(&key));
-        self.invoke_resolved_command(&display, CommandSidecarKey::visible(key), command, argv)
+        self.host_execution_depth += 1;
+        let completion =
+            self.invoke_resolved_command(&display, CommandSidecarKey::visible(key), command, argv);
+        self.host_execution_depth -= 1;
+        self.finish_host_execution(completion)
     }
 }
 
@@ -28324,7 +28342,9 @@ mod family_b_tests {
             Err(GuardError::Poisoned),
         );
 
-        let completion = vm.dispatch("string", &[Value::string("length"), Value::string("abc")]);
+        let completion = vm
+            .dispatch("string", &[Value::string("length"), Value::string("abc")])
+            .unwrap();
         assert_eq!(completion.code, Code::Ok);
         assert_eq!(completion.result.as_int().unwrap(), 3);
     }
@@ -28364,11 +28384,15 @@ mod family_b_tests {
             )
             .expect("StringLength is implemented for Tcl 8");
         assert_eq!(completion.result.as_int().unwrap(), 3);
-        let completion = vm.dispatch("string", &[Value::string("length"), Value::string("é🙂")]);
+        let completion = vm
+            .dispatch("string", &[Value::string("length"), Value::string("é🙂")])
+            .unwrap();
         assert_eq!(completion.result.as_int().unwrap(), 3);
 
         vm.set_runtime_version(tcl_dialect::TclVersion::V9_0);
-        let completion = vm.dispatch("string", &[Value::string("length"), Value::string("é🙂")]);
+        let completion = vm
+            .dispatch("string", &[Value::string("length"), Value::string("é🙂")])
+            .unwrap();
         assert_eq!(completion.result.as_int().unwrap(), 2);
         assert!(
             vm.execute_intrinsic(tcl_registry::IntrinsicId::ListLength, &[])
@@ -29504,11 +29528,13 @@ mod family_b_tests {
     fn commands_dispatch_builtin_and_unknown() {
         let mut vm = Vm::new();
         // A builtin runs inline and yields its result.
-        let c = vm.dispatch("list", &[Value::string("a"), Value::string("b c")]);
+        let c = vm
+            .dispatch("list", &[Value::string("a"), Value::string("b c")])
+            .unwrap();
         assert_eq!(c.code, Code::Ok);
         assert_eq!(&*c.result.to_str(), "a {b c}");
         // An unknown command name is an error completion.
-        let c = vm.dispatch("no_such_command", &[]);
+        let c = vm.dispatch("no_such_command", &[]).unwrap();
         assert_eq!(c.code, Code::Error);
         assert_eq!(
             &*c.result.to_str(),
@@ -29568,11 +29594,13 @@ mod family_b_tests {
         // Resolve a command to a handle, then invoke it *by that handle* — the
         // find_command -> dispatch_id composition.
         let id = Namespaces::find_command(&vm, ROOT_NS, "list").expect("list resolves");
-        let c = vm.dispatch_id(id, &[Value::string("a"), Value::string("b")]);
+        let c = vm
+            .dispatch_id(id, &[Value::string("a"), Value::string("b")])
+            .unwrap();
         assert_eq!(c.code, Code::Ok);
         assert_eq!(&*c.result.to_str(), "a b");
         // A fabricated id yields an error completion (no such command).
-        let c = vm.dispatch_id(CommandId(9999), &[]);
+        let c = vm.dispatch_id(CommandId(9999), &[]).unwrap();
         assert_eq!(c.code, Code::Error);
         assert_eq!(&*c.result.to_str(), "invalid command id");
     }

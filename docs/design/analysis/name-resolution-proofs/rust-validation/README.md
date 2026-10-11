@@ -3205,3 +3205,92 @@ restored.chmod(record["original_mode"])
 Restoration does not replace or retire an active original executable and
 runs no assertion. No complete Compiler, VM, Runtime, Native provider or
 combined gate result is inferred from this producer and inventory.
+
+## Source315 exact two-selector source trace
+
+The independent two-selector trace closes exit `101` after 2.5656494150171056
+seconds with uniform source `true`: 0 passed, 2 failed, 9,210 filtered.
+Its exact 33404-leaf source retains HEAD `fbdf15187c9797789ab688d914669449bbb0b962`.
+The whole original environment flags and selector order remain in the receipt.
+The source-point diagnostic and inline/public expression producer assertions
+both fail. The trace reports current Module/FU metadata with missing point
+input and `SourceDeclined(MissingCommandTokens { statement_index: 0 })`;
+this does not establish a causal equality hypothesis or source acceptance.
+
+The [complete original receipt](frozen315/integration-compiler-rich-source-trace315/receipt.json.gz)
+is lossless gzip and restores SHA-256 `e7ae36b0ce3e0299fd29454ae574a43b2fb370d4ed57acf38c1d0160c71192c8`.
+The [whole original log](frozen315/integration-compiler-rich-source-trace315/tests.log) retains
+SHA-256 `df79a9ad7ef0579126e79adff3ff4362fe6cd278abfcd89eb48419cc73fff51e`. Both exact selectors belong to the independently
+retained 9,212-test inventory and [strict own image](frozen315/sealed-own-compiler-image/pinned-compiler315.json).
+
+Build/list success remains separate from these failed assertions. The active
+Source315 full600 baseline, performance commands, independent Runtime and
+all Native provider observations are excluded. No original executable is
+replaced or restored by this archival record.
+
+
+## Source316 exact two-selector source trace
+
+The independent two-selector trace closes exit `101` after 3.7375099389755633
+seconds with uniform source `true`: 0 passed, 2 failed, 9,210 filtered.
+Its exact 33602-leaf source retains HEAD `f7cf1f8507492698172cd6a98270346058b4f201`.
+The whole original environment flags and selector order remain in the receipt.
+The source-point diagnostic and inline/public expression producer assertions
+both fail. The trace reports current Module/FU metadata with missing point
+input and `SourceDeclined(MissingCommandTokens { statement_index: 0 })`;
+this does not establish a causal equality hypothesis or source acceptance.
+
+The [complete original receipt](frozen316/integration-compiler-rich-source-trace316/receipt.json.gz)
+is lossless gzip and restores SHA-256 `498525899dab243d71267c5f326b3b760deb99c1fe3914c2e0778ea086da169c`.
+The [whole original log](frozen316/integration-compiler-rich-source-trace316/tests.log) retains
+SHA-256 `6d2c9a95113de23e84b65a5f4e501fdbb9d96ede3dca3f849936a720280bcbb4`. Both exact selectors belong to the independently
+retained 9,212-test inventory and [strict own image](frozen316/sealed-own-compiler-image/pinned-compiler316.json).
+
+Build/list success remains separate from these failed assertions. The active
+Source315 full600 baseline, performance commands, independent Runtime and
+all Native provider observations are excluded. No original executable is
+replaced or restored by this archival record.
+
+## Source316 Runtime engine compilation failure
+
+The independent own Runtime engine library-test no-run command closes exit
+`101` after 59.90319329200429 seconds with uniform source `true`. Its exact
+33602-leaf Source316 image retains HEAD
+`f7cf1f8507492698172cd6a98270346058b4f201`. The original log records 21 compiler errors: one `E0603` imports private
+`NativeIndexLookupFlags` in `capi/collections.rs:10`; 20 test errors require
+`Debug` for `LseqError` once and `Owned` four times, or access the private
+entered-operation field 15 times. The complete log retains every original
+compiler field, source span and presentation.
+
+No own Runtime producer, strict image, executable inventory or assertion
+is admitted. The successful own Compiler build and inventory retain their
+separate scope. Current corrections to imports, owner queries and test matches supply no retrospective
+build or assertion credit.
+
+The [complete original receipt](frozen316/integration-runtime-own-test-build316/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `5338d61c8010473cab141a1e40f4455a1c8ae6f444275da04626cc422abae66f`.
+The [whole original log](frozen316/integration-runtime-own-test-build316/tests.log) retains
+SHA-256 `6ddc4bd2b19311daa289b230295f57cf99c4bc3ebadaf3484c943a812244059b`. The complete original source association is identical
+to the independently retained [Source316 source snapshot](frozen316/sealed-own-compiler-image/source-snapshot.json.gz).
+
+## Source316 Core compilation failure
+
+The independent own Core library-test no-run command closes exit
+`101` after 132.08643977399333 seconds with uniform source `true`. Its exact
+33602-leaf Source316 image retains HEAD
+`f7cf1f8507492698172cd6a98270346058b4f201`. The original log records 14 test-fixture compiler errors:
+four removed `SpecSurface` lookups, one input-reference comparison, one
+absent diagnostic source method, five mismatched input/region types, one
+private logical-source query and two obsolete argument-arity calls.
+The whole log preserves exact original errors, spans and compiler fields.
+
+No own Core producer, strict image, executable inventory or assertion
+is admitted. The successful own Compiler build and inventory retain their
+separate scope. Current fixture corrections supply no retrospective
+build or assertion credit.
+
+The [complete original receipt](frozen316/integration-core-own-test-build316/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `12c7ef3f739235f2352c066e9594541e28d996ebc02c0634f2eaecda8931fb82`.
+The [whole original log](frozen316/integration-core-own-test-build316/tests.log) retains
+SHA-256 `b703d4b0f62fcb18fed0f43feeb8a755c55d23c169b85b6f96d2563e55d460ab`. The complete original source association is identical
+to the independently retained [Source316 source snapshot](frozen316/sealed-own-compiler-image/source-snapshot.json.gz).

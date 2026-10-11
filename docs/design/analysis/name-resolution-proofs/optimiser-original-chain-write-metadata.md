@@ -64,7 +64,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `0b0692b0caabefd9189e7768caa928d4b755a492683224b47f136f97d6411977`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `16b1b86ce69bae76b82aec5e6dc99154edd7cf95b9b1d3f08c06e539915dd9e9`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 - `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-optimiser-chain_fold.rs` (implementation): [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs). SHA-256 `8baade8a174e46cc8d460076a9ec00e8d14a28082b9159e22d8d0ffed5e21619`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection

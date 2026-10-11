@@ -32,10 +32,10 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{IntegerConversion, NativeMathProtocol, integer_conversion};
+use tcl_syntax::expr::mathfunc::{integer_conversion, IntegerConversion, NativeMathProtocol};
 use tcl_syntax::naming::qualifier_segments;
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `::tcl::mathfunc::*`.
@@ -63,7 +63,30 @@ pub(crate) fn mathfunc_identity(
     argv: &[*mut TclObj],
     identity: &[u8],
 ) -> Code {
-    let name0 = obj_bytes(argv[0]);
+    let operation = match crate::builtins::math_operation(interp) {
+        Ok(operation) => operation,
+        Err(error) => return interp.report_expr_error(error),
+    };
+    let result = mathfunc_original(interp, argv, identity, &operation);
+    match operation.check() {
+        Ok(()) => result,
+        Err(error) => interp.report_expr_error(error),
+    }
+}
+
+fn mathfunc_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    identity: &[u8],
+    operation: &crate::expr::MathOperation,
+) -> Code {
+    let Some(&original_head) = argv.first() else {
+        return interp.set_error(b"missing math function command head");
+    };
+    let name0 = match operation.string(original_head) {
+        Ok(name) => name,
+        Err(error) => return interp.report_expr_error(error),
+    };
     let tail = qualifier_segments(identity)
         .last()
         .copied()
@@ -114,24 +137,35 @@ pub(crate) fn mathfunc_identity(
             return Code::Ok;
         }
         "srand" => {
-            // The seed is the operand's low 64 bits (C's
-            // `TclGetWideBitsFromObj`), which takes an **integer** of any
-            // width and refuses a double rather than truncating it — tclsh
-            // 8.6.16: `expected integer but got "1.5"`, `-errorcode TCL VALUE
-            // INTEGER` (`TCL VALUE NUMBER` when the operand is not a number
-            // at all). The VM uses the identical wording.
-            if !crate::bignum::is_integer(argv[1]) {
-                let mut m = b"expected integer but got \"".to_vec();
-                m.extend_from_slice(&obj_bytes(argv[1]));
-                m.push(b'"');
-                let code: &[u8] = if crate::bignum::is_numeric(argv[1]) {
+            let number = match operation.number(argv[1]) {
+                Ok(number) => number,
+                Err(error) => return interp.report_expr_error(error),
+            };
+            let numeric = number.is_some();
+            let Some(number) = number.filter(|number| {
+                matches!(
+                    number,
+                    tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+                )
+            }) else {
+                let original = match operation.string(argv[1]) {
+                    Ok(original) => original,
+                    Err(error) => return interp.report_expr_error(error),
+                };
+                let mut message = b"expected integer but got \"".to_vec();
+                message.extend_from_slice(&original);
+                message.push(b'"');
+                let code: &[u8] = if numeric {
                     b"TCL VALUE INTEGER"
                 } else {
                     b"TCL VALUE NUMBER"
                 };
-                return interp.error_with_code(&m, code);
-            }
-            let seed = crate::bignum::truncate_to_wide(argv[1]);
+                return interp.error_with_code(&message, code);
+            };
+            let seed = match operation.integer_window(number) {
+                Ok(seed) => seed,
+                Err(error) => return interp.report_expr_error(error),
+            };
             interp.set_result(obj::new_double_obj(interp.srand(seed)));
             return Code::Ok;
         }
@@ -141,41 +175,48 @@ pub(crate) fn mathfunc_identity(
     // Which width `int()` uses is the shared owner's release axis: Tcl 9.0
     // binds `int` to the same unbounded `ExprIntFunc` as `entier`, 8.4-8.6
     // keep its 64-bit window.
-    let dialect = interp.native_invocation_dialect();
+    let dialect = operation.dialect();
     let int_width = crate::expr::int_width_for_dialect(dialect);
-
-    // `wide`/`int`/`entier` on an *integer* operand work on the object directly
-    // rather than through the shared dispatch, so the result keeps the operand's
-    // own string rep (tclsh: `::tcl::mathfunc::entier 0x10` is `0x10`, not
-    // `16`). A *float* operand falls through to the shared dispatch, which has
-    // its own exact bignum path.
-    //
-    // Which of the three preserves and which windows is the shared owner's
-    // call, not this consumer's: `integer_conversion` carries the release
-    // axis, and `tcl-vm`'s `cmd_math` reads the same function, so the two
-    // engines cannot drift apart.
     let conversion = (tcl_registry::mathfunc::native_math_protocol(dialect)
         == Some(NativeMathProtocol::Tcl))
     .then(|| integer_conversion(&lname, int_width))
     .flatten();
-    if let Some(conversion) = conversion.filter(|_| crate::bignum::is_integer(argv[1])) {
-        if conversion == IntegerConversion::Window {
-            interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
-                argv[1],
-            )));
-        } else {
-            interp.set_result(argv[1]); // integer is its own int/entier
+    let result = if let Some(conversion) = conversion {
+        let number = match operation.number(argv[1]) {
+            Ok(Some(number)) => number,
+            Ok(None) => {
+                return interp.set_error(b"argument to math function didn't have numeric value")
+            }
+            Err(error) => return interp.report_expr_error(error),
+        };
+        if matches!(
+            number,
+            tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+        ) {
+            if conversion == IntegerConversion::Window {
+                let integer = match operation.integer_window(number) {
+                    Ok(integer) => integer,
+                    Err(error) => return interp.report_expr_error(error),
+                };
+                interp.set_result(obj::new_wide_int_obj(integer));
+            } else {
+                // This actual integer-forward purpose retains the original
+                // header and resident spelling independently of the kernel.
+                interp.set_result(argv[1]);
+            }
+            return Code::Ok;
         }
-        return Code::Ok;
-    }
-
-    // The same dialect-selected operand conversion and result semantics serve
-    // fixed-table calls and public command handlers.
-    let operands: Vec<_> = argv[1..]
-        .iter()
-        .map(|&operand| crate::obj::Owned::retain(operand))
-        .collect();
-    match crate::expr::dispatch_shared_in(&lname, &operands, dialect) {
+        operation.dispatch_numbers(&lname, vec![number], &argv[1..])
+    } else {
+        let operands = argv[1..]
+            .iter()
+            .map(|&value| crate::obj::Owned::retain(value))
+            .collect::<Vec<_>>();
+        let result = operation.dispatch(&lname, &operands);
+        drop(operands);
+        operation.after(result)
+    };
+    match result {
         Ok(value) => {
             interp.set_result(value.as_ptr());
             Code::Ok

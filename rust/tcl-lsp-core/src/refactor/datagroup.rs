@@ -1123,7 +1123,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             name: "class",
-            surface: Some(tcl_registry::model::SpecSurface::TCL90_PLUS),
+            surface: Some(tcl_dialect::model::SpecSurface::TCL90_PLUS),
             subcommands: OUTPUTS,
             ..tcl_registry::CommandSpec::DEFAULT
         });

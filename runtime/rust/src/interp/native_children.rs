@@ -123,12 +123,26 @@ impl Interp {
             }
         };
         match self.with_child(name, |child| {
+            let scope = match super::native_operation_currency::NativeOperationScope::enter(child) {
+                Ok(scope) => scope,
+                Err(first) => {
+                    child.refuse_native_execution(first);
+                    return Err(child.clone());
+                }
+            };
             let code = child.eval_body_obj(script.as_ptr());
-            if child.host_refusal_pending() {
-                return Err(child.clone());
-            }
-            let completion = crate::state_traits::capture_completion(child, code);
-            // SAFETY: capture_completion transfers one owning reference to each handle.
+            let completion = match crate::state_traits::capture_completion_checked(
+                child,
+                scope.currency(),
+                code,
+            ) {
+                Ok(completion) => completion,
+                Err(first) => {
+                    child.refuse_native_execution(first);
+                    return Err(child.clone());
+                }
+            };
+            // SAFETY: checked capture transfers one owning reference to each handle.
             Ok(unsafe {
                 (
                     obj::Owned::from_raw(completion.result),
@@ -804,5 +818,198 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod completion_capture_tests {
+    use super::*;
+    use crate::interp::{default_host, Command, WeakInterp};
+    use tcl_runtime_api::NativeExecutionError;
+    use tcl_syntax::raw_string::NativeValueAccessRefusal;
+
+    struct Metadata {
+        interpreter: WeakInterp,
+        mode: u8,
+        getters: Rc<Cell<usize>>,
+        retired: Rc<Cell<usize>>,
+        capture_references: Rc<Cell<obj::TclSize>>,
+    }
+
+    extern "C" fn update_metadata(value: *mut TclObj) {
+        // SAFETY: this descriptor retains the original boxed extension record.
+        let state = unsafe { &*(obj::internal_rep(value) as usize as *const Metadata) };
+        state.getters.set(state.getters.get() + 1);
+        let mut child = state.interpreter.upgrade().unwrap();
+        match state.mode {
+            1 => {
+                child.refuse_host_command("first child completion metadata getter");
+            }
+            2 => {
+                let original = child.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("child-completion-metadata".into(), "1.0".into())];
+                child.pin_context(&changed).unwrap();
+                child.pin_context(&original).unwrap();
+                assert_eq!(child.runtime_context(), original);
+            }
+            _ => {}
+        }
+        // SAFETY: the reached updater owns the original counted String result.
+        unsafe { obj::set_native_updater_string_rep(value, b"REACHED CHILD METADATA", false) };
+    }
+
+    extern "C" fn retire_metadata(value: *mut TclObj) {
+        // SAFETY: the original extension retires its one boxed state once.
+        let state = unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut Metadata) };
+        state.retired.set(state.retired.get() + 1);
+    }
+
+    static METADATA: obj::TclObjType = obj::TclObjType {
+        name: c"originalChildCompletionMetadata".as_ptr(),
+        free_int_rep_proc: Some(retire_metadata),
+        dup_int_rep_proc: None,
+        update_string_proc: Some(update_metadata),
+        set_from_any_proc: None,
+    };
+
+    fn original_worker(child: &mut Interp, arguments: &[*mut TclObj]) -> Code {
+        let original = arguments[1];
+        // SAFETY: the original List owns the actual extension operand.
+        let state = unsafe { &*(obj::internal_rep(original) as usize as *const Metadata) };
+        assert!(child.eval_depth.get() > 1);
+        assert_eq!(state.getters.get(), 0);
+        assert!(!obj::has_string_rep(original));
+        child.set_error_state(b"ORIGINAL CHILD CODE");
+        child.set_result(original);
+        // SAFETY: the exact original operand remains owned by the List and result.
+        state
+            .capture_references
+            .set(unsafe { (*original).ref_count });
+        if state.mode == 0 {
+            Code::Other(7)
+        } else {
+            Code::Error
+        }
+    }
+
+    fn run_original_capture(mode: u8) {
+        let getters = Rc::new(Cell::new(0));
+        let retired = Rc::new(Cell::new(0));
+        let capture_references = Rc::new(Cell::new(0));
+        {
+            let mut parent = Interp::with_native_core(
+                default_host(),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            parent.create_child(Some(b"child".to_vec()));
+            let (weak, child_context) = parent
+                .with_child(b"child", |child| {
+                    child.ns_register(b"original_metadata", Command::Builtin(original_worker));
+                    assert!(child.codegen_activation_enter());
+                    (child.downgrade(), child.runtime_context())
+                })
+                .unwrap();
+            let original = obj::Owned::fresh(obj::alloc_typed(
+                &METADATA,
+                Box::into_raw(Box::new(Metadata {
+                    interpreter: weak.clone(),
+                    mode,
+                    getters: getters.clone(),
+                    retired: retired.clone(),
+                    capture_references: capture_references.clone(),
+                })) as usize as u64,
+            ));
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"original_metadata"));
+            let script = obj::Owned::fresh(crate::list::new_list_obj_native(
+                &[head.as_ptr(), original.as_ptr()],
+                parent
+                    .native_invocation_dialect()
+                    .native_string_protocol()
+                    .unwrap(),
+            ));
+            parent.set_result_bytes(b"PARENT RESULT\0\xff");
+            let prior = parent.result_obj();
+            let code = parent.child_eval_original(b"child", &[script.as_ptr()]);
+            let child = weak.upgrade().unwrap();
+            assert_eq!(child.runtime_context(), child_context);
+            assert_eq!(child.result_obj(), original.as_ptr());
+            assert!(child.entered_native_operations.borrow().is_empty());
+            assert!(parent.entered_native_operations.borrow().is_empty());
+            assert_eq!(obj::obj_type_ptr(original.as_ptr()), &METADATA as *const _);
+            if mode == 0 {
+                assert_eq!(code, Code::Other(7));
+                assert_eq!(parent.result_obj(), original.as_ptr());
+                assert_eq!(getters.get(), 0);
+                assert!(!obj::has_string_rep(original.as_ptr()));
+                assert!(parent.native_execution_refusal().is_none());
+                assert!(child.native_execution_refusal().is_none());
+                // Only the parent result gains a reference; capture's own
+                // transferred result has been consumed exactly once.
+                assert_eq!(
+                    unsafe { (*original.as_ptr()).ref_count },
+                    capture_references.get() + 1
+                );
+            } else {
+                assert_eq!(code, Code::Error);
+                let first = if mode == 1 {
+                    let Some(first @ NativeExecutionError::HostCommandRefusal(_)) =
+                        child.native_execution_refusal()
+                    else {
+                        panic!("original child Host cause");
+                    };
+                    if let NativeExecutionError::HostCommandRefusal(ref cause) = first {
+                        assert_eq!(cause.reason, "first child completion metadata getter");
+                    }
+                    first
+                } else {
+                    NativeExecutionError::ValueAccessRefusal(
+                        NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "stale entered native operation",
+                        ),
+                    )
+                };
+                assert_eq!(child.native_execution_refusal(), Some(first.clone()));
+                assert_eq!(parent.native_execution_refusal(), Some(first));
+                assert_eq!(parent.result_obj(), prior);
+                assert_eq!(parent.result_bytes(), b"PARENT RESULT\0\xff");
+                assert_eq!(getters.get(), 1);
+                assert_eq!(obj::bytes_of(original.as_ptr()), b"REACHED CHILD METADATA");
+                // The reached error-info owner retains the original result;
+                // failed capture releases its additional temporary handle.
+                let error_info = child.native_private_error_object(true).unwrap();
+                assert_eq!(error_info.as_ptr(), original.as_ptr());
+                drop(error_info);
+                assert_eq!(
+                    unsafe { (*original.as_ptr()).ref_count },
+                    capture_references.get() + 1
+                );
+            }
+            parent
+                .with_child(b"child", |child| child.codegen_activation_leave(code))
+                .unwrap();
+            assert_eq!(retired.get(), 0);
+        }
+        assert_eq!(retired.get(), 1);
+    }
+
+    #[test]
+    fn original_child_completion_capture_keeps_guest_handles_and_custom_code() {
+        // naming.interpreter.original-child-host-refusal-transport
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-child-host-refusal-transport.md
+        // Software actual-object/+1 control; no external native completion claim.
+        run_original_capture(0);
+    }
+
+    #[test]
+    fn original_child_completion_capture_transports_reached_metadata_host_and_aba() {
+        // naming.interpreter.original-child-host-refusal-transport
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-child-host-refusal-transport.md
+        // Real extension getter during capture, under the actual child scope;
+        // original provider observations remain independent.
+        run_original_capture(1);
+        run_original_capture(2);
     }
 }

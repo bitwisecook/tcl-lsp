@@ -546,7 +546,7 @@ fn loop_installed_member_shape(
     let inner_cmds = crate::segmenter::segment_commands_with_offset_and_config(
         body_word,
         body_content_start,
-        lexer_config,
+        lexer_config.nested(),
     );
     let mut real_cmds = inner_cmds
         .iter()
@@ -638,14 +638,14 @@ impl Analyser {
     ) -> Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence> {
         let policy = self.declaration_name_policy()?;
         self.head_identities
-            .original_source_name_at_span(span, self.lexer_config(), self.word_rules(), policy)
+            .original_source_name_at_span(span, self.file_lexer_config(), self.word_rules(), policy)
             .or_else(|| {
                 // The actual walk retains this complete original static word
                 // independently of invocation entry. It supplies naming syntax
                 // only; the caller still selects the definer and naming scope.
                 let original = self.original_static_source_name_at_span(span)?;
                 let input = original.name_input();
-                (input.lexer_config() == self.lexer_config()
+                (input.lexer_config() == self.file_lexer_config()
                     && input.word_value_rules() == self.word_rules()
                     && input.policy() == policy)
                     .then(|| original.clone())
@@ -673,7 +673,7 @@ impl Analyser {
         // command slot is recovered from the reporting class name.
         if let Some(original) = self.result.original_vendor_source_name_in_source(
             &tcl_lexer::SourceImage::document(&self.source),
-            self.lexer_config(),
+            self.file_lexer_config(),
             class.name_span,
         ) {
             let record = crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata::new(
@@ -1020,7 +1020,7 @@ impl Analyser {
             grammar,
             body_word,
             body_content_start,
-            self.lexer_config(),
+            self.file_lexer_config(),
             Some(self.analysis_context().context().authoring_query()),
             var_name,
         ) else {
@@ -1139,7 +1139,7 @@ impl Analyser {
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             base_offset,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         );
         let CollectedDefinitionBodies {
             methods: method_bodies,
@@ -1254,7 +1254,7 @@ impl Analyser {
                     .next()?;
                 let body_token = tokens.get(body_index)?;
                 let image = tcl_lexer::SourceImage::document(&self.source);
-                let config = self.lexer_config();
+                let config = self.file_lexer_config();
                 let mut selected = class
                     .original_special_members
                     .declarations()
@@ -1297,7 +1297,7 @@ impl Analyser {
         bodies: &mut CollectedDefinitionBodies,
     ) {
         self.retain_original_member_metadata(grammar, cmd, class_def, scope_path);
-        let spliced = splice_static_member_expansions(&self.source, cmd, self.lexer_config());
+        let spliced = splice_static_member_expansions(&self.source, cmd, self.file_lexer_config());
         let (texts, argv) = spliced.as_ref().map_or(
             (cmd.texts.as_slice(), cmd.argv.as_slice()),
             |(texts, argv)| (texts.as_slice(), argv.as_slice()),
@@ -1319,8 +1319,13 @@ impl Analyser {
             class_def.member_set_incomplete = true;
             self.record_loop_installed_members(grammar, cmd, class_def);
         }
-        let expanded =
-            expand_wrapper_block_members(&self.source, grammar, texts, argv, self.lexer_config());
+        let expanded = expand_wrapper_block_members(
+            &self.source,
+            grammar,
+            texts,
+            argv,
+            self.file_lexer_config(),
+        );
         let member_calls: Vec<(&[String], &[Token])> = expanded.as_ref().map_or_else(
             || vec![(texts, argv)],
             |inner| {
@@ -1546,7 +1551,7 @@ impl Analyser {
             let cmds = crate::segmenter::segment_commands_with_offset_and_config(
                 &mb.body_text,
                 base,
-                self.lexer_config(),
+                self.file_lexer_config().nested(),
             );
             for cmd in &cmds {
                 // `link` is deliberately *not* a method-dispatch keyword:
@@ -1622,7 +1627,7 @@ impl Analyser {
                     mb.params_tok.as_ref(),
                     self.resolved_analysis_input(),
                     &tcl_lexer::SourceImage::document(&self.source),
-                    self.lexer_config(),
+                    self.file_lexer_config(),
                 )
             })
             .flatten()
@@ -1881,7 +1886,7 @@ impl Analyser {
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body,
             base_offset,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         );
 
         // The variables snit injects into every member body come from the
@@ -2857,7 +2862,7 @@ impl Analyser {
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body,
             base_offset,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         );
 
         // itcl injects `this` (the object's own command) into every method body.
@@ -3478,8 +3483,11 @@ fn expand_wrapper_block_members(
         return None;
     }
     let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
-    let cmds =
-        crate::segmenter::segment_commands_with_offset_and_config(body_text, base_offset, config);
+    let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+        body_text,
+        base_offset,
+        config.nested(),
+    );
     let mut out: Vec<(Vec<String>, Vec<Token>)> = Vec::new();
     for cmd in &cmds {
         if cmd.is_partial || cmd.argv.is_empty() {
@@ -4394,6 +4402,103 @@ pub(super) fn extract_method_def_in(
 mod tests {
     use super::*;
     use crate::analyser::types::MemberRetractionRecord;
+
+    #[test]
+    fn original_receiver_declaration_keeps_its_whole_parent_bom_configuration() {
+        // naming.tcloo.original-source-receiver-body-declaration
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-source-receiver-body-declaration.md
+        // Source declaration body only; no allocated class or entered method.
+        fn bodies(
+            scope: &Scope,
+        ) -> Vec<&super::super::types::OriginalSourceReceiverBodyDeclaration> {
+            scope
+                .original_receiver_body_declaration
+                .iter()
+                .map(AsRef::as_ref)
+                .chain(scope.children.iter().flat_map(bodies))
+                .collect()
+        }
+        let body = "interp create -safe s; interp eval s {oo::class create C {method m {} {source a.tcl}}}";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let source = format!("\u{feff}{body}");
+        let result = Analyser::new().analyse(&source, "tcl9.1");
+        let declarations = bodies(&result.global_scope);
+        assert_eq!(declarations.len(), 1, "{:?}", result.diagnostics);
+        assert!(declarations[0].matches_source(&tcl_lexer::SourceImage::document(&source), &input));
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            let result = Analyser::new()
+                .with_resolved_input(supplied.clone())
+                .analyse(body, "display-only");
+            let declarations = bodies(&result.global_scope);
+            assert_eq!(declarations.len(), 1, "{bom:?}: {:?}", result.diagnostics);
+            let original = declarations[0];
+            let image = tcl_lexer::SourceImage::document(body);
+            assert!(original.matches_source(&image, &supplied));
+            assert_eq!(original.body_word().config(), supplied.lexer_config());
+            assert_eq!(original.parameters_word().config(), supplied.lexer_config());
+            let commands = tcl_lexer::native_script_words_in(
+                image.clone(),
+                original.body_word().content_span().unwrap(),
+                supplied.lexer_config(),
+            )
+            .unwrap();
+            assert!(original.owns_invocation(&commands.commands[0].words, &supplied));
+            assert!(!original.matches_source(
+                &tcl_lexer::SourceImage::document(&(body.to_owned() + "\n")),
+                &supplied
+            ));
+            let mut stale = supplied.clone();
+            stale.config.strict_quoting = !stale.config.strict_quoting;
+            assert!(!original.matches_source(&image, &stale));
+            let mut foreign = supplied.clone();
+            foreign.context = std::sync::Arc::new(
+                supplied
+                    .context
+                    .with_command_store(std::sync::Arc::clone(supplied.context.commands())),
+            );
+            assert!(!original.matches_source(&image, &foreign));
+        }
+    }
+
+    #[test]
+    fn original_member_script_projection_keeps_body_bom_as_keyword_content() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Exact member grammar syntax; no installed method or Native worker.
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            crate::environment_ingress::resolve_environment("tcl9.1").grammar(),
+        );
+        let dialect = tcl_registry::model::ingress::static_context_for("tcl9.1").authoring_query();
+        let positive = "method $name {} {}";
+        assert!(
+            loop_installed_member_shape(tcloo(), positive, 7, config, Some(dialect), "name")
+                .is_some()
+        );
+        assert!(
+            loop_installed_member_shape(
+                tcloo(),
+                "\u{feff}method $name {} {}",
+                7,
+                config,
+                Some(dialect),
+                "name"
+            )
+            .is_none()
+        );
+        let source = "private {\u{feff}method ghost {} {}}";
+        let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .pop()
+            .unwrap();
+        let expanded =
+            expand_wrapper_block_members(source, tcloo(), &command.texts, &command.argv, config)
+                .unwrap();
+        assert_eq!(expanded.len(), 1);
+        assert_eq!(expanded[0].0[1], "\u{feff}method");
+        assert!(tcloo().member(&expanded[0].0[1]).is_none());
+    }
 
     #[test]
     fn original_vendor_class_declarations_keep_selected_source_role_and_unavailable_units() {

@@ -22,6 +22,8 @@ Formatter newline presentation consumes the shared Document line-ending owner, w
 
 An additional marked standalone source-formatting definition uses selected procedure traits for qualified proc spacing, keeps a shadowed proc surface ordinary and preserves the source when a foreign lexer configuration is paired with the retained layout.
 
+All three actual Server formatting requests retain the tracked whole DB source/configuration/availability owner and raw CRLF coordinates. Explicit LF presentation and save opt-in remain independent; unavailable input withholds edits even when earlier analysis stays populated.
+
 ## Scope
 
 Current formatting source-role and argument-presentation consumers, exact source case/list layout, captured operand geometry and separate literal-expression bracing. Fixed tests assert a retained alias prefix cannot widen written operands, a real custom handler keeps its argument as data, actual for-body presentation remains selected, and static bracing differs from dynamic/shadowed inputs. Seven native providers are not tested for this Rust implementation contract; no executed formatter receipt is attached.
@@ -33,6 +35,8 @@ These five linked software controls cover actual owner retention and original so
 This owner-only refinement changes no linked assertion or provider answer. LF/CRLF/lone-CR Document presentation supplies no Native run-time string, command word, body entry, source rewrite equivalence or original value authority.
 
 This control exercises the explicit standalone formatting entry. It does not establish the separate supplied-analysis issuer, Native declaration/body execution, handler/frame or inserted edit equivalence. Actual analysis-backed formatting and original terminator geometry retain their own independent controls and receipts; no new result is attached.
+
+Current direct Rust and Tokio test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -130,6 +134,10 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 - [rust/tcl-lsp-core/src/formatting/engine.rs](../../../../rust/tcl-lsp-core/src/formatting/engine.rs), `formatting::engine::tests::procedure_spacing_uses_selected_source_traits` (linked): The explicit standalone formatting source layout uses selected procedure traits for qualified proc spacing, declines the shadowed proc surface and preserves text when the retained layout is paired with foreign lexer configuration.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-server/src/original_document_metadata_tests.rs](../../../../rust/tcl-lsp-server/src/original_document_metadata_tests.rs), `original_document_metadata_tests::original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input` (linked): Real Server full/range/will-save requests retain tracked DB input, complete selected availability/configuration and raw CRLF ranges, including same-store availability changes, explicit LF presentation and save opt-in. An unavailable overlay withholds all edits despite an independently populated earlier analysis. Source formatting only; no appliance or Native body entry.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

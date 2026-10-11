@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Actual C8.4 reached normalization using complete independent host facts.
+//! Selected C8.4 normalisation against recorded original host facts.
 
 use super::*;
 use tcl_platform::{NumericEnvironmentUnavailable, NumericErrorState};
@@ -44,7 +44,11 @@ fn c84_normalization_matches_six_original_float_error_windows() {
             range_error: row[5] == "1",
         }));
         let value = Owned::fresh(obj::new_double_obj(values[index]));
-        let result = normalize_compiled_primary84(value, dialect, Some(&environment));
+        let result = normalize_compiled_primary84_with_recorded_environment(
+            value,
+            dialect,
+            Some(&environment),
+        );
         assert_eq!(result.is_err(), row[2] == "1", "{line}");
         match result {
             Err(error) => {
@@ -80,7 +84,7 @@ fn c84_normalization_matches_six_original_float_error_windows() {
     }
     assert_eq!(count, 6);
     let unavailable = RecordedNumericEnvironment::new(Err(NumericEnvironmentUnavailable::Target));
-    let error = normalize_compiled_primary84(
+    let error = normalize_compiled_primary84_with_recorded_environment(
         Owned::fresh(obj::new_double_obj(f64::INFINITY)),
         dialect,
         Some(&unavailable),
@@ -97,8 +101,12 @@ fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
     let environment = RecordedNumericEnvironment::new(Err(NumericEnvironmentUnavailable::Target));
     let original = Owned::fresh(obj::new_double_obj(1.0));
     let resident = obj::bytes_of(original.as_ptr());
-    let result =
-        normalize_compiled_primary84(original.clone(), dialect, Some(&environment)).unwrap();
+    let result = normalize_compiled_primary84_with_recorded_environment(
+        original.clone(),
+        dialect,
+        Some(&environment),
+    )
+    .unwrap();
     assert_ne!(result.as_ptr(), original.as_ptr());
     assert!(!obj::has_string_rep(result.as_ptr()));
     assert_eq!(obj::bytes_of(original.as_ptr()), resident);

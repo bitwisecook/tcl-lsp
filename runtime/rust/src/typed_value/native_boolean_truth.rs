@@ -568,6 +568,40 @@ pub(crate) fn normalize_boolean_result_for_interp(
     original_boolean_expression_result(&value, protocol, &mut ops)
 }
 
+/// Execute an actually reached C numeric-result instruction. Its conversion
+/// obligation is independent of the following Boolean peephole and API copy.
+pub(crate) fn normalize_numeric_instruction_for_interp(
+    interp: &mut Interp,
+    value: *mut TclObj,
+) -> Result<Owned, CmdError> {
+    let mut ops = OriginalOps::entered(interp)?;
+    ops.check_host_refusal()?;
+    let protocol = ops
+        .dialect
+        .native_numeric_instruction_result_protocol()
+        .ok_or_else(unavailable)?;
+    let result = original_boolean_expression_result(&value, protocol, &mut ops);
+    ops.check_host_refusal()?;
+    result
+}
+
+/// Explicit neutral physical instruction context; this supplies no interpreter
+/// reporting owner or already-normalised receipt.
+pub(crate) fn normalize_numeric_instruction_in(
+    value: *mut TclObj,
+    dialect: InvocationDialect,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+) -> Result<Owned, CmdError> {
+    let protocol = dialect
+        .native_numeric_instruction_result_protocol()
+        .ok_or_else(unavailable)?;
+    original_boolean_expression_result(
+        &value,
+        protocol,
+        &mut OriginalOps::neutral(dialect, environment),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -947,6 +981,121 @@ mod tests {
             assert!(obj::obj_type_ptr(original.as_ptr()).is_null());
             assert_eq!(interp.get_obj_result(), result);
             assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+        }
+    }
+
+    #[test]
+    fn original_numeric_instruction_reaches_conversion_without_inline_boolean_or_api_copy() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software physical producer control, not an original opcode/whole-script observation.
+        let mut interp = native("tcl8.6");
+        let original = Owned::fresh(obj::new_string_bytes(b"17"));
+        let before = obj::native_object_snapshot(original.as_ptr()).unwrap();
+        let inline = normalize_boolean_result_for_interp(
+            &mut interp,
+            original.as_ptr(),
+            Production::InlineExpression,
+        )
+        .unwrap();
+        assert_eq!(inline.as_ptr(), original.as_ptr());
+        assert!(obj::native_scalar_cache(original.as_ptr())
+            .unwrap()
+            .is_none());
+        assert!(obj::has_string_rep(original.as_ptr()));
+        drop(inline);
+        assert_eq!(
+            obj::native_object_snapshot(original.as_ptr()).unwrap(),
+            before
+        );
+        let converted =
+            normalize_numeric_instruction_for_interp(&mut interp, original.as_ptr()).unwrap();
+        assert_eq!(converted.as_ptr(), original.as_ptr());
+        assert!(matches!(
+            obj::native_scalar_cache(converted.as_ptr()).unwrap(),
+            Some(Cache::Number(Number::Int(17)))
+        ));
+        assert!(!obj::has_string_rep(converted.as_ptr()));
+        assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 2);
+        drop(converted);
+        assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+        assert!(interp.native_execution_refusal().is_none());
+        assert_eq!(interp.entered_native_operation_count(), 0);
+    }
+
+    thread_local! {
+        static INSTRUCTION_MODE: Cell<u8> = const { Cell::new(0) };
+        static INSTRUCTION_GETTERS: Cell<usize> = const { Cell::new(0) };
+    }
+    extern "C" fn instruction_updater(value: *mut TclObj) {
+        INSTRUCTION_GETTERS.with(|calls| calls.set(calls.get() + 1));
+        // SAFETY: the test keeps the original interpreter installed through the getter.
+        let mut interp = unsafe { crate::codegen_abi::current_interp().as_ref() }
+            .unwrap()
+            .clone();
+        if INSTRUCTION_MODE.with(Cell::get) == 0 {
+            interp.refuse_host_command("first numeric instruction getter");
+        } else {
+            let context = interp.runtime_context();
+            let mut changed = context.clone();
+            changed.packages = vec![(
+                "numeric-instruction-currency-control".to_owned(),
+                "1.0".to_owned(),
+            )];
+            interp.pin_context(&changed).unwrap();
+            interp.pin_context(&context).unwrap();
+        }
+        unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
+    }
+    static INSTRUCTION_OPERAND: obj::TclObjType = obj::TclObjType {
+        name: c"originalNumericInstructionOperand".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(instruction_updater),
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn original_numeric_instruction_getter_first_host_and_aba_stop_cache_and_owned_result() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Reached software extension getter effects remain; no native callback chronology claim.
+        for mode in [0, 1] {
+            let mut interp = native("tcl8.6");
+            let context = interp.runtime_context();
+            interp.set_result_bytes(b"PRIOR\0\xff");
+            let prior = interp.get_obj_result();
+            let original = Owned::fresh(obj::alloc_typed(&INSTRUCTION_OPERAND, 0));
+            INSTRUCTION_MODE.with(|slot| slot.set(mode));
+            INSTRUCTION_GETTERS.with(|calls| calls.set(0));
+            crate::codegen_abi::tcl_runtime_set_current_interp(&mut interp);
+            let error = normalize_numeric_instruction_for_interp(&mut interp, original.as_ptr())
+                .err()
+                .expect("original numeric instruction must refuse");
+            crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
+            let first = interp.native_execution_refusal().unwrap();
+            if mode == 0 {
+                assert!(
+                    matches!(&first, tcl_runtime_api::NativeExecutionError::HostCommandRefusal(cause) if cause.reason == "first numeric instruction getter")
+                );
+            } else {
+                assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation")));
+            }
+            assert_eq!(error.native_execution_refusal(), Some(&first));
+            assert_eq!(interp.runtime_context(), context);
+            assert_eq!(INSTRUCTION_GETTERS.with(Cell::get), 1);
+            assert_eq!(obj::bytes_of(original.as_ptr()), b"17");
+            assert_eq!(
+                obj::obj_type_ptr(original.as_ptr()),
+                &INSTRUCTION_OPERAND as *const _
+            );
+            assert!(obj::native_scalar_cache(original.as_ptr())
+                .unwrap()
+                .is_none());
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+            assert_eq!(interp.get_obj_result(), prior);
+            assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+            assert_eq!(interp.entered_native_operation_count(), 0);
         }
     }
 }

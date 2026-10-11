@@ -283,7 +283,7 @@ impl Analyser {
         let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             base_offset,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         );
         let total = body_commands.len();
         let mut cmd_idx: usize = 0;
@@ -405,7 +405,7 @@ impl Analyser {
         if body_tok.kind != TokenType::Cmd {
             return false;
         }
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let sm = SourceMap::new(&self.source);
         let child = descend_token(&sm, body_tok, config);
         if !child.is_terminated() {
@@ -449,7 +449,7 @@ impl Analyser {
                 let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
                     &source.text,
                     source.base(),
-                    self.lexer_config(),
+                    self.file_lexer_config().nested(),
                 )?;
                 let [command] = commands.as_slice() else {
                     return None;
@@ -913,7 +913,7 @@ impl Analyser {
         // docs/design/analysis/name-resolution-proofs/original-command-token-memo.md
         self.head_identities.retained_original_tokens(
             &tcl_lexer::SourceImage::document(&self.source),
-            self.lexer_config(),
+            self.file_lexer_config(),
             invocation_offset,
             argument_tokens,
         )
@@ -932,7 +932,7 @@ impl Analyser {
             return;
         };
         let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         if !bindings.matches_original_source_image(&image, config)
             || origin.source_image() != &image
             || tokens.argv.len() != argument_tokens.len()
@@ -1042,14 +1042,14 @@ impl Analyser {
     ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
         let first = native.first()?;
         let last = native.last()?;
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let text = self
             .source
             .get(first.span().start() as usize..last.span().end() as usize)?;
         let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
             text,
             first.span().start(),
-            config,
+            config.nested(),
         );
         if commands.len() != 1 {
             return None;
@@ -1099,7 +1099,7 @@ impl Analyser {
             return;
         };
         let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         if !bindings.matches_original_source_image(&image, config)
             || origin.source_image() != &image
             || native
@@ -1255,7 +1255,7 @@ impl Analyser {
             && let Some(words) =
                 crate::registry_invocation::source_structure::source_transition_words_from_advice(
                     &self.source,
-                    self.lexer_config(),
+                    self.file_lexer_config(),
                     &context,
                     advice,
                 )
@@ -1494,7 +1494,7 @@ impl Analyser {
             let tokens = self.retained_invocation_tokens(cmd_tok.span.start(), arg_tokens)?;
             if self.result.has_original_vendor_source_names() {
                 let image = tcl_lexer::SourceImage::document(&self.source);
-                let config = self.lexer_config();
+                let config = self.file_lexer_config();
                 let original = self.result.original_vendor_source_name_in_source(
                     &image,
                     config,
@@ -2081,7 +2081,7 @@ impl Analyser {
             arg_tokens,
             registry,
             Some(&surface),
-            self.lexer_config(),
+            self.file_lexer_config(),
             &grammar,
         ) {
             self.loop_candidates.push(candidate);
@@ -2095,7 +2095,7 @@ impl Analyser {
             arg_tokens,
             &self.source,
             registry,
-            self.lexer_config(),
+            self.file_lexer_config(),
             numbers,
         );
         self.result.diagnostics.extend(idx_diags);
@@ -2288,7 +2288,7 @@ impl Analyser {
         }
         let tokens = self.retained_invocation_tokens(offset, argument_tokens)?;
         let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let native = crate::registry_invocation::original_native_compiler_words(
             &image,
             tokens.words(),
@@ -2303,7 +2303,7 @@ impl Analyser {
         let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             first.span().start(),
-            config,
+            config.nested(),
         );
         if segments.len() != 1 {
             return None;
@@ -2933,7 +2933,7 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let Some(head) = tokens.words().first().and_then(|word| {
             self.result
                 .original_vendor_source_name_in_source(&image, config, word.source().span)
@@ -3435,8 +3435,12 @@ impl Analyser {
             &self.cached_line_index,
             self.cached_line_index_source_len,
         );
-        let heads =
-            nested_source_prefixes(&source_map, &self.result, &segment, self.lexer_config());
+        let heads = nested_source_prefixes(
+            &source_map,
+            &self.result,
+            &segment,
+            self.file_lexer_config(),
+        );
         for head in heads {
             let Some(original) = head.callback else {
                 continue;
@@ -3724,7 +3728,7 @@ impl Analyser {
             return;
         };
         let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let vendor = self
             .result
             .original_vendor_source_name_in_source(&image, config, head_word.source().span)
@@ -3830,7 +3834,7 @@ impl Analyser {
                 .and_then(|head| {
                     self.result.original_vendor_source_name_in_source(
                         &image,
-                        self.lexer_config(),
+                        self.file_lexer_config(),
                         head.source().span,
                     )
                 })
@@ -4401,7 +4405,7 @@ impl Analyser {
     /// separated commands (`[foo; bar]` → only `foo`); the CST
     /// descent finds them all.
     fn record_invocations_from_cmd_token(&mut self, arg_tok: Token, scope_path: &[usize]) {
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         // Collect the inner heads first (this borrows `self.source`
         // through the `SourceMap`); resolve + push afterwards so the
         // immutable source borrow has ended.
@@ -4466,7 +4470,7 @@ impl Analyser {
         if body_tok.kind != TokenType::Cmd {
             return;
         }
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         // Collect the descended segments first (this borrows
         // `self.source` through the `SourceMap`); call the `&mut self`
         // handler afterwards, once the immutable borrow has ended — the
@@ -4546,7 +4550,7 @@ impl Analyser {
         // dispatch afterwards, once the immutable borrow has ended.  Each
         // `SegmentedCommand` is fully owned (absolute spans), so it
         // outlives the borrow.
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let mut nested: Vec<SegmentedCommand> = Vec::new();
         {
             let sm = Analyser::source_map(
@@ -4591,7 +4595,9 @@ impl Analyser {
                                 .expect("byte offset fits in u32 for in-memory source");
                             let base = arg_tok.span.start() + off;
                             for seg in crate::segmenter::segment_commands_with_offset_and_config(
-                                inner, base, config,
+                                inner,
+                                base,
+                                config.nested(),
                             ) {
                                 collect_segment_recursive(
                                     &sm,
@@ -4637,7 +4643,7 @@ impl Analyser {
         if expr_indices.is_empty() {
             return;
         }
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let mut nested: Vec<SegmentedCommand> = Vec::new();
         {
             let sm = Analyser::source_map(
@@ -4882,7 +4888,7 @@ impl Analyser {
             return vec![arg_tok];
         };
         let base = arg_tok.span.start();
-        let frags: Vec<Token> = Lexer::with_source_map(SourceMap::new(word_src), config)
+        let frags: Vec<Token> = Lexer::with_source_map(SourceMap::new(word_src), config.nested())
             .tokenise_all()
             .map(|toks| {
                 toks.into_iter()
@@ -4909,7 +4915,7 @@ impl Analyser {
     /// [`collect_expr_substitutions`]).  Skips the over-recording the
     /// generic word scanner would do on a braced *data* word.
     fn record_invocations_from_expr_token(&mut self, expr_tok: Token, scope_path: &[usize]) {
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let (heads, expr_toks) = {
             let sm = Analyser::source_map(
                 &self.source,
@@ -4959,7 +4965,7 @@ impl Analyser {
                 .original_math_functions_in_source(
                     registry,
                     &image,
-                    self.lexer_config(),
+                    self.file_lexer_config(),
                     expr_tok.span,
                 )
                 .into_iter()
@@ -5276,7 +5282,7 @@ impl Analyser {
                 let cmd_text = sm.token_text(cmd_tok).to_string();
                 let base = cmd_tok.span.start() + u32::from(cmd_tok.content_offset);
                 let position = sm.position_at(base);
-                let config = self.lexer_config();
+                let config = self.file_lexer_config();
                 let map = tcl_lexer::SourceMap::new(&cmd_text).with_base(
                     base,
                     position.line,
@@ -5284,7 +5290,9 @@ impl Analyser {
                 );
                 let bindings = self.head_identities.source_bindings();
                 let commands = crate::segmenter::segment_commands_with_offset_and_config(
-                    &cmd_text, base, config,
+                    &cmd_text,
+                    base,
+                    config.nested(),
                 )
                 .iter()
                 .map(|command| {
@@ -5855,7 +5863,7 @@ impl Analyser {
         {
             return;
         }
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         for site in &sites {
             // A write trace can mutate the variable at any read — see
             // `settle_const_dispatches`'s identical guard.
@@ -6063,7 +6071,7 @@ fn nested_source_bodies(
             commands.extend(crate::segmenter::segment_commands_with_offset_and_config(
                 text,
                 span.start(),
-                config,
+                config.nested(),
             ));
         }
     }
@@ -6489,6 +6497,71 @@ fn first_command_head(text: &str) -> Option<(&str, usize)> {
 mod tests {
     use super::*;
     use tcl_lexer::{Span, TokenType};
+
+    #[test]
+    fn original_body_heads_keep_parent_file_config_and_nested_bom_content() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Source syntax only; a command-head observation grants no execution.
+        let body = "if 1 {\u{feff}set hidden value; set visible value}\nset result [\u{feff}set inner value; set tail value]";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let default_source = format!("\u{feff}{body}");
+        let ordinary = Analyser::new().analyse(&default_source, "tcl9.1");
+        let selected = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(&default_source, "display-only");
+        for result in [&ordinary, &selected] {
+            let names = result
+                .command_invocations
+                .iter()
+                .map(|call| call.name.as_str())
+                .collect::<Vec<_>>();
+            assert!(names.contains(&"if"), "{names:?}");
+            assert_eq!(
+                names.iter().filter(|name| **name == "\u{feff}set").count(),
+                2,
+                "{names:?}"
+            );
+            assert_eq!(result.resolved_input.as_ref(), Some(&input));
+            assert!(result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&default_source),
+                input.lexer_config()
+            ));
+        }
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            supplied.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let result = Analyser::new()
+                .with_resolved_input(supplied.clone())
+                .analyse(body, "display-only");
+            let names = result
+                .command_invocations
+                .iter()
+                .map(|call| call.name.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                names.iter().filter(|name| **name == "\u{feff}set").count(),
+                2,
+                "{bom:?}: {names:?}"
+            );
+            assert_eq!(result.resolved_input.as_ref(), Some(&supplied));
+            assert_eq!(result.body_lexer_config, Some(supplied.lexer_config()));
+            let mut foreign = supplied.lexer_config();
+            foreign.strict_quoting = !foreign.strict_quoting;
+            assert!(
+                !result.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(body),
+                    foreign
+                )
+            );
+            assert!(!result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&(body.to_owned() + "\n")),
+                supplied.lexer_config()
+            ));
+        }
+    }
 
     /// `if {1} { if {1} { ... } }`, `depth` levels deep, wrapped in a `proc`
     /// body.

@@ -3540,7 +3540,7 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
         &mut vm,
         "proc p {} {expr {1+2}}; proc step_callback args {}",
     );
-    assert_eq!(vm.dispatch("p", &[]).result.to_str().as_ref(), "3");
+    assert_eq!(vm.dispatch("p", &[]).unwrap().result.to_str().as_ref(), "3");
     eval_ok(&mut vm, "trace add execution p enterstep step_callback");
 
     let fast_calls = Rc::new(Cell::new(0));
@@ -3550,7 +3550,7 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
         fast_calls: Rc::clone(&fast_calls),
         plain_calls: Rc::clone(&plain_calls),
     }));
-    assert_eq!(vm.dispatch("p", &[]).result.to_str().as_ref(), "3");
+    assert_eq!(vm.dispatch("p", &[]).unwrap().result.to_str().as_ref(), "3");
     assert!(
         plain_calls.get() > 0,
         "the active step trace must deopt the proc"
@@ -3559,7 +3559,7 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
     eval_ok(&mut vm, "trace remove execution p enterstep step_callback");
     fast_calls.set(0);
     plain_calls.set(0);
-    assert_eq!(vm.dispatch("p", &[]).result.to_str().as_ref(), "3");
+    assert_eq!(vm.dispatch("p", &[]).unwrap().result.to_str().as_ref(), "3");
     assert_eq!(fast_calls.get(), 1, "trace removal must restore fast code");
     assert_eq!(plain_calls.get(), 0);
 }
@@ -3573,6 +3573,7 @@ fn tcloo_method_reoptimises_after_running_plain_during_a_builtin_replacement() {
     );
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3601,6 +3602,7 @@ fn tcloo_method_reoptimises_after_running_plain_during_a_builtin_replacement() {
     plain_calls.set(0);
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3624,6 +3626,7 @@ fn tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace() {
     );
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3643,6 +3646,7 @@ fn tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace() {
     }));
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),
@@ -3661,6 +3665,7 @@ fn tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace() {
     plain_calls.set(0);
     assert_eq!(
         vm.dispatch("o", &[Value::string("m")])
+            .unwrap()
             .result
             .to_str()
             .as_ref(),

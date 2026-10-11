@@ -156,6 +156,18 @@ impl NativeOperationScope {
         })
     }
 
+    /// Begin the engine facade's independent evaluation episode. A callback
+    /// nested inside an actual operation inherits that entry and cannot reset
+    /// its first Host cause; only a genuinely outer engine call starts fresh.
+    pub(crate) fn enter_engine_evaluation(
+        interpreter: &Interp,
+    ) -> Result<Self, NativeExecutionError> {
+        if interpreter.entered_native_operations.borrow().is_empty() {
+            interpreter.reset_native_compilation_admission();
+        }
+        Self::enter(interpreter)
+    }
+
     pub(crate) fn currency(&self) -> &NativeOperationCurrency {
         &self.currency
     }

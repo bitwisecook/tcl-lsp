@@ -567,7 +567,9 @@ mod tests {
         let right_before = obj::native_object_snapshot(right.ptr()).unwrap();
         CALLS.with(|calls| calls.set(0));
         crate::codegen_abi::tcl_runtime_set_current_interp(&mut context.0);
-        let error = binary(&mut context, BinOp::Add, left, right).unwrap_err();
+        let error = binary(&mut context, BinOp::Add, left, right)
+            .err()
+            .expect("original operation must refuse");
         let first = context.0.native_execution_refusal().unwrap();
         assert_eq!(error.native_execution_refusal, Some(first));
         assert_eq!(CALLS.with(Cell::get), 1);
@@ -581,7 +583,7 @@ mod tests {
         assert_eq!(unsafe { (*right_view.ptr()).ref_count }, 1);
         assert_eq!(context.0.get_obj_result(), prior);
         assert_eq!(context.0.result_bytes(), b"PRIOR\0\xff");
-        assert!(context.0.entered_native_operations.borrow().is_empty());
+        assert_eq!(context.0.entered_native_operation_count(), 0);
         crate::codegen_abi::tcl_runtime_set_current_interp(std::ptr::null_mut());
     }
     #[test]
@@ -594,7 +596,9 @@ mod tests {
         let view = Owned::retain(input.ptr());
         CALLS.with(|calls| calls.set(0));
         crate::codegen_abi::tcl_runtime_set_current_interp(&mut context.0);
-        let error = unary(&mut context, UnaryOp::Neg, input).unwrap_err();
+        let error = unary(&mut context, UnaryOp::Neg, input)
+            .err()
+            .expect("original operation must refuse");
         let first = context.0.native_execution_refusal().unwrap();
         assert!(
             matches!(&first, NativeExecutionError::HostCommandRefusal(first) if first.reason == "first scalar preparation updater refusal")
@@ -605,7 +609,7 @@ mod tests {
         assert_eq!(obj::obj_type_ptr(view.ptr()), &FIRST_HOST as *const _);
         assert!(obj::native_scalar_cache(view.ptr()).unwrap().is_none());
         assert_eq!(unsafe { (*view.ptr()).ref_count }, 1);
-        assert!(context.0.entered_native_operations.borrow().is_empty());
+        assert_eq!(context.0.entered_native_operation_count(), 0);
         crate::codegen_abi::tcl_runtime_set_current_interp(std::ptr::null_mut());
     }
     #[test]
@@ -626,7 +630,9 @@ mod tests {
         let left = Owned::fresh(obj::new_string_bytes(b"0b10"));
         let right = Owned::fresh(obj::new_wide_int_obj(1));
         let view = Owned::retain(left.ptr());
-        let error = binary(&mut context, BinOp::Add, left, right).unwrap_err();
+        let error = binary(&mut context, BinOp::Add, left, right)
+            .err()
+            .expect("original operation must refuse");
         tcl_syntax::number::set_runtime_syntax(original_syntax);
         assert!(error.native_execution_refusal.is_none());
         assert!(error.native_access_refusal.is_none());
@@ -634,7 +640,7 @@ mod tests {
         assert_eq!(obj::bytes_of(view.ptr()), b"0b10");
         assert!(obj::native_scalar_cache(view.ptr()).unwrap().is_none());
         assert_eq!(unsafe { (*view.ptr()).ref_count }, 1);
-        assert!(context.0.entered_native_operations.borrow().is_empty());
+        assert_eq!(context.0.entered_native_operation_count(), 0);
         assert!(!context.0.host_refusal_pending());
     }
     #[test]
@@ -660,7 +666,9 @@ mod tests {
         let before = obj::native_object_snapshot(right.ptr()).unwrap();
         CALLS.with(|calls| calls.set(0));
         crate::codegen_abi::tcl_runtime_set_current_interp(&mut context.0);
-        let error = binary(&mut context, BinOp::Add, left, right).unwrap_err();
+        let error = binary(&mut context, BinOp::Add, left, right)
+            .err()
+            .expect("original operation must refuse");
         assert!(error.msg.starts_with(b"can't use non-numeric string"));
         assert!(error.native_execution_refusal.is_none());
         assert!(error.native_access_refusal.is_none());
@@ -674,7 +682,7 @@ mod tests {
         assert_eq!(context.0.get_obj_result(), prior);
         assert_eq!(context.0.result_bytes(), b"PRIOR\0\xff");
         assert!(context.0.native_execution_refusal().is_none());
-        assert!(context.0.entered_native_operations.borrow().is_empty());
+        assert_eq!(context.0.entered_native_operation_count(), 0);
         crate::codegen_abi::tcl_runtime_set_current_interp(std::ptr::null_mut());
     }
     #[test]
@@ -711,7 +719,7 @@ mod tests {
             let forwarded = unary(&mut context, UnaryOp::Pos, original).unwrap();
             assert_eq!(forwarded.ptr(), pointer);
             assert_eq!(obj::double_of(forwarded.ptr()), 2.5);
-            assert!(context.0.entered_native_operations.borrow().is_empty());
+            assert_eq!(context.0.entered_native_operation_count(), 0);
             assert!(!context.0.host_refusal_pending());
         }
     }
@@ -756,7 +764,7 @@ mod tests {
                 assert_eq!(context.0.native_execution_refusal(), first);
                 assert_eq!(context.0.get_obj_result(), prior);
                 assert_eq!(context.0.result_bytes(), b"PRIOR\0\xff");
-                assert!(context.0.entered_native_operations.borrow().is_empty());
+                assert_eq!(context.0.entered_native_operation_count(), 0);
                 crate::codegen_abi::tcl_runtime_set_current_interp(std::ptr::null_mut());
             }
         }

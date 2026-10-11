@@ -519,7 +519,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         let mut setter = registry.get("set").unwrap().clone();
         setter.name = "selected_write";
-        setter.surface = Some(tcl_registry::model::SpecSurface::TCL90_PLUS);
+        setter.surface = Some(tcl_dialect::model::SpecSurface::TCL90_PLUS);
         registry.insert(setter);
         let registry = std::sync::Arc::new(registry);
         let source = "interp alias {} write {} selected_write held\nwrite VALUE\nputs $held";
