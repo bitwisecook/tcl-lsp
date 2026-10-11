@@ -1,0 +1,15 @@
+
+running 1 test
+test engine_abi::command_receipts::tests::counted_host_refusal_stays_outside_catch_and_nullable_guest_getters ... 
+thread 'engine_abi::command_receipts::tests::counted_host_refusal_stays_outside_catch_and_nullable_guest_getters' (1217198) panicked at src/engine_abi/command_receipts.rs:717:9:
+assertion failed: interp.var_get(b"::before").is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    engine_abi::command_receipts::tests::counted_host_refusal_stays_outside_catch_and_nullable_guest_getters
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 3.44s
+

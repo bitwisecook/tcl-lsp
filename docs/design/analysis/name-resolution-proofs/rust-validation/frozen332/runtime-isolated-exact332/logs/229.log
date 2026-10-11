@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_operation_currency::tests::legal_guest_command_policy_mutations_keep_original_context_and_scalar_issuer ... 
+thread 'interp::native_operation_currency::tests::legal_guest_command_policy_mutations_keep_original_context_and_scalar_issuer' (1218139) panicked at src/interp/native_operation_currency.rs:607:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_operation_currency::tests::legal_guest_command_policy_mutations_keep_original_context_and_scalar_issuer
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.90s
+

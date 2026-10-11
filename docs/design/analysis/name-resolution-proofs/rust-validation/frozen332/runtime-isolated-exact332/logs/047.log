@@ -1,0 +1,45 @@
+
+running 1 test
+test cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection ... 
+thread 'cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection' (1215413) panicked at src/interp/native_operation_currency.rs:175:9:
+assertion `left == right` failed
+  left: 3
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection' (1215413) panicked at src/interp/native_operation_currency.rs:175:9:
+assertion `left == right` failed
+  left: 2
+ right: 1
+stack backtrace:
+   0:     0x564c646bbb61 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x564c646d478a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x564c646c2b6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x564c64693906 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x564c646b17c1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x564c646b1aeb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x564c646939b2 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x564c6468c229 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x564c6469487d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x564c646d502c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x564c646d4ec3 - core[a9090a07a7fa7517]::panicking::assert_failed_inner
+  11:     0x564c646cf77d - core[a9090a07a7fa7517]::panicking::assert_failed::<usize, usize>
+  12:     0x564c631b99d2 - <tcl_runtime[a8162d2466741ade]::interp::native_operation_currency::NativeOperationScope as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  13:     0x564c638c89fd - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::native_operation_currency::NativeOperationScope>
+  14:     0x564c638c6f69 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::native_arguments::OriginalArguments>
+  15:     0x564c63a61afa - tcl_runtime[a8162d2466741ade]::cmd_array::array_cmd
+  16:     0x564c631886d6 - tcl_runtime[a8162d2466741ade]::cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection
+  17:     0x564c63113003 - tcl_runtime[a8162d2466741ade]::cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection::{closure#0}
+  18:     0x564c639530f6 - <tcl_runtime[a8162d2466741ade]::cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  19:     0x564c63ce216b - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  20:     0x564c63cef7d5 - test[de0ab365ed256f3]::run_test::{closure#0}
+  21:     0x564c63cea194 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  22:     0x564c63cf2932 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  23:     0x564c646baa69 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  24:     0x7f7bb9fc6b7b - <unknown>
+  25:     0x7f7bba0447f8 - <unknown>
+  26:                0x0 - <unknown>
+
+thread 'cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection' (1215413) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:233:5:
+panic in a destructor during cleanup
+thread caused non-unwinding panic. aborting.

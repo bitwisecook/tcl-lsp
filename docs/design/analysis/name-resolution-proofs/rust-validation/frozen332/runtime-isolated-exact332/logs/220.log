@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_error_code_projection_tests::event_host_cause_stops_later_callbacks_and_guest_stores ... 
+thread 'interp::native_error_code_projection_tests::event_host_cause_stops_later_callbacks_and_guest_stores' (1217874) panicked at src/interp/native_error_code_projection_tests.rs:294:51:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_error_code_projection_tests::event_host_cause_stops_later_callbacks_and_guest_stores
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 3.44s
+

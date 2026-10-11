@@ -18,6 +18,15 @@ use tcl_syntax::{
 mod tests;
 
 impl Interp {
+    /// Observe the actual holder through the existing namespace ledger.
+    pub(crate) fn native_namespace_token_at(
+        &self,
+        namespace: NsId,
+    ) -> Option<tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken> {
+        self.namespaces()
+            .namespace_name_token(self.native_command_interpreter, namespace)
+    }
+
     /// Read actual arena lifetime through the existing namespace descriptor.
     pub(crate) fn native_current_namespace_lifecycle(
         &self,

@@ -116,7 +116,16 @@ fn actual_valueops_primitives_keep_selected_cache_and_native_reference_roles() {
                     Ok(environment != "jim" || number == 17),
                 );
                 assert_eq!(unsafe { (*boolean.as_ptr()).ref_count }, 1);
-                assert!(!obj::has_string_rep(boolean.as_ptr()));
+                // Actual C84 SetBooleanFromAny reaches String before its
+                // cached numerical shortcut. Modern C/Jim cached integers do not.
+                assert_eq!(
+                    obj::has_string_rep(boolean.as_ptr()),
+                    environment == "tcl8.4",
+                    "{environment}/{number}",
+                );
+                if environment == "tcl8.4" {
+                    assert_eq!(obj::bytes_of(boolean.as_ptr()), number.to_string().as_bytes());
+                }
             }
             assert_eq!(unsafe { (*integer.as_ptr()).ref_count }, 1);
             assert_eq!(unsafe { (*double.as_ptr()).ref_count }, 1);

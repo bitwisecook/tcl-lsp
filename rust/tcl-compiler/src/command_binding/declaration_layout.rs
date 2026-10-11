@@ -5,6 +5,8 @@
 //! entered frames retain their independent identities; this never publishes compiler
 //! admission, successful dispatch, an entered body, or closed runtime effects.
 
+use super::original_name_value::OriginalWordSourcePurpose;
+
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -1814,13 +1816,44 @@ impl super::OriginalCompilationLookupAdvice {
         Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
         crate::registry_invocation::RegistryInvocationDecline,
     > {
+        OriginalDeclarationWordSource {
+            snapshot: &self.snapshot,
+            site: &self.site,
+            words: &self.words,
+            config: self.config,
+            dialect: self.dialect,
+        }
+        .metadata_context(registry, tokens, OriginalWordSourcePurpose::Invocation)
+    }
+}
+
+/// Common immutable declaration-vector join, independent of target selection.
+struct OriginalDeclarationWordSource<'a> {
+    snapshot: &'a Arc<super::SourceLookupSnapshot>,
+    site: &'a CommandAllocationSite,
+    words: &'a [crate::ir::WordExpr],
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+}
+
+impl<'a> OriginalDeclarationWordSource<'a> {
+    fn metadata_context(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+        purpose: OriginalWordSourcePurpose,
+    ) -> Result<
+        Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
         use crate::registry_invocation::{
             OwnedInvocationMetadataContext, RegistryInvocationDecline,
         };
         let refusal = RegistryInvocationDecline::IncompleteResolution;
-        let state = &self.snapshot.state;
-        if tokens.synthetic.is_some()
-            || tokens.words() != self.words.as_ref()
+        let snapshot: &'a super::SourceLookupSnapshot = self.snapshot.as_ref();
+        let state = &snapshot.state;
+        if !purpose.accepts(tokens)
+            || tokens.words() != self.words
             || state.current_source_origin.as_ref() != Some(&self.site.source)
             || state.baseline.registry_snapshot.as_ref()
                 != Some(&registry.snapshot().semantic_key())
@@ -1834,12 +1867,19 @@ impl super::OriginalCompilationLookupAdvice {
             .ok_or(refusal)?;
         let owner = &state.baseline.metadata_context;
         if let Some(binding) = tokens.source_binding.as_ref() {
-            if binding.invocation_site() != Some(&self.site)
-                || binding.original_lexer_config_for_tokens(tokens) != Some(self.config)
+            if binding.invocation_site() != Some(self.site)
+                || (if purpose == OriginalWordSourcePurpose::ArgumentEvaluation {
+                    binding.original_argument_lexer_config(tokens)
+                } else {
+                    binding.original_lexer_config_for_tokens(tokens)
+                }) != Some(self.config)
             {
                 return Err(refusal);
             }
             if let Some(point) = &binding.lookup_state {
+                if purpose == OriginalWordSourcePurpose::ArgumentEvaluation {
+                    return Err(refusal);
+                }
                 // An explicitly retained invalid reached owner cannot be
                 // repaired from an earlier declaration observation.
                 binding
@@ -1858,7 +1898,7 @@ impl super::OriginalCompilationLookupAdvice {
                 .ok_or(refusal)?;
                 if !rows.clone().all(|row| {
                     row.entry.owns_source(&self.site.source, self.site.offset)
-                        && row.words.as_ref() == self.words.as_ref()
+                        && row.words.as_ref() == self.words
                         && row.config == self.config
                         && row.snapshot.state.baseline.metadata_context == *owner
                 }) {
@@ -1881,6 +1921,50 @@ impl super::OriginalCompilationLookupAdvice {
 }
 
 impl super::SourceInvocationBinding {
+    /// Complete original argument metadata without selecting a declaration's
+    /// handler. Only the genuine argv-evaluation boundary shares this purpose.
+    pub(crate) fn original_declaration_argument_metadata(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+        if self.lookup_state.is_some() {
+            return None;
+        }
+        let site = self.invocation_site()?;
+        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let mut selected = None;
+        for row in rows {
+            if !row.entry.owns_source(&site.source, site.offset) {
+                return None;
+            }
+            let source = OriginalDeclarationWordSource {
+                snapshot: &row.snapshot,
+                site,
+                words: &row.words,
+                config: row.config,
+                dialect: row.snapshot.state.source_variables.invocation_dialect?,
+            };
+            let metadata = source
+                .metadata_context(
+                    registry,
+                    tokens,
+                    OriginalWordSourcePurpose::ArgumentEvaluation,
+                )
+                .ok()??;
+            metadata.permits_logical_source_names().then_some(())?;
+            if selected.is_some_and(
+                |prior: crate::registry_invocation::InvocationMetadataContext<'_>| {
+                    prior.source_analysis_input() != metadata.source_analysis_input()
+                },
+            ) {
+                return None;
+            }
+            selected = Some(metadata);
+        }
+        selected
+    }
+
     /// Positively Logical metadata from unanimous sealed original declaration
     /// observations. No reached point is manufactured. A present reached owner
     /// is handled by the separate checked point route and cannot fall back here.

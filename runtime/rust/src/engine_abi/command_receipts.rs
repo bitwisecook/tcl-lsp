@@ -511,11 +511,9 @@ mod tests {
                 interp.resolve_cmd_token("::café".as_bytes()),
                 Some(receipt.generation)
             );
-            assert!(
-                interp
-                    .resolve_cmd_token("::café\0retired suffix".as_bytes())
-                    .is_some()
-            );
+            assert!(interp
+                .resolve_cmd_token("::café\0retired suffix".as_bytes())
+                .is_some());
             let completion = interp.eval_completion("::café".as_bytes()).unwrap();
             assert_eq!(completion.result, b"ORIGINAL\0\xff");
             assert_eq!(receipt.owner, interp.native_callable_interpreter().owner);
@@ -714,8 +712,8 @@ mod tests {
             .eval_completion(b"set ::before 1; catch {refuse}; set ::after 1")
             .unwrap_err();
         assert_eq!(Some(failure.clone()), interp.native_execution_refusal());
-        assert!(interp.var_get(b"::before").is_some());
-        assert!(interp.var_get(b"::after").is_none());
+        assert!(crate::test_storage::global_scalar(&interp, b"before").is_some());
+        assert!(crate::test_storage::global_scalar(&interp, b"after").is_none());
         // SAFETY: original interpreter remains live; null is a transport placeholder.
         assert_eq!(unsafe { tcl_engine_host_refusal_pending(&mut interp) }, 1);
         assert!(

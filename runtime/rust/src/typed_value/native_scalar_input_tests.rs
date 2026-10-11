@@ -28,7 +28,9 @@ fn original_resident_scalar_input_keeps_selected_parsing_and_cached_no_string_pa
         ("tcl8.6", 8),
         ("tcl9.0", 10),
         ("tcl9.1", 10),
-        ("jim", 8),
+        // Pinned Jim jim_strtoull uses decimal for an unprefixed leading zero.
+        // The independently captured 0755 row is 755, not C's legacy octal.
+        ("jim", 10),
     ] {
         let interp = native(profile);
         let dialect = interp.native_invocation_dialect();

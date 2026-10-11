@@ -87,10 +87,10 @@ fn original_return_option_key_capacity_is_host_refusal_outside_guest_catch() {
     let expected = NativeExecutionError::ValueAccessRefusal(capacity());
     assert_eq!(interp.native_execution_refusal(), Some(expected.clone()));
     assert_eq!(interp.error_code_bytes_checked().unwrap_err(), expected);
-    assert!(interp.var_get(b"::reached").is_some());
-    assert!(interp.var_get(b"::caught").is_none());
-    assert!(interp.var_get(b"::options").is_none());
-    assert!(interp.var_get(b"::after").is_none());
+    assert!(crate::test_storage::global_scalar(&interp, b"reached").is_some());
+    assert!(crate::test_storage::global_scalar(&interp, b"caught").is_none());
+    assert!(crate::test_storage::global_scalar(&interp, b"options").is_none());
+    assert!(crate::test_storage::global_scalar(&interp, b"after").is_none());
     assert!(!obj::has_string_rep(original.as_ptr()));
     assert!(!crate::native_arithseries::has_element_cache(
         original.as_ptr()

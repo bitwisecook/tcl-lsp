@@ -10,6 +10,13 @@ use crate::{frame::VariableReceiver, obj, vars::TraceHome};
 impl Interp {
     pub(super) fn install_native_precision_trace(&mut self) {
         self.native_precision_cell.set(None);
+        if self
+            .native_invocation_dialect()
+            .native_bootstrap_protocol()
+            .is_none()
+        {
+            return;
+        }
         if let Some(name) = self
             .native_invocation_dialect()
             .double_string_policy()

@@ -281,3 +281,324 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod settlement_tests {
+    use super::Interp;
+    use crate::{frame::VarError, interp::Code, obj};
+    use std::{cell::Cell, rc::Rc};
+    use tcl_runtime_api::{
+        native_variable_trace::{
+            NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+        },
+        NativeExecutionError,
+    };
+    use tcl_syntax::raw_string::NativeValueAccessRefusal;
+
+    thread_local! {
+        static MODE: Cell<u8> = const { Cell::new(0) };
+        static CALLS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    fn original(profile: &str) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect(profile),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    fn change_and_restore(interp: &mut Interp) {
+        let original = interp.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("trace-settlement".into(), "1.0".into())];
+        interp.pin_context(&changed).unwrap();
+        interp.pin_context(&original).unwrap();
+    }
+
+    fn callback(interp: &mut Interp, mode: u8) -> Result<(), tcl_cmd_core::CmdError> {
+        CALLS.with(|calls| calls.set(calls.get() + 1));
+        interp.set_result_bytes(b"CALLBACK\0RESULT");
+        interp.set_return_state(0, Code::Error);
+        match mode {
+            1 => Err(tcl_cmd_core::CmdError::new("TRACE GUEST")),
+            2 => {
+                interp.refuse_host_command("first original trace callback");
+                Ok(())
+            }
+            3 => {
+                change_and_restore(interp);
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn script(interp: &mut Interp, _: &[*mut obj::TclObj]) -> Code {
+        let result = callback(interp, MODE.with(Cell::get));
+        match result {
+            Ok(()) => Code::Ok,
+            Err(error) => interp.report_cmd_error(error),
+        }
+    }
+
+    struct Direct(u8);
+    impl NativeVariableObserver<Interp> for Direct {
+        type Error = tcl_cmd_core::CmdError;
+        fn observe(
+            &self,
+            interp: &mut Interp,
+            access: NativeVariableTraceAccess<'_>,
+        ) -> Result<(), Self::Error> {
+            assert_eq!(access.operation, NativeVariableTraceOperation::Write);
+            assert_eq!(access.name1, b"x");
+            callback(interp, self.0)
+        }
+    }
+
+    fn register(interp: &mut Interp, script_callback: bool, mode: u8) {
+        if script_callback {
+            interp.register_builtin(b"original_trace_callback", script);
+            assert_eq!(
+                interp.eval_str(b"trace add variable x write original_trace_callback"),
+                Code::Ok,
+            );
+        } else {
+            let name = obj::Owned::fresh(obj::new_string_bytes(b"x"));
+            interp
+                .add_native_variable_observer(
+                    name.as_ptr(),
+                    &[NativeVariableTraceOperation::Write],
+                    Rc::new(Direct(mode)),
+                )
+                .unwrap();
+        }
+    }
+
+    fn assert_refusal(interp: &Interp, mode: u8) {
+        match mode {
+            2 => {
+                let Some(NativeExecutionError::HostCommandRefusal(first)) =
+                    interp.native_execution_refusal()
+                else {
+                    panic!("actual original trace Host cause was not retained");
+                };
+                assert_eq!(first.reason, "first original trace callback");
+            }
+            3 => assert_eq!(
+                interp.native_execution_refusal(),
+                Some(NativeExecutionError::ValueAccessRefusal(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation",
+                    ),
+                )),
+            ),
+            _ => assert!(interp.native_execution_refusal().is_none()),
+        }
+    }
+
+    #[test]
+    fn original_script_and_native_trace_settlement_separate_host_from_guest_failure() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real reached trace/result ownership, not an external callback-equivalence claim.
+        for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for script_callback in [false, true] {
+                for mode in 0..4 {
+                    let mut interp = original(profile);
+                    MODE.with(|value| value.set(mode));
+                    register(&mut interp, script_callback, mode);
+                    interp.set_result_bytes(b"PRIOR\0\xffRESULT");
+                    interp.set_return_state(3, Code::Other(7));
+                    let prior = obj::Owned::retain(interp.result_obj());
+                    let value = obj::Owned::fresh(obj::new_string_bytes(b"REACHED\0VALUE"));
+                    CALLS.with(|calls| calls.set(0));
+                    let scope = crate::interp::NativeOperationScope::enter(&interp).unwrap();
+                    let result = interp.var_set(b"x", value.as_ptr());
+                    assert_eq!(
+                        CALLS.with(Cell::get),
+                        1,
+                        "{profile}/{script_callback}/{mode}"
+                    );
+                    assert_eq!(
+                        result,
+                        if mode == 0 {
+                            Ok(())
+                        } else {
+                            Err(VarError::TraceError)
+                        }
+                    );
+                    // This direct storage projection starts no new name operation.
+                    assert_eq!(
+                        crate::vars::get(
+                            &interp.frames.borrow(),
+                            &interp.namespaces(),
+                            interp.current_ns(),
+                            b"x",
+                        ),
+                        Some(value.as_ptr()),
+                    );
+                    assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
+                    assert!(interp.active_var_trace_scopes.borrow().is_empty());
+                    assert_eq!(interp.entered_native_operation_count(), 1);
+                    assert_refusal(&interp, mode);
+                    if mode == 1 {
+                        assert_eq!(interp.result_bytes(), b"TRACE GUEST");
+                        assert_ne!(interp.result_obj(), prior.as_ptr());
+                        assert_eq!(unsafe { (*prior.as_ptr()).ref_count }, 1);
+                        assert_eq!(
+                            interp.traces.borrow().pending_err.as_deref(),
+                            Some(b"TRACE GUEST".as_slice())
+                        );
+                    } else {
+                        assert_eq!(interp.result_obj(), prior.as_ptr());
+                        assert_eq!(unsafe { (*prior.as_ptr()).ref_count }, 2);
+                        assert_eq!(interp.pending_return_level(), 3);
+                        assert_eq!(interp.pending_return_code(), Code::Other(7));
+                        assert!(interp.traces.borrow().pending_err.is_none());
+                    }
+                    if mode >= 2 {
+                        let first = interp.native_execution_refusal();
+                        assert!(interp.var_get(b"x").is_none());
+                        assert_eq!(interp.native_execution_refusal(), first);
+                    }
+                    drop(scope);
+                    assert_eq!(interp.entered_native_operation_count(), 0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn c84_host_trace_settlement_uses_only_the_selected_script_saved_state() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // C84 has Script SaveResult and no chain saved state; neither grants the other purpose.
+        for script_callback in [false, true] {
+            let mut interp = original("tcl8.4");
+            MODE.with(|value| value.set(2));
+            register(&mut interp, script_callback, 2);
+            interp.set_result_bytes(b"PRIOR\0\xffRESULT");
+            let prior = obj::Owned::retain(interp.result_obj());
+            let value = obj::Owned::fresh(obj::new_string_bytes(b"REACHED"));
+            CALLS.with(|calls| calls.set(0));
+            let scope = crate::interp::NativeOperationScope::enter(&interp).unwrap();
+            assert_eq!(
+                interp.var_set(b"x", value.as_ptr()),
+                Err(VarError::TraceError)
+            );
+            assert_eq!(CALLS.with(Cell::get), 1);
+            assert_refusal(&interp, 2);
+            assert!(interp.active_var_trace_scopes.borrow().is_empty());
+            if script_callback {
+                assert_eq!(interp.result_obj(), prior.as_ptr());
+                assert_eq!(unsafe { (*prior.as_ptr()).ref_count }, 2);
+            } else {
+                assert_ne!(interp.result_obj(), prior.as_ptr());
+                assert_eq!(interp.result_bytes(), b"CALLBACK\0RESULT");
+                assert_eq!(unsafe { (*prior.as_ptr()).ref_count }, 1);
+            }
+            assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
+            drop(scope);
+            assert_eq!(interp.entered_native_operation_count(), 0);
+        }
+    }
+
+    struct Retirement {
+        interpreter: crate::interp::WeakInterp,
+        calls: Rc<Cell<usize>>,
+        observed: Rc<Cell<*mut obj::TclObj>>,
+        mode: u8,
+    }
+
+    extern "C" fn retire(value: *mut obj::TclObj) {
+        // SAFETY: the actual extension owns this single boxed backing.
+        let state = unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut Retirement) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interp = state.interpreter.upgrade().unwrap();
+        state.observed.set(interp.result_obj());
+        assert!(interp.active_var_trace_scopes.borrow().is_empty());
+        assert_eq!(interp.entered_native_operation_count(), 1);
+        if state.mode == 2 {
+            interp.refuse_host_command("first original trace callback");
+        } else {
+            change_and_restore(&mut interp);
+        }
+    }
+
+    static CALLBACK_RESULT: obj::TclObjType = obj::TclObjType {
+        name: c"originalTraceSettlementResult".as_ptr(),
+        free_int_rep_proc: Some(retire),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+
+    struct RetirementObserver {
+        calls: Rc<Cell<usize>>,
+        observed: Rc<Cell<*mut obj::TclObj>>,
+        mode: u8,
+    }
+    impl NativeVariableObserver<Interp> for RetirementObserver {
+        type Error = tcl_cmd_core::CmdError;
+        fn observe(
+            &self,
+            interp: &mut Interp,
+            _: NativeVariableTraceAccess<'_>,
+        ) -> Result<(), Self::Error> {
+            let state = Box::new(Retirement {
+                interpreter: interp.downgrade(),
+                calls: self.calls.clone(),
+                observed: self.observed.clone(),
+                mode: self.mode,
+            });
+            let value = obj::alloc_typed(&CALLBACK_RESULT, Box::into_raw(state) as usize as u64);
+            // SAFETY: independently resident String; no getter is forced by the observer.
+            unsafe { obj::set_string_rep(value, b"CALLBACK") };
+            interp.set_result(value);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn original_trace_result_retirement_is_checked_after_saved_owner_restoration() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual extension free hook sees publication outside borrows and retains its first cause.
+        for mode in [2, 3] {
+            let mut interp = original("tcl8.6");
+            let calls = Rc::new(Cell::new(0));
+            let observed = Rc::new(Cell::new(std::ptr::null_mut()));
+            let name = obj::Owned::fresh(obj::new_string_bytes(b"x"));
+            interp
+                .add_native_variable_observer(
+                    name.as_ptr(),
+                    &[NativeVariableTraceOperation::Write],
+                    Rc::new(RetirementObserver {
+                        calls: calls.clone(),
+                        observed: observed.clone(),
+                        mode,
+                    }),
+                )
+                .unwrap();
+            interp.set_result_bytes(b"PRIOR");
+            let prior = obj::Owned::retain(interp.result_obj());
+            let value = obj::Owned::fresh(obj::new_string_bytes(b"REACHED"));
+            let scope = crate::interp::NativeOperationScope::enter(&interp).unwrap();
+            assert_eq!(
+                interp.var_set(b"x", value.as_ptr()),
+                Err(VarError::TraceError)
+            );
+            assert_eq!(calls.get(), 1);
+            assert_eq!(observed.get(), prior.as_ptr());
+            assert_eq!(interp.result_obj(), prior.as_ptr());
+            assert_eq!(unsafe { (*prior.as_ptr()).ref_count }, 2);
+            assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
+            assert_refusal(&interp, mode);
+            assert!(interp.traces.borrow().pending_err.is_none());
+            drop(scope);
+            assert_eq!(interp.entered_native_operation_count(), 0);
+        }
+    }
+}

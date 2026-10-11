@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_error_code_projection_tests::original_lazy_code_getter_failure_retains_capacity_and_no_guest_fallback ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.61s
+

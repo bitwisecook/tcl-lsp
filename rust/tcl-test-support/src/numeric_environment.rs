@@ -3,8 +3,8 @@
 
 use std::cell::Cell;
 use tcl_platform::{
-    DoubleNumericConversion, NumericEnvironment, NumericEnvironmentUnavailable, NumericErrorState,
-    UnsignedNumericConversion,
+    DoubleNumericConversion, NativeCIntegerAbi, NumericEnvironment, NumericEnvironmentUnavailable,
+    NumericErrorState, UnsignedNumericConversion,
 };
 
 /// Native calling-thread conversion owner used by fresh-conversion controls.
@@ -15,14 +15,31 @@ pub use tcl_host_c_abi::NativeNumericEnvironment;
 /// also proves that it did not silently execute a fresh numeric primitive.
 pub struct RecordedNumericEnvironment {
     state: Result<NumericErrorState, NumericEnvironmentUnavailable>,
+    abi: Option<NativeCIntegerAbi>,
     queries: Cell<usize>,
 }
 impl RecordedNumericEnvironment {
-    /// Supply independently recorded facts or explicit host unavailability.
+    /// Supply independently recorded state or explicit host unavailability.
+    /// The C integer layout remains unavailable without a separate receipt.
     #[must_use]
     pub const fn new(state: Result<NumericErrorState, NumericEnvironmentUnavailable>) -> Self {
         Self {
             state,
+            abi: None,
+            queries: Cell::new(0),
+        }
+    }
+    /// Retain an independently queried actual C integer-layout receipt.
+    /// This supplies no interpreter/object or primitive recipe authority, and
+    /// still refuses every fresh conversion and reset.
+    #[must_use]
+    pub const fn with_c_integer_abi(
+        state: Result<NumericErrorState, NumericEnvironmentUnavailable>,
+        abi: NativeCIntegerAbi,
+    ) -> Self {
+        Self {
+            state,
+            abi: Some(abi),
             queries: Cell::new(0),
         }
     }
@@ -33,6 +50,9 @@ impl RecordedNumericEnvironment {
     }
 }
 impl NumericEnvironment for RecordedNumericEnvironment {
+    fn c_integer_abi(&self) -> Result<NativeCIntegerAbi, NumericEnvironmentUnavailable> {
+        self.abi.ok_or(NumericEnvironmentUnavailable::Target)
+    }
     fn state(&self) -> Result<NumericErrorState, NumericEnvironmentUnavailable> {
         self.queries.set(self.queries.get() + 1);
         self.state

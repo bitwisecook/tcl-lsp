@@ -45,6 +45,8 @@
 mod native_context;
 pub(crate) mod native_method_cache;
 mod native_object_info;
+#[cfg(test)]
+mod original_publication_tests;
 pub(crate) mod native_variables;
 
 use tcl_registry::native_tcloo_method_definition::{
@@ -324,6 +326,77 @@ struct ObjectPublication {
     report: Vec<u8>,
 }
 
+/// Continuation of the actual allocated object and its instance namespace.
+/// It observes existing owners without granting command or namespace authority.
+struct OriginalObjectPublication {
+    target: native_context::OriginalOoTarget,
+    object: OoId,
+    namespace: NsId,
+    holder: tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken,
+}
+
+impl OriginalObjectPublication {
+    fn capture(
+        interpreter: &mut Interp,
+        object: OoId,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<Self, tcl_cmd_core::CmdError> {
+        currency.ensure_current_or_refuse()?;
+        let class = interpreter.oo.borrow().classes.contains_key(&object);
+        let target = native_context::OriginalOoTarget::capture(interpreter, object, class)?;
+        let namespace = interpreter.oo.borrow().objects[&object].var_ns;
+        let holder = interpreter
+            .native_namespace_token_at(namespace)
+            .ok_or_else(|| {
+                tcl_cmd_core::CmdError::from(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original OO publication namespace",
+                    ),
+                )
+            })?;
+        let original = Self {
+            target,
+            object,
+            namespace,
+            holder,
+        };
+        original.check(interpreter, currency)?;
+        Ok(original)
+    }
+
+    fn check(
+        &self,
+        interpreter: &mut Interp,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        currency.ensure_current_or_refuse()?;
+        self.target.check(interpreter)?;
+        let same_namespace = interpreter
+            .oo
+            .borrow()
+            .objects
+            .get(&self.object)
+            .is_some_and(|owner| owner.var_ns == self.namespace);
+        let live_holder = {
+            let namespaces = interpreter.namespaces();
+            namespaces.owns_namespace_name_token(&self.holder)
+                && self.holder.lifecycle()
+                    == tcl_syntax::native_namespace_name::NativeNamespaceLifecycle::Live
+                && namespaces.namespace_is_live(self.namespace)
+        };
+        if same_namespace && live_holder {
+            Ok(())
+        } else {
+            let refusal =
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original OO publication namespace retired",
+                );
+            interpreter.refuse_native_access(refusal.clone());
+            Err(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(refusal).into())
+        }
+    }
+}
+
 struct FoundationMethodReports {
     constructor: obj::Owned,
     destructor: obj::Owned,
@@ -523,6 +596,13 @@ impl OoState {
 
 /// Register the `oo::*` commands and the definition / context commands.
 pub fn install(interp: &mut Interp) {
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp) {
+        Ok(scope) => scope,
+        Err(error) => {
+            interp.report_cmd_error(error.into());
+            return;
+        }
+    };
     let reports = NativeTclooMethodReportProtocol::select(interp.native_invocation_dialect())
         .map(FoundationMethodReports::new);
     interp.oo.borrow_mut().method_reports = reports;
@@ -590,11 +670,25 @@ pub fn install(interp: &mut Interp) {
             .borrow_mut()
             .objects
             .insert(id, Object::new(class_root, var_ns, creation_id));
+        let original = match OriginalObjectPublication::capture(interp, id, scope.currency()) {
+            Ok(original) => original,
+            Err(error) => {
+                interp.oo_refused_publication(id, error);
+                return;
+            }
+        };
         interp.ns_register(fqn, Command::OoObject(id));
+        if let Err(error) = original.check(interp, scope.currency()) {
+            interp.oo_refused_publication(id, error);
+            return;
+        }
         // Engine-installed, not script-created: the registry dates these
         // (TCL86_PLUS) and the availability gate must honour that.
         interp.declare_registry_object_root(id, fqn);
-        interp.oo_register_my(id);
+        if let Err(error) = interp.oo_register_my(id) {
+            interp.oo_refused_publication(id, error);
+            return;
+        }
     }
     // `oo::object` has a built-in (unexported) `unknown` method — the standard
     // "unknown method" error, and the terminus of the `unknown` call chain.
@@ -2191,13 +2285,21 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if let Some(cls) = src_cls {
             interp.oo.borrow_mut().classes.insert(dst_id, cls);
         }
+        let original = match OriginalObjectPublication::capture(interp, dst_id, originals.currency()) {
+            Ok(original) => original,
+            Err(error) => return interp.oo_refused_publication(dst_id, error),
+        };
         interp.bind_command_replacement(
             publication.namespace,
             &publication.simple,
             Command::OoObject(dst_id),
         );
-        oo_original_check!(interp, originals);
-        interp.oo_register_my(dst_id);
+        let continued = original
+            .check(interp, originals.currency())
+            .and_then(|()| interp.oo_register_my(dst_id));
+        if let Err(error) = continued {
+            return interp.oo_refused_publication(dst_id, error);
+        }
         // Run the `<cloned>` method (a user override first, then oo::object's native
         // implementation via `next`) to copy the instance namespace's procedures
         // and variables from the source (oo-15.6, oo-15.8).
@@ -3489,11 +3591,25 @@ pub(crate) fn object_namespace_command_names() -> impl Iterator<Item = &'static 
 
 impl Interp {
     /// Register private dispatchers in the actual instance namespace.
-    pub(crate) fn oo_register_my(&mut self, object: OoId) {
-        let namespace = self.oo.borrow().objects[&object].var_ns;
+    pub(crate) fn oo_register_my(&mut self, object: OoId) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let original = OriginalObjectPublication::capture(self, object, scope.currency())?;
         for (name, binding) in OBJECT_NAMESPACE_COMMANDS {
-            self.bind_command_replacement(namespace, name.as_bytes(), binding(object));
+            original.check(self, scope.currency())?;
+            self.bind_command_replacement(original.namespace, name.as_bytes(), binding(object));
+            original.check(self, scope.currency())?;
         }
+        Ok(())
+    }
+
+    /// Retire the allocated partial object without dispatching later creation work.
+    fn oo_refused_publication(&mut self, object: OoId, error: tcl_cmd_core::CmdError) -> Code {
+        let code = self.report_cmd_error(error);
+        let snapshot = self.error_snapshot();
+        self.oo_destroy_bg(object);
+        self.error_restore(snapshot);
+        let _ = self.check_entered_native_operation();
+        code
     }
 
     /// The definition target at the actual selected variable activation.
@@ -4974,6 +5090,10 @@ impl Interp {
         publication: ObjectPublication,
         script: Option<*mut TclObj>,
     ) -> Code {
+        let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
         let fqn = &publication.report;
         let object = self.oo.borrow_mut().allocate(fqn.to_vec());
         let (object_root, class_root) = {
@@ -5001,12 +5121,21 @@ impl Interp {
                 creation_id,
             ),
         );
+        let original = match OriginalObjectPublication::capture(self, object, scope.currency()) {
+            Ok(original) => original,
+            Err(error) => return self.oo_refused_publication(object, error),
+        };
         self.bind_command_replacement(
             publication.namespace,
             &publication.simple,
             Command::OoObject(object),
         );
-        self.oo_register_my(object);
+        let continued = original
+            .check(self, scope.currency())
+            .and_then(|()| self.oo_register_my(object));
+        if let Err(error) = continued {
+            return self.oo_refused_publication(object, error);
+        }
         if let Some(script) = script {
             let code = self.oo_define_body(DefTarget::Class(object), script, None);
             if code != Code::Ok {
@@ -5484,6 +5613,10 @@ impl Interp {
         args: &[*mut TclObj],
         invocation: MethodInvocation,
     ) -> Code {
+        let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
         let anonymous = publication.is_none();
         let publication = match publication {
             Some(publication) => publication,
@@ -5547,12 +5680,21 @@ impl Interp {
                 },
             );
         }
+        let original = match OriginalObjectPublication::capture(self, object, scope.currency()) {
+            Ok(original) => original,
+            Err(error) => return self.oo_refused_publication(object, error),
+        };
         self.bind_command_replacement(
             publication.namespace,
             &publication.simple,
             Command::OoObject(object),
         );
-        self.oo_register_my(object);
+        let continued = original
+            .check(self, scope.currency())
+            .and_then(|()| self.oo_register_my(object));
+        if let Err(error) = continued {
+            return self.oo_refused_publication(object, error);
+        }
 
         // Constructor dispatch runs along the *class* MRO (objects can't define
         // constructors), with the object as `self`; the chain is the

@@ -580,23 +580,50 @@ pub mod bootstrap {
     /// Capture every host-derived bootstrap value for one interpreter engine.
     #[must_use]
     pub fn snapshot(host: &dyn Host, runtime: &str, runtime_version: &str) -> Snapshot {
+        match snapshot_checked(host, runtime, runtime_version, || {
+            Ok::<_, std::convert::Infallible>(())
+        }) {
+            Ok(snapshot) => snapshot,
+            Err(never) => match never {},
+        }
+    }
+
+    /// Capture bootstrap values while checking the caller's original context
+    /// before and after each reached Host callback. A check grants no Host
+    /// capability or variable publication authority.
+    pub fn snapshot_checked<E>(
+        host: &dyn Host,
+        runtime: &str,
+        runtime_version: &str,
+        mut check: impl FnMut() -> Result<(), E>,
+    ) -> Result<Snapshot, E> {
         use backend::key;
 
-        let detected = |name: &str, compiled: &str| -> String {
-            backend::override_env_var(name)
-                .and_then(|variable| host.env().get(variable))
-                .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| compiled.to_string())
+        let get = |name: &str, check: &mut dyn FnMut() -> Result<(), E>| {
+            check()?;
+            let environment = host.env();
+            check()?;
+            let value = environment.get(name);
+            check()?;
+            Ok(value)
         };
-        let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec());
-        let interface_level = detected(key::WASI, backend::compiled_wasi_spec());
-        let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host());
-        let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec());
-        let user = host
-            .env()
-            .get("USER")
-            .or_else(|| host.env().get("USERNAME"))
-            .unwrap_or_default();
+        let mut detected = |name: &str, compiled: &str| -> Result<String, E> {
+            let value = match backend::override_env_var(name) {
+                Some(variable) => get(variable, &mut check)?,
+                None => None,
+            };
+            Ok(value
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| compiled.to_string()))
+        };
+        let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec())?;
+        let interface_level = detected(key::WASI, backend::compiled_wasi_spec())?;
+        let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host())?;
+        let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec())?;
+        let user = match get("USER", &mut check)? {
+            Some(user) => user,
+            None => get("USERNAME", &mut check)?.unwrap_or_default(),
+        };
         let values = Values {
             os_version: "",
             machine: std::env::consts::ARCH,
@@ -613,14 +640,18 @@ pub mod bootstrap {
             .copied()
             .map(|entry| (entry.name(), entry.value(&values).to_string()))
             .collect();
-        let mut environment = host.env().vars();
+        check()?;
+        let host_environment = host.env();
+        check()?;
+        let mut environment = host_environment.vars();
+        check()?;
         environment.sort_unstable();
-        let tcl_library = host.env().get("TCL_LIBRARY").unwrap_or_default();
-        Snapshot {
+        let tcl_library = get("TCL_LIBRARY", &mut check)?.unwrap_or_default();
+        Ok(Snapshot {
             platform,
             environment,
             tcl_library,
-        }
+        })
     }
 
     /// Keys removed when an interpreter becomes safe, derived from [`entries`].

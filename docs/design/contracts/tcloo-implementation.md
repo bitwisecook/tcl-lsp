@@ -490,3 +490,15 @@ Host/context callback controls establish this software transport only; the
 fixed original C9.1 property observer rows establish their separately matched
 incoming, hash-key and cached-List reference stages. Older C cores and Jim do
 not gain this property worker from those observations.
+
+### Original object publication
+
+Runtime object publication retains the actual allocated OO target and its
+instance namespace token before binding the public command. The fallible
+private-dispatcher installer checks that same target, namespace incarnation and
+entered operation after each reached replacement callback. Refusal stops later
+private bindings, constructor, definition and cloned-method work. Allocated
+partial objects still pass through mandatory teardown, preserving the first
+structured cause and reached callback effects. Foundation installation stops
+its remaining OO stages when publication refuses; currency conveys no object,
+namespace or creation-purpose permission.

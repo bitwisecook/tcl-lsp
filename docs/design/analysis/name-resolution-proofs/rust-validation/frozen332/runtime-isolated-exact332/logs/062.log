@@ -1,0 +1,65 @@
+
+running 1 test
+test cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication ... 
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication' (1215606) panicked at src/cmd_namespace.rs:6335:61:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication' (1215606) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication' (1215606) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+stack backtrace:
+   0:     0x559e04201b61 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x559e0421a78a - core[a9090a07a7fa7517]::fmt::write
+   2:     0x559e04208b6c - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x559e041d9906 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x559e041f77c1 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x559e041f7aeb - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x559e041d99b2 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x559e041d2229 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x559e041da87d - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x559e0421b02c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x559e041f9abf - std[c29fa2d9dbea2b0e]::thread::local::panic_access_error
+  11:     0x559e0309c81e - <std[c29fa2d9dbea2b0e]::thread::local::LocalKey<core[a9090a07a7fa7517]::cell::RefCell<std[c29fa2d9dbea2b0e]::collections::hash::map::HashMap<usize, tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>>>::with::<tcl_runtime[a8162d2466741ade]::obj::revoke_script_location::{closure#0}, core[a9090a07a7fa7517]::option::Option<tcl_runtime_api[b69f25f6352520e5]::script_source_location::ScriptSourceLocation<core[a9090a07a7fa7517]::option::Option<alloc[12ca63220423dfc2]::rc::Rc<[u8]>>>>>
+  12:     0x559e037996bc - tcl_runtime[a8162d2466741ade]::obj::revoke_script_location
+  13:     0x559e0379ea0e - tcl_runtime[a8162d2466741ade]::obj::free_obj
+  14:     0x559e037946bd - tcl_runtime[a8162d2466741ade]::obj::decr_ref_count
+  15:     0x559e02fdf7a5 - <tcl_runtime[a8162d2466741ade]::frame::Var>::release
+  16:     0x559e03075704 - <tcl_runtime[a8162d2466741ade]::frame::CellContents as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  17:     0x559e03406f6d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::CellContents>
+  18:     0x559e033eeb96 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>
+  19:     0x559e033f016a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>
+  20:     0x559e02e43444 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>>::drop_slow
+  21:     0x559e02ea6a84 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  22:     0x559e033f6366 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[a8162d2466741ade]::frame::CellContents>>>
+  23:     0x559e034072ef - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::Cell>
+  24:     0x559e034125a3 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[a8162d2466741ade]::frame::Cell]>
+  25:     0x559e033b6011 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::Cell> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  26:     0x559e033f7b3d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::Cell>>
+  27:     0x559e034077ef - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::frame::VarTable>
+  28:     0x559e03412746 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[a8162d2466741ade]::frame::VarTable]>
+  29:     0x559e033b6071 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::VarTable> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  30:     0x559e033f7c2d - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::VarTable>>
+  31:     0x559e0341618b - core[a9090a07a7fa7517]::ptr::drop_glue::<(alloc[12ca63220423dfc2]::vec::Vec<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::obj::Owned>>, alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::VarTable>)>
+  32:     0x559e0362f986 - core[a9090a07a7fa7517]::mem::drop::<(alloc[12ca63220423dfc2]::vec::Vec<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[a8162d2466741ade]::obj::Owned>>, alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[a8162d2466741ade]::frame::VarTable>)>
+  33:     0x559e02c05010 - <tcl_runtime[a8162d2466741ade]::interp::Interp as tcl_runtime_api[b69f25f6352520e5]::jim_interpreter::JimInterpreterTeardown>::release_frames
+  34:     0x559e02f94b3e - tcl_runtime_api[b69f25f6352520e5]::jim_interpreter::teardown_jim_interpreter::<tcl_runtime[a8162d2466741ade]::interp::Interp>
+  35:     0x559e02aa9370 - <tcl_runtime[a8162d2466741ade]::interp::Interp>::retire_jim_interpreter
+  36:     0x559e02bfce29 - <tcl_runtime[a8162d2466741ade]::interp::Interp as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  37:     0x559e03409a3d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[a8162d2466741ade]::interp::Interp>
+  38:     0x559e033f23a8 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>
+  39:     0x559e033ee89e - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  40:     0x559e033efc9a - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  41:     0x559e02c31bfd - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}
+  42:     0x559e0363b1d9 - std[c29fa2d9dbea2b0e]::sys::thread_local::abort_on_dtor_unwind::<std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>::{closure#0}>
+  43:     0x559e02c30a8d - std[c29fa2d9dbea2b0e]::sys::thread_local::native::eager::destroy::<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[a8162d2466741ade]::interp::Interp>>>
+  44:     0x7f32de16cf1f - __call_tls_dtors
+  45:     0x7f32de1bda49 - <unknown>
+  46:     0x7f32de23b7f8 - <unknown>
+  47:                0x0 - <unknown>
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_retains_reached_list_getter_first_cause_before_publication' (1215606) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:233:5:
+panic in a destructor during cleanup
+thread caused non-unwinding panic. aborting.

@@ -236,11 +236,11 @@ fn array_read_trace_host_cause_cannot_become_a_skipped_guest_element() {
         "reached array read trace"
     );
     assert_eq!(
-        super::obj_bytes(interp.var_get(b"prior").unwrap()),
+        super::obj_bytes(crate::test_storage::global_scalar(&interp, b"prior").unwrap()),
         b"BEFORE"
     );
     for name in [b"captured".as_slice(), b"options", b"after"] {
-        assert!(!interp.var_exists(name));
+        assert!(crate::test_storage::global_scalar(&interp, name).is_none());
     }
 }
 
@@ -259,7 +259,7 @@ fn try_error_code_getter_refusal_skips_handler_finally_and_later_stores() {
     assert_eq!(code, Code::Error);
     assert_eq!(interp.native_execution_refusal(), Some(capacity_failure()));
     assert_eq!(
-        super::obj_bytes(interp.var_get(b"prior").unwrap()),
+        super::obj_bytes(crate::test_storage::global_scalar(&interp, b"prior").unwrap()),
         b"BEFORE"
     );
     for name in [
@@ -269,7 +269,7 @@ fn try_error_code_getter_refusal_skips_handler_finally_and_later_stores() {
         b"final",
         b"after",
     ] {
-        assert!(!interp.var_exists(name));
+        assert!(crate::test_storage::global_scalar(&interp, name).is_none());
     }
 }
 
@@ -291,12 +291,12 @@ fn event_host_cause_stops_later_callbacks_and_guest_stores() {
     };
     assert_eq!(metadata.reason, "first event's original host cause");
     assert_eq!(
-        super::obj_bytes(interp.var_get(b"prior").unwrap()),
+        super::obj_bytes(crate::test_storage::global_scalar(&interp, b"prior").unwrap()),
         b"BEFORE"
     );
-    assert!(!interp.var_exists(b"later"));
-    assert!(!interp.var_exists(b"after"));
+    assert!(crate::test_storage::global_scalar(&interp, b"later").is_none());
+    assert!(crate::test_storage::global_scalar(&interp, b"after").is_none());
     interp.process_bg_errors();
     assert_eq!(interp.native_execution_refusal(), Some(cause));
-    assert!(!interp.var_exists(b"later"));
+    assert!(crate::test_storage::global_scalar(&interp, b"later").is_none());
 }

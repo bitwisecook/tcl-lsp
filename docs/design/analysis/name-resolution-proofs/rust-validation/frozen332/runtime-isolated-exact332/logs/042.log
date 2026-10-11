@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_alias::original_operand_tests::original_interpreter_options_and_names_keep_actual_read_order_and_refusal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.12s
+

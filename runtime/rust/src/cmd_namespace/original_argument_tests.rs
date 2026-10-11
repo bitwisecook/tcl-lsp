@@ -3,6 +3,7 @@
 
 use super::*;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 pub(crate) const ORIGINALS: &[(&str, &str)] = &[
     ("tcl8.4", include_str!("../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.4.20/execute.stdout")),
@@ -173,6 +174,61 @@ pub(crate) fn compare_worker(interpreter: &mut Interp, code: Code, capture: &str
     );
     compare_events_at(capture, case, "worker");
 }
+/// Clear fixture TLS while the actual interpreter/object owners still exist,
+/// including when an assertion unwinds. This does not reset a native first cause.
+pub(crate) struct FixtureCleanup(pub fn());
+impl Drop for FixtureCleanup {
+    fn drop(&mut self) {
+        (self.0)();
+    }
+}
+
+/// The same Rc holder owned by the reached Jim namespace frame. Cloning it
+/// keeps its actual NsId live without another native object reference.
+pub(crate) struct JimFixtureNamespace {
+    pub(crate) token: NsId,
+    pub(crate) owner: Rc<obj::Owned>,
+}
+thread_local! {
+    static CAPTURED_NAMESPACE: RefCell<Option<JimFixtureNamespace>> = const { RefCell::new(None) };
+}
+fn capture_namespace(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+    let token = interpreter.current_ns();
+    let owner = interpreter
+        .namespaces()
+        .jim_namespace_original_owner(token)
+        .expect("actual reached Jim namespace frame holder");
+    CAPTURED_NAMESPACE.with(|captured| {
+        assert!(captured.borrow().is_none());
+        *captured.borrow_mut() = Some(JimFixtureNamespace { token, owner });
+    });
+    Code::Ok
+}
+pub(crate) fn jim_fixture_namespace(interpreter: &mut Interp, name: &[u8]) -> JimFixtureNamespace {
+    assert!(interpreter
+        .native_invocation_dialect()
+        .native_name_protocol()
+        .unwrap()
+        .is_jim084());
+    CAPTURED_NAMESPACE.with(|captured| captured.borrow_mut().take());
+    let _cleanup = FixtureCleanup(|| {
+        CAPTURED_NAMESPACE.with(|captured| captured.borrow_mut().take());
+    });
+    let prior = obj::Owned::retain(interpreter.get_obj_result());
+    interpreter.register_builtin(b"consumerFixtureCurrentNamespace", capture_namespace);
+    let namespace = text(name);
+    let body = text(b"consumerFixtureCurrentNamespace");
+    assert_eq!(
+        namespace_call(interpreter, b"eval", &[&namespace, &body]),
+        Code::Ok
+    );
+    let captured = CAPTURED_NAMESPACE
+        .with(|captured| captured.borrow_mut().take())
+        .expect("namespace eval reached the actual fixture callback");
+    interpreter.set_result(prior.as_ptr());
+    captured
+}
+
 fn namespace_call(interpreter: &mut Interp, sub: &[u8], inputs: &[&obj::Owned]) -> Code {
     let head = text(b"namespace");
     let sub = text(sub);
@@ -210,7 +266,15 @@ fn compare_namespace_patterns(engine: &str, capture: &str) -> usize {
         reset();
         let mut interpreter = instance(engine);
         assert_eq!(interpreter.eval_str(b"namespace eval ::s {proc a {} {}; proc b {} {}; namespace export *}; namespace eval ::d {}; set READY READY"), Code::Ok);
-        let current = interpreter.find_namespace_id(b"::d").unwrap();
+        let _cleanup = FixtureCleanup(|| {
+            crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
+        });
+        let jim_namespace =
+            (engine == "jim").then(|| jim_fixture_namespace(&mut interpreter, b"::d"));
+        let current = jim_namespace.as_ref().map_or_else(
+            || interpreter.find_namespace_id(b"::d").unwrap(),
+            |original| original.token,
+        );
         interpreter.set_current_ns(current);
         if matches!(case, 0 | 1 | 2 | 3 | 4 | 12 | 14) {
             assert_eq!(

@@ -109,6 +109,50 @@ pub(crate) fn checked_lifted_calls(
     (!collected.incomplete).then_some(collected.calls)
 }
 
+/// Complete substitutions of the written argv alone. This source walk does
+/// not enter the enclosing command's braced expression or script operands.
+/// Parent configuration stays unchanged; each extracted child uses its nested
+/// parser purpose in the existing collector.
+pub(crate) fn checked_argument_lifted_calls(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<LiftedCall>> {
+    let mut collected = LiftedCallCollection::default();
+    collect_command_words(tokens.words(), config, None, 0, &mut collected);
+    if collected.incomplete {
+        return None;
+    }
+    for call in &mut collected.calls {
+        let child = call.tokens.as_mut()?;
+        child.inherit_nested_bindings(tokens);
+        call.words = Some(child.clone());
+    }
+    Some(collected.calls)
+}
+
+/// Source-only original argv inventory under the same retained input. Every
+/// child matches its original vector/config/site; this supplies no dispatch.
+pub(crate) fn checked_original_argument_lifted_calls(
+    tokens: &CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+) -> Option<Vec<LiftedCall>> {
+    let input = metadata.source_analysis_input()?;
+    metadata.matches_registry(registry).then_some(())?;
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_argument_metadata_for_input(tokens, input, registry)?;
+    let config = binding.original_argument_lexer_config(tokens)?;
+    let calls = checked_argument_lifted_calls(tokens, config)?;
+    for call in &calls {
+        let child = call.tokens.as_ref()?;
+        child
+            .source_binding
+            .as_ref()?
+            .original_argument_metadata_for_input(child, input, registry)?;
+    }
+    Some(calls)
+}
+
 /// Complete original nested-call geometry under the retained source input.
 /// Selected expression roles extend lexical substitutions; every child keeps
 /// its original sidecar. Missing source/config/roles or incomplete recovery

@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_command_names::original_key_construction_tests::original_jim_qualification_keeps_namespace_owner_and_stops_after_refused_getter ... 
+thread 'interp::native_command_names::original_key_construction_tests::original_jim_qualification_keeps_namespace_owner_and_stops_after_refused_getter' (1217761) panicked at src/interp/native_command_names.rs:979:18:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_command_names::original_key_construction_tests::original_jim_qualification_keeps_namespace_owner_and_stops_after_refused_getter
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.36s
+

@@ -91,6 +91,8 @@ mod native_script;
 mod native_source;
 mod native_substitution;
 mod return_options;
+#[cfg(test)]
+mod test_storage;
 // `lseq` arithmetic-series generator; needs the numeric tower (doubles / expr).
 #[cfg(have_tommath)]
 pub mod cmd_lseq;

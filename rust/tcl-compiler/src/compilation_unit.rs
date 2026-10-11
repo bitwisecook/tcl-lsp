@@ -4228,7 +4228,7 @@ fn conditional_function_source_entry(
     let mut entry = crate::var_resolve::ResolveContext::for_frame(
         crate::var_resolve::VariableFrameKind::Unknown,
         crate::var_resolve::BindingIdentity::Bound,
-        input.map(crate::command_binding::source_analysis_entry::source_input_dialect),
+        input.map(crate::command_binding::source_input_dialect),
     );
     entry.namespace_known = false;
     if let Some(namespace) = cfg.namespace_context.as_deref() {
@@ -4293,23 +4293,15 @@ pub(crate) fn function_source_entry(
 /// incremental/db build derive an *identical* set from the same source — the
 /// precondition for the two paths agreeing on constructor (`Foo new`) typing.
 /// The signature result is a descriptive source inventory, independent of
-/// Native allocation or execution. The stock-family scheduling probe below
-/// does not certify the absence of custom or dynamically selected definers.
+/// Native allocation or execution. The actual selected Registry grammar, not
+/// a spelling probe, determines every recorded declaration.
 fn collect_known_classes(
     source: &str,
     module: &IrModule,
     registry: &CommandRegistry,
 ) -> Option<HashSet<String>> {
-    // Cheap gate before the full signature scan.  A class is created by
-    // `oo::class` / `itcl::class` (both contain "class") **or** by another stock
-    // `TclOO` metaclass — `oo::configurable` / `oo::abstract` / `oo::singleton`,
-    // none of which contain the word "class" — so also admit any `oo::` head
-    // — skipping one would leave its `[Class new]` untyped.  snit definers
-    // (`snit::type` / `snit::widget` /
-    // `snit::widgetadaptor`) contain neither "class" nor "oo::", so admit
-    // `snit::` too, or a pure-snit file's `[Name create obj]` stays untyped.
-    if !source.contains("class") && !source.contains("oo::") && !source.contains("snit::") {
-        return Some(HashSet::new());
+    if module.source != tcl_lexer::SourceImage::document(source) {
+        return None;
     }
     let signatures = if let Some(retained) = module.retained_source_bindings.as_deref() {
         let Some(bindings) = retained.positioned_for_module(module, registry) else {
@@ -7677,6 +7669,174 @@ mod conditional_original_body_tests {
             changed
                 .conditional_original_body_unit(context.commands(), &changed.top_level, tokens, 0)
                 .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod selected_class_roster_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+
+    fn context(class_grammar: bool) -> Arc<tcl_registry::model::ContextRegistry> {
+        let mut store = CommandRegistry::build_default();
+        let spec = if class_grammar {
+            store.get("oo::class").unwrap().clone()
+        } else {
+            tcl_registry::CommandSpec::DEFAULT
+        };
+        store.insert(tcl_registry::CommandSpec {
+            name: "forge",
+            ..spec
+        });
+        Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl")
+                .with_command_store(Arc::new(store)),
+        )
+    }
+
+    fn unit(source: &str, context: &Arc<tcl_registry::model::ContextRegistry>) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(context), config);
+        CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+    }
+
+    #[test]
+    fn genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let context = context(true);
+        for source in [
+            "forge create Empty {}",
+            "rename forge moved; moved create Empty {}",
+            "interp alias {} build {} forge; build create Empty {}",
+            "namespace eval ns {forge create Empty {}}",
+        ] {
+            assert!(
+                !source.contains("class") && !source.contains("oo::") && !source.contains("snit::")
+            );
+            let unit = unit(source, &context);
+            let expected = if source.starts_with("namespace") {
+                "::ns::Empty"
+            } else {
+                "::Empty"
+            };
+            let facts = unit
+                .source_class_facts
+                .as_ref()
+                .expect("genuine produced roster");
+            assert!(
+                facts
+                    .for_module(&unit.ir_module, context.commands())
+                    .unwrap()
+                    .contains(expected),
+                "{source}"
+            );
+            assert!(
+                unit.methods.is_empty(),
+                "the empty class has no method-derived roster"
+            );
+            let actual =
+                collect_known_classes(source, &unit.ir_module, context.commands()).unwrap();
+            let bindings = unit
+                .ir_module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .positioned_for_module(&unit.ir_module, context.commands())
+                .unwrap();
+            let expected_scan: HashSet<_> =
+                crate::signature_scan::extract_signatures_with_original_bindings(
+                    source,
+                    unit.ir_module.lexer_config,
+                    context.commands(),
+                    bindings,
+                )
+                .class_declarations
+                .into_iter()
+                .filter_map(|declaration| declaration.source_spelling())
+                .collect();
+            assert_eq!(actual, expected_scan);
+        }
+    }
+
+    #[test]
+    fn selected_roster_preserves_changed_definition_and_captured_prefix_refusals() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let selected = context(true);
+        for source in [
+            "proc forge args {}; forge create Empty {}",
+            "rename forge {}; forge create Empty {}",
+            "interp alias {} build {} forge create; build Empty {}",
+        ] {
+            let unit = unit(source, &selected);
+            assert!(
+                !collect_known_classes(source, &unit.ir_module, selected.commands())
+                    .unwrap()
+                    .contains("::Empty"),
+                "{source}"
+            );
+        }
+        let other = context(false);
+        let source = "forge create Empty {}";
+        let unit = unit(source, &other);
+        assert!(
+            collect_known_classes(source, &unit.ir_module, other.commands())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn class_source_producer_withdraws_foreign_missing_and_changed_full_owners() {
+        // naming.source.original-collection-body-owner
+        // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
+        let context = context(true);
+        let source = "forge create Empty {}";
+        let unit = unit(source, &context);
+        assert!(collect_known_classes(source, &unit.ir_module, context.commands()).is_some());
+        assert!(
+            collect_known_classes("forge create Other {}", &unit.ir_module, context.commands())
+                .is_none()
+        );
+        assert!(
+            collect_known_classes(source, &unit.ir_module, self::context(false).commands())
+                .is_none()
+        );
+        for axis in 0..4 {
+            let mut module = unit.ir_module.clone();
+            match axis {
+                0 => module.retained_source_bindings = None,
+                1 => module.lexer_config.strict_quoting ^= true,
+                2 => module.source_metadata_input = None,
+                _ => {
+                    module.source =
+                        tcl_lexer::SourceImage::native(Arc::<[u8]>::from(source.as_bytes()))
+                }
+            }
+            assert!(
+                collect_known_classes(source, &module, context.commands()).is_none(),
+                "axis {axis}"
+            );
+        }
+        assert!(
+            collect_known_classes("", &self::unit("", &context).ir_module, context.commands())
+                .unwrap()
+                .is_empty()
         );
     }
 }

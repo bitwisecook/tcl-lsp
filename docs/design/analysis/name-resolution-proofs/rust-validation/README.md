@@ -4104,3 +4104,30 @@ HEAD and actual compile-root identities. Its source object equals the common
 That source reuse transfers no Runtime build, inventory or partial assertion
 outcome to Compiler; external Native observations establish no result for this
 failed producer.
+
+## Source332 isolated Runtime selector processes
+
+The [whole isolated receipt](frozen332/runtime-isolated-exact332/receipt.json.gz)
+retains 291 distinct exact selector processes over the original Runtime332
+image and source. It records 236 passed, 46 failed and nine aborted or
+incomplete processes over 720.3652353709913 seconds with uniform source `true`.
+Each completed process has one terminal assertion and 1,619 filtered tests.
+Each of the nine abnormal processes exits `SIGABRT` (`-6`) without a final
+assertion summary; no result is inferred beyond its retained raw log.
+
+The ledger selects each process at its exact `/records/<index>` JSON pointer
+and retains all [291 original combined output logs](frozen332/runtime-isolated-exact332/logs/000.log).
+The receipt declares disabled core-dump writing and one admitted selector
+per process. The [inspected driver](frozen332/runtime-isolated-exact332/inspected-run-isolated-runtime332.py)
+and [inspected additional environment file](frozen332/runtime-isolated-exact332/inspected-native-test-env.json)
+retain their current exact bytes as provenance context. Their whole hashes
+are not pinned in the original isolated receipt, so those files do not
+certify the loaded launcher or environment bytes at execution. The inherited
+process environment is also not enumerated completely.
+
+All process source associations join the [same original snapshot](frozen332/source-snapshot.json.gz)
+and [strict Runtime image](frozen332/sealed-own-runtime-image/pinned-runtime332.elf.gz).
+This archive reuses those exact retained objects and creates no image or
+source-catalogue duplicate. The isolated outcomes do not replace the grouped
+abort and establish no whole 1,620-test Runtime suite result, later-source
+acceptance, performance outcome or new external Native provider observation.

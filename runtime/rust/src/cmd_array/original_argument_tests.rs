@@ -352,8 +352,28 @@ fn original_array_operand_refusal_keeps_prefix_effect_and_stops_later_key() {
             );
             assert_eq!(EVENTS.with(|v| v.borrow().clone()), b"ABC");
             assert!(!obj::has_string_rep(later.as_ptr()));
-            assert_eq!(interp.var_get_elem(b"arr", b"k"), Some(first.as_ptr()));
-            assert!(interp.var_get_elem(b"arr", b"m").is_none());
+            // Inspect reached storage without issuing another name operation
+            // after the original Host refusal. The guarded read is terminal.
+            let first_cause = interp.native_execution_refusal().unwrap();
+            assert!(interp.var_get_elem(b"arr", b"k").is_none());
+            assert_eq!(
+                crate::vars::get_elem(
+                    &interp.frames.borrow(),
+                    &interp.namespaces(),
+                    interp.current_ns(),
+                    b"arr",
+                    b"k",
+                ),
+                Some(first.as_ptr()),
+            );
+            assert!(crate::vars::get_elem(
+                &interp.frames.borrow(),
+                &interp.namespaces(),
+                interp.current_ns(),
+                b"arr",
+                b"m",
+            ).is_none());
+            assert_eq!(interp.native_execution_refusal(), Some(first_cause));
             assert_eq!(unsafe { (*first.as_ptr()).ref_count }, refs + 1);
             assert_eq!(interp.get_obj_result(), prior);
             assert!(interp.host_refusal_pending());

@@ -1,0 +1,6 @@
+
+running 1 test
+test codegen_abi::original_frame_owner::tests::callback_left_nested_entry_retires_completed_original_scope_once_after_its_matched_exit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.26s
+

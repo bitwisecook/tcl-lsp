@@ -1,0 +1,15 @@
+
+running 1 test
+test engine::tests::scalar_importer_preserves_first_host_cause_and_guest_state ... 
+thread 'engine::tests::scalar_importer_preserves_first_host_cause_and_guest_state' (1217018) panicked at src/interp.rs:10705:14:
+fixture has genuine guest error-code state: ValueAccessRefusal(CommandProtocolUnavailable("original scalar import refusal"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    engine::tests::scalar_importer_preserves_first_host_cause_and_guest_state
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.81s
+

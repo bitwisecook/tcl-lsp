@@ -40,7 +40,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::ffi::{c_int, c_void};
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 
 use tcl_engine_api::{
@@ -48,13 +48,13 @@ use tcl_engine_api::{
     CompileUnit, CompletionCode, Engine, EngineError, HostArgumentView, HostCommand, HostOutcome,
     PreparedCommandPublication, Value,
 };
-use tcl_syntax::number::{NumberSyntax, runtime_syntax, set_runtime_syntax};
+use tcl_syntax::number::{runtime_syntax, set_runtime_syntax, NumberSyntax};
 
 use crate::budget::LimitKind;
 use crate::interp::native_host_publication::{
     self, HostCommands, HostRegistration, PublicationService,
 };
-use crate::interp::{Code, Command, Interp, ObjCommand, Param, new_string};
+use crate::interp::{new_string, Code, Command, Interp, ObjCommand, Param};
 use crate::obj::{self, TclObj};
 
 /// A panic a host command raised, held until the evaluation that called the
@@ -1144,7 +1144,7 @@ mod tests {
         );
         assert_eq!(engine.interp.native_execution_refusal(), Some(first));
         assert_eq!(engine.interp.result_bytes(), b"SEEDED RESULT");
-        assert_eq!(engine.interp.error_code(), b"SEEDED CODE");
+        assert_eq!(engine.interp.snapshot_error().code_bytes(), b"SEEDED CODE");
     }
 
     #[test]
@@ -1166,11 +1166,13 @@ mod tests {
             ),)
         );
         assert_eq!(
-            crate::interp::obj_bytes(engine.interp.var_get(b"::prior").unwrap()),
+            crate::interp::obj_bytes(
+                crate::test_storage::global_scalar(&engine.interp, b"prior").unwrap()
+            ),
             b"BEFORE"
         );
         for name in [b"captured".as_slice(), b"options", b"::after"] {
-            assert!(!engine.interp.var_exists(name));
+            assert!(crate::test_storage::global_scalar(&engine.interp, name).is_none());
         }
     }
 
@@ -1454,8 +1456,8 @@ mod tests {
             engine.eval_in_invocation("set before 1; catch {refuse}; set after 1"),
             Err(EngineError::ExecutionRefusal(_))
         ));
-        assert!(engine.interp.var_get(b"before").is_some());
-        assert!(engine.interp.var_get(b"after").is_none());
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"before").is_some());
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
         assert_eq!(
             engine
                 .eval_in_invocation("set before")
@@ -1517,21 +1519,17 @@ mod tests {
             .unwrap();
         assert_eq!(completion.code, CompletionCode::Other(7));
         assert_eq!(completion.value.as_str(), Some("value"));
-        assert!(
-            value_bytes(&mut engine.interp, &completion.options)
-                .unwrap()
-                .windows(b"-tag retained".len())
-                .any(|bytes| bytes == b"-tag retained")
-        );
+        assert!(value_bytes(&mut engine.interp, &completion.options)
+            .unwrap()
+            .windows(b"-tag retained".len())
+            .any(|bytes| bytes == b"-tag retained"));
         let error = engine.eval_in_invocation("guest").unwrap_err();
         assert_eq!(error.script_message_bytes(), Some(&b"message"[..]));
-        assert!(
-            error
-                .script_options_bytes()
-                .unwrap()
-                .windows(b"-tag retained".len())
-                .any(|bytes| bytes == b"-tag retained")
-        );
+        assert!(error
+            .script_options_bytes()
+            .unwrap()
+            .windows(b"-tag retained".len())
+            .any(|bytes| bytes == b"-tag retained"));
     }
 
     #[test]
@@ -1729,7 +1727,10 @@ mod tests {
     fn original_object_view_and_logical_native_receipts_refuse_explicitly() {
         // Software contract: naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        let mut logical = RuntimeEngine::new();
+        let mut logical = engine("irules");
+        assert!(logical.interp.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
+        ));
         assert!(matches!(
             logical.command_publication_service(),
             Err(EngineError::ExecutionRefusal(_))
@@ -1751,7 +1752,7 @@ mod tests {
             engine.eval_in_invocation("catch {original anything}; set after 1"),
             Err(EngineError::ExecutionRefusal(_))
         ));
-        assert!(engine.interp.var_get(b"after").is_none());
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
     }
     #[test]
     fn original_engine_completion_entry_distinguishes_independent_retry_and_nested_first_cause() {
@@ -1793,14 +1794,11 @@ mod tests {
             value_bytes(&mut engine.interp, &completion.value).unwrap(),
             b"GUEST\0\xff"
         );
-        assert!(
-            value_bytes(&mut engine.interp, &completion.options)
-                .unwrap()
-                .windows(b"-code 7".len())
-                .any(|bytes| bytes == b"-code 7")
-        );
+        assert!(value_bytes(&mut engine.interp, &completion.options)
+            .unwrap()
+            .windows(b"-code 7".len())
+            .any(|bytes| bytes == b"-code 7"));
         assert!(engine.interp.native_execution_refusal().is_none());
         assert_eq!(engine.interp.entered_native_operation_count(), 0);
     }
-
 }

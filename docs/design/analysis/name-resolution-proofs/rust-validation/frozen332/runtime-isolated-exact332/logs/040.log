@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication ... 
+thread 'cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication' (1215337) panicked at src/cmd_alias.rs:3580:79:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.95s
+

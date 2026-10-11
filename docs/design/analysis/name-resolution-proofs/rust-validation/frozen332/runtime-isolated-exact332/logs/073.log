@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::native_context::residual_original_argument_tests::original_selector_refusal_stops_cache_dispatch_and_keeps_later_header_unread ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.32s
+

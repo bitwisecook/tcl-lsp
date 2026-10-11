@@ -1955,16 +1955,21 @@ fn register_unique_source_names(
 }
 
 impl SsaFunction {
-    /// Whether named SSA maps omit accesses from a retained native invocation.
-    /// This residual also applies when every named use/definition map is empty.
+    /// Whether named SSA maps omit native accesses or an incomplete original
+    /// argument inventory. Empty named maps cannot establish absence of reads.
     #[must_use]
     pub fn has_opaque_native_accesses(&self) -> bool {
-        crate::ir::statements_have_opaque_native_accesses(self.blocks.values().flat_map(|block| {
-            block
-                .statements
-                .iter()
-                .map(|statement| &statement.statement)
-        }))
+        self.point_contexts
+            .as_ref()
+            .is_some_and(PointResolveContexts::has_unknown_source_arguments)
+            || crate::ir::statements_have_opaque_native_accesses(self.blocks.values().flat_map(
+                |block| {
+                    block
+                        .statements
+                        .iter()
+                        .map(|statement| &statement.statement)
+                },
+            ))
     }
 
     /// A trivial SSA shell — no blocks, no dominance information — used when
@@ -5392,8 +5397,8 @@ fn invocation_read_bindings(
             crate::place_bridge::invocation_execution_read_places(tokens, registry)
                 .into_iter()
                 .chain(
-                    crate::place_bridge::invocation_argument_execution_read_places(
-                        tokens, registry,
+                    crate::place_bridge::invocation_argument_execution_read_places_at(
+                        points, block, index, registry,
                     ),
                 )
         })
@@ -5836,11 +5841,13 @@ impl<'a> RenameWalk<'a> {
         raw_classified: &[(String, UseClass)],
         context: &ResolveContext,
         registry: &CommandRegistry,
+        unknown_arguments: bool,
         classified: &mut Vec<(VariableCellKey, UseClass)>,
     ) {
-        if raw_classified
-            .iter()
-            .any(|(name, _)| canonical_variable_key(name, context, registry).is_none())
+        if unknown_arguments
+            || raw_classified
+                .iter()
+                .any(|(name, _)| canonical_variable_key(name, context, registry).is_none())
         {
             // An unresolved read may consume any reaching current-frame value.
             // Preserve liveness without claiming a definite uninitialised read.
@@ -5989,7 +5996,14 @@ impl<'a> RenameWalk<'a> {
             context,
             registry,
         ));
-        self.preserve_unknown_read_liveness(&raw_classified, context, registry, &mut classified);
+        self.preserve_unknown_read_liveness(
+            &raw_classified,
+            context,
+            registry,
+            self.points
+                .source_arguments_unknown_at(point.0, point.1, registry),
+            &mut classified,
+        );
         self.retain_statement_symbols(
             stmt,
             point,
@@ -6218,6 +6232,30 @@ impl<'a> RenameWalk<'a> {
             if let Some(infos) = self.out.stmt_infos.get_mut(&bn) {
                 demote_reads_beside_writes(infos);
                 drop_reads_of_own_writes(infos);
+            }
+            if self
+                .points
+                .source_arguments_unknown_at(bn, usize::MAX, registry)
+            {
+                // The terminator may consume each reaching value. Retain
+                // liveness beside the final statement without a definite read.
+                let visible = self.visible_versions(bn);
+                if let Some(last) = self
+                    .out
+                    .stmt_infos
+                    .get_mut(&bn)
+                    .and_then(|infos| infos.last_mut())
+                {
+                    for (key, version) in visible {
+                        let symbol = self.interner.intern(&key);
+                        if let std::collections::hash_map::Entry::Vacant(slot) =
+                            last.uses.entry(symbol)
+                        {
+                            slot.insert(version);
+                            last.quoted_uses.insert(symbol);
+                        }
+                    }
+                }
             }
         }
 

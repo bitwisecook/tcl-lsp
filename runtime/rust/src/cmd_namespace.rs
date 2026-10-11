@@ -6329,8 +6329,28 @@ mod original_import_alias_tests {
         code
     }
 
-    fn destination(interp: &Interp) -> NsId {
-        interp.namespaces().find_namespace(GLOBAL, b"dest").unwrap()
+    fn destination(interp: &mut Interp) -> super::original_argument_tests::JimFixtureNamespace {
+        super::original_argument_tests::jim_fixture_namespace(interp, b"dest")
+    }
+
+    // The pinned Jim helper publishes the generated destination at the flat
+    // root table. Issue that exact slot before the tested getter/effect, then
+    // inspect only retained storage after any operational refusal.
+    fn destination_slot(interp: &Interp, destination: NsId) -> Vec<u8> {
+        let namespaces = interp.namespaces();
+        let mut generated = namespaces
+            .jim_namespace_bytes(destination)
+            .expect("retained reached destination namespace")
+            .to_vec();
+        generated.extend_from_slice(b"::branch");
+        let slot = interp
+            .name_policy_protocol()
+            .unwrap()
+            .recipe()
+            .alias_publication_slot(tcl_syntax::naming::NativeNameContext::root(), &generated)
+            .unwrap();
+        assert!(slot.namespace.is_root());
+        slot.simple.as_bytes().to_vec()
     }
 
     #[test]
@@ -6340,6 +6360,9 @@ mod original_import_alias_tests {
         // Software helper control: cached List and original member identity;
         // no original Enum name header or C import equivalence is inferred.
         let mut interp = native();
+        let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
+            OWNER.with(|owner| owner.borrow_mut().take());
+        });
         let target = Owned::fresh(obj::new_string_bytes(b"list"));
         let member = Owned::fresh(obj::alloc_typed(&TYPE, 0));
         let stored = define(
@@ -6359,7 +6382,9 @@ mod original_import_alias_tests {
         READS.with(|reads| reads.set(0));
         MODE.with(|mode| mode.set(1));
         let refs = unsafe { (*member.as_ptr()).ref_count };
-        let destination = destination(&interp);
+        let destination_owner = destination(&mut interp);
+        let destination = destination_owner.token;
+        let destination_slot = destination_slot(&interp, destination);
         assert_eq!(import(&mut interp, destination, b"::src::branch"), Code::Ok);
         assert_eq!(READS.with(Cell::get), 0);
         assert!(!obj::has_string_rep(member.as_ptr()));
@@ -6381,7 +6406,7 @@ mod original_import_alias_tests {
             vec![target.as_ptr(), member.as_ptr()]
         );
         assert!(matches!(
-            interp.namespaces().command_in(destination, b"branch"),
+            interp.namespaces().command_in(GLOBAL, &destination_slot),
             Some(Command::Alias { .. })
         ));
         assert!(interp.native_execution_refusal().is_none());
@@ -6394,6 +6419,9 @@ mod original_import_alias_tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         for mode in [1, 2] {
             let mut interp = native();
+            let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
+                OWNER.with(|owner| owner.borrow_mut().take());
+            });
             let target = Owned::fresh(obj::new_string_bytes(b"list"));
             let member = Owned::fresh(obj::alloc_typed(&TYPE, 0));
             let stored = define(
@@ -6402,7 +6430,9 @@ mod original_import_alias_tests {
                 &[target.as_ptr(), member.as_ptr()],
             );
             let backing = list::native_list_backing(stored.as_ptr()).unwrap();
-            let destination = destination(&interp);
+            let destination_owner = destination(&mut interp);
+            let destination = destination_owner.token;
+            let destination_slot = destination_slot(&interp, destination);
             let prior = Owned::fresh(obj::new_string_bytes(b"PRIOR\0\xff"));
             interp.set_result(prior.as_ptr());
             let refs = unsafe { (*member.as_ptr()).ref_count };
@@ -6415,7 +6445,7 @@ mod original_import_alias_tests {
             assert_eq!(READS.with(Cell::get), 1);
             assert!(interp
                 .namespaces()
-                .command_in(destination, b"branch")
+                .command_in(GLOBAL, &destination_slot)
                 .is_none());
             assert_eq!(interp.result_obj(), prior.as_ptr());
             assert_eq!(obj::bytes_of(prior.as_ptr()), b"PRIOR\0\xff");
@@ -6443,7 +6473,12 @@ mod original_import_alias_tests {
         // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
         for closes_loop in [false, true] {
             let mut interp = native();
-            let destination = destination(&interp);
+            let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
+                OWNER.with(|owner| owner.borrow_mut().take());
+            });
+            let destination_owner = destination(&mut interp);
+            let destination = destination_owner.token;
+            let destination_slot = destination_slot(&interp, destination);
             let end = Owned::fresh(obj::new_string_bytes(if closes_loop {
                 b"dest::branch"
             } else {
@@ -6459,7 +6494,7 @@ mod original_import_alias_tests {
             assert_eq!(
                 interp
                     .namespaces()
-                    .command_in(destination, b"branch")
+                    .command_in(GLOBAL, &destination_slot)
                     .is_some(),
                 !closes_loop
             );
@@ -6481,8 +6516,13 @@ mod original_import_alias_tests {
         // naming.alias.jim-original-core-prefix-object-storage
         // docs/design/analysis/name-resolution-proofs/alias-jim-original-core-prefix-object-storage.md
         let mut interp = native();
+        let _cleanup = super::original_argument_tests::FixtureCleanup(|| {
+            OWNER.with(|owner| owner.borrow_mut().take());
+        });
         assert_eq!(interp.eval_str(b"namespace eval dest::src {}"), Code::Ok);
-        let destination = destination(&interp);
+        let destination_owner = destination(&mut interp);
+        let destination = destination_owner.token;
+        let destination_slot = destination_slot(&interp, destination);
         let list = Owned::fresh(obj::new_string_bytes(b"list"));
         let source = define(&mut interp, b"src::branch", &[list.as_ptr()]);
         let loop_destination = Owned::fresh(obj::new_string_bytes(b"dest::branch"));
@@ -6494,7 +6534,7 @@ mod original_import_alias_tests {
         assert_eq!(import(&mut interp, destination, b"::src::branch"), Code::Ok);
         assert!(interp
             .namespaces()
-            .command_in(destination, b"branch")
+            .command_in(GLOBAL, &destination_slot)
             .is_some());
         assert!(obj::has_string_rep(source.as_ptr()));
         assert!(!obj::has_string_rep(collision.as_ptr()));

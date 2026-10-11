@@ -217,12 +217,13 @@ fn collect_statement_accesses(
         || selected
             .iter()
             .any(|(location, writes, _)| *writes && location.observed)
-        || (crate::memory_ssa::is_clobber(
+        || (crate::memory_ssa::is_clobber_with_metadata_context(
             statement,
             registry,
-            registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            points
+                .source_metadata_owner()
+                .metadata_context(registry)
+                .flatten(),
         ) && after.dynamic_bindings)
     {
         selected.push((crate::place::unknown_top(), true, true));
@@ -280,17 +281,38 @@ fn unrepresented_read_clobbers(
         &mut nested_clobbers,
     );
     if let Some(tokens) = points.source_tokens_at(point.0, point.1) {
-        let grammar = crate::place_bridge::invocation_read_grammar(tokens, registry);
-        for nested in crate::word_subst::lifted_calls(Some(tokens), grammar) {
-            if let Some(tokens) = nested.tokens {
-                collect_unrepresented_reads(
-                    crate::place_bridge::invocation_execution_read_contexts(&tokens, registry)
-                        .into_iter(),
-                    represented_writes,
-                    &mut nested_clobbers,
-                );
+        match crate::place_bridge::argument_calls(
+            tokens,
+            registry,
+            crate::place_bridge::ArgumentReadInput::for_owner(
+                points.source_metadata_owner(),
+                registry,
+            ),
+        ) {
+            Some(calls) => {
+                for nested in calls {
+                    if let Some(tokens) = nested.tokens {
+                        collect_unrepresented_reads(
+                            crate::place_bridge::invocation_execution_read_contexts(
+                                &tokens, registry,
+                            )
+                            .into_iter(),
+                            represented_writes,
+                            &mut nested_clobbers,
+                        );
+                    }
+                }
             }
+            None => nested_clobbers.push(crate::place::unknown_top()),
         }
+    }
+
+    if points.source_arguments_unknown_at(point.0, point.1, registry)
+        && !nested_clobbers
+            .iter()
+            .any(|place| place.kind == crate::place::PlaceKind::Unknown)
+    {
+        nested_clobbers.push(crate::place::unknown_top());
     }
     nested_clobbers
 }

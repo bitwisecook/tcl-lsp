@@ -7,6 +7,25 @@ use std::sync::Arc;
 use tcl_core_types::NameBytes;
 use tcl_syntax::naming::NamePolicyProtocol;
 
+/// Distinct original-vector queries. Argument geometry never selects a handler.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OriginalWordSourcePurpose {
+    Invocation,
+    ArgumentEvaluation,
+}
+
+impl OriginalWordSourcePurpose {
+    pub(crate) fn accepts(self, tokens: &crate::ir::CommandTokens) -> bool {
+        match self {
+            Self::Invocation => tokens.synthetic.is_none(),
+            Self::ArgumentEvaluation => matches!(
+                tokens.synthetic,
+                None | Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+            ),
+        }
+    }
+}
+
 pub(crate) const MAX_ORIGINS: usize = 32;
 pub(crate) const MAX_BYTES: usize = 65_536;
 
@@ -774,9 +793,28 @@ impl super::SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<tcl_lexer::LexerConfig> {
-        if tokens.synthetic.is_some() {
+        if !OriginalWordSourcePurpose::Invocation.accepts(tokens) {
             return None;
         }
+        self.original_word_vector_config(tokens)
+    }
+
+    /// Original word geometry for argument evaluation alone. An argv boundary
+    /// retains its producer's vector, but never selects the original handler.
+    pub(crate) fn original_argument_lexer_config(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<tcl_lexer::LexerConfig> {
+        if !OriginalWordSourcePurpose::ArgumentEvaluation.accepts(tokens) {
+            return None;
+        }
+        self.original_word_vector_config(tokens)
+    }
+
+    fn original_word_vector_config(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<tcl_lexer::LexerConfig> {
         if let Some(original) = &self.original_written_words {
             return (original.site == *self.invocation_site()?
                 && original.words.as_ref() == tokens.words())

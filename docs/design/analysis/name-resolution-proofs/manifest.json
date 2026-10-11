@@ -542343,6 +542343,296 @@
         "command": [],
         "limitations": "Executed software results require a matching independently successful source producer, actual executable inventory and separately closed selected assertion receipt. The shared written extent query does not establish Native operand/container/edit admission or external provider behavior. No such execution is attached here."
       }
+    },
+    {
+      "id": "naming.source.original-collection-body-owner",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md",
+      "problem_statement": "Conditional collection-body analysis needs the complete original child carrier and actual CU/function owner. Reconstructing source, namespace, grammar or inherited-frame presence from body text or a report label can turn withdrawn ownership into an empty inventory, donate event assumptions or lose genuine class spellings.",
+      "question": "Which actual CU/function/source facts authenticate conditional original child-body CFG and lattice analysis, and which source/configuration/class-roster/entry mismatches must withdraw that analysis?",
+      "conclusion": "The actual CompilationUnit factory checks full original source/input/config/store and retained Module/function ownership, then selects the child only through original parent tokens and argument ordinal. The independently retained child namespace and NestedScript input/config feed conditional CFG/lattice facts. Descriptive class spellings come from the configured signature producer and remain guarded by complete semantic source correspondence; every genuine CU calls the full-owner guarded selected signature producer once, independent of lexical spelling, while conditional source refusals remain explicit. Inherited-frame places start MayBound, with genuine local store/unset refinements and an Unknown-frame fallback for empty source. Missing, foreign or changed ownership remains unavailable rather than an empty pairing inventory. Eleven finite software controls are linked definitions without an attached assertion result; all seven external executions are not tested.",
+      "scope": "Current Rust source/API contract in tcl-compiler and actual tcl-lsp-db source-owner propagation, authentic module/test registrations and eleven unexecuted software controls. Whole original CU/Module/FU/source/Registry input/configuration, retained original vector/ordinal, child namespace and descriptive immutable class roster remain required. Positively tagged standalone ingress is explicit and separate. Primary and secondary analyses share descriptive facts only; source labels and semantic Eq supply no allocation identity. Conditional mutation/trace/deferred-write and existence facts carry no enclosing event descriptor, connection-entry names, parameter constants, physical caller state, Native compiler receipt, worker/body entry, Normal completion, variable/store permission or BIG-IP/TMM grant. Dynamic-definer completeness, runtime class identity and the cost of always invoking the selected signature producer are unproved.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "No original external process for this Rust conditional-source contract",
+          "input_channel": "Current Rust source/API definitions and unexecuted software controls",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl8.4 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "No original external process for this Rust conditional-source contract",
+          "input_channel": "Current Rust source/API definitions and unexecuted software controls",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl8.5 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "No original external process for this Rust conditional-source contract",
+          "input_channel": "Current Rust source/API definitions and unexecuted software controls",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl8.6 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "No original external process for this Rust conditional-source contract",
+          "input_channel": "Current Rust source/API definitions and unexecuted software controls",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl9.0 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "No original external process for this Rust conditional-source contract",
+          "input_channel": "Current Rust source/API definitions and unexecuted software controls",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl9.1 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "No original external process for this Rust conditional-source contract",
+          "input_channel": "Current Rust source/API definitions and unexecuted software controls",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original jim execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No original external process for this Rust conditional-source contract",
+          "input_channel": "Current Rust source/API definitions and unexecuted software controls",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original bigip execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "collection-source-0",
+          "path": "docs/design/contracts/original-secondary-body-analysis.md",
+          "sha256": "e72083533a1bcbb3414cfa44ad5bd9eaceeb54cd8d6390f70c13f22a961c6fc0",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-1",
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "sha256": "9c6381f8526ea761b6eda944f568058c33779c9b9ed4a652c23ca635fb0879c9",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-2",
+          "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+          "sha256": "b6b2e0558cd3e063c682fa383c6ee8b90124e0ea3a9850e650528a33179f9f0c",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-3",
+          "path": "rust/tcl-compiler/src/irules_checks.rs",
+          "sha256": "f685e01f8211afa3c44f1b49710261d8002083ec114dee843419fd377b942d23",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-4",
+          "path": "rust/tcl-compiler/src/lib.rs",
+          "sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-5",
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "sha256": "f209c0bfaf328eb21c30f326989978559a63496203fbb8312862ba2407501d91",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-6",
+          "path": "rust/tcl-compiler/src/optimiser/branch_folding.rs",
+          "sha256": "c8b18433a0f21526e975bc71fb4e2345beec1dc53e80451a7a13c73af8b5fcc5",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-7",
+          "path": "rust/tcl-compiler/src/sccp.rs",
+          "sha256": "bfc773af443da63e37a043d9f5ee6661ca3301635327cf708d64e3c8b6fb05a3",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-8",
+          "path": "rust/tcl-compiler/src/signature_scan/mod.rs",
+          "sha256": "f79c6e384236b056f44447d4ff7f3b16665d2ac35b2ccec0897904565ab81d32",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-9",
+          "path": "rust/tcl-compiler/src/signature_scan/walker.rs",
+          "sha256": "caa87cdb761b250ce9c36b5068fc073246a47697da1f0edcfc17d61321b1c6b1",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        },
+        {
+          "id": "collection-source-10",
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "sha256": "eea852a1e47a3b34d6afc52fbfe35d35d64c6d2445cac0bf68293ab223b6960f",
+          "role": "implementation",
+          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant",
+          "status": "linked",
+          "assertion": "The genuine supplied CU and original function/vector/ordinal select retained child source, actual namespace and nested full configuration/input. Conditional metadata is retained while event admission is absent. A detached function, secondary function, changed vector or wrong ordinal refuses. This is an unexecuted software definition."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner",
+          "status": "linked",
+          "assertion": "Original nested side-body vectors select recursively retained child source through the actual root function owner. A secondary FunctionUnit cannot impersonate that original function. Nested metadata and absence of an enclosing event descriptor remain explicit; no BIG-IP worker is entered."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners",
+          "status": "linked",
+          "assertion": "Six independent missing/changed CU/Module/FU/source/config/class-roster axes, a foreign Registry and a donated different-config roster withdraw child analysis. An authentic positive source owner remains independently required; unavailable is not a default empty body."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::conditional_original_body_tests::genuine_roster_retains_empty_classes_and_refuses_owner_donation",
+          "status": "linked",
+          "assertion": "The genuine configured signature producer retains an empty class spelling and an immutable shared descriptive roster. Complete semantic source equality may share descriptive facts, while changed text/config/channel/input refuses. Roster spellings grant no Native class allocation or constructor execution."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores",
+          "status": "linked",
+          "assertion": "An authentic conditional eval child seeds original inherited and local places as MayBound. Its local store and unset refine observed SSA reads through the shared existence lattice; an inherited value is not donated as a constant and no enclosing event is selected. This is source/lattice definition only."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation",
+          "status": "linked",
+          "assertion": "A genuine empty child retains an explicit Unknown-frame fallback and actual namespace without activation, execution or instance-field facts. Renaming its report leaves selection unchanged; a changed parent entry withdraws the child. No physical frame or caller entry is observed."
+        },
+        {
+          "path": "rust/tcl-compiler/src/irules_checks.rs",
+          "selector": "irules_checks::original_collection_source_tests::collection_query_uses_actual_function_config_and_separates_standalone",
+          "status": "linked",
+          "assertion": "The real source query keeps actual FU configuration and NestedScript purpose, including BOM content in extracted substitutions. Positively selected standalone analysis is an explicit separate source ingress; report labels supply no configured Document or worker semantics."
+        },
+        {
+          "path": "rust/tcl-compiler/src/irules_checks.rs",
+          "selector": "irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory",
+          "status": "linked",
+          "assertion": "Six missing/changed source/config/Module/FU/class-roster axes and a changed original side-body vector withdraw pairing analysis. The unavailable child is not treated as an empty collection inventory or a positive warning. Event-table requirements remain separate; no BIG-IP event/TMM execution is inferred."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers",
+          "status": "linked",
+          "assertion": "A genuine full-owner CU selects custom, directly renamed and directly aliased definer grammar, including a namespaced empty class whose source has no stock-family spelling. Its descriptive roster agrees with the independently queried guarded signature producer; empty classes need no method-derived roster. This is an unexecuted software definition, not runtime class allocation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::selected_class_roster_tests::selected_roster_preserves_changed_definition_and_captured_prefix_refusals",
+          "status": "linked",
+          "assertion": "Original procedure replacement, deletion and a captured-prefix alias keep their selected source refusals. A same-spelled custom command without class grammar supplies no class declaration. These finite source branches do not establish dynamic-definer completeness or external execution."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "selector": "compilation_unit::selected_class_roster_tests::class_source_producer_withdraws_foreign_missing_and_changed_full_owners",
+          "status": "linked",
+          "assertion": "Changed whole source or Registry and four missing/changed retained-owner/config/input/channel axes withdraw the guarded producer. An authentic empty source independently produces an empty descriptive roster; refusal is not an empty inventory. No physical class, body entry or runtime result is observed."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "symbol": "CompilationUnit::conditional_original_body_unit",
+          "purpose": "Require actual CU/Module source, complete input/config/store, retained positioned source owner and genuine original FunctionUnit membership. Original parent vector and ordinal select retained child source/namespace; missing, foreign or changed ownership refuses. No report name, body-text fallback or enclosing event entry is accepted."
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "symbol": "Lowerer::original_body_for_module",
+          "purpose": "Select the authentic original child through complete Module ownership and original command vector/argument geometry, retaining executed-source carrier and independently issued namespace. Source lowering supplies no reached execution or Native compiler admission."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "symbol": "FunctionUnit::build_conditional_original_body",
+          "purpose": "Build conditional source CFG/lattice using the inherited-frame initial state, actual nested input/config and module mutation/trace/deferred-write facts. Parameter constants, object state, enclosing event descriptor and entered-frame assumptions are absent."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "symbol": "conditional_function_source_entry",
+          "purpose": "Issue an explicit Unknown-frame fallback and genuine retained namespace for the child. Its synthetic report name selects no procedure activation, physical frame or execution identity."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "symbol": "RetainedSourceClassFacts",
+          "purpose": "Retain opaque immutable descriptive class spellings from the genuine configured signature producer. Every projection joins whole source/channel/config/input/entry/store and retained semantic Module owner before pointer sharing; descriptive Eq grants no Native allocation/lifetime."
+        },
+        {
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "symbol": "collect_known_classes",
+          "purpose": "Call the guarded selected signature producer once for each genuine CU using complete original source/Module/Registry/configuration ownership. The selected grammar records descriptive class spellings, including empty, custom, directly renamed and directly aliased declarations. No lexical substring schedules a scan; captured-prefix and invalid-owner refusals stay distinct. This supplies no runtime class identity, dynamic-definer completeness or measured scanning cost."
+        },
+        {
+          "path": "rust/tcl-compiler/src/irules_checks.rs",
+          "symbol": "IrulesSourceQuery",
+          "purpose": "Retain the actual CU, Registry and supplied whole Module metadata, or explicitly tagged standalone ingress. Each original function retains its complete configuration; descriptive labels do not reconstruct a source owner."
+        },
+        {
+          "path": "rust/tcl-compiler/src/irules_checks.rs",
+          "symbol": "find_collect_flow_warnings",
+          "purpose": "Keep body-ownership withdrawal terminal through conditional pairing analysis. Original secondary source inventory is separate from authored event-table side/protocol requirements, executed collection effects and BIG-IP TMM semantics."
+        },
+        {
+          "path": "rust/tcl-compiler/src/sccp.rs",
+          "symbol": "ExistenceInitialState",
+          "purpose": "Keep InheritedFrame MayBound seeding distinct from declared-frame absence assumptions. Genuine local stores, unsets and branch refinements use the shared source existence lattice; this supplies no physical variable/cell or entered caller state."
+        },
+        {
+          "path": "rust/tcl-compiler/src/signature_scan/mod.rs",
+          "symbol": "extract_signatures_with_original_bindings",
+          "purpose": "Consume the independently retained original source binding inventory under exact source/channel/full configuration correspondence. The CU wrapper checks Module/Registry correspondence before invoking this source scanner; this entry never enters a callback or creates a runtime class."
+        },
+        {
+          "path": "rust/tcl-compiler/src/signature_scan/walker.rs",
+          "symbol": "dispatch_definer",
+          "purpose": "Use actual selected definer grammar and genuine source argument/publication geometry for conditional descriptive declarations. Changed definitions, captured alias operands and unavailable source selections do not gain class identity from their spelling."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Executed software assertions require a matching independently successful owned Compiler producer, actual executable inventory and separately closed exact selector receipts. No such assertion outcome is attached to these eleven controls. The conditional source factory, model profiles and event-table labels do not establish any C/Jim/BIG-IP worker, physical frame/class/cell lifetime, dynamic-definer completeness or measured scanning/performance result."
+      }
     }
   ]
 }

@@ -65,7 +65,10 @@ fn assert_guest_state(interp: &Interp, original_result: *mut TclObj) {
     assert_eq!(interp.pending_return_level(), 2);
     assert_eq!(interp.pending_return_code(), Code::Other(7));
     assert_eq!(interp.pending_return_option_objects().len(), 1);
-    assert_eq!(obj::bytes_of(interp.var_get(b"prior").unwrap()), b"BEFORE");
+    assert_eq!(
+        obj::bytes_of(crate::test_storage::global_scalar(interp, b"prior").unwrap()),
+        b"BEFORE"
+    );
 }
 
 thread_local! {

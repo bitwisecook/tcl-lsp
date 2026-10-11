@@ -2056,13 +2056,28 @@ impl Interp {
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         self.invalidate_native_operation_context();
         self.invalidate_interpreter_policy();
+        let previous = std::mem::replace(&mut *self.0.host.borrow_mut(), host.clone());
+        drop(previous);
+        let mut interp = self.clone();
+        let scope = match native_operation_currency::NativeOperationScope::enter(&interp) {
+            Ok(scope) => scope,
+            Err(first) => {
+                interp.refuse_native_execution(first);
+                return;
+            }
+        };
         let system_encoding = host.system_encoding();
-        *self.0.host.borrow_mut() = host;
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.channels
             .borrow()
             .reset_process_state_if_owner(self.runtime_version(), system_encoding);
-        let mut interp = self.clone();
-        interp.rebootstrap_host_globals();
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || interp.rebootstrap_host_globals().is_err()
+        {
+            return;
+        }
         if interp.is_safe.get() {
             interp.scrub_host_globals_for_safe();
         }
@@ -5597,7 +5612,7 @@ impl Interp {
         set(self, b"::argv", b"");
         set(self, b"::argv0", b"");
         set(self, b"::argc", b"0");
-        self.rebootstrap_host_globals();
+        let _ = self.rebootstrap_host_globals();
     }
 
     fn bootstrap_native_core(
@@ -5696,28 +5711,87 @@ impl Interp {
         }
     }
 
-    /// Replace the complete host-derived bootstrap surface without firing Tcl
-    /// variable traces between its clear and install phases.
-    fn rebootstrap_host_globals(&mut self) {
-        let snapshot =
-            tcl_platform::bootstrap::snapshot(&*self.host(), "treewalk", env!("CARGO_PKG_VERSION"));
+    /// Replace the host-derived globals under the original entered context.
+    /// Storage retirement and publication are checked without firing traces
+    /// during the quiet clear boundary.
+    fn rebootstrap_host_globals(&mut self) -> Result<(), Code> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let snapshot = tcl_platform::bootstrap::snapshot_checked(
+            &*self.host(),
+            "treewalk",
+            env!("CARGO_PKG_VERSION"),
+            || scope.currency().ensure_current_or_refuse(),
+        )
+        .map_err(|first| self.refuse_native_execution(first))?;
         for name in tcl_platform::bootstrap::HOST_ARRAYS {
             self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
             self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
-        self.ensure_array(b"::tcl_platform")
-            .expect("fresh tcl_platform array");
-        self.ensure_array(b"::env").expect("fresh env array");
-        self.set_global_raw(b"::tcl_library", snapshot.tcl_library().as_bytes());
-        self.set_global_raw(b"::auto_path", b"");
+        for name in [b"::tcl_platform".as_slice(), b"::env"] {
+            let allocated = self.ensure_array(name);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
+            allocated.map_err(|error| crate::builtins::var_error(self, name, error))?;
+        }
+        self.publish_host_bootstrap_value(
+            scope.currency(),
+            b"::tcl_library",
+            None,
+            snapshot.tcl_library().as_bytes(),
+        )?;
+        self.publish_host_bootstrap_value(scope.currency(), b"::auto_path", None, b"")?;
         for (name, value) in snapshot.platform() {
-            self.set_global_element_raw(b"::tcl_platform", name.as_bytes(), value.as_bytes());
+            self.publish_host_bootstrap_value(
+                scope.currency(),
+                b"::tcl_platform",
+                Some(name.as_bytes()),
+                value.as_bytes(),
+            )?;
         }
         for (name, value) in snapshot.environment() {
-            self.set_global_element_raw(b"::env", name.as_bytes(), value.as_bytes());
+            self.publish_host_bootstrap_value(
+                scope.currency(),
+                b"::env",
+                Some(name.as_bytes()),
+                value.as_bytes(),
+            )?;
         }
+        Ok(())
+    }
+
+    fn publish_host_bootstrap_value(
+        &mut self,
+        currency: &native_operation_currency::NativeOperationCurrency,
+        name: &[u8],
+        element: Option<&[u8]>,
+        bytes: &[u8],
+    ) -> Result<(), Code> {
+        currency
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        let value = obj::Owned::fresh(new_string(bytes));
+        let written = match element {
+            Some(element) => self.var_set_elem_at(name, element, value.as_ptr(), 0),
+            None => self.var_set_at(name, value.as_ptr(), 0),
+        };
+        drop(value);
+        currency
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
+        written.map_err(|error| crate::builtins::var_error(self, name, error))
     }
 
     pub fn init_library(&mut self) -> Code {
@@ -7504,6 +7578,10 @@ impl Interp {
                     break 'groups;
                 }
                 drop(callback_failure.take());
+                if self.check_entered_native_operation().is_err() {
+                    errored = true;
+                    break 'groups;
+                }
             }
             // The intrinsic was installed before user registrations: it is
             // last in the whole-variable group, before any element traces.
@@ -7520,13 +7598,22 @@ impl Interp {
         if !errored {
             self.restore_native_global_error_flags(global_error_flags);
         }
-        // Restore the saved result (release the trace's, adopt our held +1).
-        if !errored || !leave_error_message {
+        // Retire callback-owned state before deciding how to settle the
+        // independently selected saved chain state. A typed Host refusal must
+        // restore that state rather than publish the callback's Guest result.
+        drop(callback_failure);
+        let refused = self.check_entered_native_operation().is_err();
+        if !errored || !leave_error_message || refused {
             if let Some(saved) = saved {
                 self.restore_native_variable_trace_result(saved);
             }
+        } else {
+            drop(saved);
         }
-        errored
+        // Saved-state restoration/retirement can itself reach an extension
+        // free hook. Mandatory cleanup is complete before observing its cause.
+        let cleanup_refused = self.check_entered_native_operation().is_err();
+        errored || refused || cleanup_refused
     }
 
     /// C's `TclVarErrMsg` tail after a variable trace aborted an access: the
@@ -9217,6 +9304,10 @@ impl Interp {
         if scope.currency().ensure_current_or_refuse().is_err() {
             return;
         }
+        self.capture_native_error_objects();
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.c_api_errors.set(self.c_api_errors.get() + 1);
     }
 
@@ -9234,6 +9325,10 @@ impl Interp {
             ..ExceptionState::default()
         });
         drop(retired);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        self.capture_native_error_objects();
         if scope.currency().ensure_current_or_refuse().is_err() {
             return;
         }
@@ -16593,6 +16688,9 @@ mod tests {
                 .begin_namespace_teardown(GLOBAL);
             assert_eq!(root.lifecycle(), NativeNamespaceLifecycle::Dying);
             interpreter.namespaces_mut().delete_namespace_by_id(GLOBAL);
+            interpreter
+                .namespaces_mut()
+                .finish_namespace_teardown(&[GLOBAL]);
             assert_eq!(root.lifecycle(), NativeNamespaceLifecycle::Live);
             interpreter.bind_command_replacement(
                 GLOBAL,

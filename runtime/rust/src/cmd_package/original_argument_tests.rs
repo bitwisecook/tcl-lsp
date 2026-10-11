@@ -365,14 +365,22 @@ fn original_package_loader_cleanup_precedes_first_cause_or_guest_settlement() {
             );
             assert!(interpreter.packages.borrow().loading.is_empty());
             assert!(interpreter.packages.borrow().file_names.is_empty());
-            assert_eq!(
-                obj::bytes_of(
+            if mode < 2 {
+                assert!(
                     interpreter
                         .var_get(b"::original_package_loader_effect")
-                        .unwrap()
-                ),
-                b"REACHED"
-            );
+                        .is_none(),
+                    "the original first cause prohibits another native name operation"
+                );
+            }
+            let reached = crate::vars::get(
+                &interpreter.frames.borrow(),
+                &interpreter.namespaces(),
+                interpreter.current_ns(),
+                b"::original_package_loader_effect",
+            )
+            .expect("actual loader effect remains in retained storage");
+            assert_eq!(obj::bytes_of(reached), b"REACHED");
             match mode {
                 0 => {
                     assert_eq!(code, Code::Error);

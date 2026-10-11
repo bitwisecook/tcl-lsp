@@ -969,18 +969,15 @@ mod original_key_construction_tests {
         // Qualified source/first-cause controls; Native421b observes root keys.
         for mode in [0, 1, 2] {
             let mut interp = crate::cmd_alias::original_operand_tests::native("jim");
-            assert_eq!(
-                interp.eval_str(b"namespace eval key_scope {}"),
-                crate::interp::Code::Ok
+            let _cleanup = crate::cmd_namespace::original_argument_tests::FixtureCleanup(|| {
+                OWNER.with(|owner| owner.borrow_mut().take());
+            });
+            let captured = crate::cmd_namespace::original_argument_tests::jim_fixture_namespace(
+                &mut interp,
+                b"key_scope",
             );
-            let namespace = interp
-                .namespaces()
-                .find_namespace(crate::namespace::GLOBAL, b"key_scope")
-                .unwrap();
-            let namespace_owner = interp
-                .namespaces()
-                .jim_namespace_original_owner(namespace)
-                .unwrap();
+            let namespace = captured.token;
+            let namespace_owner = std::rc::Rc::clone(&captured.owner);
             let namespace_refs = unsafe { (*namespace_owner.as_ptr()).ref_count };
             let original = obj::Owned::fresh(obj::alloc_typed(&TYPE, 0));
             OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));

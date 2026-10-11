@@ -122,14 +122,7 @@ fn compare_public(interp: &mut Interp, code: Code, capture: &str, case: usize) {
     assert_eq!(EVENTS.with(|v| v.borrow().clone()), events);
 }
 
-// Inspect the reached physical GLOBAL table without starting another variable
-// naming operation after refusal. This takes no native value or cell reference.
-fn global_storage(interp: &Interp, tail: &[u8]) -> Option<*mut TclObj> {
-    interp
-        .namespaces()
-        .var_table(crate::namespace::GLOBAL)
-        .load_scalar(tail)
-}
+use crate::test_storage::global_scalar as global_storage;
 
 fn reached_refusal(interp: &Interp, mode: u8) -> tcl_runtime_api::NativeExecutionError {
     let first = interp

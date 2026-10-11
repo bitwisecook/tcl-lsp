@@ -604,6 +604,7 @@ fn has_projected_boundary_effects(
     statement: &Statement,
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
+    argument_input: crate::place_bridge::ArgumentReadInput<'_>,
 ) -> bool {
     let Some(tokens) = statement.tokens() else {
         return false;
@@ -622,10 +623,11 @@ fn has_projected_boundary_effects(
             .is_some()
         }
         Some(crate::ir::SyntheticMarker::EvaluatedArguments) => {
-            let substitutions = crate::word_subst::lifted_calls(
-                Some(tokens),
-                crate::place_bridge::invocation_read_grammar(tokens, registry),
-            );
+            let Some(substitutions) =
+                crate::place_bridge::argument_calls(tokens, registry, argument_input)
+            else {
+                return false;
+            };
             substitutions.is_empty()
                 && tokens.word_exprs.iter().all(|word| {
                     matches!(
@@ -664,12 +666,13 @@ fn transition_requires_wildcard(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
-    transition_requires_wildcard_with_metadata_context(
+    transition_requires_wildcard_with_read_input(
         stmt,
         registry,
         context
             .or_else(|| registry.profile().map(SemanticContext::for_profile))
             .map(Into::into),
+        crate::place_bridge::ArgumentReadInput::Standalone,
     )
 }
 
@@ -678,7 +681,23 @@ fn transition_requires_wildcard_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
 ) -> bool {
-    if !stmt.is_executable_invocation() || has_projected_boundary_effects(stmt, registry, context) {
+    transition_requires_wildcard_with_read_input(
+        stmt,
+        registry,
+        context,
+        crate::place_bridge::ArgumentReadInput::Supplied(context),
+    )
+}
+
+fn transition_requires_wildcard_with_read_input(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    argument_input: crate::place_bridge::ArgumentReadInput<'_>,
+) -> bool {
+    if !stmt.is_executable_invocation()
+        || has_projected_boundary_effects(stmt, registry, context, argument_input)
+    {
         return false;
     }
     match registry_resolution_with_metadata_context(stmt, registry, context) {
@@ -709,12 +728,13 @@ pub fn statement_has_wildcard_aliasing(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
-    statement_has_wildcard_aliasing_with_metadata_context(
+    transition_requires_wildcard_with_read_input(
         stmt,
         registry,
         context
             .or_else(|| registry.profile().map(SemanticContext::for_profile))
             .map(Into::into),
+        crate::place_bridge::ArgumentReadInput::Standalone,
     )
 }
 
@@ -743,12 +763,13 @@ pub fn is_clobber(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
 ) -> bool {
-    is_clobber_with_metadata_context(
+    is_clobber_with_read_input(
         stmt,
         registry,
         context
             .or_else(|| registry.profile().map(SemanticContext::for_profile))
             .map(Into::into),
+        crate::place_bridge::ArgumentReadInput::Standalone,
     )
 }
 
@@ -757,7 +778,23 @@ pub(crate) fn is_clobber_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
 ) -> bool {
-    if !stmt.is_executable_invocation() || has_projected_boundary_effects(stmt, registry, context) {
+    is_clobber_with_read_input(
+        stmt,
+        registry,
+        context,
+        crate::place_bridge::ArgumentReadInput::Supplied(context),
+    )
+}
+
+fn is_clobber_with_read_input(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    argument_input: crate::place_bridge::ArgumentReadInput<'_>,
+) -> bool {
+    if !stmt.is_executable_invocation()
+        || has_projected_boundary_effects(stmt, registry, context, argument_input)
+    {
         return false;
     }
     match stmt {
@@ -937,16 +974,20 @@ pub(crate) fn has_wildcard_aliasing_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
 ) -> bool {
-    ssa.blocks
-        .values()
-        .flat_map(|block| &block.statements)
-        .any(|statement| {
-            statement_has_wildcard_aliasing_with_metadata_context(
-                &statement.statement,
-                registry,
-                context,
-            )
-        })
+    ssa.point_contexts
+        .as_ref()
+        .is_some_and(|points| points.has_unknown_source_arguments())
+        || ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .any(|statement| {
+                statement_has_wildcard_aliasing_with_metadata_context(
+                    &statement.statement,
+                    registry,
+                    context,
+                )
+            })
 }
 
 /// Build memory-SSA annotations for an SSA function.
@@ -1023,7 +1064,11 @@ pub(crate) fn build_memory_ssa_with_metadata_context(
             let stmt = &stmt_ssa.statement;
             let idx_i32 = i32::try_from(idx).unwrap_or(i32::MAX);
 
-            if is_clobber_with_metadata_context(stmt, registry, context)
+            if ssa
+                .point_contexts
+                .as_ref()
+                .is_some_and(|points| points.source_arguments_unknown_at(bid, idx, registry))
+                || is_clobber_with_metadata_context(stmt, registry, context)
                 || transition_requires_wildcard_with_metadata_context(stmt, registry, context)
             {
                 version_counter += 1;

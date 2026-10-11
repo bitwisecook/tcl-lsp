@@ -1,0 +1,15 @@
+
+running 1 test
+test builtins::native_variable_operand_tests::original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold ... 
+thread 'builtins::native_variable_operand_tests::original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold' (1214730) panicked at src/builtins/native_variable_operand_tests.rs:246:66:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    builtins::native_variable_operand_tests::original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.66s
+

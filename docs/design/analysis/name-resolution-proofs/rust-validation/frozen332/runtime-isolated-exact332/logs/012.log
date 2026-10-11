@@ -1,0 +1,6 @@
+
+running 1 test
+test capi::collections::tests::original_collection_null_missing_and_foreign_issuers_cannot_supply_a_view ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 4.17s
+

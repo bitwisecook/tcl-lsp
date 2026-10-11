@@ -97,7 +97,7 @@ fn original_array_default_replacement_retires_outside_borrows_after_actual_publi
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Software actual callback/current/refcount control; no whole Native array grant.
-    for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+    for version in ["tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 2] {
             let mut interpreter = native(version);
             reset(&interpreter, mode);
@@ -208,4 +208,36 @@ fn original_array_default_pending_first_host_precedes_storage_or_retirement() {
     drop(old);
     assert_eq!(FREES.with(Cell::get), 1);
     OWNER.with(|owner| *owner.borrow_mut() = None);
+}
+
+#[test]
+fn original_array_default_unavailable_protocol_precedes_storage_and_retirement() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // ArrayDefault is independently selected only for actual C9. No C8/Jim storage grant.
+    for version in ["tcl8.4", "tcl8.5", "tcl8.6", "jim"] {
+        let mut interpreter = native(version);
+        reset(&interpreter, 0);
+        let old = Owned::fresh(obj::alloc_typed(&DEFAULT, 0));
+        interpreter.set_result_bytes(b"PRIOR");
+        let prior = interpreter.get_obj_result();
+        let frame = Frames::current(&interpreter);
+        let outcome = interpreter.set_array_default_bytes(frame, b"::array", old.as_ptr());
+        assert!(matches!(
+            outcome,
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "array default storage"
+            ))
+        ));
+        assert_eq!(stored(&interpreter), None);
+        assert_eq!(unsafe { (*old.as_ptr()).ref_count }, 1);
+        assert_eq!(FREES.with(Cell::get), 0);
+        assert_eq!(interpreter.get_obj_result(), prior);
+        assert!(interpreter.native_execution_refusal().is_none());
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+        drop(old);
+        assert_eq!(FREES.with(Cell::get), 1);
+        assert!(CURRENT_DEFAULT.with(Cell::get).is_null());
+        OWNER.with(|owner| *owner.borrow_mut() = None);
+    }
 }

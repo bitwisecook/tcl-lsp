@@ -26,6 +26,10 @@
 //! at each CFG site from registry transitions. Consumers share the same
 //! point-specific binding and lifetime state rather than rescanning declarations.
 
+#[path = "place_bridge/original_read_source.rs"]
+mod original_read_source;
+pub(crate) use original_read_source::{ArgumentReadInput, argument_calls, evaluates_arguments};
+
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{Function, Terminator};
@@ -806,7 +810,8 @@ pub fn read_places(
 
 /// Read dependencies from the actual substitution contexts retained at a CFG point.
 /// Named-variable roles use the invocation continuation after argument evaluation.
-/// Compatibility scanners apply only when no source projection exists.
+/// Only the explicit standalone owner selects compatibility scanning.
+/// Missing supplied source retains an unknown dependency.
 #[must_use]
 pub fn read_places_at(
     stmt: &Statement,
@@ -824,13 +829,24 @@ pub fn read_places_at(
         return effects.reads;
     }
     let Some(tokens) = points.source_tokens_at(block, index) else {
-        return read_places(stmt, context, registry);
+        if stmt
+            .tokens()
+            .is_some_and(|tokens| !evaluates_arguments(tokens))
+        {
+            return Vec::new();
+        }
+        return if points.source_metadata_owner().is_standalone() {
+            read_places(stmt, context, registry)
+        } else {
+            vec![place::unknown_top()]
+        };
     };
     source_read_places(
         tokens,
         points.source_reads_at(block, index),
         context,
         registry,
+        ArgumentReadInput::for_owner(points.source_metadata_owner(), registry),
     )
 }
 
@@ -844,13 +860,28 @@ pub fn terminator_read_places_at(
 ) -> Vec<Place> {
     let context = points.before_terminator(block);
     let Some(tokens) = points.source_tokens_at(block, usize::MAX) else {
-        return terminator_read_places(term, context, registry);
+        return if points.source_metadata_owner().is_standalone() {
+            terminator_read_places(term, context, registry)
+        } else if matches!(
+            term,
+            Terminator::Return {
+                value: None,
+                expr: None,
+                ..
+            } | Terminator::Complete { .. }
+                | Terminator::Goto { .. }
+        ) {
+            Vec::new()
+        } else {
+            vec![place::unknown_top()]
+        };
     };
     source_read_places(
         tokens,
         points.source_reads_at(block, usize::MAX),
         context,
         registry,
+        ArgumentReadInput::for_owner(points.source_metadata_owner(), registry),
     )
 }
 
@@ -859,21 +890,34 @@ fn source_read_places(
     accesses: &[crate::command_binding::SourceVariableAccess],
     context: &ResolveContext,
     registry: &CommandRegistry,
+    input: ArgumentReadInput<'_>,
 ) -> Vec<Place> {
     let mut out: Vec<_> = accesses
         .iter()
         .map(|access| access.place_in_context(&access.variable_context, registry))
         .collect();
     out.extend(invocation_execution_read_places(tokens, registry));
-    named_invocation_reads(tokens, context, registry, &mut out);
-    let grammar = context.invocation_dialect.map_or_else(
-        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+    named_invocation_reads(
+        tokens,
+        context,
+        registry,
+        input.metadata(registry),
+        &mut out,
     );
-    for nested in crate::word_subst::lifted_calls(Some(tokens), grammar) {
+    let Some(calls) = argument_calls(tokens, registry, input) else {
+        out.push(place::unknown_top());
+        return out;
+    };
+    for nested in calls {
         if let Some(tokens) = nested.tokens {
             out.extend(invocation_execution_read_places(&tokens, registry));
-            named_invocation_reads(&tokens, context, registry, &mut out);
+            named_invocation_reads(
+                &tokens,
+                context,
+                registry,
+                input.metadata(registry),
+                &mut out,
+            );
         }
     }
     out
@@ -893,16 +937,48 @@ pub fn invocation_execution_read_places(
         .collect()
 }
 
-/// May reads performed by reached argument-substitution invocations.
-/// These depend on retained nested dispatch proofs, independently of editable
+/// Standalone compatibility for argument-substitution reads. Actual point
+/// consumers use the retained-input sibling. Physical reads depend on retained
+/// nested dispatch proofs, independently of editable
 /// lexical substitution references and the outer invocation's own execution.
 #[must_use]
 pub fn invocation_argument_execution_read_places(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
-    let grammar = invocation_read_grammar(tokens, registry);
-    crate::word_subst::lifted_calls(Some(tokens), grammar)
+    argument_execution_reads(tokens, registry, ArgumentReadInput::Standalone)
+}
+
+/// Actual point consumers preserve their retained input; refusal stays unknown.
+pub(crate) fn invocation_argument_execution_read_places_at(
+    points: &PointResolveContexts,
+    block: crate::cfg::BlockId,
+    index: usize,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    let Some(tokens) = points.source_tokens_at(block, index) else {
+        return if points.source_arguments_unknown_at(block, index, registry) {
+            vec![place::unknown_top()]
+        } else {
+            Vec::new()
+        };
+    };
+    argument_execution_reads(
+        tokens,
+        registry,
+        ArgumentReadInput::for_owner(points.source_metadata_owner(), registry),
+    )
+}
+
+fn argument_execution_reads(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+    input: ArgumentReadInput<'_>,
+) -> Vec<Place> {
+    let Some(calls) = argument_calls(tokens, registry, input) else {
+        return vec![place::unknown_top()];
+    };
+    calls
         .into_iter()
         .filter_map(|call| call.tokens)
         .flat_map(|nested| invocation_execution_read_places(&nested, registry))
@@ -965,13 +1041,13 @@ fn named_invocation_reads(
     tokens: &CommandTokens,
     fallback: &ResolveContext,
     registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     out: &mut Vec<Place>,
 ) {
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
     let Some(invocation) =
-        crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
+        crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )
     else {
         return;
     };

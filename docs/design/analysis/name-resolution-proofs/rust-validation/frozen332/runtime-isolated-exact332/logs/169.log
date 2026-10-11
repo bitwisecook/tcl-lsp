@@ -1,0 +1,15 @@
+
+running 1 test
+test engine_abi::original_input_tests::original_abi_lazy_input_refusals_preserve_guest_state_and_stop_publication ... 
+thread 'engine_abi::original_input_tests::original_abi_lazy_input_refusals_preserve_guest_state_and_stop_publication' (1217305) panicked at src/engine_abi/original_input_tests.rs:68:55:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    engine_abi::original_input_tests::original_abi_lazy_input_refusals_preserve_guest_state_and_stop_publication
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 3.62s
+

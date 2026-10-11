@@ -84,10 +84,14 @@ mod tests {
 
     #[test]
     fn public_completion_returns_original_reached_host_metadata_outside_catch() {
+        // naming.namespace.procedure-call-level-context
+        // docs/design/analysis/name-resolution-proofs/namespace-procedure-call-level-context.md
+        // Native scripts establish the direct/nested info-level distinction.
+        // The original Host metadata below is a separate software control.
         let mut interp = Interp::new();
         interp.set_runtime_version(tcl_dialect::TclVersion::V8_6);
         interp.register_builtin(b"refusal_callback", refusal_callback);
-        let error = interp.eval_completion(b"namespace eval scope {proc within {} {set ::before 1; catch {refusal_callback}; set ::after 1}; within}").unwrap_err();
+        let error = interp.eval_completion(b"namespace eval scope {proc within {} {set ::before 1; catch {refusal_callback}; set ::after 1}}; scope::within").unwrap_err();
         let NativeExecutionError::HostCommandRefusal(failure) = error else {
             panic!("lost original host cause");
         };
@@ -97,8 +101,8 @@ mod tests {
         assert_eq!(failure.source_profile, interp.dialect_profile().cache_key());
         assert_eq!(failure.native_profile, interp.dialect_profile().cache_key());
         assert_eq!(Some(*failure), interp.native_host_command_refusal());
-        assert!(interp.var_get(b"::before").is_some());
-        assert!(interp.var_get(b"::after").is_none());
+        assert!(crate::test_storage::global_scalar(&interp, b"before").is_some());
+        assert!(crate::test_storage::global_scalar(&interp, b"after").is_none());
         let completion = interp
             .eval_sourced_completion(
                 b"catch {refusal_callback}; set ::after 1",
@@ -109,7 +113,26 @@ mod tests {
             completion,
             NativeExecutionError::HostCommandRefusal(_)
         ));
-        assert!(interp.var_get(b"::after").is_none());
+        assert!(crate::test_storage::global_scalar(&interp, b"after").is_none());
+    }
+
+    #[test]
+    fn namespace_eval_and_direct_procedure_calls_preserve_native_level_distinction() {
+        // naming.namespace.procedure-call-level-context
+        // docs/design/analysis/name-resolution-proofs/namespace-procedure-call-level-context.md
+        // All six native script transcripts report nested2/direct1. This does
+        // not assert a native frame structure or a Host metadata ABI.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(engine));
+            assert_eq!(
+                interp.eval_str(b"namespace eval scope {proc within {} {return [info level]}; set ::nested [within]}; list $::nested [scope::within]"),
+                RuntimeCode::Ok,
+                "{engine}"
+            );
+            assert_eq!(interp.result_bytes(), b"2 1", "{engine}");
+            assert!(!interp.host_refusal_pending(), "{engine}");
+        }
     }
 
     #[test]

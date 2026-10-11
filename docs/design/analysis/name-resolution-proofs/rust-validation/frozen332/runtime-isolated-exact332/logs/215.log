@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_command_recreation::tests::original_idle_object_recreation_matches_all_six_public_callback_windows ... 
+thread 'interp::native_command_recreation::tests::original_idle_object_recreation_matches_all_six_public_callback_windows' (1217763) panicked at src/interp/native_command_recreation.rs:262:22:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_command_recreation::tests::original_idle_object_recreation_matches_all_six_public_callback_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 7.14s
+

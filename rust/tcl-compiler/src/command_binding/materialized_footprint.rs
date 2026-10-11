@@ -4,6 +4,8 @@
 
 //! Conditional materialized text footprints anchored at an original source lookup.
 
+use super::original_name_value::OriginalWordSourcePurpose;
+
 use super::{ModuleCommandBindings, SourceInvocationBinding, SourceNamespaceKey};
 use crate::ir::CommandTokens;
 use crate::registry_invocation::InvocationMetadataContext;
@@ -153,16 +155,51 @@ impl SourceInvocationBinding {
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &CommandRegistry,
     ) -> Option<InvocationMetadataContext<'a>> {
+        self.original_word_metadata_for_input(
+            tokens,
+            input,
+            registry,
+            OriginalWordSourcePurpose::Invocation,
+        )
+    }
+
+    /// Source-only argv geometry. Synthetic argv evaluation never replays the
+    /// original invocation and cannot select its Normal handler or effects.
+    pub(crate) fn original_argument_metadata_for_input<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+    ) -> Option<InvocationMetadataContext<'a>> {
+        self.original_word_metadata_for_input(
+            tokens,
+            input,
+            registry,
+            OriginalWordSourcePurpose::ArgumentEvaluation,
+        )
+    }
+
+    fn original_word_metadata_for_input<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+        purpose: OriginalWordSourcePurpose,
+    ) -> Option<InvocationMetadataContext<'a>> {
         // A declaration-only Logical body retains its own full source owner.
         // This metadata projection does not manufacture a reached point, and
         // Native input cannot take the original-declaration purpose branch.
         if self.lookup_state.is_none() {
             input.has_logical_source_name_context().then_some(())?;
-            let metadata = self.original_declaration_metadata_for_source(tokens, registry)?;
+            let metadata = if purpose == OriginalWordSourcePurpose::ArgumentEvaluation {
+                self.original_declaration_argument_metadata(tokens, registry)?
+            } else {
+                self.original_declaration_metadata_for_source(tokens, registry)?
+            };
             let point = metadata.source_analysis_input()?;
             return (point == input || point == &input.for_nested_source()).then_some(metadata);
         }
-        let config = self.original_invocation_config(tokens, registry)?;
+        let config = self.original_word_config(tokens, registry, purpose)?;
         let point = self
             .lookup_state
             .as_ref()?
@@ -305,8 +342,21 @@ impl SourceInvocationBinding {
         tokens: &CommandTokens,
         registry: &CommandRegistry,
     ) -> Option<LexerConfig> {
+        self.original_word_config(tokens, registry, OriginalWordSourcePurpose::Invocation)
+    }
+
+    fn original_word_config(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+        purpose: OriginalWordSourcePurpose,
+    ) -> Option<LexerConfig> {
         let snapshot = self.lookup_state.as_ref()?;
-        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let config = if purpose == OriginalWordSourcePurpose::ArgumentEvaluation {
+            self.original_argument_lexer_config(tokens)?
+        } else {
+            self.original_lexer_config_for_tokens(tokens)?
+        };
         let site = self.invocation_site()?;
         if snapshot.state.current_source_origin.as_ref() != Some(&site.source)
             || snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())

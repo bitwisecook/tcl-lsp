@@ -1,0 +1,16 @@
+
+running 1 test
+test engine::tests::original_object_view_and_logical_native_receipts_refuse_explicitly ... 
+thread 'engine::tests::original_object_view_and_logical_native_receipts_refuse_explicitly' (1216846) panicked at src/engine.rs:1733:9:
+assertion failed: matches!(logical.command_publication_service(),
+    Err(EngineError::ExecutionRefusal(_)))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    engine::tests::original_object_view_and_logical_native_receipts_refuse_explicitly
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 1.30s
+

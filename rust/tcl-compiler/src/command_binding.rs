@@ -254,9 +254,9 @@ pub(crate) mod original_name_value;
 pub(crate) mod original_variable_compilation;
 mod source_analysis_cache;
 mod source_analysis_entry;
-pub(crate) use source_analysis_entry::SourceDeclaredCommandContracts;
 use source_analysis_entry::native_compilation_dialect;
 pub use source_analysis_entry::{SourceAnalysisEntry, SourceAnalysisOptions};
+pub(crate) use source_analysis_entry::{SourceDeclaredCommandContracts, source_input_dialect};
 mod source_loop;
 mod source_representation;
 pub use deferred_method::{

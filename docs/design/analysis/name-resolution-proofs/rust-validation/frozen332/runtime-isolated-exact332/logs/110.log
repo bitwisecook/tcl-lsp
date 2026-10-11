@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_proc::original_argument_tests::original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters ... 
+thread 'cmd_proc::original_argument_tests::original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters' (1216029) panicked at src/cmd_proc/original_argument_tests.rs:94:61:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_proc::original_argument_tests::original_procedure_definition_matches_jim_formal_name_and_deferred_body_getters
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.52s
+

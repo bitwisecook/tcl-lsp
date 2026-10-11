@@ -1,0 +1,15 @@
+
+running 1 test
+test expr::float_error_tests::c84_normalization_matches_six_original_float_error_windows ... 
+thread 'expr::float_error_tests::c84_normalization_matches_six_original_float_error_windows' (1217377) panicked at src/expr_float_tests.rs:94:5:
+assertion failed: error.native_access_refusal.is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    expr::float_error_tests::c84_normalization_matches_six_original_float_error_windows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 0.81s
+

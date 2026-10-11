@@ -1431,6 +1431,15 @@ mod original_apply_frame_tests {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
+        let _cleanup = crate::cmd_namespace::original_argument_tests::FixtureCleanup(|| {
+            OWNER.with(|owner| owner.borrow_mut().take());
+            ORIGINALS.with(|words| words.borrow_mut().clear());
+        });
+        assert_ne!(
+            version,
+            tcl_dialect::TclVersion::V8_4,
+            "positive apply requires its actual producer"
+        );
         assert_eq!(interp.eval_str(b"namespace eval applyCurrent {}"), Code::Ok);
         interp.register_builtin(b"applyFrameInspect", inspect);
         interp.register_builtin(b"applyFrameLater", later);
@@ -1485,7 +1494,10 @@ mod original_apply_frame_tests {
         // A real unused supplied value remains unread through lambda entry,
         // body and pop. This proves the software frame transport, not a new
         // original Tcl execution or opcode comparison.
-        for version in tcl_dialect::TclVersion::ALL {
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version != tcl_dialect::TclVersion::V8_4)
+        {
             run_case(version, false, 0);
         }
     }
@@ -1496,10 +1508,61 @@ mod original_apply_frame_tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual info-level List creation is separate from its reached String
         // rendering; Host/ABA stops later body work and restores the real frame.
-        for version in tcl_dialect::TclVersion::ALL {
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version != tcl_dialect::TclVersion::V8_4)
+        {
             for refusal in [0, 1, 2] {
                 run_case(version, true, refusal);
             }
         }
+    }
+    #[test]
+    fn original_c84_apply_refuses_before_body_frame_or_argument_getter() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // C8.4 has no actual apply producer. This is a software refusal control,
+        // independent of the later C providers' lazy argument/frame positives.
+        OWNER.with(|owner| owner.borrow_mut().take());
+        ORIGINALS.with(|words| words.borrow_mut().clear());
+        READS.with(|reads| reads.set(0));
+        INSPECTIONS.with(|calls| calls.set(0));
+        LATER.with(|calls| calls.set(0));
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment("tcl8.4").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let _cleanup = crate::cmd_namespace::original_argument_tests::FixtureCleanup(|| {
+            OWNER.with(|owner| owner.borrow_mut().take());
+            ORIGINALS.with(|words| words.borrow_mut().clear());
+        });
+        assert!(
+            tcl_registry::native_lambda::NativeLambdaDiagnosticProtocol::select(
+                interp.native_invocation_dialect()
+            )
+            .is_none()
+        );
+        interp.register_builtin(b"applyFrameInspect", inspect);
+        interp.register_builtin(b"applyFrameLater", later);
+        let command = Owned::fresh(obj::new_string_bytes(b"apply"));
+        let parameters = Owned::fresh(obj::new_string_bytes(b"x"));
+        let body = Owned::fresh(obj::new_string_bytes(b"applyFrameInspect; applyFrameLater"));
+        let lambda = Owned::fresh(interp.new_list_object(&[parameters.as_ptr(), body.as_ptr()]));
+        let argument = Owned::fresh(obj::alloc_typed(&TYPE, 0));
+        let argv = [command.as_ptr(), lambda.as_ptr(), argument.as_ptr()];
+        OWNER.with(|owner| *owner.borrow_mut() = Some(interp.clone()));
+        ORIGINALS.with(|words| *words.borrow_mut() = argv.to_vec());
+        let namespace = interp.current_ns();
+        assert_eq!(interp.dispatch(&argv), Code::Error);
+        assert_eq!(INSPECTIONS.with(Cell::get), 0);
+        assert_eq!(LATER.with(Cell::get), 0);
+        assert_eq!(READS.with(Cell::get), 0);
+        assert_eq!(interp.current_level(), 0);
+        assert_eq!(interp.current_ns(), namespace);
+        assert_eq!(interp.entered_native_operation_count(), 0);
+        assert_eq!(unsafe { (*argument.as_ptr()).ref_count }, 1);
+        assert!(!obj::has_string_rep(argument.as_ptr()));
     }
 }

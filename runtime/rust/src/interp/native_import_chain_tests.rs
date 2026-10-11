@@ -168,8 +168,13 @@ fn original_deep_import_queries_match_all_546_c_and_jim_public_rows() {
             assert_eq!(
                 interp.eval_str(SOURCE),
                 Code::Ok,
-                "{engine}: {:?}",
-                interp.result_bytes()
+                "{engine}: first_native_cause={:?}; native_access={:?}; resident_result={:?}; captured_stdout={:?}; captured_stderr={:?}",
+                interp.native_execution_refusal(),
+                interp.native_access_refusal(),
+                crate::obj::has_string_rep(interp.get_obj_result())
+                    .then(|| crate::obj::bytes_of(interp.get_obj_result())),
+                host.stdout.borrow().as_slice(),
+                host.stderr.borrow().as_slice()
             );
             assert!(
                 !interp.host_refusal_pending(),

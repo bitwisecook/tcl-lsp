@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::native_error_code_projection_tests::try_error_code_getter_refusal_skips_handler_finally_and_later_stores ... 
+thread 'interp::native_error_code_projection_tests::try_error_code_getter_refusal_skips_handler_finally_and_later_stores' (1218043) panicked at src/interp/native_error_code_projection_tests.rs:262:51:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_error_code_projection_tests::try_error_code_getter_refusal_skips_handler_finally_and_later_stores
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 2.91s
+

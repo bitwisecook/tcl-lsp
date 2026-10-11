@@ -1,0 +1,17 @@
+
+running 1 test
+test completion::tests::public_completion_returns_original_reached_host_metadata_outside_catch ... 
+thread 'completion::tests::public_completion_returns_original_reached_host_metadata_outside_catch' (1216524) panicked at src/completion.rs:96:9:
+assertion `left == right` failed
+  left: 2
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    completion::tests::public_completion_returns_original_reached_host_metadata_outside_catch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1619 filtered out; finished in 3.51s
+

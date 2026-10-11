@@ -6,7 +6,7 @@
 //! Program-point variable bindings. Registry transitions select the grammar;
 //! this owner follows cell links and joins state along executable CFG edges.
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{
@@ -177,6 +177,8 @@ pub struct PointResolveContexts {
     after: BTreeMap<(BlockId, usize), ResolveContext>,
     reads: BTreeMap<(BlockId, usize), Vec<crate::command_binding::SourceVariableAccess>>,
     source_tokens: BTreeMap<(BlockId, usize), crate::ir::CommandTokens>,
+    metadata_context: crate::registry_invocation::OwnedInvocationMetadataContext,
+    unknown_argument_points: BTreeSet<(BlockId, usize)>,
 }
 
 impl Function {
@@ -261,6 +263,37 @@ impl Function {
 }
 
 impl PointResolveContexts {
+    /// Actual CFG input owner. It does not authenticate a changed whole Module.
+    pub(crate) fn source_metadata_owner(
+        &self,
+    ) -> &crate::registry_invocation::OwnedInvocationMetadataContext {
+        &self.metadata_context
+    }
+
+    pub(crate) fn has_unknown_source_arguments(&self) -> bool {
+        !self.unknown_argument_points.is_empty()
+    }
+
+    pub(crate) fn source_arguments_unknown_at(
+        &self,
+        block: BlockId,
+        index: usize,
+        registry: &CommandRegistry,
+    ) -> bool {
+        self.unknown_argument_points.contains(&(block, index))
+            || self.source_tokens_at(block, index).is_some_and(|tokens| {
+                crate::place_bridge::argument_calls(
+                    tokens,
+                    registry,
+                    crate::place_bridge::ArgumentReadInput::for_owner(
+                        &self.metadata_context,
+                        registry,
+                    ),
+                )
+                .is_none()
+            })
+    }
+
     pub(crate) fn source_token_inventory(
         &self,
     ) -> &BTreeMap<(BlockId, usize), crate::ir::CommandTokens> {
@@ -285,6 +318,12 @@ impl PointResolveContexts {
             restored.restore_source_proofs(original);
             replacements.insert(point, restored);
         }
+        // Restoration changes the original carrier; it does not validate a
+        // new source inventory under an absent current registry/input query.
+        self.unknown_argument_points
+            .extend(replacements.iter().filter_map(|(&point, tokens)| {
+                crate::place_bridge::evaluates_arguments(tokens).then_some(point)
+            }));
         self.source_tokens = replacements;
         self.reads = self
             .source_tokens
@@ -398,8 +437,10 @@ pub fn build_point_resolve_contexts_with_entry(
         after: BTreeMap::new(),
         reads: BTreeMap::new(),
         source_tokens: BTreeMap::new(),
+        metadata_context: cfg.metadata_context.clone(),
+        unknown_argument_points: BTreeSet::new(),
     };
-    retain_source_tokens(&mut result, cfg);
+    retain_source_tokens(&mut result, cfg, registry);
     let mut incoming = HashMap::from([(cfg.entry, entry)]);
     let mut queue = VecDeque::from([cfg.entry]);
     while let Some(id) = queue.pop_front() {
@@ -433,10 +474,26 @@ pub fn build_point_resolve_contexts_with_entry(
     result
 }
 
-fn retain_source_tokens(result: &mut PointResolveContexts, cfg: &Function) {
+fn retain_source_tokens(
+    result: &mut PointResolveContexts,
+    cfg: &Function,
+    registry: &CommandRegistry,
+) {
     for (&block_id, block) in &cfg.blocks {
         for index in (0..block.statements.len()).chain(std::iter::once(usize::MAX)) {
             if let Some(tokens) = cfg.source_input_tokens_at(block_id, index) {
+                if crate::place_bridge::argument_calls(
+                    tokens,
+                    registry,
+                    crate::place_bridge::ArgumentReadInput::for_owner(
+                        &result.metadata_context,
+                        registry,
+                    ),
+                )
+                .is_none()
+                {
+                    result.unknown_argument_points.insert((block_id, index));
+                }
                 if tokens.evaluates_words() {
                     result
                         .reads
@@ -445,6 +502,25 @@ fn retain_source_tokens(result: &mut PointResolveContexts, cfg: &Function) {
                 result
                     .source_tokens
                     .insert((block_id, index), tokens.clone());
+            } else if !result.metadata_context.is_standalone() {
+                let missing_arguments = if index == usize::MAX {
+                    matches!(
+                        block.terminator,
+                        Some(
+                            crate::cfg::Terminator::Branch { .. }
+                                | crate::cfg::Terminator::Return { value: Some(_), .. }
+                                | crate::cfg::Terminator::Return { expr: Some(_), .. }
+                        )
+                    )
+                } else {
+                    let statement = &block.statements[index];
+                    statement
+                        .tokens()
+                        .map_or(true, crate::place_bridge::evaluates_arguments)
+                };
+                if missing_arguments {
+                    result.unknown_argument_points.insert((block_id, index));
+                }
             }
         }
     }

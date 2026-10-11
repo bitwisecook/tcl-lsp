@@ -2,8 +2,8 @@
 //! Original procedure name/body/formal getter order at definition entry.
 use super::*;
 use crate::cmd_namespace::original_argument_tests::{
-    compare_events_at, compare_worker, failure, instance, lazy, reset, row, text, unhex,
-    JIM_ORIGINAL, ORIGINALS,
+    compare_events_at, compare_worker, failure, instance, jim_fixture_namespace, lazy, reset, row,
+    text, unhex, FixtureCleanup, JIM_ORIGINAL, ORIGINALS,
 };
 
 #[test]
@@ -87,11 +87,15 @@ fn original_procedure_definition_matches_jim_formal_name_and_deferred_body_gette
     for case in [9, 10, 11] {
         reset();
         let mut interpreter = instance("jim");
+        let _cleanup = FixtureCleanup(|| {
+            crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
+        });
         assert_eq!(
             interpreter.eval_str(b"namespace eval ::d {}; set READY READY"),
             Code::Ok
         );
-        let current = interpreter.find_namespace_id(b"::d").unwrap();
+        let namespace_owner = jim_fixture_namespace(&mut interpreter, b"::d");
+        let current = namespace_owner.token;
         interpreter.set_current_ns(current);
         let head = text(b"proc");
         let name = lazy(
