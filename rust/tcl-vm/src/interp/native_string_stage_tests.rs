@@ -2,6 +2,7 @@
 //! Software formatter callback boundaries, with actual original VM and Value owners.
 
 use super::*;
+use crate::TclError;
 use std::cell::{Cell, RefCell};
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
@@ -476,7 +477,7 @@ fn original_resident_string_checks_owner_and_protocol_without_querying_formatter
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // This observes actual software Host query counts, not external native String chronology.
     let (mut vm, formatter, acquisitions) = provided();
-    let original = Value::new_native_string_bytes(b"already resident");
+    let original = Value::new_native_string_bytes(b"already resident".as_slice());
     let before = original.native_object_snapshot();
     let count = original.native_object_reference_count();
     let bytes = original.resident_string_bytes().unwrap();

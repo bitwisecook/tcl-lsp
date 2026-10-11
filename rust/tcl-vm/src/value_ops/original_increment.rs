@@ -288,7 +288,7 @@ mod tests {
         // A supplied stage checker releases the real header; it is not a C free callback issuer.
         for legacy in [false, true] {
             let mut vm = core(if legacy { "tcl8.4" } else { "tcl8.6" });
-            let original = Value::new_native_string_bytes(b"6");
+            let original = Value::new_native_string_bytes(b"6".as_slice());
             let held = original.native_lifetime_lease();
             let mut owner = Some(original);
             let dialect = vm.actual_native_invocation_dialect();
