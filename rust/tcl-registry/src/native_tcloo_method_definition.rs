@@ -7,6 +7,133 @@
 use crate::InvocationDialect;
 use tcl_dialect::{TclVersion, model::Family};
 
+/// Stock descriptor and visibility issued by the genuine root method installer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooCoreMethod {
+    Cloned,
+    Destroy,
+    Eval,
+    Unknown,
+    Variable,
+    Varname,
+    Create,
+    New,
+    CreateWithNamespace,
+    Configure,
+}
+impl NativeTclooCoreMethod {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Cloned => "<cloned>",
+            Self::Destroy => "destroy",
+            Self::Eval => "eval",
+            Self::Unknown => "unknown",
+            Self::Variable => "variable",
+            Self::Varname => "varname",
+            Self::Create => "create",
+            Self::New => "new",
+            Self::CreateWithNamespace => "createWithNamespace",
+            Self::Configure => "configure",
+        }
+    }
+    #[must_use]
+    pub const fn public(self) -> bool {
+        matches!(
+            self,
+            Self::Destroy | Self::Create | Self::New | Self::Configure
+        )
+    }
+}
+
+/// Current payload type issued by an actual method installer, independent of its name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooMethodPayloadType {
+    Procedure,
+    Forward,
+    PropertyGetter,
+    PropertySetter,
+    Core(NativeTclooCoreMethod),
+    SlotOperation(&'static str),
+    SlotAccessor {
+        slot: &'static str,
+        accessor: &'static str,
+    },
+    ClassConstructor,
+}
+impl NativeTclooMethodPayloadType {
+    /// Actual object-root fallback selector, selected only after no override record.
+    #[must_use]
+    pub fn object_core_fallback(selector: &[u8]) -> Option<Self> {
+        match selector {
+            b"destroy" => Some(Self::Core(NativeTclooCoreMethod::Destroy)),
+            b"eval" => Some(Self::Core(NativeTclooCoreMethod::Eval)),
+            b"variable" => Some(Self::Core(NativeTclooCoreMethod::Variable)),
+            b"varname" => Some(Self::Core(NativeTclooCoreMethod::Varname)),
+            _ => None,
+        }
+    }
+    /// Actual class-root fallback selector, selected only after no override record.
+    #[must_use]
+    pub fn class_core_fallback(selector: &[u8]) -> Option<Self> {
+        match selector {
+            b"create" => Some(Self::Core(NativeTclooCoreMethod::Create)),
+            b"new" => Some(Self::Core(NativeTclooCoreMethod::New)),
+            b"createWithNamespace" => Some(Self::Core(NativeTclooCoreMethod::CreateWithNamespace)),
+            _ => None,
+        }
+    }
+    /// Pure report descriptor; conveys no method record or invocation authority.
+    #[must_use]
+    pub fn name(self) -> Vec<u8> {
+        match self {
+            Self::Procedure => b"method".to_vec(),
+            Self::Forward => b"forward".to_vec(),
+            Self::PropertyGetter => b"PropertyGetter".to_vec(),
+            Self::PropertySetter => b"PropertySetter".to_vec(),
+            Self::Core(name) => format!("core method: \"{}\"", name.name()).into_bytes(),
+            Self::SlotOperation(name) => format!("core method: {name} slot").into_bytes(),
+            Self::SlotAccessor { slot, accessor } => {
+                format!("core method: {slot} {accessor}").into_bytes()
+            }
+            Self::ClassConstructor => b"oo::class constructor".to_vec(),
+        }
+    }
+}
+
+/// Call-chain flags issued by the actual chain/filter/unknown producers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooCallReportKind {
+    Filter,
+    Unknown,
+    Private,
+    Method,
+}
+impl NativeTclooCallReportKind {
+    /// Original RenderCallChain precedence; selector spelling is not an input.
+    #[must_use]
+    pub const fn from_flags(filter: bool, unknown: bool, private: bool) -> Self {
+        if filter {
+            Self::Filter
+        } else if unknown {
+            Self::Unknown
+        } else if private {
+            Self::Private
+        } else {
+            Self::Method
+        }
+    }
+    #[must_use]
+    pub const fn name(self) -> &'static [u8] {
+        match self {
+            Self::Filter => b"filter",
+            Self::Unknown => b"unknown",
+            Self::Private => b"private",
+            Self::Method => b"method",
+        }
+    }
+}
+
 const EXPORT_MODES: &[&str] = &["-export", "-private", "-unexport"];
 
 /// Reached command-head String stage for the selected class-variable worker.
@@ -494,5 +621,43 @@ mod classvariable_tests {
             NativeTclooClassVariableNameFailure::NamespaceSeparator.error_code(),
             b"TCL UPVAR LOCAL_ELEMENT"
         );
+    }
+}
+
+#[cfg(test)]
+mod call_report_tests {
+    use super::{NativeTclooCallReportKind as Kind, NativeTclooMethodPayloadType as Type};
+    #[test]
+    fn original_call_report_flags_and_payload_types_do_not_classify_selector_spellings() {
+        // naming.tcloo.original-entered-call-chain-report-record-and-flags
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-entered-call-chain-report-record-and-flags.md
+        assert_eq!(Kind::from_flags(true, true, true), Kind::Filter);
+        assert_eq!(Kind::from_flags(false, true, true), Kind::Unknown);
+        assert_eq!(Kind::from_flags(false, false, true), Kind::Private);
+        assert_eq!(Kind::from_flags(false, false, false), Kind::Method);
+        assert_eq!(Type::Forward.name(), b"forward");
+        assert_eq!(Type::Procedure.name(), b"method");
+        assert_eq!(Type::PropertyGetter.name(), b"PropertyGetter");
+        assert_eq!(Type::PropertySetter.name(), b"PropertySetter");
+        assert_eq!(
+            Type::Core(super::NativeTclooCoreMethod::Destroy).name(),
+            b"core method: \"destroy\""
+        );
+        assert_eq!(
+            Type::SlotOperation("-append").name(),
+            b"core method: -append slot"
+        );
+        assert_eq!(
+            Type::SlotAccessor {
+                slot: "define::mixin",
+                accessor: "Resolver"
+            }
+            .name(),
+            b"core method: define::mixin Resolver"
+        );
+        assert_eq!(Type::ClassConstructor.name(), b"oo::class constructor");
+        assert!(Type::object_core_fallback(b"<constructor>").is_none());
+        assert!(Type::object_core_fallback(b"").is_none());
+        assert!(Type::class_core_fallback(b"<destructor>").is_none());
     }
 }

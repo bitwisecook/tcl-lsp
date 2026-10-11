@@ -47,6 +47,10 @@ pub(crate) mod native_method_cache;
 mod native_object_info;
 pub(crate) mod native_variables;
 #[cfg(test)]
+mod original_call_report_tests;
+#[cfg(test)]
+mod original_classvariable_tests;
+#[cfg(test)]
 mod original_property_reporting_tests;
 #[cfg(test)]
 mod original_property_retirement_tests;
@@ -54,10 +58,9 @@ mod original_property_retirement_tests;
 mod original_publication_tests;
 #[cfg(test)]
 mod original_record_retirement_tests;
-#[cfg(test)]
-mod original_classvariable_tests;
 
 use tcl_registry::native_tcloo_method_definition::{
+    NativeTclooCallReportKind, NativeTclooCoreMethod, NativeTclooMethodPayloadType,
     NativeTclooMethodReportProtocol, NativeTclooMethodReportRole,
 };
 
@@ -144,16 +147,39 @@ type NativeMethod = fn(&mut Interp, OoId, &[*mut TclObj]) -> Code;
 enum Method {
     Body {
         procedure: crate::interp::NativeCallableProcedure,
+        report_type: NativeTclooMethodPayloadType,
     },
     Forward {
         prefix: obj::Owned,
     },
-    Builtin(NativeMethod),
+    Builtin {
+        handler: NativeMethod,
+        report_type: NativeTclooMethodPayloadType,
+    },
     /// Native C91 GetterType/SetterType clientData without a Tcl proc frame.
     Property(Rc<native_properties::NativePropertyAccessor>),
 }
 
 impl Method {
+    fn builtin(handler: NativeMethod, report_type: NativeTclooMethodPayloadType) -> Self {
+        Self::Builtin {
+            handler,
+            report_type,
+        }
+    }
+    fn report_type(&self) -> NativeTclooMethodPayloadType {
+        match self {
+            Self::Body { report_type, .. } | Self::Builtin { report_type, .. } => *report_type,
+            Self::Forward { .. } => NativeTclooMethodPayloadType::Forward,
+            Self::Property(accessor) => {
+                if accessor.writable {
+                    NativeTclooMethodPayloadType::PropertySetter
+                } else {
+                    NativeTclooMethodPayloadType::PropertyGetter
+                }
+            }
+        }
+    }
     /// DetailsCloner acquires a clientData role only for a new declaration.
     /// Reached/cache snapshots share the current native method payload instead.
     fn duplicate_native_payload(&self) -> Result<Self, tcl_syntax::value::ValueError> {
@@ -164,8 +190,12 @@ impl Method {
                     accessor.writable,
                 ),
             ))),
-            Self::Body { procedure } => Ok(Self::Body {
+            Self::Body {
+                procedure,
+                report_type,
+            } => Ok(Self::Body {
                 procedure: procedure.duplicate_method()?,
+                report_type: *report_type,
             }),
             _ => Ok(self.clone()),
         }
@@ -301,6 +331,9 @@ struct CallStep {
     /// instance (`self mixin <self>`) contributes both facets as distinct steps,
     /// so the facet can't be re-derived from the name alone (oo-13.7/23.1/41.2).
     is_object: bool,
+    is_filter: bool,
+    synthetic_type: Option<NativeTclooMethodPayloadType>,
+    declaring_facet: Option<std::rc::Weak<()>>,
 }
 
 /// One active method invocation (for `self` / `my` / `next`).
@@ -410,10 +443,12 @@ impl OriginalObjectPublication {
 struct FoundationMethodReports {
     constructor: obj::Owned,
     destructor: obj::Owned,
+    unknown: obj::Owned,
 }
 impl FoundationMethodReports {
     fn new(protocol: NativeTclooMethodReportProtocol) -> Self {
         Self {
+            unknown: obj::Owned::fresh(obj::new_string_bytes(b"unknown")),
             constructor: obj::Owned::fresh(obj::new_string_bytes(
                 protocol
                     .foundation_name(NativeTclooMethodReportRole::Constructor)
@@ -445,7 +480,8 @@ pub struct OoState {
     property_members: BTreeMap<(OoId, bool, bool), BTreeMap<Vec<u8>, obj::Owned>>,
     property_caches: BTreeMap<(OoId, bool), native_properties::NativePropertyCache>,
     /// Pure originating release recipe retained by the actual property producer.
-    property_origins: BTreeMap<(OoId, bool), tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
+    property_origins:
+        BTreeMap<(OoId, bool), tcl_registry::native_property_lookup::NativePropertyLookupProtocol>,
 
     classes: BTreeMap<OoId, Class>,
     objects: BTreeMap<OoId, Object>,
@@ -521,9 +557,14 @@ fn oo_display(interp: &Interp, obj: OoId) -> Vec<u8> {
     object_display(&interp.oo_name(obj))
 }
 
-/// Exact command words whose dispatch entered a TclOO method body. Keeping
-/// this construction beside the OO dispatcher makes `info level 0` and TIP
-/// 348's `CALL` record agree for every proc-like consumer of [`CallMeta`].
+/// Actual dispatch origin; a direct method named unknown does not issue fallback.
+#[derive(Clone, Copy)]
+struct MethodDispatch {
+    external: bool,
+    unknown: bool,
+}
+
+/// Exact borrowed command words for the actual method frame and CALL record.
 struct MethodInvocation {
     external: bool,
     level_words: Option<Vec<Vec<u8>>>,
@@ -608,7 +649,8 @@ impl OoState {
 
 /// Register the `oo::*` commands and the definition / context commands.
 pub fn install(interp: &mut Interp) {
-    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp) {
+    let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
         Ok(scope) => scope,
         Err(error) => {
             interp.report_cmd_error(error.into());
@@ -705,17 +747,23 @@ pub fn install(interp: &mut Interp) {
     // `oo::object` has a built-in (unexported) `unknown` method — the standard
     // "unknown method" error, and the terminus of the `unknown` call chain.
     if let Some(c) = interp.oo.borrow_mut().classes.get_mut(&object_root) {
-        drop(
-            c.methods
-                .insert_generated(b"unknown".to_vec(), Method::Builtin(oo_object_unknown)),
-        );
+        drop(c.methods.insert_generated(
+            b"unknown".to_vec(),
+            Method::builtin(
+                oo_object_unknown,
+                NativeTclooMethodPayloadType::Core(NativeTclooCoreMethod::Unknown),
+            ),
+        ));
         c.unexported.insert(b"unknown".to_vec());
         // `<cloned>` copies the instance namespace during `oo::copy`; reachable
         // via `next` from a user-defined `<cloned>` override.
-        drop(
-            c.methods
-                .insert_generated(b"<cloned>".to_vec(), Method::Builtin(oo_object_cloned)),
-        );
+        drop(c.methods.insert_generated(
+            b"<cloned>".to_vec(),
+            Method::builtin(
+                oo_object_cloned,
+                NativeTclooMethodPayloadType::Core(NativeTclooCoreMethod::Cloned),
+            ),
+        ));
         c.unexported.insert(b"<cloned>".to_vec());
     }
     // Script initialization requires the actual installed OO root command.
@@ -884,10 +932,13 @@ fn install_configurable(interp: &mut Interp) {
         .classes
         .get_mut(&configurable_support)
     {
-        drop(
-            c.methods
-                .insert_generated(b"configure".to_vec(), Method::Builtin(oo_configure)),
-        );
+        drop(c.methods.insert_generated(
+            b"configure".to_vec(),
+            Method::builtin(
+                oo_configure,
+                NativeTclooMethodPayloadType::Core(NativeTclooCoreMethod::Configure),
+            ),
+        ));
     }
     // The `oo::configurable` metaclass. Its instances (configurable classes) get
     // the configurable support set up natively in `oo_new_ns` — mixing in the
@@ -1164,7 +1215,10 @@ fn native_method_body(
 ) -> Method {
     let (source, base) = source.map_or((None, 0), |(file, base)| (Some(file), base));
     let procedure = interp.create_native_callable_from_chosen(params, body, GLOBAL, source, base);
-    Method::Body { procedure }
+    Method::Body {
+        procedure,
+        report_type: NativeTclooMethodPayloadType::Procedure,
+    }
 }
 
 fn install_property_method(interp: &mut Interp, name: &[u8], params: &[u8], body: &[u8]) -> Code {
@@ -1448,22 +1502,29 @@ fn install_slot_class(interp: &mut Interp) {
           }",
     );
     // Inject the native list operations + unknown handler as class methods.
-    let ops: &[(&[u8], NativeMethod)] = &[
-        (b"-set", slot_m_set),
-        (b"-append", slot_m_append),
-        (b"-prepend", slot_m_prepend),
-        (b"-remove", slot_m_remove),
-        (b"-appendifnew", slot_m_appendifnew),
-        (b"-clear", slot_m_clear),
-        (b"unknown", slot_m_unknown),
+    let ops: &[(&str, NativeMethod)] = &[
+        ("-set", slot_m_set),
+        ("-append", slot_m_append),
+        ("-prepend", slot_m_prepend),
+        ("-remove", slot_m_remove),
+        ("-appendifnew", slot_m_appendifnew),
+        ("-clear", slot_m_clear),
+        ("unknown", slot_m_unknown),
     ];
     let slot_class = interp.oo_resolve_object(b"::oo::Slot");
     if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&slot_class) {
+        for name in ["Get", "Set", "Resolve"] {
+            if let Some(owner) = cl.methods.owner(name.as_bytes()) {
+                if let Method::Body { report_type, .. } = &mut *owner.borrow_mut() {
+                    *report_type = NativeTclooMethodPayloadType::SlotOperation(name);
+                }
+            }
+        }
         for (name, f) in ops {
-            drop(
-                cl.methods
-                    .insert_generated(name.to_vec(), Method::Builtin(*f)),
-            );
+            drop(cl.methods.insert_generated(
+                name.as_bytes().to_vec(),
+                Method::builtin(*f, NativeTclooMethodPayloadType::SlotOperation(name)),
+            ));
         }
     }
 }
@@ -1477,40 +1538,74 @@ fn install_slot_class(interp: &mut Interp) {
 /// a `--default-operation` forwarding to `-set`.
 fn install_slot_instances(interp: &mut Interp) {
     // (slot object name, is a class-reference slot: mixin/superclass)
-    const SLOTS: &[(&[u8], bool)] = &[
-        (b"::oo::define::filter", false),
-        (b"::oo::define::mixin", true),
-        (b"::oo::define::superclass", true),
-        (b"::oo::define::variable", false),
-        (b"::oo::objdefine::filter", false),
-        (b"::oo::objdefine::mixin", true),
-        (b"::oo::objdefine::variable", false),
-        (b"::oo::configuresupport::readableproperties", false),
-        (b"::oo::configuresupport::writableproperties", false),
-        (b"::oo::configuresupport::objreadableproperties", false),
-        (b"::oo::configuresupport::objwritableproperties", false),
+    const SLOTS: &[(&[u8], &str, bool)] = &[
+        (b"::oo::define::filter", "define::filter", false),
+        (b"::oo::define::mixin", "define::mixin", true),
+        (b"::oo::define::superclass", "define::superclass", true),
+        (b"::oo::define::variable", "define::variable", false),
+        (b"::oo::objdefine::filter", "objdefine::filter", false),
+        (b"::oo::objdefine::mixin", "objdefine::mixin", true),
+        (b"::oo::objdefine::variable", "objdefine::variable", false),
+        (
+            b"::oo::configuresupport::readableproperties",
+            "configuresupport::readableproperties",
+            false,
+        ),
+        (
+            b"::oo::configuresupport::writableproperties",
+            "configuresupport::writableproperties",
+            false,
+        ),
+        (
+            b"::oo::configuresupport::objreadableproperties",
+            "configuresupport::objreadableproperties",
+            false,
+        ),
+        (
+            b"::oo::configuresupport::objwritableproperties",
+            "configuresupport::objwritableproperties",
+            false,
+        ),
     ];
-    for (name, class_ref) in SLOTS {
+    for (name, descriptor, class_ref) in SLOTS {
         let mut script = b"::oo::Slot create ".to_vec();
         script.extend_from_slice(name);
         let _ = interp.eval_str(&script);
         let slot = interp.oo_resolve_object(name);
         if let Some(o) = interp.oo.borrow_mut().objects.get_mut(&slot) {
-            drop(
-                o.methods
-                    .insert_generated(b"Get".to_vec(), Method::Builtin(slot_inst_get)),
-            );
-            drop(
-                o.methods
-                    .insert_generated(b"Set".to_vec(), Method::Builtin(slot_inst_set)),
-            );
+            drop(o.methods.insert_generated(
+                b"Get".to_vec(),
+                Method::builtin(
+                    slot_inst_get,
+                    NativeTclooMethodPayloadType::SlotAccessor {
+                        slot: descriptor,
+                        accessor: "Getter",
+                    },
+                ),
+            ));
+            drop(o.methods.insert_generated(
+                b"Set".to_vec(),
+                Method::builtin(
+                    slot_inst_set,
+                    NativeTclooMethodPayloadType::SlotAccessor {
+                        slot: descriptor,
+                        accessor: "Setter",
+                    },
+                ),
+            ));
             o.unexported.insert(b"Get".to_vec());
             o.unexported.insert(b"Set".to_vec());
             if *class_ref {
-                drop(
-                    o.methods
-                        .insert_generated(b"Resolve".to_vec(), Method::Builtin(slot_inst_resolve)),
-                );
+                drop(o.methods.insert_generated(
+                    b"Resolve".to_vec(),
+                    Method::builtin(
+                        slot_inst_resolve,
+                        NativeTclooMethodPayloadType::SlotAccessor {
+                            slot: descriptor,
+                            accessor: "Resolver",
+                        },
+                    ),
+                ));
                 o.unexported.insert(b"Resolve".to_vec());
                 // Class-reference slots default to `-set` (not the base `-append`).
                 drop(o.methods.insert_generated(
@@ -2444,6 +2539,10 @@ fn install_original_method_vis(
                  unexp: &mut BTreeSet<Vec<u8>>,
                  priv_set: &mut BTreeSet<Vec<u8>>| {
         let retired = methods.insert_original(name.clone(), original, m);
+        methods
+            .owner(&name)
+            .expect("just installed Method record")
+            .set_private(matches!(vis, MethodVis::Private));
         match vis {
             MethodVis::Public => {
                 unexp.remove(&name);
@@ -3080,7 +3179,10 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .constructor
                 .take();
             if retired.is_some() {
-                oo_checked!(interp, interp.native_property_structure_changed(class, true));
+                oo_checked!(
+                    interp,
+                    interp.native_property_structure_changed(class, true)
+                );
             }
             drop(retired);
             oo_original_check!(interp, originals);
@@ -3116,7 +3218,10 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
         oo_checked!(interp, interp.native_property_method_created(class, true));
-        oo_checked!(interp, interp.native_property_structure_changed(class, true));
+        oo_checked!(
+            interp,
+            interp.native_property_structure_changed(class, true)
+        );
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -3147,7 +3252,10 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .destructor
                 .take();
             if retired.is_some() {
-                oo_checked!(interp, interp.native_property_structure_changed(class, true));
+                oo_checked!(
+                    interp,
+                    interp.native_property_structure_changed(class, true)
+                );
             }
             drop(retired);
             oo_original_check!(interp, originals);
@@ -3176,7 +3284,10 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
         oo_checked!(interp, interp.native_property_method_created(class, true));
-        oo_checked!(interp, interp.native_property_structure_changed(class, true));
+        oo_checked!(
+            interp,
+            interp.native_property_structure_changed(class, true)
+        );
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -3365,6 +3476,9 @@ fn apply_method_visibility(
     let mut oo = interp.oo.borrow_mut();
     match target {
         DefTarget::Class(class) => oo.classes.get_mut(class).is_some_and(|owner| {
+            if let Some(record) = owner.methods.owner(name) {
+                record.set_private(false);
+            }
             apply(
                 &mut owner.unexported,
                 &mut owner.exported,
@@ -3375,6 +3489,9 @@ fn apply_method_visibility(
             oo.native_methods.instance_table_created(*object);
             oo.objects.get_mut(object).is_some_and(|owner| {
                 owner.methods.mark_allocated();
+                if let Some(record) = owner.methods.owner(name) {
+                    record.set_private(false);
+                }
                 apply(
                     &mut owner.unexported,
                     &mut owner.exported,
@@ -3462,12 +3579,11 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     frame.object,
                     step.map(|s| s.provider),
                     step.map(|s| s.method.clone()).unwrap_or_default(),
-                    frame.target.clone(),
                     frame.chain.clone(),
                     frame.index,
                 )
             });
-        let Some((object, class, method, target, chain, index)) = ctx else {
+        let Some((object, class, method, chain, index)) = ctx else {
             // Define-context `self`: inside an `oo::define`/`oo::class create` body,
             // `self ?subcmd …?` applies objdefine-style directives to the object
             // being defined (the classes-as-objects model). `self` alone returns it.
@@ -3550,7 +3666,7 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `self class` is the *declaring class* of the running method; a method
             // defined directly on the object (objdefine / class-side `self method`)
             // has no declaring class (C: `declaringClassPtr == NULL`).
-            Some(b"class") if class.is_none_or(|class| class == object) => {
+            Some(b"class") if chain.get(index).is_none_or(|step| step.is_object) => {
                 return err(interp, b"method not defined by a class");
             }
             Some(b"class") => interp.set_result(obj::new_string_bytes(
@@ -3623,22 +3739,13 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     .and_then(|f| {
                         f.chain
                             .iter()
-                            .find(|s| s.method == target)
+                            .find(|s| !s.is_filter)
                             .map(|s| (s.provider, s.method.clone()))
                     });
-                // A filter wrapping a built-in target (e.g. `destroy`) has no chain
-                // step for it — the built-in is the implicit terminus — so name its
-                // declaring class directly (`::oo::object` for the object built-ins,
-                // `::oo::class` for the instantiation ones; oo-12.8).
                 let pair = pair.or_else(|| {
-                    let oo = interp.oo.borrow();
-                    let decl = match target.as_slice() {
-                        b"destroy" | b"eval" | b"variable" | b"varname" | b"unknown"
-                        | b"<cloned>" => oo.object_root?,
-                        b"create" | b"new" | b"createWithNamespace" => oo.class_root?,
-                        _ => return None,
-                    };
-                    Some((decl, target.clone()))
+                    chain
+                        .terminal_report()
+                        .map(|step| (step.provider, step.method.clone()))
                 });
                 match pair {
                     Some((p, m)) => {
@@ -3654,38 +3761,14 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `self call` — `{chain index}`: the full call chain (each step a
             // `{callType method declarer methodType}` element) and the current index.
             Some(b"call") => {
-                let elems: Result<Vec<Vec<u8>>, tcl_cmd_core::CmdError> = chain
-                    .iter()
-                    .map(|s| {
-                        let is_object = s.provider == object;
-                        // A step whose method differs from the invoked target is a
-                        // filter wrapping the call.
-                        let is_filter = !s.method.is_empty() && s.method != target;
-                        // Constructors carry an empty method name, rendered
-                        // `<constructor>`; destructors use `<destructor>`.
-                        let display: &[u8] = if s.method.is_empty() {
-                            b"<constructor>"
-                        } else {
-                            &s.method
-                        };
-                        let call_type: &[u8] = if is_filter {
-                            b"filter"
-                        } else if interp.method_is_private(s.provider, &s.method, is_object) {
-                            b"private"
-                        } else {
-                            b"method"
-                        };
-                        call_chain_elem(
-                            interp, call_type, display, &s.method, s.provider, is_object,
-                        )
-                    })
-                    .collect::<Result<_, _>>();
-                let elems = oo_checked!(interp, elems);
-                let inner_objs: Vec<*mut TclObj> =
-                    elems.iter().map(|e| obj::new_string_bytes(e)).collect();
-                let inner = interp.new_list_object(&inner_objs);
-                let outer = [inner, obj::new_string_bytes(index.to_string().as_bytes())];
+                let inner = oo_checked!(interp, render_call_chain(interp, &chain));
+                let outer = [
+                    inner.as_ptr(),
+                    obj::new_string_bytes(index.to_string().as_bytes()),
+                ];
                 interp.set_result(interp.new_list_object(&outer));
+                drop(inner);
+                oo_original_check!(interp, originals);
             }
             Some(other) => {
                 let mut m = b"unsupported self subcommand \"".to_vec();
@@ -3815,9 +3898,7 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // advances to the following step. A `next` *from a filter step* clears
     // `filter_handling`, so the wrapped method re-enables filters for its own
     // `my` calls (C's FILTER_HANDLING; oo-12.7); save/restore around the call.
-    let from_filter = chain
-        .get(index)
-        .is_some_and(|s| !s.method.is_empty() && s.method != target);
+    let from_filter = chain.get(index).is_some_and(|s| s.is_filter);
     if index + 1 < chain.len() {
         let saved_fh = interp.oo.borrow().filter_handling;
         if from_filter {
@@ -3898,8 +3979,8 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.extend_from_slice(b"\" is not a class");
             return err(interp, &m);
         }
-        // A non-filter step has the same method name as the invoked target.
-        let is_target = |s: &CallStep| s.method == target;
+        // The actual producer flag distinguishes filters from target steps.
+        let is_target = |s: &CallStep| !s.is_filter;
         // Search forward (past the current step) for the class's implementation.
         for i in index + 1..chain.len() {
             if chain[i].provider == class && is_target(&chain[i]) {
@@ -3918,7 +3999,8 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         // Not reachable ahead: distinguish "behind us" from "not in the chain".
-        let method_type: &[u8] = if chain.report_role() == NativeTclooMethodReportRole::Constructor {
+        let method_type: &[u8] = if chain.report_role() == NativeTclooMethodReportRole::Constructor
+        {
             b"constructor"
         } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
             b"destructor"
@@ -4712,7 +4794,7 @@ fn info_definition(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: b
             }
         };
         match m {
-            Some(Method::Body { procedure }) => {
+            Some(Method::Body { procedure, .. }) => {
                 let out = list_procedure_body(interp, &procedure.declaration());
                 interp.set_result(out);
                 Code::Ok
@@ -4740,33 +4822,23 @@ fn info_methodtype(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: b
         };
         let name = oo_original_bytes!(interp, originals, 4);
         oo_checked!(interp, target_owner.check(interp));
-        let m = {
+        let record = {
             let oo = interp.oo.borrow();
             if class {
-                oo.classes.get(&id).and_then(|c| c.methods.get(&name))
+                oo.classes.get(&id).and_then(|c| c.methods.owner(&name))
             } else {
-                oo.objects.get(&id).and_then(|o| o.methods.get(&name))
+                oo.objects.get(&id).and_then(|o| o.methods.owner(&name))
             }
         };
-        match m {
-            Some(Method::Body { .. } | Method::Builtin(_)) => {
-                interp.set_result_bytes(b"method");
-                Code::Ok
-            }
-            Some(Method::Property(accessor)) => {
-                interp.set_result_bytes(if accessor.writable {
-                    b"PropertySetter"
-                } else {
-                    b"PropertyGetter"
-                });
-                Code::Ok
-            }
-            Some(Method::Forward { .. }) => {
-                interp.set_result_bytes(b"forward");
-                Code::Ok
-            }
-            None => unknown_method_named(interp, &name),
-        }
+        let Some(record) = record else {
+            return unknown_method_named(interp, &name);
+        };
+        let descriptor = record.borrow().report_type().name();
+        drop(record);
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
+        interp.set_result_bytes(&descriptor);
+        Code::Ok
     })
 }
 
@@ -4797,181 +4869,305 @@ fn info_call(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -
         };
         let method = oo_original_bytes!(interp, originals, 4);
         oo_checked!(interp, target_owner.check(interp));
-        let elems = oo_checked!(interp, build_call_chain(interp, id, &method, class));
-        set_list(interp, &elems);
+        let report = oo_checked!(interp, build_call_chain(interp, id, &method, class));
+        interp.set_result(report.as_ptr());
+        drop(report);
+        oo_original_check!(interp, originals);
         Code::Ok
     })
 }
 
-/// Build the rendered call chain (`{callType name declarer methodType}` per
-/// step) for `info object/class call`: filter steps (one per provider that
-/// implements an active filter, in precedence order), then either the method's
-/// own steps or — if the method is undefined — the `unknown`-handler chain.
+/// Select all exact report records before constructing the original List.
 fn build_call_chain(
     interp: &Interp,
     id: OoId,
     method: &[u8],
     class: bool,
-) -> Result<Vec<Vec<u8>>, tcl_cmd_core::CmdError> {
-    let providers = if class {
-        interp.class_precedence(id)
+) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
+    let providers: Vec<(OoId, bool)> = if class {
+        interp
+            .class_precedence(id)
+            .into_iter()
+            .map(|provider| (provider, false))
+            .collect()
     } else {
-        interp.method_chain(id)
+        interp.method_chain_faceted(id)
     };
-    let is_obj = |p: OoId| !class && p == id;
-    let mut elems: Vec<Vec<u8>> = Vec::new();
-    // Active filter method names: the object's own filters then each provider's.
-    let mut filter_names: Vec<Vec<u8>> = Vec::new();
-    let add_name = |n: &Vec<u8>, v: &mut Vec<Vec<u8>>| {
-        if !v.contains(n) {
-            v.push(n.clone());
-        }
-    };
+    let mut filters = Vec::new();
     if !class {
-        if let Some(o) = interp.oo.borrow().objects.get(&id) {
-            for f in &o.filters {
-                add_name(f, &mut filter_names);
-            }
+        if let Some(object) = interp.oo.borrow().objects.get(&id) {
+            filters.extend(object.filters.iter().cloned());
         }
     }
-    for p in &providers {
-        if let Some(c) = interp.oo.borrow().classes.get(p) {
-            for f in &c.filters {
-                add_name(f, &mut filter_names);
-            }
-        }
-    }
-    // Each filter contributes a step per implementing provider (precedence order).
-    for fname in &filter_names {
-        for p in &providers {
-            if interp.oo_has_method(*p, fname, is_obj(*p)) {
-                elems.push(call_chain_elem(
-                    interp,
-                    b"filter",
-                    fname,
-                    fname,
-                    *p,
-                    is_obj(*p),
-                )?);
-            }
-        }
-    }
-    // The target method's steps, or the unknown-handler chain if undefined.
-    let method_steps: Vec<OoId> = providers
-        .iter()
-        .filter(|p| interp.oo_has_method(**p, method, is_obj(**p)))
-        .cloned()
-        .collect();
-    // A core built-in (`destroy`/`eval`/`variable`/`varname`) is the terminal
-    // implementation of its name on `oo::object`, so it appears as a chain step
-    // even with no user method (C lists e.g. `{method destroy ::oo::object
-    // {core method: "destroy"}}`). `destroy` is public; the rest are private.
-    let core_builtin: Option<&[u8]> = match method {
-        b"destroy" => Some(b"method"),
-        b"eval" | b"variable" | b"varname" => Some(b"private"),
-        _ => None,
-    };
-    if method_steps.is_empty() {
-        if let Some(ct) = core_builtin {
-            if let Some(object_root) = interp.oo.borrow().object_root {
-                if providers.contains(&object_root) {
-                    elems.push(call_chain_elem(
-                        interp,
-                        ct,
-                        method,
-                        method,
-                        object_root,
-                        false,
-                    )?);
+    for (provider, _) in &providers {
+        if let Some(owner) = interp.oo.borrow().classes.get(provider) {
+            for name in &owner.filters {
+                if !filters.contains(name) {
+                    filters.push(name.clone());
                 }
             }
+        }
+    }
+    let mut steps = Vec::new();
+    for name in filters {
+        for &(provider, is_object) in &providers {
+            if interp.oo_has_method(provider, &name, is_object) {
+                steps.push(CallStep {
+                    method_owner: None,
+                    provider,
+                    method: name.clone(),
+                    is_object,
+                    is_filter: true,
+                    synthetic_type: None,
+                    declaring_facet: None,
+                });
+            }
+        }
+    }
+    let exported = providers.iter().any(|&(provider, is_object)| {
+        let state = interp.oo.borrow();
+        if is_object {
+            state
+                .objects
+                .get(&provider)
+                .is_some_and(|owner| owner.exported.contains(method))
         } else {
-            for p in &providers {
-                if interp.oo_has_method(*p, b"unknown", is_obj(*p)) {
-                    elems.push(call_chain_elem(
-                        interp,
-                        b"unknown",
-                        b"unknown",
-                        b"unknown",
-                        *p,
-                        is_obj(*p),
-                    )?);
+            state
+                .classes
+                .get(&provider)
+                .is_some_and(|owner| owner.exported.contains(method))
+        }
+    });
+    let mut target_steps = Vec::new();
+    for &(provider, is_object) in &providers {
+        if interp.oo_has_method(provider, method, is_object) {
+            if interp.method_is_private(provider, method, is_object)
+                || (!exported && interp.method_unexported(provider, method, is_object))
+            {
+                continue;
+            }
+            target_steps.push(CallStep {
+                method_owner: None,
+                provider,
+                method: method.to_vec(),
+                is_object,
+                is_filter: false,
+                synthetic_type: None,
+                declaring_facet: None,
+            });
+        } else if !is_object {
+            if let Some(descriptor) = original_core_report_type(interp, provider, method) {
+                let NativeTclooMethodPayloadType::Core(core) = descriptor else {
+                    unreachable!("stock core fallback descriptor");
+                };
+                if !exported
+                    && (!core.public() || interp.method_unexported(provider, method, false))
+                {
+                    continue;
                 }
+                target_steps.push(CallStep {
+                    method_owner: None,
+                    provider,
+                    method: method.to_vec(),
+                    is_object: false,
+                    is_filter: false,
+                    synthetic_type: Some(descriptor),
+                    declaring_facet: None,
+                });
             }
         }
-    } else {
-        for p in &method_steps {
-            let ct: &[u8] = if interp.method_is_private(*p, method, is_obj(*p)) {
-                b"private"
-            } else {
-                b"method"
-            };
-            elems.push(call_chain_elem(interp, ct, method, method, *p, is_obj(*p))?);
+    }
+    let unknown = target_steps.is_empty();
+    if unknown {
+        for &(provider, is_object) in &providers {
+            if interp.oo_has_method(provider, b"unknown", is_object)
+                && !interp.method_is_private(provider, b"unknown", is_object)
+            {
+                target_steps.push(CallStep {
+                    method_owner: None,
+                    provider,
+                    method: b"unknown".to_vec(),
+                    is_object,
+                    is_filter: false,
+                    synthetic_type: None,
+                    declaring_facet: None,
+                });
+            }
         }
     }
-    Ok(elems)
+    steps.extend(target_steps);
+    let chain = native_method_cache::ReachedMethodChain::from(native_method_cache::retain_owners(
+        &interp.oo.borrow(),
+        steps,
+        NativeTclooMethodReportRole::Named,
+    ))
+    .with_unknown(unknown);
+    render_call_chain(interp, &chain)
 }
 
-/// One `info call` / `self call` chain element: a 4-element list `{callType
-/// displayName declarer methodType}`. `type_key` is the method-table key used
-/// to determine the method type (proc `method`, `forward`, or a core builtin
-/// rendered `core method: "NAME"`); the declarer is `object` for a per-object
-/// method, else the class FQN.
-fn call_chain_elem(
+/// Actual stock fallback producer; an overriding declaration is selected first.
+fn original_core_report_type(
     interp: &Interp,
-    call_type: &[u8],
-    display_name: &[u8],
-    type_key: &[u8],
     provider: OoId,
-    is_object: bool,
-) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
-    let mtype = method_type_name(interp, provider, type_key, is_object);
-    let declarer: Vec<u8> = if is_object {
-        b"object".to_vec()
+    method: &[u8],
+) -> Option<NativeTclooMethodPayloadType> {
+    let state = interp.oo.borrow();
+    if Some(provider) == state.object_root {
+        NativeTclooMethodPayloadType::object_core_fallback(method)
+    } else if Some(provider) == state.class_root {
+        NativeTclooMethodPayloadType::class_core_fallback(method)
     } else {
-        interp.oo_name(provider)
+        None
+    }
+}
+
+fn original_core_report_step(interp: &Interp, provider: OoId, method: &[u8]) -> Option<CallStep> {
+    let descriptor = original_core_report_type(interp, provider, method)?;
+    let declaring_facet = interp
+        .oo
+        .borrow()
+        .classes
+        .get(&provider)
+        .map(|class| Rc::downgrade(&class.facet_birth));
+    Some(CallStep {
+        method_owner: None,
+        provider,
+        method: method.to_vec(),
+        is_object: false,
+        is_filter: false,
+        synthetic_type: Some(descriptor),
+        declaring_facet,
+    })
+}
+fn retain_original_terminal_report(
+    interp: &Interp,
+    providers: &[(OoId, bool)],
+    method: &[u8],
+    chain: native_method_cache::ReachedMethodChain,
+) -> native_method_cache::ReachedMethodChain {
+    let terminal = providers.iter().find_map(|&(provider, is_object)| {
+        if is_object
+            || chain
+                .iter()
+                .any(|step| step.provider == provider && !step.is_object && !step.is_filter)
+        {
+            None
+        } else {
+            original_core_report_step(interp, provider, method)
+        }
+    });
+    if let Some(terminal) = terminal {
+        chain.with_terminal_report(terminal)
+    } else {
+        chain
+    }
+}
+
+fn call_report_refusal(
+    interp: &Interp,
+    first: impl Into<tcl_cmd_core::CmdError>,
+) -> tcl_cmd_core::CmdError {
+    let first = first.into();
+    let Some(execution) = first.native_execution_refusal().cloned() else {
+        return first;
     };
-    build_list(
-        interp,
-        &[call_type.to_vec(), display_name.to_vec(), declarer, mtype],
+    let mut original = interp.clone();
+    original.refuse_native_execution(execution.clone());
+    tcl_cmd_core::CmdError::from_execution_refusal(
+        original.native_execution_refusal().unwrap_or(execution),
     )
 }
 
-/// The `methodType` word for a method: `forward`, `core method: "NAME"` for a
-/// native builtin, or `method` for a proc body (incl. constructor/destructor).
-fn method_type_name(interp: &Interp, provider: OoId, key: &[u8], is_object: bool) -> Vec<u8> {
-    if key == b"<constructor>" || key == b"<destructor>" || key.is_empty() {
-        return b"method".to_vec();
+/// Report retained records and current payloads without reaching name String getters.
+fn render_call_chain(
+    interp: &Interp,
+    chain: &native_method_cache::ReachedMethodChain,
+) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
+    let originals = crate::interp::native_arguments::OriginalArguments::enter(interp, &[])?;
+    let mut entries = Vec::new();
+    for step in chain.iter().chain(chain.terminal_report()) {
+        originals.check()?;
+        let (descriptor, private) = if let Some(record) = &step.method_owner {
+            (record.borrow().report_type(), record.is_private())
+        } else if let Some(descriptor) = step.synthetic_type {
+            (descriptor, false)
+        } else {
+            return Err(call_report_refusal(
+                interp,
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original call-chain method record",
+                ),
+            ));
+        };
+        let call_type =
+            NativeTclooCallReportKind::from_flags(step.is_filter, chain.is_unknown(), private);
+        let mut fresh = Vec::new();
+        let call_type = if call_type == NativeTclooCallReportKind::Unknown {
+            interp.oo.borrow().method_reports.as_ref().map(|reports| reports.unknown.as_ptr())
+                .ok_or_else(|| call_report_refusal(interp, tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("original Foundation unknown report header")))?
+        } else {
+            fresh.push(obj::Owned::fresh(obj::new_string_bytes(call_type.name())));
+            fresh.last().unwrap().as_ptr()
+        };
+        let name = if chain.report_role() != NativeTclooMethodReportRole::Named {
+            interp.oo.borrow().method_reports.as_ref().and_then(|reports| reports.report(chain.report_role()))
+                .ok_or_else(|| call_report_refusal(interp, tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("original Foundation method report header")))?
+        } else if let Some(record) = &step.method_owner {
+            record.original_name().ok_or_else(|| {
+                call_report_refusal(
+                    interp,
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original named method report header",
+                    ),
+                )
+            })?
+        } else {
+            fresh.push(obj::Owned::fresh(obj::new_string_bytes(&step.method)));
+            fresh.last().unwrap().as_ptr()
+        };
+        let declarer = if step.is_object {
+            fresh.push(obj::Owned::fresh(obj::new_string_bytes(b"object")));
+            fresh.last().unwrap().as_ptr()
+        } else {
+            let same = {
+                let state = interp.oo.borrow();
+                step.declaring_facet.as_ref().is_some_and(|original| {
+                    state.classes.get(&step.provider).is_some_and(|class| {
+                        std::rc::Weak::ptr_eq(original, &Rc::downgrade(&class.facet_birth))
+                            && original.strong_count() != 0
+                    })
+                }) && state.objects.contains_key(&step.provider)
+            };
+            if !same {
+                return Err(call_report_refusal(
+                    interp,
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original method report declaring facet",
+                    ),
+                ));
+            }
+            interp.oo_original_name(step.provider)
+        };
+        obj::check_native_liveness(name).map_err(|first| call_report_refusal(interp, first))?;
+        obj::check_native_liveness(call_type)
+            .map_err(|first| call_report_refusal(interp, first))?;
+        obj::check_native_liveness(declarer).map_err(|first| call_report_refusal(interp, first))?;
+        fresh.push(obj::Owned::fresh(obj::new_string_bytes(&descriptor.name())));
+        let entry = obj::Owned::fresh(interp.new_list_object(&[
+            call_type,
+            name,
+            declarer,
+            fresh.last().unwrap().as_ptr(),
+        ]));
+        drop(fresh);
+        originals.check()?;
+        entries.push(entry);
     }
-    // The `oo::object` core built-ins are rendered `core method: "NAME"` even
-    // though they are not in the method table (they are dispatched natively).
-    if Some(provider) == interp.oo.borrow().object_root
-        && matches!(
-            key,
-            b"destroy" | b"eval" | b"variable" | b"varname" | b"unknown" | b"<cloned>"
-        )
-    {
-        let mut s = b"core method: \"".to_vec();
-        s.extend_from_slice(key);
-        s.push(b'"');
-        return s;
-    }
-    let oo = interp.oo.borrow();
-    let m = if is_object {
-        oo.objects.get(&provider).and_then(|o| o.methods.get(key))
-    } else {
-        oo.classes.get(&provider).and_then(|c| c.methods.get(key))
-    };
-    match m {
-        Some(Method::Forward { .. }) => b"forward".to_vec(),
-        Some(Method::Builtin(_)) => {
-            let mut s = b"core method: \"".to_vec();
-            s.extend_from_slice(key);
-            s.push(b'"');
-            s
-        }
-        _ => b"method".to_vec(),
-    }
+    let pointers: Vec<_> = entries.iter().map(obj::Owned::as_ptr).collect();
+    let report = obj::Owned::fresh(interp.new_list_object(&pointers));
+    drop(entries);
+    originals.check()?;
+    Ok(report)
 }
 
 /// `info class subcommand class ?arg?`.
@@ -5208,7 +5404,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             b"constructor" => {
                 let body = match interp.oo.borrow().classes[&cls].constructor.get() {
-                    Some(Method::Body { procedure }) => {
+                    Some(Method::Body { procedure, .. }) => {
                         list_procedure_body(interp, &procedure.declaration())
                     }
                     _ => obj::new_string_bytes(b""),
@@ -5219,7 +5415,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"destructor" => {
                 let procedure = interp.oo.borrow().classes[&cls].destructor.get().and_then(
                     |method| match method {
-                        Method::Body { procedure } => Some(procedure.declaration()),
+                        Method::Body { procedure, .. } => Some(procedure.declaration()),
                         _ => None,
                     },
                 );
@@ -5482,10 +5678,11 @@ impl Interp {
         publication: ObjectPublication,
         script: Option<*mut TclObj>,
     ) -> Code {
-        let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
-            Ok(scope) => scope,
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
+        let scope =
+            match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
+                Ok(scope) => scope,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
         let fqn = &publication.report;
         let object = self.oo.borrow_mut().allocate(fqn.to_vec());
         let (object_root, class_root) = {
@@ -6009,10 +6206,11 @@ impl Interp {
         args: &[*mut TclObj],
         invocation: MethodInvocation,
     ) -> Code {
-        let scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
-            Ok(scope) => scope,
-            Err(error) => return self.report_cmd_error(error.into()),
-        };
+        let scope =
+            match crate::interp::native_operation_currency::NativeOperationScope::enter(self) {
+                Ok(scope) => scope,
+                Err(error) => return self.report_cmd_error(error.into()),
+            };
         let anonymous = publication.is_none();
         let publication = match publication {
             Some(publication) => publication,
@@ -6105,13 +6303,23 @@ impl Interp {
             })
             .map(|c| CallStep {
                 method_owner: None,
-                is_object: *c == object,
+                is_object: false,
+                is_filter: false,
+                synthetic_type: (Some(*c) == self.oo.borrow().class_root
+                    && !self.class_has_ctor(*c))
+                .then_some(NativeTclooMethodPayloadType::ClassConstructor),
+                declaring_facet: None,
                 provider: *c,
                 method: Vec::new(),
             })
             .collect();
         if !chain.is_empty() {
-            let chain = native_method_cache::ReachedMethodChain::from(chain)
+            let chain =
+                native_method_cache::ReachedMethodChain::from(native_method_cache::retain_owners(
+                    &self.oo.borrow(),
+                    chain,
+                    NativeTclooMethodReportRole::Constructor,
+                ))
                 .with_report_role(NativeTclooMethodReportRole::Constructor);
             let code = self.oo_run(object, chain, 0, b"", args, invocation);
             if code == Code::Error {
@@ -6169,6 +6377,28 @@ impl Interp {
         invoked: Option<&[u8]>,
         original_argv: Option<&[*mut TclObj]>,
     ) -> Code {
+        self.oo_invoke_with_role(
+            obj,
+            method,
+            args,
+            MethodDispatch {
+                external,
+                unknown: false,
+            },
+            invoked,
+            original_argv,
+        )
+    }
+
+    fn oo_invoke_with_role(
+        &mut self,
+        obj: OoId,
+        method: &[u8],
+        args: &[*mut TclObj],
+        dispatch: MethodDispatch,
+        invoked: Option<&[u8]>,
+        original_argv: Option<&[*mut TclObj]>,
+    ) -> Code {
         if !self.oo.borrow().objects.contains_key(&obj) {
             return self.invalid_command(&self.oo_name(obj));
         }
@@ -6198,7 +6428,7 @@ impl Interp {
                 obj,
                 method,
                 args,
-                external,
+                dispatch,
                 invoked,
                 original_argv,
                 originals,
@@ -6211,11 +6441,12 @@ impl Interp {
         obj: OoId,
         method: &[u8],
         args: &[*mut TclObj],
-        external: bool,
+        dispatch: MethodDispatch,
         invoked: Option<&[u8]>,
         original_argv: Option<&[*mut TclObj]>,
         originals: &crate::interp::native_arguments::OriginalArguments,
     ) -> Code {
+        let MethodDispatch { external, unknown } = dispatch;
         let target_owner = oo_checked!(
             self,
             native_context::OriginalOoTarget::capture(self, obj, false)
@@ -6278,6 +6509,8 @@ impl Interp {
                     method_invocation(self, obj, invoked, method, args, external, original_argv)
                 );
                 oo_checked!(self, target_owner.check(self));
+                let chain = retain_original_terminal_report(self, &providers, method, chain)
+                    .with_unknown(unknown);
                 return self.oo_run(obj, chain, 0, method, args, invocation);
             }
         }
@@ -6316,6 +6549,9 @@ impl Interp {
                 provider: *p,
                 method: method.to_vec(),
                 is_object: *is_obj,
+                is_filter: false,
+                synthetic_type: None,
+                declaring_facet: None,
             })
             .collect();
         // A caller-scope private shadows any public override further down the
@@ -6356,6 +6592,20 @@ impl Interp {
                             )
                         );
                         oo_checked!(self, target_owner.check(self));
+                        let filters = native_method_cache::retain_owners(
+                            &self.oo.borrow(),
+                            filters,
+                            NativeTclooMethodReportRole::Named,
+                        );
+                        let root = self
+                            .oo
+                            .borrow()
+                            .object_root
+                            .expect("original object builtin provider");
+                        let terminal = original_core_report_step(self, root, method)
+                            .expect("selected object builtin report");
+                        let filters = native_method_cache::ReachedMethodChain::from(filters)
+                            .with_terminal_report(terminal);
                         return self.oo_run(obj, filters, 0, method, args, invocation);
                     }
                 }
@@ -6426,11 +6676,14 @@ impl Interp {
                 }
                 // `unknown` is itself usually unexported, so dispatch it
                 // internally (it is the object's own fallback handler).
-                let code = self.oo_invoke_with_original(
+                let code = self.oo_invoke_with_role(
                     obj,
                     b"unknown",
                     &uargs,
-                    false,
+                    MethodDispatch {
+                        external: false,
+                        unknown: true,
+                    },
                     None,
                     original_argv,
                 );
@@ -6488,6 +6741,8 @@ impl Interp {
                     None => native_method_cache::ReachedMethodChain::from(chain),
                 };
                 oo_checked!(self, target_owner.check(self));
+                let chain = retain_original_terminal_report(self, &providers, method, chain)
+                    .with_unknown(unknown);
                 return self.oo_run(obj, chain, 0, method, args, invocation);
             }
         }
@@ -6514,6 +6769,8 @@ impl Interp {
             method_invocation(self, obj, invoked, method, args, external, original_argv)
         );
         oo_checked!(self, target_owner.check(self));
+        let steps =
+            retain_original_terminal_report(self, &providers, method, steps).with_unknown(unknown);
         self.oo_run(obj, steps, 0, method, args, invocation)
     }
 
@@ -6659,6 +6916,12 @@ impl Interp {
                     .borrow()
                     .object_root
                     .expect("native object eval provider");
+                let declaring_facet = self
+                    .oo
+                    .borrow()
+                    .classes
+                    .get(&provider)
+                    .map(|class| Rc::downgrade(&class.facet_birth));
                 self.oo.borrow_mut().call_stack.push(OoFrame {
                     name_owner,
                     activation: Some(activation),
@@ -6668,6 +6931,11 @@ impl Interp {
                         provider,
                         method: b"eval".to_vec(),
                         is_object: false,
+                        is_filter: false,
+                        synthetic_type: Some(NativeTclooMethodPayloadType::Core(
+                            NativeTclooCoreMethod::Eval,
+                        )),
+                        declaring_facet,
                     }]),
                     index: 0,
                     target: Vec::new(),
@@ -6734,6 +7002,9 @@ impl Interp {
                         provider: *p,
                         method: fname.clone(),
                         is_object: *is_obj,
+                        is_filter: true,
+                        synthetic_type: None,
+                        declaring_facet: None,
                     })
                     .collect::<Vec<_>>()
             })
@@ -7276,18 +7547,6 @@ impl Interp {
     ) -> Code {
         let chain: native_method_cache::ReachedMethodChain = chain.into();
         let report_role = chain.report_role();
-        let chain = if report_role != NativeTclooMethodReportRole::Named
-            && chain.iter().any(|step| step.method_owner.is_none())
-        {
-            native_method_cache::ReachedMethodChain::from(native_method_cache::retain_owners(
-                &self.oo.borrow(),
-                chain.to_vec(),
-                report_role,
-            ))
-            .with_report_role(report_role)
-        } else {
-            chain
-        };
         let MethodInvocation {
             external,
             level_words,
@@ -7301,9 +7560,7 @@ impl Interp {
         // The `::oo::class` synthetic constructor: instantiating a metaclass
         // runs the (optional) definition-script argument on the new class. C's
         // `oo::class` constructor is `{{definitionScript ""}}`.
-        if report_role == NativeTclooMethodReportRole::Constructor
-            && Some(prov) == self.oo.borrow().class_root
-        {
+        if chain[index].synthetic_type == Some(NativeTclooMethodPayloadType::ClassConstructor) {
             return native_context::with_original_arguments(self, args, |interp, originals| {
                 let owner = oo_checked!(
                     interp,
@@ -7322,33 +7579,12 @@ impl Interp {
                 interp.oo_define_body(DefTarget::Class(obj), args[0], None)
             });
         }
-        let m = if let Some(owner) = &chain[index].method_owner {
-            Some(owner.borrow().clone())
-        } else if report_role == NativeTclooMethodReportRole::Constructor {
-            self.oo
-                .borrow()
-                .classes
-                .get(&prov)
-                .and_then(|c| c.constructor.get())
-        } else if report_role == NativeTclooMethodReportRole::Destructor {
-            self.oo
-                .borrow()
-                .classes
-                .get(&prov)
-                .and_then(|c| c.destructor.get())
-        } else if is_object {
-            self.oo
-                .borrow()
-                .objects
-                .get(&prov)
-                .and_then(|o| o.methods.get(&method))
-        } else {
-            self.oo
-                .borrow()
-                .classes
-                .get(&prov)
-                .and_then(|c| c.methods.get(&method))
-        };
+        // Reached steps use only their retained exact record; a removed name
+        // cannot revive a declaration from a changed table.
+        let m = chain[index]
+            .method_owner
+            .as_ref()
+            .map(|owner| owner.borrow().clone());
         let Some(m) = m else {
             return self.error(b"no such method");
         };
@@ -7377,7 +7613,7 @@ impl Interp {
 
         // A native method runs without a Tcl call frame (the OO context frame is
         // already pushed by the caller for `self`/`my`).
-        if let Method::Builtin(f) = m {
+        if let Method::Builtin { handler, .. } = m {
             let name_owner = self.oo_name_owner(obj);
             self.oo.borrow_mut().call_stack.push(OoFrame {
                 name_owner,
@@ -7388,7 +7624,7 @@ impl Interp {
                 target: target.to_vec(),
                 external,
             });
-            let code = f(self, obj, args);
+            let code = handler(self, obj, args);
             self.oo.borrow_mut().call_stack.pop();
             return code;
         }
@@ -7470,7 +7706,7 @@ impl Interp {
             return originals.finish(code);
         }
 
-        let Method::Body { procedure } = m else {
+        let Method::Body { procedure, .. } = m else {
             unreachable!("forward handled above");
         };
         let method_client_data = procedure;
@@ -7597,12 +7833,12 @@ impl Interp {
         // A constructor's `info level 0` reports the originating `create`/`new`
         // invocation (e.g. `oo::object create foo`), captured by the dispatcher,
         // rather than the synthetic `<constructor>` name (oo-2.1).
-        // A filter step (its method differs from the invoked target) runs with
+        // An actual filter step runs with
         // `filter_handling` set, so its own `my` calls — and everything they
         // call — are not re-wrapped by the same filters. A `next` from the filter
         // clears it again for the wrapped method (handled in `next_cmd`). Saved
         // and restored so nested filter chains compose.
-        let is_filter_step = !method.is_empty() && method != target;
+        let is_filter_step = chain[index].is_filter;
         let saved_fh = self.oo.borrow().filter_handling;
         if is_filter_step {
             self.oo.borrow_mut().filter_handling = true;
@@ -7807,7 +8043,10 @@ impl Interp {
             })
             .map(|c| CallStep {
                 method_owner: None,
-                is_object: c == obj,
+                is_object: false,
+                is_filter: false,
+                synthetic_type: None,
+                declaring_facet: None,
                 provider: c,
                 method: b"<destructor>".to_vec(),
             })
@@ -7820,8 +8059,12 @@ impl Interp {
         // ignores it (routing to `bgerror`).
         self.oo_run(
             obj,
-            native_method_cache::ReachedMethodChain::from(chain)
-                .with_report_role(NativeTclooMethodReportRole::Destructor),
+            native_method_cache::ReachedMethodChain::from(native_method_cache::retain_owners(
+                &self.oo.borrow(),
+                chain,
+                NativeTclooMethodReportRole::Destructor,
+            ))
+            .with_report_role(NativeTclooMethodReportRole::Destructor),
             0,
             b"<destructor>",
             &[],

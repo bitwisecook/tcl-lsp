@@ -8,19 +8,28 @@ use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
 pub(super) struct NativeMethodRecord {
     payload: RefCell<Method>,
     name: RefCell<Option<obj::Owned>>,
+    private: std::cell::Cell<bool>,
 }
 impl NativeMethodRecord {
     fn unnamed(method: Method) -> Self {
         Self {
+            private: std::cell::Cell::new(false),
             payload: RefCell::new(method),
             name: RefCell::new(None),
         }
     }
     fn named(original: *mut TclObj, method: Method) -> Self {
         Self {
+            private: std::cell::Cell::new(false),
             payload: RefCell::new(method),
             name: RefCell::new(Some(obj::Owned::retain(original))),
         }
+    }
+    pub(super) fn set_private(&self, private: bool) {
+        self.private.set(private);
+    }
+    pub(super) fn is_private(&self) -> bool {
+        self.private.get()
     }
     pub(super) fn original_name(&self) -> Option<*mut TclObj> {
         self.name.borrow().as_ref().map(obj::Owned::as_ptr)
@@ -113,10 +122,9 @@ impl MethodTable {
                 .original_name()
                 .expect("named table record owns its original name");
             let original_key = self.keys[key].as_ptr();
-            copied.records.insert(
-                key.clone(),
-                Rc::new(NativeMethodRecord::named(original_name, method)),
-            );
+            let record = Rc::new(NativeMethodRecord::named(original_name, method));
+            record.set_private(owner.is_private());
+            copied.records.insert(key.clone(), record);
             copied
                 .keys
                 .insert(key.clone(), Rc::new(obj::Owned::retain(original_key)));
@@ -147,7 +155,8 @@ impl MethodTable {
     ) -> Option<Method> {
         self.allocated = true;
         if let Some(owner) = self.records.get(&key) {
-            // Tcl_NewMethod keeps the original name/key when replacing clientData.
+            // Tcl_NewMethod keeps the original name/key but resets current flags.
+            owner.set_private(false);
             Some(owner.replace(method))
         } else {
             self.keys
@@ -212,6 +221,15 @@ pub(super) fn retain_owners(
     role: NativeTclooMethodReportRole,
 ) -> Vec<CallStep> {
     for step in &mut chain {
+        if !step.is_object && step.declaring_facet.is_none() {
+            step.declaring_facet = state
+                .classes
+                .get(&step.provider)
+                .map(|class| Rc::downgrade(&class.facet_birth));
+        }
+        if step.method_owner.is_some() || step.synthetic_type.is_some() {
+            continue;
+        }
         step.method_owner = if role == NativeTclooMethodReportRole::Constructor {
             state
                 .classes
@@ -253,6 +271,8 @@ struct CachedCallStep {
     provider: OoId,
     method: Vec<u8>,
     is_object: bool,
+    is_filter: bool,
+    declaring_facet: Option<Weak<()>>,
 }
 impl CachedCallStep {
     fn capture(step: &CallStep) -> Option<Self> {
@@ -261,6 +281,8 @@ impl CachedCallStep {
             provider: step.provider,
             method: step.method.clone(),
             is_object: step.is_object,
+            is_filter: step.is_filter,
+            declaring_facet: step.declaring_facet.clone(),
         })
     }
     fn enter(&self) -> Option<CallStep> {
@@ -269,6 +291,9 @@ impl CachedCallStep {
             provider: self.provider,
             method: self.method.clone(),
             is_object: self.is_object,
+            is_filter: self.is_filter,
+            synthetic_type: None,
+            declaring_facet: self.declaring_facet.clone(),
         })
     }
 }
@@ -281,8 +306,24 @@ pub(super) struct ReachedMethodChain {
     steps: Rc<Vec<CallStep>>,
     _context: Option<Rc<NativeMethodContext>>,
     report_role: NativeTclooMethodReportRole,
+    unknown: bool,
+    terminal_report: Option<CallStep>,
 }
 impl ReachedMethodChain {
+    pub(super) fn with_terminal_report(mut self, terminal: CallStep) -> Self {
+        self.terminal_report = Some(terminal);
+        self
+    }
+    pub(super) fn terminal_report(&self) -> Option<&CallStep> {
+        self.terminal_report.as_ref()
+    }
+    pub(super) fn with_unknown(mut self, unknown: bool) -> Self {
+        self.unknown = unknown;
+        self
+    }
+    pub(super) fn is_unknown(&self) -> bool {
+        self.unknown
+    }
     pub(super) fn with_report_role(mut self, role: NativeTclooMethodReportRole) -> Self {
         self.report_role = role;
         self
@@ -302,6 +343,8 @@ impl ReachedMethodChain {
             steps: Rc::new(steps),
             _context: Some(Rc::new(NativeMethodContext { _chain: chain })),
             report_role: NativeTclooMethodReportRole::Named,
+            unknown: false,
+            terminal_report: None,
         })
     }
 }
@@ -317,6 +360,8 @@ impl From<Vec<CallStep>> for ReachedMethodChain {
             steps: Rc::new(steps),
             _context: None,
             report_role: NativeTclooMethodReportRole::Named,
+            unknown: false,
+            terminal_report: None,
         }
     }
 }
@@ -326,6 +371,8 @@ impl From<Rc<Vec<CallStep>>> for ReachedMethodChain {
             steps,
             _context: None,
             report_role: NativeTclooMethodReportRole::Named,
+            unknown: false,
+            terminal_report: None,
         }
     }
 }
@@ -848,7 +895,7 @@ mod tests {
                 .get(b"m")
                 .unwrap()
             {
-                Method::Body { procedure } => procedure,
+                Method::Body { procedure, .. } => procedure,
                 _ => panic!("actual authored procedure method"),
             };
             let declaration = query.declaration();
@@ -862,7 +909,7 @@ mod tests {
                 .methods
                 .insert_generated(
                     b"observe".to_vec(),
-                    Method::Builtin(observe_replaced_procedure),
+                    Method::builtin(observe_replaced_procedure, NativeTclooMethodPayloadType::Procedure),
                 );
             drop(retired);
             ENTERED_PROCEDURE_QUERY.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&declaration)));
@@ -922,7 +969,7 @@ mod tests {
                 .get(b"m")
                 .unwrap()
             {
-                Method::Body { procedure } => procedure.declaration(),
+                Method::Body { procedure, .. } => procedure.declaration(),
                 _ => panic!("actual authored procedure method"),
             };
             assert!(crate::interp::native_body_artifact::cache_snapshot(
@@ -995,7 +1042,7 @@ mod original_ownership_tests {
     }
     fn procedure(owner: &MethodOwner) -> Rc<crate::interp::ProcDef> {
         match &*owner.borrow() {
-            Method::Body { procedure } => procedure.declaration(),
+            Method::Body { procedure, .. } => procedure.declaration(),
             _ => panic!("actual original procedure method"),
         }
     }
