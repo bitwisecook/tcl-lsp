@@ -14,9 +14,11 @@ fn cfg_replay_retains_actual_entry_without_later_world_mutations() {
     };
     let assistance = tcl_registry::model::ingress::static_context_for("tcl9.0");
     let actual = tcl_registry::model::ingress::static_context_for("tcl8.4");
-    let dialect = tcl_registry::InvocationDialect::of_profile(
-        actual.commands().profile().expect("actual C8.4 fixture"),
-    );
+    let actual_profile = actual.commands().profile().expect("actual C8.4 fixture");
+    let dialect = tcl_registry::InvocationDialect::of_profile(actual_profile);
+    // The actual software interpreter stays alive through all weak entry queries.
+    // Its registration/grammar is independent of assistance; no C process is run.
+    let captured = crate::environment_ingress::captured_native_entry(actual_profile);
     for mode in [
         NativeCompilationMode::Direct,
         NativeCompilationMode::BytecodeObject,
@@ -25,6 +27,7 @@ fn cfg_replay_retains_actual_entry_without_later_world_mutations() {
             let entry = super::SourceAnalysisEntry {
                 invocation_realm: tcl_dialect::model::InvocationRealm::InterpreterRuntime,
                 invocation_dialect: Some(dialect),
+                native_entry: Some(Arc::new(captured.as_entry().clone())),
                 unknown_entry,
                 native_compilation: NativeCompilationContext {
                     mode,
@@ -172,6 +175,9 @@ fn native_entry_grammar_selects_original_reads_before_assistance() {
         let owner = tcl_registry::model::ingress::static_context_for(assistance);
         let native = tcl_registry::model::ingress::static_context_for(actual);
         let profile = native.commands().profile().expect("actual fixture profile");
+        // Only a genuine held interpreter entry selects Native grammar. The
+        // authored handler policy alone never overwrites supplied source config.
+        let captured = crate::environment_ingress::captured_native_entry(profile);
         let mut config = tcl_lexer::LexerConfig::for_profile(owner.commands().profile());
         config.strict_quoting = true;
         let bindings = SourceCommandBindings::analyse_with_options(
@@ -180,6 +186,7 @@ fn native_entry_grammar_selects_original_reads_before_assistance() {
             owner.commands(),
             SourceAnalysisOptions {
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_entry: Some(captured.as_entry()),
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },
