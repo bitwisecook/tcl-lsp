@@ -468919,6 +468919,146 @@
           "evidence": "rust-tcl-registry-tests-data-native_empty_tcloo_lifecycle231-sources-9.0.4-tclOODefineCmds.c"
         }
       ]
+    },
+    {
+      "id": "naming.command.original-publication-row-sharing",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/original-publication-row-sharing.md",
+      "problem_statement": "Flow-sensitive source snapshots need complete original publication producers in their original order. A changed publication must preserve independent prior name, definition and allocation metadata even when unchanged rows share storage.",
+      "question": "How can immutable original publications share their actual producers across authentic ledger snapshots while moved, replaced, imported or updated publications retain exact independent values and history?",
+      "conclusion": "OriginalSourceCommandWorld retains immutable Arc-backed OriginalCommandPublication rows. Snapshot clones share complete unchanged producers; actual move/import edits construct a changed row and definition attachment uses row-level copy-on-write. Readonly queries expose complete original values. Structural equality and hash include every complete row and order; mutable branches cannot rewrite retained earlier snapshots.",
+      "scope": "Current Rust source owner and two genuine software control definitions. Their actual test bodies and module registrations are inspected; no matching executable inventory or assertion result is attached. The five C-profile loops construct source-model ledgers and are not five original interpreter experiments. Sharing full immutable rows supplies no external C/Jim/BIG-IP result, Native currency, handler/body admission, physical object lifetime, source edit or current lookup. Complete source/channel/policy/allocation inputs remain independently required. Allocation-path source inspection establishes neither measured memory/time payoff nor a cause for an interrupted SIGKILL process.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "No original external provider process for this Rust storage contract",
+          "input_channel": "Current Rust source/API definitions",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "No original external provider process for this Rust storage contract",
+          "input_channel": "Current Rust source/API definitions",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "No original external provider process for this Rust storage contract",
+          "input_channel": "Current Rust source/API definitions",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "No original external provider process for this Rust storage contract",
+          "input_channel": "Current Rust source/API definitions",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "No original external provider process for this Rust storage contract",
+          "input_channel": "Current Rust source/API definitions",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "No original external provider process for this Rust storage contract",
+          "input_channel": "Current Rust source/API definitions",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No original external provider process for this Rust storage contract",
+          "input_channel": "Current Rust source/API definitions",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "publication-rows-command-binding",
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "sha256": "33c4053059c6ae97ace6d58e050648efedb00148a65001c75f7d3f2cfdd98192",
+          "role": "implementation",
+          "description": "Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit."
+        },
+        {
+          "id": "publication-rows-source-command-world",
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "sha256": "a499f01c057db89f68c07adf8894c2a34d72d22be3857709e2ad9a7b8bc098a9",
+          "role": "implementation",
+          "description": "Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit."
+        },
+        {
+          "id": "publication-rows-lib",
+          "path": "rust/tcl-compiler/src/lib.rs",
+          "sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+          "role": "implementation",
+          "description": "Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit."
+        }
+      ],
+      "source_anchors": [],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "symbol": "OriginalSourceCommandWorld",
+          "purpose": "Share exact original publication producers across world snapshots without changing complete row semantics."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "symbol": "CapturedOriginalCommandTransfer::finish",
+          "purpose": "Actual moves detach a changed publication while previous snapshots retain their original slot/input/definition."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "symbol": "ModuleCommandBindings::retain_original_class_publication_definition",
+          "purpose": "Definition updates use row-level copy-on-write under the existing allocation/world guards."
+        }
+      ],
+      "tests": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "selector": "command_binding::source_command_world::tests::publication_snapshots_share_original_rows_and_detach_actual_moves_and_replacements",
+          "status": "linked",
+          "assertion": "Actual source-ledger snapshots under five C software profiles share unchanged producer rows. Move/replacement and private definition mutation detach the affected row while original name input, declaration site, definition and earlier ordered snapshots remain unchanged. No external provider or completed performance comparison is inferred."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "selector": "command_binding::source_command_world::tests::publication_row_sharing_preserves_complete_semantic_equality_hash_and_order",
+          "status": "linked",
+          "assertion": "Independently constructed five-profile source snapshots expose complete equal publication values and hashes with unchanged ordered readonly iteration. Storage sharing supplies no current lookup, Native currency, entered body or edit authority."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Matching independently successful own producer, exact executable inventory and independently closed assertion receipt are required for executed software results. Source model profiles are not external provider comparisons. Complete original/current measurements are required for performance conclusions; process termination cause remains separately evidenced."
+      }
     }
   ]
 }

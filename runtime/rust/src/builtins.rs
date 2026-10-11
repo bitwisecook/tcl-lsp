@@ -29,7 +29,8 @@
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
 
 use crate::frame::VarError;
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::{obj_bytes, Code, Interp};
 // The transient `1` of a tower `incr` is the only fresh object left to drop
 // by hand; every other path now stores through `store_var_result`.
 use crate::interp::drop_fresh;
@@ -405,11 +406,15 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"incr varName ?increment?");
     }
-    let name = obj_bytes(argv[1]);
-    let (base, elem) = match interp.variable_name_parts(&name) {
-        Ok(parts) => parts,
-        Err(error) => return var_error(interp, &name, error),
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
     };
+    let code = incr_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn incr_original(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     let legacy_amount = if let Some(protocol) = interp
         .native_invocation_dialect()
         .native_legacy_increment_protocol()
@@ -428,6 +433,30 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         })
     } else {
         None
+    };
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    if interp.native_c_variable_name_protocol().is_some() {
+        return interp.increment_original_c_variable(argv[1], argv.get(2).copied(), legacy_amount);
+    }
+    if let Some(amount) = legacy_amount {
+        if interp
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .is_some()
+        {
+            let code = interp.increment_native_jim_original(argv[1], amount);
+            return arguments.finish(code);
+        }
+    }
+    let name = match arguments.bytes(1) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let (base, elem) = match interp.variable_name_parts(&name) {
+        Ok(parts) => parts,
+        Err(error) => return var_error(interp, &name, error),
     };
     if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
         return c;
@@ -467,10 +496,29 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         ) => match grammar.prepare(interp, &amount) {
             Ok(value) => Some(crate::obj::Owned::fresh(value)),
             Err(error) => {
-                let message = error
-                    .safe_expression_message_bytes(&obj_bytes(amount))
-                    .expect("safe-expression grammar error");
-                return interp.set_error(&message);
+                if let Err(first) = arguments.check() {
+                    return interp.report_cmd_error(first);
+                }
+                match error {
+                    tcl_syntax::value::IntegerOperandError::Integer(error) => {
+                        return crate::value_ops::integer_error(interp, error);
+                    }
+                    error @ tcl_syntax::value::IntegerOperandError::SafeExpression => {
+                        let bytes = match arguments.bytes(2) {
+                            Ok(bytes) => bytes,
+                            Err(error) => return interp.report_cmd_error(error),
+                        };
+                        let Some(message) = error.safe_expression_message_bytes(&bytes) else {
+                            return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "selected increment amount presentation",
+                                )
+                                .into(),
+                            );
+                        };
+                        return interp.set_error(&message);
+                    }
+                }
             }
         },
         _ => None,
@@ -583,6 +631,19 @@ pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `unset varName ...` — remove variables (scalars or array elements).
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = unset_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn unset_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     use tcl_syntax::value::ValueOps;
 
     let Some(protocol) = interp.native_invocation_dialect().unset_option_protocol() else {
@@ -592,20 +653,31 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
     };
     let options = match protocol.parse(argv.len() - 1, |index| {
-        interp
-            .native_string_bytes(&argv[index + 1])
-            .map_err(|error| interp.report_cmd_error(error.into()))
+        arguments
+            .bytes(index + 1)
+            .map_err(|error| interp.report_cmd_error(error))
     }) {
         Ok(options) => options,
         Err(code) => return code,
     };
     let i = options.names_from + 1;
     let nocomplain = !options.complain;
-    for &a in &argv[i..] {
+    for index in i..argv.len() {
+        let a = match arguments.original(index) {
+            Ok(original) => original,
+            Err(error) => return interp.report_cmd_error(error),
+        };
         if interp.observed_name_policy_selected() {
-            let name = obj_bytes(a);
+            let name = match arguments.bytes(index) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error),
+            };
             let level = interp.frames.borrow().current_level();
-            match interp.observed_variable_unset(&name, level) {
+            let reached = interp.observed_variable_unset(&name, level);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match reached {
                 Ok(true) => continue,
                 Ok(false) if nocomplain => continue,
                 Ok(false) => {
@@ -616,7 +688,11 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         if interp.native_c_variable_name_protocol().is_some() {
-            if let Err(code) = interp.unset_original_c_variable(a, !nocomplain) {
+            let reached = interp.unset_original_c_variable(a, !nocomplain);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(code) = reached {
                 return code;
             }
             continue;
@@ -626,11 +702,18 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .native_jim_lookup_protocol()
             .is_some()
         {
-            match interp.unset_original_jim_variable(a) {
+            let reached = interp.unset_original_jim_variable(a);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match reached {
                 Ok(true) => continue,
                 Ok(false) if nocomplain => continue,
                 Ok(false) => {
-                    let name = obj_bytes(a);
+                    let name = match arguments.bytes(index) {
+                        Ok(name) => name,
+                        Err(error) => return interp.report_cmd_error(error),
+                    };
                     let mut message = b"can't unset \"".to_vec();
                     message.extend_from_slice(&name);
                     message.extend_from_slice(b"\": no such variable");
@@ -640,7 +723,10 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Err(code) => return code,
             }
         }
-        let name = obj_bytes(a);
+        let name = match arguments.bytes(index) {
+            Ok(name) => name,
+            Err(error) => return interp.report_cmd_error(error),
+        };
         let (base, elem) = match interp.variable_name_parts(&name) {
             Ok(parts) => parts,
             Err(error) => return var_error(interp, &name, error),
@@ -663,6 +749,9 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Some(k) => interp.var_unset_elem(&base, k),
             None => interp.var_unset(&base),
         };
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
         if !existed && !nocomplain {
             let mut msg = b"can't unset \"".to_vec();
             msg.extend_from_slice(&name);
@@ -2619,3 +2708,6 @@ mod tests {
 
 #[cfg(test)]
 mod native_subst_operand_tests;
+
+#[cfg(test)]
+mod native_variable_operand_tests;

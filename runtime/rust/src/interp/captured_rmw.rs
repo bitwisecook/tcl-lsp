@@ -76,6 +76,66 @@ impl Interp {
         )
     }
 
+    /// Generic C command entry selects the same original name cache and cell;
+    /// the existing captured receiver kernel owns read/modify/write effects.
+    pub(crate) fn increment_original_c_variable(
+        &mut self,
+        original: *mut TclObj,
+        amount: Option<*mut TclObj>,
+        legacy: Option<tcl_cmd_core::native_increment::PreparedLegacyIncrementAmount>,
+    ) -> Code {
+        use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
+        let mut originals = vec![original];
+        originals.extend(amount);
+        let arguments = match super::native_arguments::OriginalArguments::enter(self, &originals) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let dialect = self.native_invocation_dialect();
+        let Some(policy) = dialect.native_rmw_read_policy(NativeRmwOperation::Increment) else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original C increment read policy",
+                )
+                .into(),
+            );
+        };
+        // The generic modern C handler holds its actual amount before name
+        // lookup. Legacy C84 has already consumed the amount into its recipe.
+        let amount_owner = legacy.is_none().then(|| match amount {
+            Some(amount) => Owned::retain(amount),
+            None => Owned::fresh(obj::new_wide_int_obj(1)),
+        });
+        let code = (|| {
+            let purpose = match policy {
+                NativeRmwReadPolicy::RequireContents => Purpose::IncrementExisting,
+                NativeRmwReadPolicy::InitialiseZero => Purpose::IncrementRead,
+            };
+            let reached = self.capture_original_c_variable_for(original, purpose);
+            if let Err(error) = arguments.check() {
+                return self.report_cmd_error(error);
+            }
+            let captured = match reached {
+                Ok(captured) => captured,
+                Err(code) => return code,
+            };
+            let code = self.increment_retained_receiver(
+                IncrementTarget {
+                    name: &captured.root,
+                    root: &captured.root,
+                    element: captured.element.as_deref(),
+                    originals: Some((Some(original), None, true)),
+                },
+                (amount_owner.as_ref().map(Owned::as_ptr).or(amount), legacy),
+                policy,
+                (captured.receiver, captured.home),
+            );
+            code
+        })();
+        drop(amount_owner);
+        arguments.finish(code)
+    }
+
     /// Execute an admitted indexed instruction against its physical compiled
     /// cell. Reporting bytes never repeat receiver lookup.
     pub(super) fn increment_original_compiled_target(
@@ -199,10 +259,45 @@ impl Interp {
         policy: NativeRmwReadPolicy,
         captured: (crate::frame::VariableReceiver, crate::vars::TraceHome),
     ) -> Code {
+        let scope = match super::native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        let code = self.increment_retained_receiver_entered(
+            target,
+            amounts,
+            policy,
+            captured,
+            scope.currency(),
+        );
+        match scope.currency().ensure_current_or_refuse() {
+            Ok(()) => code,
+            Err(first) => self.refuse_native_execution(first),
+        }
+    }
+
+    fn increment_retained_receiver_entered(
+        &mut self,
+        target: IncrementTarget<'_>,
+        amounts: (
+            Option<*mut TclObj>,
+            Option<tcl_cmd_core::native_increment::PreparedLegacyIncrementAmount>,
+        ),
+        policy: NativeRmwReadPolicy,
+        captured: (crate::frame::VariableReceiver, crate::vars::TraceHome),
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+    ) -> Code {
         let base = target.root;
         let element = target.element;
         let (amount, legacy_amount) = amounts;
         let (receiver, home) = captured;
+        if receiver.is_constant() && !receiver.is_element() {
+            let name = match self.increment_reporting_name(&target) {
+                Ok(name) => name,
+                Err(code) => return code,
+            };
+            return self.original_c_increment_constant_error(&name);
+        }
         let reported = if self.original_variable_trace_requires_name(&home, element, b"read")
             || self.original_variable_trace_requires_name(&home, element, b"write")
         {
@@ -216,8 +311,8 @@ impl Interp {
         let name = reported.as_deref().unwrap_or(target.name);
         let access = self.trace_access(name, base, element, &home, false);
         let read_error = self.fire_var_trace_resolved(&home, &access, b"read");
-        if self.host_refusal_pending() {
-            return Code::Error;
+        if let Err(first) = currency.ensure_current_or_refuse() {
+            return self.refuse_native_execution(first);
         }
         let current = if read_error {
             let reason = self
@@ -286,11 +381,19 @@ impl Interp {
                 Err(error) => return crate::value_ops::integer_error(self, error),
             }
         };
-        if let Err(error) = receiver.store(sum.as_ptr()) {
+        let stored = receiver.store(sum.as_ptr());
+        drop(sum);
+        if let Err(first) = currency.ensure_current_or_refuse() {
+            return self.refuse_native_execution(first);
+        }
+        if let Err(error) = stored {
             return self.increment_target_receiver_error(&target, error, policy);
         }
-        drop(sum);
-        if self.fire_var_trace_resolved(&home, &access, b"write") {
+        let traced = self.fire_var_trace_resolved(&home, &access, b"write");
+        if let Err(first) = currency.ensure_current_or_refuse() {
+            return self.refuse_native_execution(first);
+        }
+        if traced {
             return crate::builtins::var_error(self, name, VarError::TraceError);
         }
         match receiver.read() {

@@ -24,6 +24,11 @@ pub enum NativeVariableNameLookupPurpose {
     ArrayMake,
     /// Write, creating root and element entries before observers.
     Write,
+    /// Generic C85+ increment looks up with the read presenter while creating
+    /// root and element entries; it grants no compiled-instruction authority.
+    IncrementRead,
+    /// C84 increment creates only an element shell in an existing root.
+    IncrementExisting,
     /// Original write with native flags zero: observers run but variable errors
     /// do not publish a getter, result or trace frame.
     QuietWrite,
@@ -46,6 +51,7 @@ impl NativeVariableNameLookupPurpose {
         matches!(
             self,
             Self::Write
+                | Self::IncrementRead
                 | Self::QuietWrite
                 | Self::Link
                 | Self::Refer
@@ -56,7 +62,7 @@ impl NativeVariableNameLookupPurpose {
     /// Root creation and element creation are independent native flags.
     #[must_use]
     pub const fn creates_element_entries(self) -> bool {
-        matches!(self, Self::Exists)
+        matches!(self, Self::Exists | Self::IncrementExisting)
             || self.creates_entries() && !matches!(self, Self::Define | Self::ArrayMake)
     }
     /// Whether this caller requested the native variable-error presenter.
@@ -71,7 +77,11 @@ impl NativeVariableNameLookupPurpose {
     #[must_use]
     pub const fn diagnostic_verb(self) -> &'static str {
         match self {
-            Self::Read | Self::Exists | Self::Array => "read",
+            Self::Read
+            | Self::Exists
+            | Self::Array
+            | Self::IncrementRead
+            | Self::IncrementExisting => "read",
             Self::Write | Self::QuietWrite | Self::ArrayMake => "set",
             Self::Link => "access",
             Self::Refer => "refer to",
@@ -520,6 +530,26 @@ mod tests {
                 protocol.has_parsed_array_updater(),
                 version < TclVersion::V9_0
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod increment_lookup_purpose_tests {
+    use super::NativeVariableNameLookupPurpose as Purpose;
+    #[test]
+    fn generic_increment_flags_distinguish_required_root_and_created_element() {
+        // naming.invocation.original-variable-and-introspection-getter-order
+        // docs/design/analysis/name-resolution-proofs/invocation-original-variable-and-introspection-getter-order.md
+        // Pure source-purpose flags: C84 TclIncrVar2 read/create0,1 versus
+        // C85+ TclIncrObjVar2 read/create1,1. No receiver/admission is issued.
+        assert!(!Purpose::IncrementExisting.creates_entries());
+        assert!(Purpose::IncrementExisting.creates_element_entries());
+        assert!(Purpose::IncrementRead.creates_entries());
+        assert!(Purpose::IncrementRead.creates_element_entries());
+        for purpose in [Purpose::IncrementExisting, Purpose::IncrementRead] {
+            assert_eq!(purpose.diagnostic_verb(), "read");
+            assert!(purpose.leaves_error_message());
         }
     }
 }

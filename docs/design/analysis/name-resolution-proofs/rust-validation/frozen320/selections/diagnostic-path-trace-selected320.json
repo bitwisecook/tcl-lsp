@@ -1,0 +1,19 @@
+{
+  "selected": [
+    "analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point"
+  ],
+  "zero_matches": [],
+  "inputs": [
+    {
+      "path": "/workspace/.proofs/diagnostic-path-trace-request320.json",
+      "sha256": "d8c707eb909150deadc70c909f56ceca749b450380331ca58b799dad96393073"
+    }
+  ],
+  "actual_inventory_count": 9254,
+  "actual_inventory_receipt": "/workspace/.proofs/integration-compiler-own-list320.json",
+  "actual_inventory_receipt_sha256": "6e3e689aed183115b32a17b09ea1ffe0ca6300135f376dcb49c9f29db64ef2f8",
+  "inventory_log_sha256": "f5a1730e7fb48eb1dd90e17bebb13c7a13268b4177ef7e332762f4a353f0ac93",
+  "strict_image_sha256": "0a1c686be466da2b87d04062ae605d724766830fad24eff87272288bb53138aa",
+  "source_snapshot": "320",
+  "scope": "Actual --list admission only. Assertions and external provider outcomes require the separately closed exact run."
+}

@@ -1177,12 +1177,14 @@ impl Interp {
             return Code::Error;
         }
         use tcl_syntax::naming::{
-            NativeVariableDiagnosticOperation as Operation, report_native_variable_diagnostic_at,
+            report_native_variable_diagnostic_at, NativeVariableDiagnosticOperation as Operation,
         };
         let operation = match purpose {
             NativeVariableNameLookupPurpose::Read
             | NativeVariableNameLookupPurpose::Exists
-            | NativeVariableNameLookupPurpose::Array => Operation::Read,
+            | NativeVariableNameLookupPurpose::Array
+            | NativeVariableNameLookupPurpose::IncrementRead
+            | NativeVariableNameLookupPurpose::IncrementExisting => Operation::Read,
             NativeVariableNameLookupPurpose::Unset
             | NativeVariableNameLookupPurpose::QuietUnset => Operation::Unset,
             NativeVariableNameLookupPurpose::Write
@@ -1249,6 +1251,46 @@ impl Interp {
                 root: selected.root,
                 element: selected.element,
             }))
+    }
+
+    /// Generic original-object lookup retains its actual selected name purpose.
+    /// It does not infer or admit an indexed/compiled caller.
+    pub(super) fn capture_original_c_variable_for(
+        &mut self,
+        original: *mut TclObj,
+        purpose: NativeVariableNameLookupPurpose,
+    ) -> Result<OriginalCVariableCapture, Code> {
+        let reached = self.prepare_original_c_name_for(original, purpose);
+        self.check_original_c_name_operation(&[original])
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let selected = match reached? {
+            Some(selected) => selected,
+            None => {
+                return Err(self.original_c_variable_failure_for_object(
+                    original,
+                    purpose,
+                    tcl_syntax::naming::NativeVariableDiagnosticReason::NoSuchVariable,
+                    tcl_syntax::naming::NativeVariableFailureSite::NameLookup,
+                ));
+            }
+        };
+        let captured = self.capture_original_c_selection(original, &selected, purpose);
+        self.check_original_c_name_operation(&[original])
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let Some((receiver, home)) = captured? else {
+            return Err(self.original_c_variable_failure_for_object(
+                original,
+                purpose,
+                tcl_syntax::naming::NativeVariableDiagnosticReason::NoSuchVariable,
+                tcl_syntax::naming::NativeVariableFailureSite::NameLookup,
+            ));
+        };
+        Ok(OriginalCVariableCapture {
+            receiver,
+            home,
+            root: selected.root,
+            element: selected.element,
+        })
     }
 
     /// Capture the two original operands of a selected array stack opcode.
@@ -1500,13 +1542,67 @@ impl Interp {
             };
         self.var_trace_error(
             &name,
-            if purpose == NativeVariableNameLookupPurpose::Read {
+            if matches!(
+                purpose,
+                NativeVariableNameLookupPurpose::Read
+                    | NativeVariableNameLookupPurpose::IncrementRead
+                    | NativeVariableNameLookupPurpose::IncrementExisting
+            ) {
                 b"read"
             } else {
                 b"write"
             },
             reason,
         )
+    }
+
+    pub(super) fn original_c_increment_constant_error(&mut self, original: &[u8]) -> Code {
+        use tcl_syntax::naming::{
+            NativeVariableDiagnosticOperation as Operation,
+            NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+        };
+        let Some(protocol) = self.native_c_variable_name_protocol() else {
+            return self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("original increment constant presenter")
+                    .into(),
+            );
+        };
+        let diagnostic = match tcl_syntax::naming::report_native_variable_diagnostic_at(
+            tcl_syntax::naming::NativeNameProtocol::C(protocol.version()),
+            Operation::Increment,
+            Reason::Constant,
+            Site::ValueWrite,
+            tcl_syntax::naming::NativeVariableInputForm::Combined(original),
+        ) {
+            Ok(diagnostic) => diagnostic,
+            Err(_) => {
+                return self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("selected increment constant failure")
+                        .into(),
+                )
+            }
+        };
+        let mut message = b"can't incr \"".to_vec();
+        message.extend_from_slice(&diagnostic.name);
+        message.extend_from_slice(b"\": ");
+        message.extend_from_slice(diagnostic.reason.message().as_bytes());
+        self.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(
+            tcl_cmd_core::CmdErrorDetails {
+                message,
+                string_result: protocol.diagnostic_string_protocol(),
+                error_code: diagnostic.error_code.map_or(
+                    tcl_cmd_core::CmdErrorCodeUpdate::Default,
+                    |words| {
+                        tcl_cmd_core::CmdErrorCodeUpdate::Set(super::error_code_list(
+                            &words.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+                        ))
+                    },
+                ),
+                error_info: None,
+                error_line: None,
+                primitive_getter: None,
+            },
+        ))
     }
 
     pub(super) fn original_c_variable_receiver_error(

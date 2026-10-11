@@ -3727,3 +3727,46 @@ the original9254-selector listing and strict own Compiler image association.
 Every completed name and the final pending name independently joins the exact
 argv order. Partial outcomes supply no overall Compiler, current-source,
 performance or original-provider result.
+
+## Independent Compiler323/324 builds and Source320 path trace
+
+The own Compiler323 no-run producer closes exit `101` after
+166.91865252598654 seconds with uniform source `true`. Its three cfg(test)
+errors are E0308 in the class source join fixture and E0277 in two
+`Arc<[u8]>` construction fixtures. No executable creation event, strict own
+image, inventory or assertion is admitted. The
+[original receipt](frozen323/integration-compiler-own-test-build323/receipt.json.gz),
+[whole log](frozen323/integration-compiler-own-test-build323/tests.log) and
+[complete isolated source snapshot](frozen323/integration-compiler-own-test-build323/source-snapshot.json.gz)
+retain exact byte/hash correspondence. A current repair cannot supply this
+failed command with executable credit.
+
+The separate own Compiler324 no-run producer closes exit `101` after
+173.30654017900815 seconds with uniform source `true`. One cfg(test) E0277
+NamespaceKeyQuery reference-type fixture mismatch stops it, with no executable
+creation event, strict image, listing or assertion. Its
+[original receipt](frozen324/integration-compiler-own-test-build324/receipt.json.gz),
+[whole log](frozen324/integration-compiler-own-test-build324/tests.log) and
+[complete source snapshot](frozen324/integration-compiler-own-test-build324/source-snapshot.json.gz)
+retain its actual compile root `naming-current-validation323` and separate
+immutable `naming324` archive. Independent Core outcomes and current repairs
+supply no Compiler image or assertion credit.
+
+The independently admitted Source320 path-value assertion closes
+0 passed, 1 failed and 9253 filtered after 2.1077693310217 seconds.
+The [original receipt](frozen320/integration-compiler-source-path-trace320/receipt.json.gz)
+and [whole trace/failure log](frozen320/integration-compiler-source-path-trace320/tests.log)
+retain complete Module/function metadata, diagnostic `Const("lib.tcl")` and
+executable `Overdefined` for the alias fixture. Reached point input/metadata
+are false while Module-point metadata is true. The failing warning count
+remains 1 versus 0. These observations do not establish overall Compiler,
+current-source or Native correctness, or attribute the cause of the failure.
+The exact argv carries no added trace environment setting.
+
+Its [original request](frozen320/selections/diagnostic-path-trace-request320.json)
+and [actual admission](frozen320/selections/diagnostic-path-trace-selected320.json)
+join the 9254-test independently successful own listing and canonical
+Source320 strict Compiler image. The canonical full source snapshot and
+lossless image are reused by whole hash; no new raw executable is copied.
+All original Native/provider answers and other closed command outcomes remain
+unchanged.

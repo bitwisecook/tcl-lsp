@@ -213443,6 +213443,164 @@
         }
       },
       "limits": "The admitted458-selector owned Compiler320 command closes SIGKILL exit-9 after381 individual completions(273 passed/108 failed), one started incomplete regex control and76 unstarted selectors. These are partial individual outcomes, not an aggregate result; the original receipt has no summary. The whole1,371,468-byte log and exact actual-list admission/request retain all failures and the final pending line. Cause/issuer is unresolved; no OOM, timeout, Root termination, suite PASS or failure attribution to a current repair is established. Original provider answers and current source bindings remain unchanged."
+    },
+    {
+      "id": "rust.frozen323.integration-compiler-own-test-build323",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen323/integration-compiler-own-test-build323/receipt.json.gz",
+        "sha256": "513eaf6d96ca466143e0449c1c35fab889221c430eb4f53ef150076ce221a6c4",
+        "compression": "gzip",
+        "uncompressed_sha256": "e43465990e7c2749cde4a3915c3b3ac3bc2c0345ff25388e2483d819f59f3dab"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen323/integration-compiler-own-test-build323/tests.log",
+        "sha256": "08f9eba04ce79905d8bf7aa4e76b0d72c2bf48479fe13eef62a92ddfd36f70ce"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 166.91865252598654,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen323/integration-compiler-own-test-build323/source-snapshot.json.gz",
+        "sha256": "29625c6bac44af0927e8d681e55ce1f3358bad1ba5d6a3b2e594e314b7c4bb86",
+        "compression": "gzip",
+        "uncompressed_sha256": "bd745b36f77f769e5e71a9af769d2b81b66e22451f69df2299ad5cc251bc4d40",
+        "json_pointer": "/source",
+        "authority": "Complete original35930-leaf immutable source/head/archive and distinct isolated compile source root exactly join the failed own command. Each actual error source joins its original whole SHA."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "Three cfg(test) type errors stop the own Compiler323 producer: E0308 in the class source join fixture and two E0277 Arc<[u8]> construction fixtures. No own executable creation event, strict image, listing or assertion is admitted. Later repairs and other successful producers cannot supply this failed command with executable or assertion credit. Native/provider observations remain unchanged."
+    },
+    {
+      "id": "rust.frozen324.integration-compiler-own-test-build324",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/integration-compiler-own-test-build324/receipt.json.gz",
+        "sha256": "1dddca2b33a97c1449bfbca629bbf11756a4b995048d6b819baab05b07074b52",
+        "compression": "gzip",
+        "uncompressed_sha256": "c6f57c671c66e742b54917d15db7cc7ccf143da29272bb24bcc52916ac86db27"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/integration-compiler-own-test-build324/tests.log",
+        "sha256": "d05cbe17e0196a4f6aa4689b9c7c1369c70114d2e4f3b5843aaefa7d3ed38e29"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 173.30654017900815,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen324/integration-compiler-own-test-build324/source-snapshot.json.gz",
+        "sha256": "daa7896bce7680e0b5c7f34b6511ba59b52cc828f8a2112bf68fc550e45038a4",
+        "compression": "gzip",
+        "uncompressed_sha256": "9b43cb76b4b144f8bc41747f20633081441134cca8ff0f4b51c1b2fca60e1c32",
+        "json_pointer": "/source",
+        "authority": "Complete original35932-leaf immutable source/head/archive and actual naming-current-validation323 compile root exactly join this independently failed own command. Its error source joins the original whole SHA."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "One cfg(test) E0277 NamespaceKeyQuery reference-type mismatch at command_binding.rs:22936 stops the own Compiler324 producer. No executable creation event, strict own image, listing or assertion is admitted. The actual original compile_source_root naming-current-validation323 and distinct immutable naming324 archive remain exactly recorded; the checkpoint number cannot substitute a derived compile-root path. Source repairs and independent successful Core commands supply no Compiler image or assertion credit."
+    },
+    {
+      "id": "rust.frozen320.integration-compiler-source-path-trace320",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/integration-compiler-source-path-trace320/receipt.json.gz",
+        "sha256": "0971bb541431c80287d536269f71bf097e1babc16dc9b9b7e63afb3bee3677a9",
+        "compression": "gzip",
+        "uncompressed_sha256": "8675cca77ea8f750b08aecfea8e2e2f1a4d2ea1dc00e5253697113537752a0fc"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/integration-compiler-source-path-trace320/tests.log",
+        "sha256": "eb3e33b121a18ff12bd0a4417b27511f01c200675d5ab4af750391bfa45fc9ce"
+      },
+      "command": [
+        "/tmp/naming-owned320/pinned-compiler320.elf",
+        "analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 2.1077693310217,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9253
+      },
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/source-snapshot.json.gz",
+        "sha256": "253f730cdb991accb29fd5227820d3363b7c2aff9bd81c30c13674d44f71ab7f",
+        "compression": "gzip",
+        "uncompressed_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0",
+        "json_pointer": "/source",
+        "authority": "Complete canonical original35388-leaf Source320 snapshot exactly joins its independently successful own producer, listing, strict image and one-selector admission. Source equality grants no assertion pass."
+      },
+      "tests": [
+        {
+          "selector": "analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point",
+          "status": "failed",
+          "purpose": "Independently executed original one-selector source-path assertion and complete reached trace/failure fields. No current repair or Native outcome attribution.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/pinned-compiler320.elf.gz",
+        "sha256": "c70c2af0f891be7cf0ac6f284a997d083a01d94b3fb527135010c80fd3d11c60",
+        "compression": "gzip",
+        "uncompressed_sha256": "0a1c686be466da2b87d04062ae605d724766830fad24eff87272288bb53138aa",
+        "uncompressed_bytes": 207456576,
+        "compressed_bytes": 40160491,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/lossless-compiler-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/pinned-compiler320.json",
+        "metadata_sha256": "2aed6b76fc34370190a566178767484c3747bb8b42d417a4205ee90904793bd8",
+        "build_receipt_id": "rust.frozen320.integration-compiler-own-test-build320",
+        "original_source_snapshot_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/source-snapshot.json.gz",
+          "sha256": "253f730cdb991accb29fd5227820d3363b7c2aff9bd81c30c13674d44f71ab7f",
+          "compression": "gzip",
+          "uncompressed_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0"
+        }
+      },
+      "limits": "The exact one admitted Source320 path-value assertion closes 0 passed/1 failed/9253 filtered. Reached trace fields retain complete Module/function metadata and diagnostic Const(\"lib.tcl\") beside executable Overdefined for the alias fixture, while point_input/point_metadata remain false and module_point_metadata true. The original failing warning count1 versus0 is retained. These fields and the independently successful own producer/listing do not establish an overall Compiler result, current owner correctness, Native outcome or a cause attribution. Original argv records no added trace environment setting."
     }
   ]
 }
