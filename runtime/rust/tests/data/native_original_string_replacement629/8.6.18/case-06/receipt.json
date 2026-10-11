@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-string-replacement629/8.6.18/probe.elf",
+    "6"
+  ],
+  "cwd": "/workspace/.proofs/root-native-string-replacement629/8.6.18/case-06",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.002621437015477568,
+  "stdout": "/workspace/.proofs/root-native-string-replacement629/8.6.18/case-06/execute.stdout",
+  "stdout_sha256": "ed3f404a96b2b232fe840cf4ca9c2f00cdd02fbfd07e8e0dcc8f627a794a84df",
+  "stderr": "/workspace/.proofs/root-native-string-replacement629/8.6.18/case-06/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 6,
+  "executable_sha256_before": "f1951d9422a6a5fc37ffccd14ec4b1c29ab153d93cfbfd826ffcfb6830a76dd7",
+  "executable_sha256_after": "f1951d9422a6a5fc37ffccd14ec4b1c29ab153d93cfbfd826ffcfb6830a76dd7"
+}

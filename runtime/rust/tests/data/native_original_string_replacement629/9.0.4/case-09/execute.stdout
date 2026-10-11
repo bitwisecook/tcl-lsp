@@ -1,0 +1,21 @@
+provider	C-Tcl
+case	9	counted-nul-before-replaced
+input-subject	410042c3a95a
+input-first	30
+input-last	30
+input-replacement	58
+input-roles	omit=0	first=subject:0	last=first:0	replacement=subject:0
+before-arg2	none	1	1	6
+before-arg3	none	1	1	1
+before-arg4	none	1	1	1
+before-arg5	none	1	1	1
+code	0
+reached-arg2	string	1	1	6
+reached-arg3	int	1	1	1
+reached-arg4	int	1	1	1
+reached-arg5	none	1	1	1
+reached-result	string	0	1	0
+result-alias	subject=0	first=0	last=0	replacement=0
+result-bytes	58c08042c3a95a
+materialised-result	string	1	1	7
+subject-bytes	410042c3a95a

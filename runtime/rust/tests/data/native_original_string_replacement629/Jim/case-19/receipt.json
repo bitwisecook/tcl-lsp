@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-string-replacement629/Jim/probe.elf",
+    "19"
+  ],
+  "cwd": "/workspace/.proofs/root-native-string-replacement629/Jim/case-19",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.0016320190043188632,
+  "stdout": "/workspace/.proofs/root-native-string-replacement629/Jim/case-19/execute.stdout",
+  "stdout_sha256": "97c4eb43752522d854c154aeae1c77ee33e8e744efe47df58a9f741389f1973b",
+  "stderr": "/workspace/.proofs/root-native-string-replacement629/Jim/case-19/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 19,
+  "executable_sha256_before": "2a39f5dbea2e919ece8fed255aef8a9ee32b3c738c4b5b611ed8e3ef1a278e83",
+  "executable_sha256_after": "2a39f5dbea2e919ece8fed255aef8a9ee32b3c738c4b5b611ed8e3ef1a278e83"
+}

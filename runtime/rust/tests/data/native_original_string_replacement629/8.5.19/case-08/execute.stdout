@@ -1,0 +1,21 @@
+provider	C-Tcl
+case	8	utf-whole-replaced
+input-subject	41c3a9e282acf09f98805a
+input-first	30
+input-last	656e64
+input-replacement	cea9
+input-roles	omit=0	first=subject:0	last=first:0	replacement=subject:0
+before-arg2	none	1	1	11
+before-arg3	none	1	1	1
+before-arg4	none	1	1	3
+before-arg5	none	1	1	2
+code	0
+reached-arg2	string	1	1	11
+reached-arg3	int	1	1	1
+reached-arg4	end-offset	1	1	3
+reached-arg5	none	1	1	2
+reached-result	string	1	1	2
+result-alias	subject=0	first=0	last=0	replacement=0
+result-bytes	cea9
+materialised-result	string	1	1	2
+subject-bytes	41c3a9e282acf09f98805a

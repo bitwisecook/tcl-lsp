@@ -1,0 +1,21 @@
+provider	C-Tcl
+case	16	invalid-original-expression
+input-subject	616263646566
+input-first	2478
+input-last	32
+input-replacement	58
+input-roles	omit=0	first=subject:0	last=first:0	replacement=subject:0
+before-arg2	none	1	1	6
+before-arg3	none	1	1	2
+before-arg4	none	1	1	1
+before-arg5	none	1	1	1
+code	1
+reached-arg2	string	1	1	6
+reached-arg3	none	1	1	2
+reached-arg4	none	1	1	1
+reached-arg5	none	1	1	1
+reached-result	string	1	1	48
+result-alias	subject=0	first=0	last=0	replacement=0
+result-bytes	62616420696e64657820222478223a206d75737420626520696e7465676572206f7220656e643f2d696e74656765723f
+materialised-result	string	1	1	48
+subject-bytes	616263646566

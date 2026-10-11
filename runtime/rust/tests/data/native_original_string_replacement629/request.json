@@ -1,0 +1,25 @@
+{
+  "proof_id": "naming.string.original-counted-replacement-and-index-stages",
+  "problem": "Does indexed String replacement use the original subject/index/replacement headers with dialect-correct getter order, original result aliasing and UTF/counting extents, including actual Jim after-part bytes?",
+  "input_channel": "counted C-created byte objects passed directly via EvalObjv; no Tcl source decoding; headers retained once per unique constructed object; aliases add no caller Native reference",
+  "case_count": 21,
+  "providers_requested": [
+    "C Tcl 8.4.20",
+    "C Tcl 8.5.19",
+    "C Tcl 8.6.18",
+    "C Tcl 9.0.4",
+    "C Tcl 9.1.0",
+    "current pinned JimTcl"
+  ],
+  "source_sha256": "f0fdfdfad94e5b498caa0fa347bbb2e3a059dbfea88eb47dfb6282d6f3bf1c4b",
+  "compile": "C: cc with genuine pinned provider include/lib flags; Jim: same with -DPROBE_JIM and actual jim.h/libjim.a; record exact argv and compiler provenance",
+  "launch": "one new native process per case index 0..20, no timeout-based retries or table-edited expectations",
+  "metadata_required": [
+    "provider patchlevel from actual launched native shell/library before source probe",
+    "compiler argv/version/compile exit/stdout/stderr",
+    "exe/source/header/library/config/source-tree hashes where available",
+    "each process argv/exit/stdout/stderr and signal/timeout status",
+    "no private Rust software result inserted as native evidence"
+  ],
+  "scope": "Physical reached original type/resident/native-reference/byte-length/cache fields and result-to-input identity before any result getter; exact resulting bytes afterward. Jim cached charLength is directly sampled only for actual String primary. C cache internals not exposed by public Tcl_Obj remain unmeasured. Adversarial updater/free/context tests are independent software API controls."
+}
