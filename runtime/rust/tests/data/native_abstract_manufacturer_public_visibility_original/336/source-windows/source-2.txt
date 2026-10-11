@@ -1,0 +1,15 @@
+    /*
+     * Make the abstract class.
+     */
+
+    // A metaclass that is used to make classes that can't be directly
+    // instantiated. See abstract(n).
+    Object *abstractCls = (Object *) Tcl_NewObjectInstance(interp,
+	    (Tcl_Class) fPtr->classCls, "::oo::abstract",
+	    NULL, TCL_INDEX_NONE, NULL, 0);
+    // Set the superclass to oo::class
+    MarkAsMetaclass(fPtr, abstractCls->classPtr);
+    // Unexport methods
+    TclOOUnexportMethods(abstractCls->classPtr,
+	    "create", "createWithNamespace", "new", NULL);
+

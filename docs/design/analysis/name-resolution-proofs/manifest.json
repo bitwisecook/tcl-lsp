@@ -544109,6 +544109,709 @@
         "command": [],
         "limitations": "Exact original CLI argv and script/version inputs remain in the own receipts. Restore gzip ELF and whole-source copies to their recorded SHA/size before old replay. Wrappers select the original executable path/TCL_LIBRARY, but complete library/environment and configure/build replay inputs are absent. Initial generic-class scripts stop before the intended worker. No native/Rust replay is performed by publication; C9.0 public equality is independent of the C9.1 selected physical software contract."
       }
+    },
+    {
+      "id": "naming.tcloo.original-abstract-manufacturer-public-visibility",
+      "kind": "native-observation",
+      "document": "docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md",
+      "problem_statement": "An abstract metaclass can hide public manufacturer methods without replacing the inherited constructor machinery. Treating failed public Abstract new/create calls as a universal constructor-handler prohibition also mispredicts a concrete subclass or an explicit object-level export.",
+      "question": "For the exact original script, which manufacturer methods are publicly visible on an oo::abstract instance, do new/create/createWithNamespace public calls fail, can a concrete subclass create an instance, and does explicit object export new restore public Abstract new?",
+      "conclusion": "Tcl 9.0.4 and 9.1.0 each close the exact script exit0 with empty stderr: the three manufacturers are private, their public calls return unknown-method code1, a concrete subclass creates normally, and explicitly exporting new enables a public Abstract new with code0. Tcl 8.4.20, 8.5.19, 8.6.18 and Jim 0.84-9-g5bac7c9 stop at unavailable oo::abstract before the intended visibility work. The retained source unexports those names and the manual describes inherited construction; neither printed values nor inspection establish constructor-handler execution, Method/payload identity, physical frames, Native admission or Rust outcomes. BIG-IP is not tested.",
+      "scope": "Six independent ordinary-script observations and six independent version channels; complete original argv/input hashes, exit/duration and stdout/stderr are retained. Two C9 scripts reach the declared visibility work, while four older/Jim scripts measure producer unavailability only. Actual invoked-file/downstream ELF identities reuse the independently whole-hash-joined property335 canonical payloads, without duplicating executables. Reported ldd dependencies lack library-byte and inherited full environment/build closure. Four retained whole source/manual files and exact physical-LF excerpts inspect public unexport declarations independently. No constructor callback chronology, internal error-formatting stop, native header/refcount/Method/Scope/frame identity, BIG-IP/TMM, software assertion or implementation equivalence is measured.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "8.4.20",
+          "build": "Original invoked wrapper or Jim ELF and downstream executable match the exact shared property335 retention hashes, independently recorded by this manufacturer receipt. Whole ELF gzip restoration is verified. Version output is retained; reported ldd dependencies do not close shared-library bytes, inherited environment or configure/build provenance.",
+          "input_channel": "One exact ordinary script file and independent version script through each recorded CLI argv; whole stdout/stderr and own process receipts.",
+          "dialect": "tcl8.4",
+          "status": "observed",
+          "answer": "The exact script closes exit1 with empty stdout at invalid command name \"oo::abstract\". Its intended abstract manufacturer visibility and explicit-export work is not reached; this response measures only producer unavailability for the actual invocation.",
+          "evidence": [
+            "exact-manufacturer-input",
+            "exact-version-input",
+            "six-original-matrix",
+            "shared-original-provider-binding",
+            "tcl8.4-receipt-json",
+            "tcl8.4-stdout",
+            "tcl8.4-stderr",
+            "tcl8.4-version-stdout",
+            "tcl8.4-version-stderr",
+            "tcl8.4-shared-executable-elf-gz",
+            "tcl8.4-shared-ldd-stdout",
+            "tcl8.4-shared-ldd-stderr",
+            "tcl8.4-shared-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl8.5",
+          "version": "8.5.19",
+          "build": "Original invoked wrapper or Jim ELF and downstream executable match the exact shared property335 retention hashes, independently recorded by this manufacturer receipt. Whole ELF gzip restoration is verified. Version output is retained; reported ldd dependencies do not close shared-library bytes, inherited environment or configure/build provenance.",
+          "input_channel": "One exact ordinary script file and independent version script through each recorded CLI argv; whole stdout/stderr and own process receipts.",
+          "dialect": "tcl8.5",
+          "status": "observed",
+          "answer": "The exact script closes exit1 with empty stdout at invalid command name \"oo::abstract\". Its intended abstract manufacturer visibility and explicit-export work is not reached; this response measures only producer unavailability for the actual invocation.",
+          "evidence": [
+            "exact-manufacturer-input",
+            "exact-version-input",
+            "six-original-matrix",
+            "shared-original-provider-binding",
+            "tcl8.5-receipt-json",
+            "tcl8.5-stdout",
+            "tcl8.5-stderr",
+            "tcl8.5-version-stdout",
+            "tcl8.5-version-stderr",
+            "tcl8.5-shared-executable-elf-gz",
+            "tcl8.5-shared-ldd-stdout",
+            "tcl8.5-shared-ldd-stderr",
+            "tcl8.5-shared-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl8.6",
+          "version": "8.6.18",
+          "build": "Original invoked wrapper or Jim ELF and downstream executable match the exact shared property335 retention hashes, independently recorded by this manufacturer receipt. Whole ELF gzip restoration is verified. Version output is retained; reported ldd dependencies do not close shared-library bytes, inherited environment or configure/build provenance.",
+          "input_channel": "One exact ordinary script file and independent version script through each recorded CLI argv; whole stdout/stderr and own process receipts.",
+          "dialect": "tcl8.6",
+          "status": "observed",
+          "answer": "The exact script closes exit1 with empty stdout at invalid command name \"oo::abstract\". Its intended abstract manufacturer visibility and explicit-export work is not reached; this response measures only producer unavailability for the actual invocation.",
+          "evidence": [
+            "exact-manufacturer-input",
+            "exact-version-input",
+            "six-original-matrix",
+            "shared-original-provider-binding",
+            "tcl8.6-receipt-json",
+            "tcl8.6-stdout",
+            "tcl8.6-stderr",
+            "tcl8.6-version-stdout",
+            "tcl8.6-version-stderr",
+            "tcl8.6-shared-executable-elf-gz",
+            "tcl8.6-shared-ldd-stdout",
+            "tcl8.6-shared-ldd-stderr",
+            "tcl8.6-shared-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl9.0",
+          "version": "9.0.4",
+          "build": "Original invoked wrapper or Jim ELF and downstream executable match the exact shared property335 retention hashes, independently recorded by this manufacturer receipt. Whole ELF gzip restoration is verified. Version output is retained; reported ldd dependencies do not close shared-library bytes, inherited environment or configure/build provenance.",
+          "input_channel": "One exact ordinary script file and independent version script through each recorded CLI argv; whole stdout/stderr and own process receipts.",
+          "dialect": "tcl9.0",
+          "status": "observed",
+          "answer": "The exact script closes exit0 with empty stderr. Abstract initially publishes only destroy; new, create and createWithNamespace remain in its private list and each public attempt returns code1/unknown method. A concrete subclass creates its own instance with code0. Explicit oo::objdefine Abstract export new then permits public Abstract new with code0, and the public list becomes {destroy new}. These values measure public visibility and dispatch results, not constructor-handler entry or physical Method/frame/lifetime identity.",
+          "evidence": [
+            "exact-manufacturer-input",
+            "exact-version-input",
+            "six-original-matrix",
+            "shared-original-provider-binding",
+            "tcl9.0-receipt-json",
+            "tcl9.0-stdout",
+            "tcl9.0-stderr",
+            "tcl9.0-version-stdout",
+            "tcl9.0-version-stderr",
+            "tcl9.0-shared-executable-elf-gz",
+            "tcl9.0-shared-ldd-stdout",
+            "tcl9.0-shared-ldd-stderr",
+            "tcl9.0-shared-wrapper-sh"
+          ]
+        },
+        {
+          "id": "tcl9.1",
+          "version": "9.1.0",
+          "build": "Original invoked wrapper or Jim ELF and downstream executable match the exact shared property335 retention hashes, independently recorded by this manufacturer receipt. Whole ELF gzip restoration is verified. Version output is retained; reported ldd dependencies do not close shared-library bytes, inherited environment or configure/build provenance.",
+          "input_channel": "One exact ordinary script file and independent version script through each recorded CLI argv; whole stdout/stderr and own process receipts.",
+          "dialect": "tcl9.1",
+          "status": "observed",
+          "answer": "The exact script closes exit0 with empty stderr. Abstract initially publishes only destroy; new, create and createWithNamespace remain in its private list and each public attempt returns code1/unknown method. A concrete subclass creates its own instance with code0. Explicit oo::objdefine Abstract export new then permits public Abstract new with code0, and the public list becomes {destroy new}. These values measure public visibility and dispatch results, not constructor-handler entry or physical Method/frame/lifetime identity.",
+          "evidence": [
+            "exact-manufacturer-input",
+            "exact-version-input",
+            "six-original-matrix",
+            "shared-original-provider-binding",
+            "tcl9.1-receipt-json",
+            "tcl9.1-stdout",
+            "tcl9.1-stderr",
+            "tcl9.1-version-stdout",
+            "tcl9.1-version-stderr",
+            "tcl9.1-shared-executable-elf-gz",
+            "tcl9.1-shared-ldd-stdout",
+            "tcl9.1-shared-ldd-stderr",
+            "tcl9.1-shared-wrapper-sh"
+          ]
+        },
+        {
+          "id": "jim",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Original invoked wrapper or Jim ELF and downstream executable match the exact shared property335 retention hashes, independently recorded by this manufacturer receipt. Whole ELF gzip restoration is verified. Version output is retained; reported ldd dependencies do not close shared-library bytes, inherited environment or configure/build provenance.",
+          "input_channel": "One exact ordinary script file and independent version script through each recorded CLI argv; whole stdout/stderr and own process receipts.",
+          "dialect": "jim",
+          "status": "observed",
+          "answer": "The exact script closes exit1 with empty stdout at invalid command name \"oo::abstract\". Its intended abstract manufacturer visibility and explicit-export work is not reached; this response measures only producer unavailability for the actual invocation.",
+          "evidence": [
+            "exact-manufacturer-input",
+            "exact-version-input",
+            "six-original-matrix",
+            "shared-original-provider-binding",
+            "jim-receipt-json",
+            "jim-stdout",
+            "jim-stderr",
+            "jim-version-stdout",
+            "jim-version-stderr",
+            "jim-shared-executable-elf-gz",
+            "jim-shared-ldd-stdout",
+            "jim-shared-ldd-stderr"
+          ]
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No original BIG-IP abstract-manufacturer invocation",
+          "input_channel": "No BIG-IP script response for this question",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No original BIG-IP response is attached. Authored profiles and these local C/Jim results establish no BIG-IP/TMM manufacturer visibility or constructor behavior.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "exact-manufacturer-input",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/manufacturer-visibility.tcl",
+          "sha256": "64e38f62b21ea36750bbbdb0ee3bc59df59ace76699a2ad31656a611d35d556c",
+          "description": "Exact ordinary script measuring initial public/private manufacturer visibility, public errors, a concrete subclass and explicit object export new. It does not inspect Method/clientData, constructor-handler entry or physical frames."
+        },
+        {
+          "id": "exact-version-input",
+          "role": "input",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/version.tcl",
+          "sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+          "description": "Exact independent script that prints patchlevel and executable path for each original invocation."
+        },
+        {
+          "id": "six-original-matrix",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/matrix.json",
+          "sha256": "30774c551483771891874879918311797f531d04bb823942d81c08a984cb19e0",
+          "description": "Six independent original script/version process records with exact argv/input/invocation-file identity, exits/durations and raw stream hashes. Older/Jim intended oo::abstract work is not reached."
+        },
+        {
+          "id": "shared-original-provider-binding",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+          "sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+          "description": "Exact original property335 provider dataset independently joined by whole hash in every manufacturer336 receipt. It retains original wrappers/downstream ELFs and ldd reports; the original manufacturer receipt mapping is retained unchanged. No independent shared-library byte closure or configure/build replay is claimed."
+        },
+        {
+          "id": "tcl8.4-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/receipt.json",
+          "sha256": "270ac743fdbff2852b78ac95d24149a1b21b0bad38abe53fea93c7865e54aec3",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.4-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.4-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/stderr",
+          "sha256": "0148ca6af20c7a2ea1547a5a09c23ec73cf9d53a679834684cf1fbbeb4c997c8",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.4-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/version.stdout",
+          "sha256": "068188ab11ced78c7f40d01dae26088440c13e92e4f7ecb8500848d9327722fd",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.4-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/84/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.4-shared-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/executable.elf.gz",
+          "sha256": "0ef35bc55b478afbee73fdeaad303290df5449989182a55e9535b339d8ed1f28",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.4-shared-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/ldd.stdout",
+          "sha256": "322fce485c073c190020aa0b1592e59e8da792787e87eef2ab643f7b6826f7eb",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.4-shared-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.4-shared-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/wrapper.sh",
+          "sha256": "b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.5-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/receipt.json",
+          "sha256": "5aa72a2413b5603e3e4a5925cdaf9f3241bb0c5fac971e6af2ac61d115cdf778",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.5-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.5-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/stderr",
+          "sha256": "0148ca6af20c7a2ea1547a5a09c23ec73cf9d53a679834684cf1fbbeb4c997c8",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.5-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/version.stdout",
+          "sha256": "259a49bd971e95b8fc49e6ac8781be0003b69017f397c279c80f1f7dc24db0ca",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.5-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/85/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.5-shared-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/executable.elf.gz",
+          "sha256": "47cba54ad641a54ba11e204d74a5ce4232e847fc198142f5a4846078ec5c6c58",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.5-shared-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/ldd.stdout",
+          "sha256": "889f87ad90d1610bb864bbf25706a6d801265f0ecd7a9381c97ba943b58aa783",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.5-shared-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.5-shared-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/wrapper.sh",
+          "sha256": "6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.6-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/receipt.json",
+          "sha256": "51ac03527920ac578fed226859160b70a8c051b9500f25d4c1d043c491888e26",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.6-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.6-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/stderr",
+          "sha256": "0148ca6af20c7a2ea1547a5a09c23ec73cf9d53a679834684cf1fbbeb4c997c8",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.6-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/version.stdout",
+          "sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.6-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/86/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl8.6-shared-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/executable.elf.gz",
+          "sha256": "7f604661926c1c5237e7423365f39c9ffda3bd849441190a130d903f046a8ba8",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.6-shared-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/ldd.stdout",
+          "sha256": "16279183390cbadc66886bce49b5d5f2e6e37e39c6a71ce1ea4f14adbc184cc5",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.6-shared-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl8.6-shared-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/wrapper.sh",
+          "sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.0-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/receipt.json",
+          "sha256": "de5ea6440df58cde25f2b7840a9af4944c7e8148ca42f5b31746e57ecc17bfe2",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.0-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/stdout",
+          "sha256": "517891c0c8b9b97c4935d6d7ed8f2051cb7706a5fcaa765d17a5bc913df8a6e3",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.0-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.0-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/version.stdout",
+          "sha256": "69eee34205bb624bf438509249dfaa4b1378791c3999e0dd58c00be6ba8158e3",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.0-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/90/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.0-shared-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/executable.elf.gz",
+          "sha256": "efd77c98ed7007ad21ec1b50feb70b2533301fa372379cc17f17ce85333cea3a",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.0-shared-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/ldd.stdout",
+          "sha256": "0eaff2aa38de4eb9b9dfd0b8cdb9847c3abe24cfffe0825b26bc4356844d8ebf",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.0-shared-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.0-shared-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/wrapper.sh",
+          "sha256": "f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.1-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/receipt.json",
+          "sha256": "95787a776784a859921f973c180e86446567e9cade946c47cfcfbed5ef5631d3",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.1-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/stdout",
+          "sha256": "517891c0c8b9b97c4935d6d7ed8f2051cb7706a5fcaa765d17a5bc913df8a6e3",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.1-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.1-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/version.stdout",
+          "sha256": "8b89a9cc4b86d71b504dc58191a433a1226a5bd0f407cd3e3c0b6606f7e96f11",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.1-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/91/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "tcl9.1-shared-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/executable.elf.gz",
+          "sha256": "fc6c12552b3f4c0e1e5d023322046330cecaafa80f3fb45d46727cf1261262a2",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.1-shared-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/ldd.stdout",
+          "sha256": "24871b07178963e8dc2df2ae1a86a7e5a6ae7e45944f2de2e79961852dc286ac",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.1-shared-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "tcl9.1-shared-wrapper-sh",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/wrapper.sh",
+          "sha256": "c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "jim-receipt-json",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/receipt.json",
+          "sha256": "a09054170e3442937141e709c707cba031ea9978c7974b3bb5eec374980d9047",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "jim-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "jim-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/stderr",
+          "sha256": "7d325b3073b28d5d44fd33f9d13024c22d5f8bea9f457e79241050a0ebd37f04",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "jim-version-stdout",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/version.stdout",
+          "sha256": "99b5bb7754238fcb794ac3b8e264e28f187a60f3042185ad32824c06f315853a",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "jim-version-stderr",
+          "role": "observation",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/jim/version.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Whole own original process receipt or raw stream. Public script values/errors and version output remain separate from internal native Method/constructor/cache/frame behavior."
+        },
+        {
+          "id": "jim-shared-executable-elf-gz",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/executable.elf.gz",
+          "sha256": "4bb1e19e71a50cfeaf339019c06cb10c52ce4110a385229e99c95f89e92be8ea",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "jim-shared-ldd-stdout",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/ldd.stdout",
+          "sha256": "4429c9cfdc881a14d6b2a1d86cc3d7cca4367f991b6ef145bcca954ec4eb25a9",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "jim-shared-ldd-stderr",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/ldd.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Shared exact retained provider payload independently joined by the original manufacturer receipt. Gzip full ELF SHA/size matches provider-retention.json; ldd is a reported dependency list without retained library-byte or load-address closure."
+        },
+        {
+          "id": "whole-source-retention",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/retained-source.json",
+          "sha256": "bd13c8e6e47e9b9a902d4bdb80072ef4f1d5e2e9e8da1a6e2cb27f4bb293277d",
+          "description": "Exact original full-source gzip mapping for C9.0/C9.1 tclOO.c and abstract.n. Whole decompressed SHA/size and physical-LF snippets are verified independently; inspected source/documentation is not binary/source build equivalence."
+        },
+        {
+          "id": "whole-source-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/90/generic/tclOO.c.gz",
+          "sha256": "b1c664defdf2b7f5308bf580db03fd18010db2eaa7719ee94aa46a3f49c84468",
+          "description": "Whole original source or manual bytes retained in lossless gzip, matched to original complete SHA and byte count."
+        },
+        {
+          "id": "source-window-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-0.txt",
+          "sha256": "456357e2bf70a9fdb38a7956dd6f3c9fa42ccbb41611faa300ad9e2396d85e58",
+          "description": "Exact physical-LF excerpt from the retained full-source SHA. The code explicitly unexports three manufacturers; the manual describes visibility and inherited construction. It supplies no execution, Method payload lifetime or physical frame grant."
+        },
+        {
+          "id": "whole-source-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/90/doc/abstract.n.gz",
+          "sha256": "0e0ed5ebcf84d10f9424a56a788019c372112acedadeb6bc32a2dc9c5529ed8a",
+          "description": "Whole original source or manual bytes retained in lossless gzip, matched to original complete SHA and byte count."
+        },
+        {
+          "id": "source-window-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-1.txt",
+          "sha256": "0565c213458f2b15e5ec533bee422c960d2f51094797a1947408da21b5d2687a",
+          "description": "Exact physical-LF excerpt from the retained full-source SHA. The code explicitly unexports three manufacturers; the manual describes visibility and inherited construction. It supplies no execution, Method payload lifetime or physical frame grant."
+        },
+        {
+          "id": "whole-source-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/91/generic/tclOO.c.gz",
+          "sha256": "84ba97815d87fa815902e8e5c1efabffe636ba0355126b35e48a27719cc60082",
+          "description": "Whole original source or manual bytes retained in lossless gzip, matched to original complete SHA and byte count."
+        },
+        {
+          "id": "source-window-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-2.txt",
+          "sha256": "4a49951c89d492bf787047c9189de2c4e3affe142334ef378df78ff218da4515",
+          "description": "Exact physical-LF excerpt from the retained full-source SHA. The code explicitly unexports three manufacturers; the manual describes visibility and inherited construction. It supplies no execution, Method payload lifetime or physical frame grant."
+        },
+        {
+          "id": "whole-source-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source/91/doc/abstract.n.gz",
+          "sha256": "0e0ed5ebcf84d10f9424a56a788019c372112acedadeb6bc32a2dc9c5529ed8a",
+          "description": "Whole original source or manual bytes retained in lossless gzip, matched to original complete SHA and byte count."
+        },
+        {
+          "id": "source-window-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/source-windows/source-3.txt",
+          "sha256": "0565c213458f2b15e5ec533bee422c960d2f51094797a1947408da21b5d2687a",
+          "description": "Exact physical-LF excerpt from the retained full-source SHA. The code explicitly unexports three manufacturers; the manual describes visibility and inherited construction. It supplies no execution, Method payload lifetime or physical frame grant."
+        },
+        {
+          "id": "canonical-provider-joins",
+          "role": "provider",
+          "path": "runtime/rust/tests/data/native_abstract_manufacturer_public_visibility_original/336/canonical-provider-joins.json",
+          "sha256": "3c1c604f980964b3ce58fc7dbcc4c653b2af6aa258c63e26eb309f3724ebd464",
+          "description": "Explicit mapping from unchanged original relative receipt bindings to shared canonical property335 payloads, including exact packed/original ELF SHA and size restoration joins."
+        }
+      ],
+      "source_anchors": [
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "Configured source tree joined by complete SHA; configure/build replay is unrecorded",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+          "function": "MakeAdditionalClasses",
+          "lines": [
+            701,
+            713
+          ],
+          "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+          "snippet": "    /*\n     * Make the oo::abstract class.\n     */\n\n    abstractCls = (Object *) Tcl_NewObjectInstance(interp,\n\t    (Tcl_Class) fPtr->classCls, \"::oo::abstract\",\n\t    NULL, TCL_INDEX_NONE, NULL, 0);\n    /* Set the superclass to oo::class */\n    MarkAsMetaclass(fPtr, abstractCls->classPtr);\n    /* Unexport methods */\n    TclOOUnexportMethods(abstractCls->classPtr,\n\t    \"create\", \"createWithNamespace\", \"new\", NULL);\n\n",
+          "snippet_sha256": "456357e2bf70a9fdb38a7956dd6f3c9fa42ccbb41611faa300ad9e2396d85e58",
+          "evidence": "source-window-0"
+        },
+        {
+          "provider": "tcl9.0",
+          "version": "9.0.4",
+          "revision": "Configured source tree joined by complete SHA; configure/build replay is unrecorded",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/doc/abstract.n",
+          "function": "abstract(n) public manufacturer description",
+          "lines": [
+            27,
+            48
+          ],
+          "source_sha256": "07717fc8ae50ce56c5d5e535be41a7ab420a18be1a876c06adfcf280d8ad2515",
+          "snippet": "Abstract classes are classes that can contain definitions, but which cannot be\ndirectly manufactured; they are intended to only ever be inherited from and\ninstantiated indirectly. The characteristic methods of \\fBoo::class\\fR\n(\\fBcreate\\fR and \\fBnew\\fR) are not exported by an instance of\n\\fBoo::abstract\\fR.\n.PP\nNote that \\fBoo::abstract\\fR is not itself an instance of \\fBoo::abstract\\fR.\n.SS CONSTRUCTOR\nThe \\fBoo::abstract\\fR class does not define an explicit constructor; this\nmeans that it is effectively the same as the constructor of the\n\\fBoo::class\\fR class.\n.SS DESTRUCTOR\nThe \\fBoo::abstract\\fR class does not define an explicit destructor;\ndestroying an instance of it is just like destroying an ordinary class (and\nwill destroy all its subclasses).\n.SS \"EXPORTED METHODS\"\nThe \\fBoo::abstract\\fR class defines no new exported methods.\n.SS \"NON-EXPORTED METHODS\"\nThe \\fBoo::abstract\\fR class explicitly states that \\fBcreate\\fR,\n\\fBcreateWithNamespace\\fR, and \\fBnew\\fR are unexported.\n.SH EXAMPLES\n.PP\n",
+          "snippet_sha256": "0565c213458f2b15e5ec533bee422c960d2f51094797a1947408da21b5d2687a",
+          "evidence": "source-window-1"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Configured source tree joined by complete SHA; configure/build replay is unrecorded",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+          "function": "MakeAdditionalClasses",
+          "lines": [
+            683,
+            697
+          ],
+          "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+          "snippet": "    /*\n     * Make the abstract class.\n     */\n\n    // A metaclass that is used to make classes that can't be directly\n    // instantiated. See abstract(n).\n    Object *abstractCls = (Object *) Tcl_NewObjectInstance(interp,\n\t    (Tcl_Class) fPtr->classCls, \"::oo::abstract\",\n\t    NULL, TCL_INDEX_NONE, NULL, 0);\n    // Set the superclass to oo::class\n    MarkAsMetaclass(fPtr, abstractCls->classPtr);\n    // Unexport methods\n    TclOOUnexportMethods(abstractCls->classPtr,\n\t    \"create\", \"createWithNamespace\", \"new\", NULL);\n\n",
+          "snippet_sha256": "4a49951c89d492bf787047c9189de2c4e3affe142334ef378df78ff218da4515",
+          "evidence": "source-window-2"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Configured source tree joined by complete SHA; configure/build replay is unrecorded",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/doc/abstract.n",
+          "function": "abstract(n) public manufacturer description",
+          "lines": [
+            27,
+            48
+          ],
+          "source_sha256": "07717fc8ae50ce56c5d5e535be41a7ab420a18be1a876c06adfcf280d8ad2515",
+          "snippet": "Abstract classes are classes that can contain definitions, but which cannot be\ndirectly manufactured; they are intended to only ever be inherited from and\ninstantiated indirectly. The characteristic methods of \\fBoo::class\\fR\n(\\fBcreate\\fR and \\fBnew\\fR) are not exported by an instance of\n\\fBoo::abstract\\fR.\n.PP\nNote that \\fBoo::abstract\\fR is not itself an instance of \\fBoo::abstract\\fR.\n.SS CONSTRUCTOR\nThe \\fBoo::abstract\\fR class does not define an explicit constructor; this\nmeans that it is effectively the same as the constructor of the\n\\fBoo::class\\fR class.\n.SS DESTRUCTOR\nThe \\fBoo::abstract\\fR class does not define an explicit destructor;\ndestroying an instance of it is just like destroying an ordinary class (and\nwill destroy all its subclasses).\n.SS \"EXPORTED METHODS\"\nThe \\fBoo::abstract\\fR class defines no new exported methods.\n.SS \"NON-EXPORTED METHODS\"\nThe \\fBoo::abstract\\fR class explicitly states that \\fBcreate\\fR,\n\\fBcreateWithNamespace\\fR, and \\fBnew\\fR are unexported.\n.SH EXAMPLES\n.PP\n",
+          "snippet_sha256": "0565c213458f2b15e5ec533bee422c960d2f51094797a1947408da21b5d2687a",
+          "evidence": "source-window-3"
+        }
+      ],
+      "tests": [],
+      "owners": [],
+      "replay": {
+        "command": [],
+        "limitations": "Original exact script/version argv and own process receipts are retained unchanged. Explicit canonical joins identify shared property335 original ELF gzip payloads; restore exact whole SHA/size before original replay. Complete inherited environment, shared-library bytes and configure/build replay are absent. Ordinary public visibility output does not measure constructor-handler/native frame behavior; no native or Rust replay is performed by publication."
+      }
     }
   ]
 }

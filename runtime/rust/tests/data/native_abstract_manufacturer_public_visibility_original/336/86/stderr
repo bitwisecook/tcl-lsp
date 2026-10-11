@@ -1,0 +1,4 @@
+invalid command name "oo::abstract"
+    while executing
+"oo::abstract create Abstract {}"
+    (file "/workspace/.proofs/abstract-manufacturer-native336/manufacturer-visibility.tcl" line 1)

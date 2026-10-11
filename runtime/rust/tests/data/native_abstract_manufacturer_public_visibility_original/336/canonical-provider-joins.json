@@ -1,0 +1,72 @@
+{
+  "original_receipt_mapping_unchanged": true,
+  "joins": [
+    {
+      "provider": "tcl8.4",
+      "original_receipt_binding": "../property-report-native335/provider-retention.json",
+      "original_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+      "canonical_binding": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+      "canonical_elf": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/executable.elf.gz",
+      "canonical_packed_sha256": "0ef35bc55b478afbee73fdeaad303290df5449989182a55e9535b339d8ed1f28",
+      "whole_original_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "whole_original_bytes": 907648,
+      "whole_roundtrip": true
+    },
+    {
+      "provider": "tcl8.5",
+      "original_receipt_binding": "../property-report-native335/provider-retention.json",
+      "original_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+      "canonical_binding": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+      "canonical_elf": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/executable.elf.gz",
+      "canonical_packed_sha256": "47cba54ad641a54ba11e204d74a5ce4232e847fc198142f5a4846078ec5c6c58",
+      "whole_original_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "whole_original_bytes": 1294480,
+      "whole_roundtrip": true
+    },
+    {
+      "provider": "tcl8.6",
+      "original_receipt_binding": "../property-report-native335/provider-retention.json",
+      "original_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+      "canonical_binding": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+      "canonical_elf": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/executable.elf.gz",
+      "canonical_packed_sha256": "7f604661926c1c5237e7423365f39c9ffda3bd849441190a130d903f046a8ba8",
+      "whole_original_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "whole_original_bytes": 1915376,
+      "whole_roundtrip": true
+    },
+    {
+      "provider": "tcl9.0",
+      "original_receipt_binding": "../property-report-native335/provider-retention.json",
+      "original_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+      "canonical_binding": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+      "canonical_elf": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/executable.elf.gz",
+      "canonical_packed_sha256": "efd77c98ed7007ad21ec1b50feb70b2533301fa372379cc17f17ce85333cea3a",
+      "whole_original_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "whole_original_bytes": 3471033,
+      "whole_roundtrip": true
+    },
+    {
+      "provider": "tcl9.1",
+      "original_receipt_binding": "../property-report-native335/provider-retention.json",
+      "original_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+      "canonical_binding": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+      "canonical_elf": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/executable.elf.gz",
+      "canonical_packed_sha256": "fc6c12552b3f4c0e1e5d023322046330cecaafa80f3fb45d46727cf1261262a2",
+      "whole_original_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "whole_original_bytes": 3717328,
+      "whole_roundtrip": true
+    },
+    {
+      "provider": "jim",
+      "original_receipt_binding": "../property-report-native335/provider-retention.json",
+      "original_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc",
+      "canonical_binding": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-retention.json",
+      "canonical_elf": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/executable.elf.gz",
+      "canonical_packed_sha256": "4bb1e19e71a50cfeaf339019c06cb10c52ce4110a385229e99c95f89e92be8ea",
+      "whole_original_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "whole_original_bytes": 438632,
+      "whole_roundtrip": true
+    }
+  ],
+  "limits": "Shared complete provider payloads are identified by exact original whole hashes. ldd text is not retained shared-library byte closure, loaded ABI or configure/build replay."
+}

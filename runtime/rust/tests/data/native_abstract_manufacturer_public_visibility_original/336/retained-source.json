@@ -1,0 +1,34 @@
+[
+  {
+    "provider": "90",
+    "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+    "source_sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+    "retained": "source/90/generic/tclOO.c.gz",
+    "retained_sha256": "b1c664defdf2b7f5308bf580db03fd18010db2eaa7719ee94aa46a3f49c84468",
+    "bytes": 99274
+  },
+  {
+    "provider": "90",
+    "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/doc/abstract.n",
+    "source_sha256": "07717fc8ae50ce56c5d5e535be41a7ab420a18be1a876c06adfcf280d8ad2515",
+    "retained": "source/90/doc/abstract.n.gz",
+    "retained_sha256": "0e0ed5ebcf84d10f9424a56a788019c372112acedadeb6bc32a2dc9c5529ed8a",
+    "bytes": 2379
+  },
+  {
+    "provider": "91",
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+    "source_sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+    "retained": "source/91/generic/tclOO.c.gz",
+    "retained_sha256": "84ba97815d87fa815902e8e5c1efabffe636ba0355126b35e48a27719cc60082",
+    "bytes": 98735
+  },
+  {
+    "provider": "91",
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/doc/abstract.n",
+    "source_sha256": "07717fc8ae50ce56c5d5e535be41a7ab420a18be1a876c06adfcf280d8ad2515",
+    "retained": "source/91/doc/abstract.n.gz",
+    "retained_sha256": "0e0ed5ebcf84d10f9424a56a788019c372112acedadeb6bc32a2dc9c5529ed8a",
+    "bytes": 2379
+  }
+]

@@ -1,0 +1,22 @@
+Abstract classes are classes that can contain definitions, but which cannot be
+directly manufactured; they are intended to only ever be inherited from and
+instantiated indirectly. The characteristic methods of \fBoo::class\fR
+(\fBcreate\fR and \fBnew\fR) are not exported by an instance of
+\fBoo::abstract\fR.
+.PP
+Note that \fBoo::abstract\fR is not itself an instance of \fBoo::abstract\fR.
+.SS CONSTRUCTOR
+The \fBoo::abstract\fR class does not define an explicit constructor; this
+means that it is effectively the same as the constructor of the
+\fBoo::class\fR class.
+.SS DESTRUCTOR
+The \fBoo::abstract\fR class does not define an explicit destructor;
+destroying an instance of it is just like destroying an ordinary class (and
+will destroy all its subclasses).
+.SS "EXPORTED METHODS"
+The \fBoo::abstract\fR class defines no new exported methods.
+.SS "NON-EXPORTED METHODS"
+The \fBoo::abstract\fR class explicitly states that \fBcreate\fR,
+\fBcreateWithNamespace\fR, and \fBnew\fR are unexported.
+.SH EXAMPLES
+.PP

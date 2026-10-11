@@ -1,0 +1,26 @@
+{
+  "provider_key": "86",
+  "command": [
+    "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "/workspace/.proofs/abstract-manufacturer-native336/manufacturer-visibility.tcl"
+  ],
+  "input_sha256": "64e38f62b21ea36750bbbdb0ee3bc59df59ace76699a2ad31656a611d35d556c",
+  "invoked_file_sha256": "2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a",
+  "exit": 1,
+  "seconds": 0.00921006198041141,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "0148ca6af20c7a2ea1547a5a09c23ec73cf9d53a679834684cf1fbbeb4c997c8",
+  "version_command": [
+    "/workspace/.proofs/oracle-bin/tclsh8.6",
+    "/workspace/.proofs/abstract-manufacturer-native336/version.tcl"
+  ],
+  "version_input_sha256": "c150325350330227902317fba9520b1ceeb87194e7537137648cbd8c00d7c165",
+  "version_exit": 0,
+  "version_stdout_sha256": "a81129b21e3b9f356fdcce11e8283263ddef932c26801d5356865d71bfa5cbbc",
+  "version_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "version": "patchlevel 8.6.18\nexecutable /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh\n",
+  "stdout": "",
+  "intended_worker_reached": false,
+  "retained_actual_provider_binding": "../property-report-native335/provider-retention.json",
+  "retained_actual_provider_binding_sha256": "ea4ca508f4531f8823609f59a41a7d994854584f25cfe0330ed53c6964676ffc"
+}
