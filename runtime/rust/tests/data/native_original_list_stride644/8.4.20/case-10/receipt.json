@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-list-stride644/8.4.20/probe.elf",
+    "10"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-stride644/8.4.20/case-10",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.008617021958343685,
+  "stdout": "/workspace/.proofs/root-native-list-stride644/8.4.20/case-10/execute.stdout",
+  "stdout_sha256": "91400aa90648ac09b8f2c25ff02b32cbe3f1ad1f07f3e73a0845d3183fea85ce",
+  "stderr": "/workspace/.proofs/root-native-list-stride644/8.4.20/case-10/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 10,
+  "executable_sha256_before": "b1daed58c7d9c7d4b2d1bdee6c4e2a866793677288f3bcdf5eebb284f8062e71",
+  "executable_sha256_after": "b1daed58c7d9c7d4b2d1bdee6c4e2a866793677288f3bcdf5eebb284f8062e71"
+}

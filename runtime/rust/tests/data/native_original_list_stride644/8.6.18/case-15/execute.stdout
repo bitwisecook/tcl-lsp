@@ -1,0 +1,19 @@
+provider	C-Tcl
+case	15	outside-int-width
+operation	lsort
+input-stride	34323934393637323936
+input-roles	stride-original-counted-string=1	stride-explicit-argument-owner=1	additional-observer-native-holds=0	input-list-length=0
+before-stride	none	1	1	10
+before-container	none	1	1	0
+code	1
+reached-stride	int	1	1	10
+reached-container	none	1	1	0
+reached-result	none	1	1	36
+result-alias	stride=0	container=0
+result-bytes	696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74
+materialised-result	none	1	1	36
+after-result-getter-stride	int	1	1	10
+error-code-bytes	415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d
+error-info-bytes	696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e740a202020207768696c6520657865637574696e670a226c736f7274202d7374726964652034323934393637323936207b7d22
+stride-bytes	34323934393637323936
+materialised-stride	int	1	1	10

@@ -1,0 +1,44 @@
+{
+  "question": "Which actual list commands accept -stride in C Tcl8.4\u20139.1/currentJim, which original primitive Int/Wide getter and minimum stage are reached before an empty input List, and what Guest result/code/original public header cache does each counted stride word produce?",
+  "scope": "Independent18cases per provider, onefreshprocess each, original counted String argv and genuine zero-length native List. Public header snapshots/code/resultbytes/errorCode only; no private callback chronology/cache payload/native lifetime or Rust assertion claim.",
+  "source_sha256": "83a7d16dd8c0072c8faa58233b8166759741eb41ef10f3a041ea9bb13da345ca",
+  "providers": [
+    "C8.4.20",
+    "C8.5.19",
+    "C8.6.18",
+    "C9.0.4",
+    "C9.1.0",
+    "Jim0.84-9-g5bac7c9"
+  ],
+  "case_count": 18,
+  "case_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+  ],
+  "original_roles": "owners[5] bounds checked. lsort has4owned distinct objects, lsearch5. Each genuine argv object has exactly one explicit argument-owner Native hold before EvalObjv; no additional independent observer hold. EvalObjv may have actual transient/error-stack references, not borrowed for software assertions. emptyList constructed NULL/0, no backend/key traffic or huge allocation. result is interpreter-owned and never independently held by probe.",
+  "input_bytes": "AllsourcecharactersASCII. cases7/16 contain literal counted bytes 31 00 74 61 69 6c, sixbytes; they are not a backslash-n source argument or runtime text split. cases8/17 original31 2b 30 distinguishes primitive integer conversion from Index/expression parsing. widths2147483648,4294967295,4294967296 bounded by empty input; no huge list allocation. Cases0..8 lsearch;9..17 lsort.",
+  "source_questions": [
+    "C84/C85 lsearch/lsort tables absence of -stride: real unsupported Guest outcome before operand conversion",
+    "C86 lsearch option table absence of -stride; C86 lsort Tcl_GetIntFromObj plus minimum2",
+    "C9 lsearch/lsort TclGetWideIntFromObj plus respective minimum1/2; original countableNUL may have release-specificCString stage",
+    "Jim actual lsearch/lsort option tables: actual unsupported outcome rather than skip or C dialect donation"
+  ],
+  "execution": "Root only using same pinned static libraries/public headers/toolchain/environment as636, compile PROBE_JIM forJim. Retain every input before/after hashes, fullselected archives/header/buildsource bytes, actualcompile/CLI and separate same-static-library version receipts, 108fresh process stdout/stderr/argv/exit receipts. Do not insert version query/getters into observed processes. All18cases execute even unsupported. Collector must retain unsupported Guest as outcomes, no skips. No expected cache/resultrows asserted before actualruns.",
+  "requested_source_anchors": "Exact physical-LF lsearch/lsort optiontables for allproviders plus reached C86Int/C9Wide stride branches, minimumdiagnostics/errorcodes. Preserve original source windows and explicit JSONsnippetpointers; exact linked scalar getter source where interpretation needs it."
+}

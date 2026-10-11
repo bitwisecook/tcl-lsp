@@ -1,0 +1,17 @@
+provider	Jim
+case	0	one
+operation	lsearch
+input-stride	31
+input-roles	stride-original-counted-string=1	stride-explicit-argument-owner=1	additional-observer-native-holds=0	input-list-length=0
+before-stride	none	1	1	1
+before-container	list	0	1	0
+code	0
+reached-stride	int	1	1	1
+reached-container	list	0	1	0
+reached-result	int	0	1	5
+result-alias	stride=0	container=0
+result-bytes	2d31
+materialised-result	int	1	1	2
+after-result-getter-stride	int	1	1	1
+stride-bytes	31
+materialised-stride	int	1	1	1
