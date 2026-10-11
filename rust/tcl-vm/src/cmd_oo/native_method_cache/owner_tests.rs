@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! VM record/entered-operation controls; no C physical clientData count claim.
 use super::*;
-use crate::cmd_oo::{oo_invoke_value, resolve_object_value};
+use crate::cmd_oo::{native_method_key, oo_invoke_value, resolve_object_value};
 use crate::command::{Command, NativeCommand};
 
 fn native(version: &str) -> Vm {

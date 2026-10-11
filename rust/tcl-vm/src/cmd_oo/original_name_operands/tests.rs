@@ -297,7 +297,7 @@ fn original_oo_definition_name_refusal_restores_real_definition_activation_befor
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     let (mut vm, target, formatter) = provided();
     let original = numeric(&vm);
-    let frames = vm.frames.len();
+    let level = vm.current_level();
     let namespace = vm.current_ns_id();
     formatter.fail.set(true);
     let completion = vm.invoke_command(
@@ -318,7 +318,7 @@ fn original_oo_definition_name_refusal_restores_real_definition_activation_befor
     assert_eq!(formatter.formats.get(), 1);
     assert!(vm.oo.classes[&target].variables.is_empty());
     assert!(vm.oo.def_stack.is_empty());
-    assert_eq!(vm.frames.len(), frames);
+    assert_eq!(vm.current_level(), level);
     assert_eq!(vm.current_ns_id(), namespace);
 }
 

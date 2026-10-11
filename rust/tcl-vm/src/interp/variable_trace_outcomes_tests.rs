@@ -460,7 +460,10 @@ fn original_native_observer_guest_initializes_error_info_before_its_trace_frame(
             } else {
                 "write"
             };
-            let failure = Traces::fire_bytes(&mut vm, b"x", op).unwrap().unwrap_err();
+            let failure = vm
+                .fire_var_traces_from_cell_bytes(b"x", op, None, None, None)
+                .unwrap()
+                .unwrap_err();
             let expected = format!(
                 "can't {} \"x\": actual callback Guest error",
                 if op == "read" { "read" } else { "set" }
