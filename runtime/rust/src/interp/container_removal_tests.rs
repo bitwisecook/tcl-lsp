@@ -97,7 +97,7 @@ fn change(interpreter: &mut Interp) {
             REFILL.with(|pointer| pointer.set(replacement.as_ptr()));
         }
         4 => {
-            let retired = interpreter
+            let (_, retired) = interpreter
                 .frames
                 .borrow_mut()
                 .take_frame_for_pop()
@@ -143,7 +143,7 @@ extern "C" fn replace_frame(value: *mut TclObj) {
         .unwrap();
     assert!(interpreter.frames.try_borrow_mut().is_ok());
     assert!(interpreter.namespaces.try_borrow_mut().is_ok());
-    let retired = interpreter
+    let (_, retired) = interpreter
         .frames
         .borrow_mut()
         .take_frame_for_pop()

@@ -130,6 +130,7 @@ tcl-host-native = { path = "../../rust/tcl-host-native" }
 tcl-host-c-abi = { path = "../../rust/tcl-host-c-abi" }
 
 [dev-dependencies]
+tcl-host-c-abi = { path = "../../rust/tcl-host-c-abi" }
 tcl-test-support = { path = "../../rust/tcl-test-support" }
 
 [lib]

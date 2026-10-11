@@ -512,7 +512,7 @@ impl VarTable {
             contents.rmw_retirement = Some(VarError::DeletedNamespace);
             old.elements(std::mem::take(&mut contents.native_member_keys));
             old.value(contents.var.take());
-            old.default(
+            old.array_default(
                 contents
                     .array_default
                     .take()
@@ -583,7 +583,7 @@ impl VarTable {
             contents.array_searches.clear();
             contents.element_ids.clear();
         }
-        old.default(self.take_array_default(name));
+        old.array_default(self.take_array_default(name));
         let preserve_root = {
             let contents = selected.contents.borrow();
             contents.rmw_root_refs != 0

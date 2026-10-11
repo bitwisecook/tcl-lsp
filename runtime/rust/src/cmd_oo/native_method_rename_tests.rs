@@ -306,6 +306,7 @@ fn original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages
                             declared_name.as_ptr(),
                             occupied_name.as_ptr()
                         ],
+                        true,
                     ),
                     Code::Ok
                 );

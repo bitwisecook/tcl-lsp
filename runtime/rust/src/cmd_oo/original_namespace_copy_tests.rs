@@ -91,7 +91,7 @@ fn original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publi
                 .ensure_namespace(GLOBAL, b"Destination");
             let body = Owned::fresh(obj::alloc_typed(&BODY, 0));
             unsafe { obj::set_string_rep(body.as_ptr(), b"return OLD") };
-            let definition = crate::interp::native_procedure_resources::NativeProcedureDefinition {
+            let definition = crate::interp::NativeProcedureDefinition {
                 location: crate::interp::ProcLocation {
                     namespace: source,
                     qualified_name: b"::Source::p".to_vec(),
@@ -123,7 +123,7 @@ fn original_namespace_copy_checks_duplicate_cleanup_before_original_holder_publi
                 mode == 0
             );
             assert_eq!(interpreter.native_execution_refusal().is_some(), mode != 0);
-            assert_eq!(obj::bytes_of(interpreter.result_ptr()), b"REACHED COPY");
+            assert_eq!(obj::bytes_of(interpreter.result_obj()), b"REACHED COPY");
             if mode == 3 {
                 assert_ne!(REBORN.with(Cell::get), destination);
             }

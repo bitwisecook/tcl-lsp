@@ -1185,6 +1185,7 @@ pub(crate) fn get_element_at_target(
 /// frame and array element the access spelling cannot show. Registration
 /// and firing share this one `resolve` call, including the dialect-gated
 /// fallback.
+#[derive(Clone)]
 pub(crate) struct TraceHome {
     /// Actual root incarnation, distinct from a recreated same-named array.
     pub(crate) binding_id: Option<tcl_runtime_api::VarId>,

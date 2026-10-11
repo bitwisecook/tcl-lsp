@@ -64,10 +64,11 @@ mod jim_lookup;
 pub(crate) use jim_link_store::{CapturedJimLinkRoot, JimLinkStoreError};
 pub(crate) use jim_lookup::{CapturedJimDictionaryCell, JimVariableRead, WeakJimVariableCell};
 mod container;
+pub(crate) use container::CapturedContainerModel;
 mod destruction;
 mod retired_variable;
-pub(crate) use retired_variable::RetiredVariableParts;
 pub use destruction::{RetainedArrayCell, WeakArraySearchCell};
+pub(crate) use retired_variable::RetiredVariableParts;
 mod native_element_entry;
 pub(crate) use native_element_entry::NativeElementAliasEntry;
 #[cfg(test)]

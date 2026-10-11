@@ -726,7 +726,7 @@ mod tests {
 
 #[cfg(test)]
 mod original_syntax_transport_tests {
-    use super::super::{default_host, ExceptionState, NsId, WeakInterp};
+    use super::super::{default_host, ExceptionState, WeakInterp, GLOBAL};
     use super::*;
     use crate::obj::{self, Owned};
     use std::{
@@ -933,7 +933,10 @@ mod original_syntax_transport_tests {
                         assert_eq!(interpreter.get_obj_result(), value.as_ptr());
                         drop(reached.unwrap());
                     } else {
-                        let error = reached.unwrap_err();
+                        let error = match reached {
+                            Err(error) => error,
+                            Ok(_) => panic!("original callback must refuse before syntax-option publication"),
+                        };
                         let first = interpreter.native_execution_refusal().unwrap();
                         assert_eq!(error.native_execution_refusal(), Some(&first));
                         assert!(interpreter.exc.borrow().native.info.is_none());
@@ -987,7 +990,10 @@ mod original_syntax_transport_tests {
                         .retain_native_error_option_checked(scope.currency(), true, value.as_ptr())
                         .unwrap();
                     drop(scope);
-                    let error = interpreter.capture_original_c_syntax_options().unwrap_err();
+                    let error = match interpreter.capture_original_c_syntax_options() {
+                        Err(error) => error,
+                        Ok(_) => panic!("original duplicate callback must refuse before syntax-option publication"),
+                    };
                     let first = interpreter.native_execution_refusal().unwrap();
                     assert_eq!(error.native_execution_refusal(), Some(&first));
                     assert_eq!(updates.get(), 0);
@@ -1106,7 +1112,7 @@ mod original_syntax_transport_tests {
                     drop(old);
                     let source = Owned::fresh(obj::new_string_bytes(b"{"));
                     let reached =
-                        interpreter.prepare_original_c_body(source.as_ptr(), NsId::GLOBAL, None);
+                        interpreter.prepare_original_c_body(source.as_ptr(), GLOBAL, None);
                     assert!(matches!(reached, Err(Code::Error)), "{name} mode{mode}");
                     let first = interpreter
                         .native_execution_refusal()
@@ -1121,7 +1127,10 @@ mod original_syntax_transport_tests {
                         .resident
                         .unwrap()
                         .is_empty());
-                    let later = interpreter.capture_original_c_syntax_options().unwrap_err();
+                    let later = match interpreter.capture_original_c_syntax_options() {
+                        Err(error) => error,
+                        Ok(_) => panic!("retained first cause must refuse later syntax-option capture"),
+                    };
                     assert_eq!(later.native_execution_refusal(), Some(&first));
                     assert_eq!(interpreter.get_obj_result(), result);
                     arm.set(false);

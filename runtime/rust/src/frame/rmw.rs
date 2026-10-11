@@ -169,7 +169,7 @@ impl VariableReceiver {
         contents.array_search_epoch = contents.array_search_epoch.wrapping_add(1);
         contents.array_searches.clear();
         contents.element_ids.clear();
-        old.default(
+        old.array_default(
             contents
                 .array_default
                 .take()
@@ -249,7 +249,7 @@ impl VariableReceiver {
             // Root unset already selects these actual owners. Publication and
             // bookkeeping finish before their release, with no additional +1.
             old.elements(std::mem::take(&mut contents.native_member_keys));
-            old.default(
+            old.array_default(
                 contents
                     .array_default
                     .take()

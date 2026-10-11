@@ -7077,7 +7077,7 @@ impl Interp {
     ) -> Result<T, VarError> {
         let scope =
             native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
-                self.refuse_native_execution(first);
+                self.clone().refuse_native_execution(first);
                 VarError::NameProtocolUnavailable
             })?;
         self.require_variable_name_protocol()?;
@@ -7094,7 +7094,7 @@ impl Interp {
             .currency()
             .ensure_current_or_refuse()
             .map_err(|first| {
-                self.refuse_native_execution(first);
+                self.clone().refuse_native_execution(first);
                 VarError::NameProtocolUnavailable
             })?;
         let mut captured = captured.map_err(|error| self.byte_store_failure(error))?;
@@ -7105,7 +7105,7 @@ impl Interp {
             .currency()
             .ensure_current_or_refuse()
             .map_err(|first| {
-                self.refuse_native_execution(first);
+                self.clone().refuse_native_execution(first);
                 VarError::NameProtocolUnavailable
             })?;
         current.map_err(|error| self.byte_store_failure(error))?;
@@ -7130,7 +7130,7 @@ impl Interp {
             crate::frame::JimLinkStoreError::Variable(error) => error,
             crate::frame::JimLinkStoreError::Command(error) => {
                 if let Some(first) = error.native_execution_refusal() {
-                    self.refuse_native_execution(first.clone());
+                    self.clone().refuse_native_execution(first.clone());
                 }
                 VarError::NameProtocolUnavailable
             }

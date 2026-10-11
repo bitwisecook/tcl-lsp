@@ -745,7 +745,7 @@ impl Interp {
         let _ = self.update_native_error_info_checked(scope.currency());
     }
 
-    pub(super) fn update_native_error_info_checked(
+    pub(crate) fn update_native_error_info_checked(
         &mut self,
         currency: &super::native_operation_currency::NativeOperationCurrency,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
@@ -931,14 +931,11 @@ impl Interp {
         currency: &super::native_operation_currency::NativeOperationCurrency,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         currency.ensure_current_or_refuse()?;
-        let original = self
-            .exc
-            .borrow()
-            .native
-            .info
-            .as_ref()
-            .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()))
-            .ok_or_else(|| {
+        let original = {
+            let exc = self.exc.borrow();
+            exc.native.info.as_ref()
+                .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()))
+        }.ok_or_else(|| {
                 self.refuse_completion_value_access(
                     tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "private errorInfo logging publication",

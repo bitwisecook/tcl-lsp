@@ -4073,6 +4073,7 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
         let reachable_behind =
             (0..=index).any(|i| chain[i].provider == class && is_target(&chain[i]));
+        let raw = oo_original_bytes!(interp, originals, 1);
         let mut m = method_type.to_vec();
         if reachable_behind {
             m.extend_from_slice(b" implementation by \"");
@@ -7930,6 +7931,7 @@ impl Interp {
             MethodFrameWhat::Named(&method)
         };
         let name_owner = self.oo_name_owner(obj);
+        let is_filter_step = chain[index].is_filter;
         self.oo.borrow_mut().call_stack.push(OoFrame {
             name_owner,
             activation: None,
@@ -7969,7 +7971,6 @@ impl Interp {
         // call — are not re-wrapped by the same filters. A `next` from the filter
         // clears it again for the wrapped method (handled in `next_cmd`). Saved
         // and restored so nested filter chains compose.
-        let is_filter_step = chain[index].is_filter;
         let saved_fh = self.oo.borrow().filter_handling;
         if is_filter_step {
             self.oo.borrow_mut().filter_handling = true;
@@ -8188,14 +8189,18 @@ impl Interp {
         // The destructor result is returned to the caller: explicit `obj
         // destroy` propagates it (C's `AfterNRDestructor`); implicit teardown
         // ignores it (routing to `bgerror`).
-        self.oo_run(
-            obj,
+        let chain = {
+            let oo = self.oo.borrow();
             native_method_cache::ReachedMethodChain::from(native_method_cache::retain_owners(
-                &self.oo.borrow(),
+                &oo,
                 chain,
                 NativeTclooMethodReportRole::Destructor,
             ))
-            .with_report_role(NativeTclooMethodReportRole::Destructor),
+            .with_report_role(NativeTclooMethodReportRole::Destructor)
+        };
+        self.oo_run(
+            obj,
+            chain,
             0,
             b"<destructor>",
             &[],

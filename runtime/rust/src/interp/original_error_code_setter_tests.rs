@@ -225,8 +225,8 @@ fn original_c84_explicit_callback_code_survives_actual_command_logging() {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct HeaderRetirementRow {
     selected: Option<*mut TclObj>,
-    old_refs: i32,
-    incoming_refs: i32,
+    old_refs: obj::TclSize,
+    incoming_refs: obj::TclSize,
     semantic_refused_with_original_role: bool,
 }
 

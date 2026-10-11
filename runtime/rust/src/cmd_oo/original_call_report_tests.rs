@@ -20,7 +20,7 @@ fn word(bytes: &[u8]) -> obj::Owned {
     obj::Owned::fresh(obj::new_string_bytes(bytes))
 }
 fn elements(interpreter: &Interp, original: *mut TclObj) -> Vec<*mut TclObj> {
-    interpreter.list_elements(&original).unwrap()
+    interpreter.clone().list_elements(&original).unwrap()
 }
 fn fields(interpreter: &Interp, original: *mut TclObj) -> Vec<Vec<u8>> {
     elements(interpreter, original)

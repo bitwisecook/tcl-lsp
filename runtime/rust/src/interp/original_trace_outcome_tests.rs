@@ -139,7 +139,7 @@ fn original_c84_trace_refusal_keeps_reached_header_and_settles_the_real_flag() {
     interpreter.set_result_bytes(b"ORIGINAL RESULT");
     let prior = interpreter.get_obj_result();
     let code = obj::Owned::fresh(new_string(b"ORIGINAL\0\xff CODE"));
-    let counter = interpreter.native_error_code_counter.get();
+    let counter = interpreter.c_api_errors.get();
     let first = interpreter
         .set_original_c_error_code(code.as_ptr())
         .expect_err("the actual write callback refused after publication");
@@ -158,7 +158,7 @@ fn original_c84_trace_refusal_keeps_reached_header_and_settles_the_real_flag() {
     );
     assert_eq!(unsafe { (*code.as_ptr()).ref_count }, 2);
     assert!(interpreter.exc.borrow().native.global_code_set);
-    assert_eq!(interpreter.native_error_code_counter.get(), counter);
+    assert_eq!(interpreter.c_api_errors.get(), counter);
     assert_eq!(interpreter.get_obj_result(), prior);
     assert!(interpreter.traces.borrow().pending_err.is_none());
     assert!(interpreter.active_var_trace_scopes.borrow().is_empty());

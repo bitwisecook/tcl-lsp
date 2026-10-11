@@ -232,7 +232,7 @@ fn original_cache_preparation_does_not_keep_idle_owned_worker_alive_during_free(
         let mut interpreter = native(profile);
         let deleted = std::rc::Rc::new(Cell::new(0));
         let data = Box::into_raw(Box::new(std::rc::Rc::clone(&deleted))).cast();
-        let generation = interpreter.bind_command_replacement(
+        interpreter.bind_command_replacement(
             GLOBAL,
             b"cacheSelected",
             Command::ObjCmd(std::rc::Rc::new(
@@ -243,6 +243,10 @@ fn original_cache_preparation_does_not_keep_idle_owned_worker_alive_during_free(
                 ),
             )),
         );
+        let generation = interpreter
+            .namespaces()
+            .command_generation(GLOBAL, b"cacheSelected")
+            .unwrap();
         assert!(interpreter
             .namespaces()
             .native_command_at_node(generation)

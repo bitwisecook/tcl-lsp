@@ -28,7 +28,7 @@ impl RetiredVariableParts {
             self.0.push(RetiredPart::Value(old));
         }
     }
-    pub(super) fn default(&mut self, old: Option<RetiredArrayDefault>) {
+    pub(super) fn array_default(&mut self, old: Option<RetiredArrayDefault>) {
         if let Some(old) = old {
             self.0.push(RetiredPart::Default(old));
         }

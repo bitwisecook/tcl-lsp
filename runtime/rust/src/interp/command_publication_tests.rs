@@ -73,7 +73,7 @@ extern "C" fn retire(original: *mut TclObj) {
     // This actual callback owns the reached result. A later refused publication
     // must not replace it with a Guest diagnostic or an empty success.
     interpreter.set_result_bytes(b"REACHED");
-    REACHED.with(|value| value.set(interpreter.result_ptr()));
+    REACHED.with(|value| value.set(interpreter.result_obj()));
     match MODE.with(Cell::get) {
         1 => {
             interpreter.refuse_host_command("original command payload retirement");
@@ -126,7 +126,7 @@ fn declaration(interpreter: &Interp, holder: NsId, body: Owned) -> NativeProcedu
     )
 }
 fn check_result(interpreter: &Interp) {
-    assert_eq!(interpreter.result_ptr(), REACHED.with(Cell::get));
+    assert_eq!(interpreter.result_obj(), REACHED.with(Cell::get));
 }
 
 #[test]
@@ -383,7 +383,7 @@ fn observe_header_binding() {
     });
     drop(command);
     interpreter.set_result_bytes(b"HEADER_REACHED");
-    REACHED.with(|value| value.set(interpreter.result_ptr()));
+    REACHED.with(|value| value.set(interpreter.result_obj()));
     match HEADER_MODE.with(Cell::get) {
         1 | 5 => {
             interpreter.bind_command_replacement(GLOBAL, b"headerProbe", Command::Builtin(builtin))
