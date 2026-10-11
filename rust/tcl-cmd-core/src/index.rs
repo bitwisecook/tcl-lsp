@@ -252,6 +252,21 @@ pub trait NativeIndexOps: ValueOps {
         Ok(None)
     }
 
+    /// Read the original search/sort stride with the selected scalar command
+    /// owner. This is primitive Int/Wide/Long conversion, never Index grammar.
+    /// A neutral adapter explicitly returns None; actual unavailable purposes
+    /// refuse. Actual owners include the source-selected minimum diagnostic.
+    ///
+    /// # Errors
+    /// Complete first Host cause, original primitive Guest, or command minimum.
+    fn original_list_stride(
+        &mut self,
+        _original: &Self::Value,
+        _command: crate::native_option_index::OptionCommand,
+    ) -> Result<Option<i64>, CmdError> {
+        Ok(None)
+    }
+
     /// Original C ListIndex worker, including its source-selected owner/copy order.
     /// Neutral and Jim adapters return None; actual C adapters cannot reparse
     /// their original headers through the neutral Unicode fallback.
@@ -496,6 +511,32 @@ pub(crate) fn run_index_metadata<O: NativeIndexOps, T>(
     }
     ops.check_index_operation(&original)?;
     reached
+}
+
+/// Read selected original bytes under the existing operation and retain an
+/// intrinsic first cause before the caller releases its key, view or temporary.
+/// Neutral adapters use their explicitly neutral byte implementation.
+///
+/// # Errors
+/// Original selected String getter or complete original operation refusal.
+pub fn checked_operand_bytes<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::Value,
+) -> Result<std::rc::Rc<[u8]>, CmdError> {
+    run_index_metadata(ops, |ops| ops.index_operand_bytes(original))
+}
+
+/// Read a reached scalar stride without reparsing original bytes as an Index.
+/// None permits only the explicit neutral lexical adapter.
+///
+/// # Errors
+/// Original scalar primitive, source-selected command minimum, or first Host cause.
+pub fn original_list_stride<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::Value,
+    command: crate::native_option_index::OptionCommand,
+) -> Result<Option<i64>, CmdError> {
+    run_index_metadata(ops, |ops| ops.original_list_stride(original, command))
 }
 
 /// Convert Jim's encoded absolute/end-relative index against this container.

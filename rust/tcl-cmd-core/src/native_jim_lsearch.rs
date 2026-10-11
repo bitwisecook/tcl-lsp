@@ -284,7 +284,14 @@ where
                 let Some(value) = args.get(cursor) else {
                     return Err(JimLsearchError::Usage);
                 };
-                let amount = ops.as_int(value)?;
+                let amount = crate::index::original_list_stride(
+                    ops,
+                    value,
+                    crate::native_option_index::OptionCommand::Search,
+                )?
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Jim search stride",
+                ))?;
                 if amount < 1 {
                     return Err(null_error(b"stride length must be at least 1".to_vec()).into());
                 }

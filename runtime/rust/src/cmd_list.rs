@@ -1706,3 +1706,9 @@ mod native_jim_lsearch_controls {
 #[cfg(all(test, have_tommath))]
 #[path = "cmd_list/native_original_option_index_controls.rs"]
 mod native_original_option_index_controls;
+
+#[cfg(all(test, have_tommath))]
+mod native_original_stride_controls;
+
+#[cfg(all(test, have_tommath))]
+mod native_checked_search_sort_controls;

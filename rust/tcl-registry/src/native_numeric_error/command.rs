@@ -19,6 +19,10 @@ pub enum NativeNumericCommandPurpose {
     UuencodeLineLength,
     /// Interpreter debug frame switch.
     DebugFrame,
+    /// Original list search group length.
+    ListSearchStride,
+    /// Original list sort group length.
+    ListSortStride,
 }
 
 /// Actual read count dispatch and failed-getter continuation.
@@ -71,6 +75,19 @@ impl crate::InvocationDialect {
             return None;
         }
         match purpose {
+            Purpose::ListSearchStride
+                if matches!(
+                    version,
+                    Some(TclVersion::V8_4 | TclVersion::V8_5 | TclVersion::V8_6)
+                ) =>
+            {
+                return None;
+            }
+            Purpose::ListSortStride
+                if matches!(version, Some(TclVersion::V8_4 | TclVersion::V8_5)) =>
+            {
+                return None;
+            }
             Purpose::Base64LineLength | Purpose::UuencodeLineLength
                 if !matches!(
                     version,
@@ -101,6 +118,11 @@ impl NativeNumericCommandProtocol {
         use NativeScalarGetterKind as Kind;
         match self.purpose {
             Purpose::DebugFrame => Kind::Boolean,
+            Purpose::ListSearchStride | Purpose::ListSortStride if self.version.is_none() => {
+                Kind::Long
+            }
+            Purpose::ListSortStride if matches!(self.version, Some(TclVersion::V8_6)) => Kind::Int,
+            Purpose::ListSearchStride | Purpose::ListSortStride => Kind::Wide,
             Purpose::SeekOffset => Kind::Wide,
             Purpose::ReadCount
                 if matches!(
@@ -195,6 +217,25 @@ impl NativeNumericCommandProtocol {
         Some(NativeNumericCommandError {
             message,
             error_code,
+        })
+    }
+
+    /// Actual command minimum after its selected primitive succeeds.
+    /// C has a structured command code; Jim supplies its own NULL-primary text.
+    #[must_use]
+    pub fn invalid_list_stride_error(self, integer: i64) -> Option<NativeNumericCommandError> {
+        let (minimum, command) = match self.purpose {
+            NativeNumericCommandPurpose::ListSearchStride => (1, "LSEARCH"),
+            NativeNumericCommandPurpose::ListSortStride => (2, "LSORT"),
+            _ => return None,
+        };
+        (integer < minimum).then(|| NativeNumericCommandError {
+            message: format!("stride length must be at least {minimum}").into_bytes(),
+            error_code: if self.version.is_none() {
+                b"NONE".to_vec()
+            } else {
+                format!("TCL OPERATION {command} BADSTRIDE").into_bytes()
+            },
         })
     }
 
@@ -385,5 +426,88 @@ mod tests {
             .unwrap();
         assert_eq!(selected.negative_line_length_error(), None);
         assert_eq!(selected.read_option_suppresses_newline(0), None);
+    }
+    #[test]
+    fn original_stride_recipes_keep_actual_command_tables_primitive_widths_and_minima() {
+        // naming.list.original-stride-primitive-and-results
+        // docs/design/analysis/name-resolution-proofs/list-original-stride-primitive-and-results.md
+        // Source/API purpose controls; actual108 command outcomes are independent.
+        use NativeNumericCommandPurpose as Purpose;
+        use NativeScalarGetterKind as Kind;
+        for version in [TclVersion::V8_4, TclVersion::V8_5] {
+            let selected = InvocationDialect::for_version(version);
+            assert_eq!(
+                selected.native_numeric_command_protocol(Purpose::ListSearchStride),
+                None
+            );
+            assert_eq!(
+                selected.native_numeric_command_protocol(Purpose::ListSortStride),
+                None
+            );
+        }
+        let c86 = InvocationDialect::for_version(TclVersion::V8_6);
+        assert_eq!(
+            c86.native_numeric_command_protocol(Purpose::ListSearchStride),
+            None
+        );
+        assert_eq!(
+            c86.native_numeric_command_protocol(Purpose::ListSortStride)
+                .unwrap()
+                .getter_kind(),
+            Kind::Int
+        );
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let selected = InvocationDialect::for_version(version);
+            for (purpose, minimum, code) in [
+                (
+                    Purpose::ListSearchStride,
+                    1,
+                    b"TCL OPERATION LSEARCH BADSTRIDE".as_slice(),
+                ),
+                (
+                    Purpose::ListSortStride,
+                    2,
+                    b"TCL OPERATION LSORT BADSTRIDE".as_slice(),
+                ),
+            ] {
+                let recipe = selected.native_numeric_command_protocol(purpose).unwrap();
+                assert_eq!(recipe.getter_kind(), Kind::Wide);
+                assert_eq!(recipe.invalid_list_stride_error(minimum), None);
+                assert_eq!(
+                    recipe
+                        .invalid_list_stride_error(minimum - 1)
+                        .unwrap()
+                        .error_code,
+                    code
+                );
+            }
+        }
+        let jim =
+            InvocationDialect::of_profile(crate::model::resolve_environment("jim").unit_profile());
+        for (purpose, minimum) in [(Purpose::ListSearchStride, 1), (Purpose::ListSortStride, 2)] {
+            let recipe = jim.native_numeric_command_protocol(purpose).unwrap();
+            assert_eq!(recipe.getter_kind(), Kind::Long);
+            assert_eq!(recipe.invalid_list_stride_error(minimum), None);
+            assert_eq!(
+                recipe
+                    .invalid_list_stride_error(minimum - 1)
+                    .unwrap()
+                    .error_code,
+                b"NONE"
+            );
+        }
+        let mut absent = c86;
+        absent.core_point = None;
+        absent.native_family = None;
+        assert_eq!(
+            absent.native_numeric_command_protocol(Purpose::ListSortStride),
+            None
+        );
+        assert_eq!(
+            c86.native_numeric_command_protocol(Purpose::ReadCount)
+                .unwrap()
+                .invalid_list_stride_error(0),
+            None
+        );
     }
 }

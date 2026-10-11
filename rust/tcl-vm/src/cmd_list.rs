@@ -909,3 +909,6 @@ mod tests {
 #[cfg(test)]
 #[path = "cmd_list/native_original_option_index_controls.rs"]
 mod native_original_option_index_controls;
+
+#[cfg(test)]
+mod native_original_stride_controls;

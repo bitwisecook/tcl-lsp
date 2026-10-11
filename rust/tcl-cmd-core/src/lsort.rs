@@ -207,6 +207,73 @@ pub fn prepare<O: NativeIndexOps>(
                     MAPPING[SELECTED
                         .index_of_original(ops, &args[i])
                         .map_err(LsortError::from_command)?]
+                } else if ops.index_c_version() == Some(tcl_dialect::TclVersion::V8_5) {
+                    const MAPPING: [usize; 11] = [
+                        OPT_ASCII,
+                        OPT_COMMAND,
+                        OPT_DECREASING,
+                        OPT_DICTIONARY,
+                        OPT_INCREASING,
+                        OPT_INDEX,
+                        OPT_INDICES,
+                        OPT_INTEGER,
+                        OPT_NOCASE,
+                        OPT_REAL,
+                        OPT_UNIQUE,
+                    ];
+                    static NAMES: [&str; 11] = [
+                        "-ascii",
+                        "-command",
+                        "-decreasing",
+                        "-dictionary",
+                        "-increasing",
+                        "-index",
+                        "-indices",
+                        "-integer",
+                        "-nocase",
+                        "-real",
+                        "-unique",
+                    ];
+                    static SELECTED: OptionTable<'static> =
+                        OptionTable::abbreviating("option", &NAMES);
+                    MAPPING[SELECTED
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?]
+                } else if ops
+                    .index_syntax()
+                    .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+                {
+                    const MAPPING: [usize; 11] = [
+                        OPT_ASCII,
+                        OPT_NOCASE,
+                        OPT_INCREASING,
+                        OPT_DECREASING,
+                        OPT_COMMAND,
+                        OPT_INTEGER,
+                        OPT_REAL,
+                        OPT_INDEX,
+                        OPT_UNIQUE,
+                        OPT_STRIDE,
+                        OPT_DICTIONARY,
+                    ];
+                    static NAMES: [&str; 11] = [
+                        "-ascii",
+                        "-nocase",
+                        "-increasing",
+                        "-decreasing",
+                        "-command",
+                        "-integer",
+                        "-real",
+                        "-index",
+                        "-unique",
+                        "-stride",
+                        "-dictionary",
+                    ];
+                    static SELECTED: OptionTable<'static> =
+                        OptionTable::abbreviating("option", &NAMES);
+                    MAPPING[SELECTED
+                        .index_of_original(ops, &args[i])
+                        .map_err(LsortError::from_command)?]
                 } else {
                     OPTIONS
                         .index_of_original(ops, &args[i])
@@ -254,6 +321,22 @@ pub fn prepare<O: NativeIndexOps>(
                         if i + 1 >= last {
                             return Err(needs_value(b"-stride", b"stride length"));
                         }
+                        if let Some(integer) =
+                            index::original_list_stride(ops, &args[i + 1], OptionCommand::Sort)
+                                .map_err(LsortError::from_command)?
+                        {
+                            group = usize::try_from(integer).map_err(|_| {
+                                LsortError::from_command(
+                                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                        "original sort stride extent",
+                                    )
+                                    .into(),
+                                )
+                            })?;
+                            i += 2;
+                            continue;
+                        }
+                        // Explicit neutral lexical route has no original scalar/cache authority.
                         let sb = ops.as_bytes(&args[i + 1]);
                         match sort::parse_wide(&sb) {
                             Some(w) if w >= 2 => group = w as usize,
@@ -369,7 +452,9 @@ pub fn prepare<O: NativeIndexOps>(
                     None => key_path.drill(ops, &elems[base + group_offset]),
                 }
                 .map_err(LsortError::from_command)?;
-                items.push((base, ops.as_bytes(index::key_value::<O>(&key)).to_vec()));
+                let bytes = index::checked_operand_bytes(ops, index::key_value::<O>(&key))
+                    .map_err(LsortError::from_command)?;
+                items.push((base, bytes.to_vec()));
             }
             // Validate numeric keys up front (Tcl errors on the first non-number).
             if mode == SortMode::Integer

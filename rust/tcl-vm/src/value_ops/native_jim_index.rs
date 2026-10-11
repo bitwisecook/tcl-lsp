@@ -197,6 +197,40 @@ impl NativeIndexOps for Vm {
         tcl_cmd_core::native_option_index::prepare_original(self, original, command, report)
             .map(Some)
     }
+    fn original_list_stride(
+        &mut self,
+        original: &Value,
+        command: tcl_cmd_core::native_option_index::OptionCommand,
+    ) -> Result<Option<i64>, CmdError> {
+        use crate::expr::original_numeric_context::{
+            original_numeric_command_ops, with_original_numeric_command,
+        };
+        use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
+        use tcl_syntax::scalar_getter::NativeScalarGetterValue;
+        let purpose = match command {
+            tcl_cmd_core::native_option_index::OptionCommand::Search => Purpose::ListSearchStride,
+            tcl_cmd_core::native_option_index::OptionCommand::Sort => Purpose::ListSortStride,
+        };
+        with_original_numeric_command(self, CmdError::from, |vm, context| {
+            original_numeric_command_ops(vm, context, purpose, |numeric, selected| {
+                let reached = numeric.getter(original, selected.getter_kind());
+                if let Err(first) = &reached {
+                    numeric.retain_failure(first);
+                }
+                numeric.current_for_value(original)?;
+                let NativeScalarGetterValue::Wide(integer) = reached? else {
+                    return Err(ValueError::ScalarNumericInputUnavailable.into());
+                };
+                if let Some(error) = selected.invalid_list_stride_error(integer) {
+                    return Err(CmdError::with_error_code_bytes(
+                        error.message,
+                        error.error_code,
+                    ));
+                }
+                Ok(Some(integer))
+            })
+        })
+    }
     fn original_c_index(
         &mut self,
         original: &Value,

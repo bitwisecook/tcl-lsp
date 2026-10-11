@@ -149,3 +149,28 @@ format argv. Provider temporary reference counts, private caches, error-stack
 frames and callback chronology are not inferred from those public predicates.
 The extension callback control independently checks actual software backing
 withdrawal, preservation of the first cause and absence of a protective hold.
+
+
+C search paths and shared sort key paths use `index::checked_operand_bytes`,
+which borrows the actual selected original String owner and retains a first Host
+cause before the caller releases its key or temporary. Allocation-only key
+transport does not provide a native reference. Neutral adapters declare their
+neutral byte implementation explicitly. Jim search keeps its selected original
+String owner and its separate command and Enum schedule.
+
+Stride arguments use `index::original_list_stride` and the independent
+`NativeNumericCommandPurpose` scalar owner. They never enter Index expressions.
+Tcl 8.6 sort uses Int; Tcl 9 search and sort use Wide; Jim search and sort use
+Long with the selected primitive target ABI. Tcl 8.4/8.5 reject stride in their
+actual option tables, and Tcl 8.6 search rejects it. Search requires a minimum
+of one and sort a minimum of two after successful conversion. Primitive cache
+changes remain on the original argument when a command minimum or primitive
+range failure is returned. A target that the shared Long primitive does not
+support refuses through that owner instead of borrowing a Wide result.
+
+Implementers must retain a checked String or scalar failure before dropping
+any key/view/result transport, preserve the original full `CmdError`, and use
+the same captured operation for later checks. Add a scalar command purpose only
+when the selected source uses that primitive; neutral textual parsing has no
+native cache or header authority. Public-row controls compare the exact recorded
+predicates, while software callback/reference controls remain separate.

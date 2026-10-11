@@ -207,14 +207,17 @@ pub fn lsearch<O: NativeIndexOps, E: RegexEngine>(
         args,
         version,
         |ops, pattern, flags| {
-            E::compile(&ops.as_bytes(pattern), flags).map_err(|detail| {
+            let bytes =
+                index::checked_operand_bytes(ops, pattern).map_err(LsearchError::from_command)?;
+            E::compile(&bytes, flags).map_err(|detail| {
                 let mut message = version.regex_compile_error_prefix().as_bytes().to_vec();
                 message.extend_from_slice(&detail);
                 LsearchError::msg(message)
             })
         },
         |ops, compiled, subject| {
-            let bytes = ops.as_bytes(subject);
+            let bytes =
+                index::checked_operand_bytes(ops, subject).map_err(LsearchError::from_command)?;
             let (units, _) = decode_utf8(&bytes);
             crate::regex::completed_matches(E::exec(compiled, &units, 0, false))
                 .map(|matches| matches.is_some())
@@ -366,6 +369,100 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
             MAPPING[SELECTED
                 .index_of_original(ops, &args[i])
                 .map_err(LsearchError::from_command)?]
+        } else if matches!(
+            ops.index_c_version(),
+            Some(TclVersion::V8_5 | TclVersion::V8_6)
+        ) {
+            let version = ops.index_c_version().expect("selected C release");
+            const C85_MAPPING: [usize; 17] = [
+                OPT_ALL,
+                OPT_ASCII,
+                OPT_DECREASING,
+                OPT_DICTIONARY,
+                OPT_EXACT,
+                OPT_GLOB,
+                OPT_INCREASING,
+                OPT_INDEX,
+                OPT_INLINE,
+                OPT_INTEGER,
+                OPT_NOCASE,
+                OPT_NOT,
+                OPT_REAL,
+                OPT_REGEXP,
+                OPT_SORTED,
+                OPT_START,
+                OPT_SUBINDICES,
+            ];
+            static C85_NAMES: [&str; 17] = [
+                "-all",
+                "-ascii",
+                "-decreasing",
+                "-dictionary",
+                "-exact",
+                "-glob",
+                "-increasing",
+                "-index",
+                "-inline",
+                "-integer",
+                "-nocase",
+                "-not",
+                "-real",
+                "-regexp",
+                "-sorted",
+                "-start",
+                "-subindices",
+            ];
+            const C86_MAPPING: [usize; 18] = [
+                OPT_ALL,
+                OPT_ASCII,
+                OPT_BISECT,
+                OPT_DECREASING,
+                OPT_DICTIONARY,
+                OPT_EXACT,
+                OPT_GLOB,
+                OPT_INCREASING,
+                OPT_INDEX,
+                OPT_INLINE,
+                OPT_INTEGER,
+                OPT_NOCASE,
+                OPT_NOT,
+                OPT_REAL,
+                OPT_REGEXP,
+                OPT_SORTED,
+                OPT_START,
+                OPT_SUBINDICES,
+            ];
+            static C86_NAMES: [&str; 18] = [
+                "-all",
+                "-ascii",
+                "-bisect",
+                "-decreasing",
+                "-dictionary",
+                "-exact",
+                "-glob",
+                "-increasing",
+                "-index",
+                "-inline",
+                "-integer",
+                "-nocase",
+                "-not",
+                "-real",
+                "-regexp",
+                "-sorted",
+                "-start",
+                "-subindices",
+            ];
+            static C85: OptionTable<'static> = OptionTable::abbreviating("option", &C85_NAMES);
+            static C86: OptionTable<'static> = OptionTable::abbreviating("option", &C86_NAMES);
+            if version == TclVersion::V8_5 {
+                C85_MAPPING[C85
+                    .index_of_original(ops, &args[i])
+                    .map_err(LsearchError::from_command)?]
+            } else {
+                C86_MAPPING[C86
+                    .index_of_original(ops, &args[i])
+                    .map_err(LsearchError::from_command)?]
+            }
         } else {
             OPTIONS
                 .index_of_original(ops, &args[i])
@@ -404,6 +501,22 @@ fn parse_options<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<Op
                         "\"-stride\" option must be followed by stride length",
                     ));
                 }
+                if let Some(integer) =
+                    index::original_list_stride(ops, &args[i + 1], OptionCommand::Search)
+                        .map_err(LsearchError::from_command)?
+                {
+                    o.group = usize::try_from(integer).map_err(|_| {
+                        LsearchError::from_command(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original search stride extent",
+                            )
+                            .into(),
+                        )
+                    })?;
+                    i += 2;
+                    continue;
+                }
+                // Explicit neutral lexical route grants no native primitive/cache.
                 let sb = ops.as_bytes(&args[i + 1]);
                 match sort::parse_wide(&sb) {
                     Some(w) if w >= 1 => o.group = usize::try_from(w).unwrap_or(usize::MAX),
@@ -528,7 +641,15 @@ fn lsearch_with<O: NativeIndexOps, R>(
             start = s - (s % o.group);
         }
 
-        let pattern = (o.mode != SearchMode::Regexp).then(|| ops.as_bytes(&args[n - 1]).to_vec());
+        let pattern = if o.mode != SearchMode::Regexp {
+            Some(
+                index::checked_operand_bytes(ops, &args[n - 1])
+                    .map_err(LsearchError::from_command)?
+                    .to_vec(),
+            )
+        } else {
+            None
+        };
         // For numeric exact/sorted search, the pattern must parse as that type.
         if matches!(o.mode, SearchMode::Exact | SearchMode::Sorted) {
             if o.dtype == SortMode::Integer
@@ -649,7 +770,8 @@ fn linear_search<O: NativeIndexOps, R>(
         let key = select_key(ops, elems, g, group_offset, key_path)?;
         let mut m = match o.mode {
             SearchMode::Glob => {
-                let kb = ops.as_bytes(index::key_value::<O>(&key));
+                let kb = index::checked_operand_bytes(ops, index::key_value::<O>(&key))
+                    .map_err(LsearchError::from_command)?;
                 match (str_opt(pattern.expect("glob pattern")), str_opt(&kb)) {
                     (Some(p), Some(e)) => tcl_syntax::glob::string_case_match(p, e, o.nocase),
                     _ => false,
@@ -711,14 +833,14 @@ fn select_by_index<O: NativeIndexOps>(
 
 /// Compare the search `pattern` against key `obj` under `dtype` (`-exact`/
 /// `-sorted` ordering).
-fn elem_cmp<O: ValueOps>(
+fn elem_cmp<O: NativeIndexOps>(
     ops: &mut O,
     dtype: SortMode,
     nocase: bool,
     pattern: &[u8],
     obj: &O::Value,
 ) -> Result<Ordering, LsearchError> {
-    let ob = ops.as_bytes(obj);
+    let ob = index::checked_operand_bytes(ops, obj).map_err(LsearchError::from_command)?;
     Ok(match dtype {
         SortMode::Dictionary => sort::dictionary_compare(pattern, &ob),
         SortMode::Integer => {

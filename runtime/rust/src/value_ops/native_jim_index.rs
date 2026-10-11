@@ -208,6 +208,49 @@ impl NativeIndexOps for Interp {
         tcl_cmd_core::native_option_index::prepare_original(self, original, command, report)
             .map(Some)
     }
+    fn original_list_stride(
+        &mut self,
+        original: &*mut TclObj,
+        command: tcl_cmd_core::native_option_index::OptionCommand,
+    ) -> Result<Option<i64>, CmdError> {
+        use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
+        use tcl_syntax::scalar_getter::NativeScalarGetterValue;
+        let arguments = OriginalArguments::enter(self, &[*original])?;
+        arguments.check_original_for(self, 0, *original)?;
+        let dialect = self.native_invocation_dialect();
+        let purpose = match command {
+            tcl_cmd_core::native_option_index::OptionCommand::Search => Purpose::ListSearchStride,
+            tcl_cmd_core::native_option_index::OptionCommand::Sort => Purpose::ListSortStride,
+        };
+        let selected = dialect.native_numeric_command_protocol(purpose).ok_or(
+            ValueError::CommandProtocolUnavailable("original list stride purpose"),
+        )?;
+        dialect
+            .native_string_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let reached = {
+            let host = self.host();
+            crate::typed_value::native_scalar_getter_with_environment_and_currency(
+                *original,
+                dialect,
+                selected.getter_kind(),
+                host.numeric_environment(),
+                Some(arguments.currency()),
+            )
+        };
+        // Check the captured original full cause before classifying ValueError.
+        arguments.check_original_for(self, 0, *original)?;
+        let NativeScalarGetterValue::Wide(integer) = reached? else {
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
+        };
+        if let Some(error) = selected.invalid_list_stride_error(integer) {
+            return Err(CmdError::with_error_code_bytes(
+                error.message,
+                error.error_code,
+            ));
+        }
+        Ok(Some(integer))
+    }
     fn original_c_index(
         &mut self,
         original: &*mut TclObj,
