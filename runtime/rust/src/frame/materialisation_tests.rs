@@ -222,6 +222,37 @@ fn original_formal_metadata_retires_before_adoption_under_the_same_frame_and_cel
     }
 }
 
+/// The actual LocateArray/trace owner supplies the backend's captured receipt.
+/// A matching numeric cell identifier alone cannot issue that receipt.
+fn search_with_original_target(
+    interpreter: &mut Interp,
+    expected: &ArrayTarget,
+    sub: &str,
+    name: &[u8],
+    operand: Option<&NativeArraySearchOperand<'_, *mut TclObj>>,
+    protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+) -> Result<
+    Result<*mut TclObj, tcl_syntax::native_array_search::NativeArraySearchFailure>,
+    tcl_syntax::value::ValueError,
+> {
+    let mut reached = None;
+    let code = interpreter.with_array_trace_target(name, |interpreter, original| {
+        assert_eq!(original.cell_id(), expected.cell_id());
+        reached =
+            Some(interpreter.array_search_on_original(original, sub, name, operand, protocol));
+        crate::interp::Code::Ok
+    });
+    assert_eq!(
+        code,
+        if interpreter.host_refusal_pending() {
+            crate::interp::Code::Error
+        } else {
+            crate::interp::Code::Ok
+        }
+    );
+    reached.expect("actual captured array operation reached the backend")
+}
+
 fn array(interpreter: &mut Interp) -> (RetainedArrayCell, ArrayTarget) {
     let name = text(b"a(k)");
     let value = text(b"V");
@@ -261,10 +292,16 @@ fn original_search_string_keeps_the_same_node_birth_without_a_native_snapshot_ho
                 bytes: b"s-1-a",
                 cache: None,
             };
-            let direct = interpreter
-                .array_search_on_original(&target, "anymore", b"a", Some(&same), protocol)
-                .unwrap()
-                .unwrap();
+            let direct = search_with_original_target(
+                &mut interpreter,
+                &target,
+                "anymore",
+                b"a",
+                Some(&same),
+                protocol,
+            )
+            .unwrap()
+            .unwrap();
             crate::interp::drop_fresh(direct);
             assert_eq!(
                 CALLS.with(Counter::get),
@@ -278,7 +315,8 @@ fn original_search_string_keeps_the_same_node_birth_without_a_native_snapshot_ho
                 bytes: b"s-1-a",
                 cache: None,
             };
-            let reached = interpreter.array_search_on_original(
+            let reached = search_with_original_target(
+                &mut interpreter,
                 &target,
                 "nextelement",
                 b"a",
@@ -339,7 +377,8 @@ fn original_done_search_retires_its_actual_handle_before_result_publication_outs
                 cache: None,
             };
             let scope = NativeOperationScope::enter(&interpreter).unwrap();
-            let reached = interpreter.array_search_on_original(
+            let reached = search_with_original_target(
+                &mut interpreter,
                 &target,
                 "donesearch",
                 b"a",
@@ -384,10 +423,16 @@ fn original_search_chain_and_formal_availability_keep_their_selected_physical_ro
             continue;
         };
         let (array, target) = array(&mut interpreter);
-        let result = interpreter
-            .array_search_on_original(&target, "startsearch", b"a", None, protocol)
-            .unwrap()
-            .unwrap();
+        let result = search_with_original_target(
+            &mut interpreter,
+            &target,
+            "startsearch",
+            b"a",
+            None,
+            protocol,
+        )
+        .unwrap()
+        .unwrap();
         let returned = Owned::fresh(result);
         assert_eq!(
             unsafe { (*result).ref_count },
@@ -425,5 +470,47 @@ fn original_search_chain_and_formal_availability_keep_their_selected_physical_ro
             "only the declared returned-value role remains"
         );
         assert!(!array.contents.borrow().array_searches.contains(1));
+    }
+}
+
+#[test]
+fn original_array_search_requires_the_actual_captured_operation_receipt() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Preserve the old fixture premise as an explicit negative: same numeric
+    // cell/header observations do not replace the genuine LocateArray receipt.
+    for profile in ["tcl9.0", "tcl9.1"] {
+        let mut interpreter = native(profile);
+        let (array, target) = array(&mut interpreter);
+        let protocol = interpreter.array_search_protocol().unwrap();
+        let held = Owned::fresh(obj::alloc_typed(&LAZY, 0));
+        array.contents.borrow_mut().array_searches.insert(
+            1,
+            Some(Owned::retain(held.as_ptr())),
+            vec![b"k".to_vec()],
+        );
+        ARRAY.with(|selected| *selected.borrow_mut() = Some(array.clone()));
+        let _cleanup = arm(&interpreter, 0, 1);
+        interpreter.set_result_bytes(b"PRIOR");
+        let prior = interpreter.get_obj_result();
+        let original = held.as_ptr();
+        let operand = NativeArraySearchOperand {
+            original: &original,
+            bytes: b"s-1-a",
+            cache: None,
+        };
+        let before = unsafe { (*original).ref_count };
+        let error = interpreter
+            .array_search_on_original(&target, "anymore", b"a", Some(&operand), protocol)
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell")
+        ));
+        assert_eq!(CALLS.with(Counter::get), 0);
+        assert_eq!(unsafe { (*original).ref_count }, before);
+        assert!(array.contents.borrow().array_searches.contains(1));
+        assert_eq!(interpreter.get_obj_result(), prior);
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
