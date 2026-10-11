@@ -1536,7 +1536,11 @@ impl Lowerer<'_> {
         let Some(raw) = self.source.get(span.as_range()) else {
             return super::over_depth_script(tok.span.start(), text.len());
         };
-        let Some(commands) = self.segment_source(raw, span.start()) else {
+        let Some(commands) = self.segment_source(
+            raw,
+            span.start(),
+            super::SourceSegmentationPurpose::NestedScript,
+        ) else {
             return super::over_depth_script(tok.span.start(), text.len());
         };
         let Some(command) = commands.first() else {
