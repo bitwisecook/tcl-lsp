@@ -171,6 +171,13 @@ impl Drop for NativeOperationScope {
 }
 
 impl Interp {
+    /// Observe the real operation stack for ownership tests without exposing
+    /// the mutable stack or granting a new operation.
+    #[cfg(test)]
+    pub(crate) fn entered_native_operation_count(&self) -> usize {
+        self.entered_native_operations.borrow().len()
+    }
+
     /// Check the original entered operation without holding its stack borrow
     /// across a getter or callback. Neutral callers retain their explicit
     /// operation semantics; a previously reached Host cause is still terminal.

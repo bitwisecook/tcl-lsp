@@ -9492,14 +9492,45 @@ replace it.
 
 For per-command metadata in an owning Module, call
 `SourceInvocationBinding::original_invocation_metadata_for_module(tokens, module, registry)`.
-It validates the retained Module interpretation and this original point's complete
-input, source ancestry, whole word vector and lexer configuration. Only the root
-input or an already retained nested projection is eligible; missing, foreign or
-stale owners decline. Metadata alone does not close an unknown command lookup.
+It validates the retained Module interpretation, complete input, source ancestry,
+whole word vector and lexer configuration. The FunctionUnit overload retains its
+own producer and exact input/configuration checks. Only the root input or an
+already retained nested projection is eligible; missing, foreign or stale owners
+decline. Metadata alone does not close an unknown command lookup.
 `original_materialized_footprint_for_module` delegates to this query and then
 requires its separate closed lookup and quiet observer premises. Captured values
 keep their original producers; neither query invents current source words or spans
 for a captured prefix or a materialized script value.
+
+Choose the metadata purpose before selecting an operation. A retained reached
+point uses `original_invocation_metadata_at_point`; an invalid present point is
+terminal. A positively Logical, unentered declaration may instead use its sealed
+original-declaration snapshot, exact allocation site, complete original vector,
+source origin, lexer configuration and tagged availability owner.
+`original_source_metadata_for_advice` selects these checked purposes for source
+schema and expression advice. The Module, FunctionUnit and full-input metadata
+overloads use the same declaration projection while retaining their current
+request and producer checks. Native input cannot take the declaration branch.
+
+Raw declaration previews already hold an `OriginalCompilationLookupAdvice` and
+call `original_declaration_metadata_context(registry, tokens)` on that sealed
+owner. The checked result has an explicit contract:
+
+```rust
+match advice.original_declaration_metadata_context(registry, tokens) {
+    Ok(Some(metadata)) => { /* use the retained supplied metadata */ }
+    Ok(None) => { /* only the explicitly tagged Standalone source utility */ }
+    Err(_) => { /* decline; do not reconstruct a catalogue or reached owner */ }
+}
+```
+
+Declaration flow, Logical structure and operation projections, and conditional
+source-value queries share this metadata owner. Equal text, a matching profile,
+an availability-only context or a missing reached point cannot issue it. A
+source-only declaration projection creates no reached lookup state, successful
+handler, Native preparation, physical frame or completed effects. Source-value
+queries still require their independent Module/FunctionUnit semantic projection
+and original SSA-read correspondence; metadata cannot repair missing definitions.
 
 Expression suppression starts with the original Expr operand content base.
 `OriginalRegistryWords::source_expression_script_bodies_at` selects its unique

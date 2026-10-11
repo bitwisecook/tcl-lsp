@@ -540,8 +540,8 @@ mod tests {
         assert_eq!(outstanding(), 3);
         assert_eq!(first.current_level(), 0);
         assert_eq!(second.current_level(), 1);
-        assert_eq!(first.entered_native_operations.borrow().len(), 1);
-        assert_eq!(second.entered_native_operations.borrow().len(), 2);
+        assert_eq!(first.entered_native_operation_count(), 1);
+        assert_eq!(second.entered_native_operation_count(), 2);
         let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
             NativeValueAccessRefusal::CommandProtocolUnavailable("unmatched compiler ABI entry"),
         );
@@ -556,12 +556,12 @@ mod tests {
         tcl_codegen_frame_pop();
         assert_eq!(outstanding(), 2);
         assert_eq!(second.current_level(), 0);
-        assert_eq!(first.entered_native_operations.borrow().len(), 1);
-        assert_eq!(second.entered_native_operations.borrow().len(), 1);
+        assert_eq!(first.entered_native_operation_count(), 1);
+        assert_eq!(second.entered_native_operation_count(), 1);
         tcl_codegen_activation_leave(0);
         assert_eq!(outstanding(), 0);
-        assert!(first.entered_native_operations.borrow().is_empty());
-        assert!(second.entered_native_operations.borrow().is_empty());
+        assert!(first.entered_native_operation_count() == 0);
+        assert!(second.entered_native_operation_count() == 0);
         assert_eq!(FREES.with(Cell::get), 1);
         assert_eq!(first.native_execution_refusal(), Some(cause.clone()));
         assert_eq!(cleanup_failure(), Some(cause));
@@ -592,7 +592,7 @@ mod tests {
         assert_eq!(FREES.with(Cell::get), 1);
         assert_eq!(outstanding(), 3);
         assert_eq!(interpreter.current_level(), 1);
-        assert_eq!(interpreter.entered_native_operations.borrow().len(), 3);
+        assert_eq!(interpreter.entered_native_operation_count(), 3);
         let cause = interpreter.native_execution_refusal().unwrap();
         assert_eq!(
             cause,
@@ -606,10 +606,10 @@ mod tests {
         tcl_codegen_frame_pop();
         assert_eq!(outstanding(), 2);
         assert_eq!(interpreter.current_level(), 0);
-        assert_eq!(interpreter.entered_native_operations.borrow().len(), 2);
+        assert_eq!(interpreter.entered_native_operation_count(), 2);
         tcl_codegen_activation_leave(0);
         assert_eq!(outstanding(), 0);
-        assert!(interpreter.entered_native_operations.borrow().is_empty());
+        assert!(interpreter.entered_native_operation_count() == 0);
         assert_eq!(FREES.with(Cell::get), 1);
         assert_eq!(interpreter.native_execution_refusal(), Some(cause.clone()));
         assert_eq!(cleanup_failure(), Some(cause));

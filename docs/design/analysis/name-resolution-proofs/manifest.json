@@ -366845,6 +366845,160 @@
         "command": [],
         "limitations": "Restore original prepared source/request/launcher, exact mapped SDK/header/config/library/CLI/executable inputs and the explicit environment. Whole original compile/dependency/link/version/main streams and receipts are authoritative. Recreate gzip payloads only after whole hash checks. Independently supply every external-hash-record-only compiler/helper/link/runtime binary at its exact recorded hash; the archive is not a self-contained system toolchain. The launcher refuses its existing output directory; a new output request/run is a separate observation. Keep legacy callback/count purpose, one idle recreation and genuine held-object source entry. No address/generation or Rust parity inference."
       }
+    },
+    {
+      "id": "naming.command.original-world-readonly-query",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/original-world-readonly-query.md",
+      "problem_statement": "Readonly source-name geometry may use a retained borrowed ledger only when selecting the actual policy and retained root changes no ledger field. Skipping preparation through a display/configuration shortcut could revive a withdrawn world or select another naming recipe; an owned prepared copy must leave the supplied original state unchanged.",
+      "question": "Which exact original ledger and entry facts permit readonly borrowing while preserving policy preparation, refusal and subsequent source-world mutations?",
+      "conclusion": "Readonly queries borrow only the exact original world when the actual baseline supplies the same positive native naming recipe, that world is not withdrawn, and the actual source root is already retained. Every other case owns a private clone and applies the existing policy preparation. Consumers retain all independent table, source, availability, compiler, frame and Native currency checks. No persistent cache or semantic equality/hash change is involved. Three direct software definitions retain exact borrowing, owned preparation without supplied-state mutation, and current policy/COW withdrawal refusal. Seven readonly consumers share the selected view.",
+      "scope": "Rust software owner contract for readonly original source command-world geometry. It establishes no Native object/current-provider freshness, successful worker, entered body/frame, result/value/store or edit permission. The three test definitions and their real module parents are inspected as current source only; no successful producer, executable listing, passed assertion, speed improvement or timing dominance is supplied. Their fixed C/Jim baselines select Rust recipes and are not external-provider comparisons. An earlier retained view stays valid only for its original immutable world and supplies no currency for a subsequently withdrawn world. Clone measurement fields are outside semantic world identity; no persistent cache is involved.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested",
+          "build": "No original external-provider process for this Rust source-owner contract",
+          "input_channel": "Rust source/API definitions only",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No external-provider observation for this Rust borrowing contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested",
+          "build": "No original external-provider process for this Rust source-owner contract",
+          "input_channel": "Rust source/API definitions only",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No external-provider observation for this Rust borrowing contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested",
+          "build": "No original external-provider process for this Rust source-owner contract",
+          "input_channel": "Rust source/API definitions only",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No external-provider observation for this Rust borrowing contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested",
+          "build": "No original external-provider process for this Rust source-owner contract",
+          "input_channel": "Rust source/API definitions only",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No external-provider observation for this Rust borrowing contract.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested",
+          "build": "No original external-provider process for this Rust source-owner contract",
+          "input_channel": "Rust source/API definitions only",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No external-provider observation for this Rust borrowing contract.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested",
+          "build": "No original external-provider process for this Rust source-owner contract",
+          "input_channel": "Rust source/API definitions only",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No external-provider observation for this Rust borrowing contract.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested",
+          "build": "No original external-provider process for this Rust source-owner contract",
+          "input_channel": "Rust source/API definitions only",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No external-provider observation for this Rust borrowing contract.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "original-world-query-owner",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "sha256": "3ecb3f09347b7fe9402db4ac54a7b1751e44f6a1208b7b961563517f2db2ba2c",
+          "description": "Current actual borrowed/owned source-world query, same original policy guard and three direct software test definitions. No successful executable inventory or assertion outcome is attached."
+        },
+        {
+          "id": "original-world-query-consumers",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+          "sha256": "7da52e49ba59f8b3bf9bfed828dfda9d53bbeaa18ecbf3a482a171424522c9a4",
+          "description": "Seven actual readonly table/geometry consumers delegate the same query owner and count only reached owned clone work. Source linkage supplies no timing improvement, Native completion or producer result."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "selector": "command_binding::source_command_world::tests::readonly_original_world_queries_borrow_exact_selected_baselines_and_publications",
+          "assertion": "Authentic selected C8.4/8.5/8.6/9.0/9.1 and Jim software baselines borrow the same retained original ledger, preserve its selected policy/root, and record no owned clone. Genuine source procedure, alias and rename publications remain in that borrowed world; moved procedure and retained alias target bytes remain distinct from the vacated spelling. This is source-owner/pointer identity inside Rust, not an external Native observation.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "selector": "command_binding::source_command_world::tests::readonly_original_world_queries_prepare_only_owned_missing_policy_or_root",
+          "assertion": "A retained ledger missing its actual root and an unselected empty ledger each prepare an owned private clone with the unchanged selected policy. The resulting private root matches the authentic baseline, while both supplied original worlds remain unchanged. Source preparation does not issue a Native table, frame or entered-body receipt.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "selector": "command_binding::source_command_world::tests::readonly_original_world_queries_keep_policy_refusal_and_cow_withdrawal_current",
+          "assertion": "A different authentic selected naming recipe produces an owned refused view without changing the original ledger. Genuine central opaque mutation withdraws a distinct copy-on-write current world while an earlier retained view stays unchanged; unknown entry remains unavailable. Equal display/configuration or an earlier view cannot revive the withdrawn current world.",
+          "status": "linked"
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "symbol": "OriginalSourceCommandWorld::query_view",
+          "purpose": "Borrow exactly the current same-positive-policy, nonwithdrawn retained ledger with its actual source root; otherwise clone privately and delegate unchanged policy preparation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "symbol": "OriginalSourceCommandWorld::current_policy",
+          "purpose": "Apply one actual baseline recipe/refusal guard to mutable preparation and readonly selection; unavailable worlds or conflicting retained policies decline."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+          "symbol": "OriginalSourceCommandQuery",
+          "purpose": "Retain the borrowed/owned selected view and its selected policy; measurement-only clone duration belongs to the view, outside original-world semantic equality and hash."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+          "symbol": "ModuleCommandBindings::original_command_key_for_slot",
+          "purpose": "Use the shared selected readonly world before retaining exact modeled namespace/cell uniqueness; no Registry label substitutes for source geometry."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+          "symbol": "ModuleCommandBindings::original_namespace_geometry",
+          "purpose": "Require an actual retained namespace and selected policy before querying original source geometry."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+          "symbol": "OriginalGeometryTiming::record_clone",
+          "purpose": "Record a clone only when query_view actually prepares an owned copy; cumulative-inclusive query duration remains an independent diagnostic measure without a speed claim."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Current Rust source-owner contract and direct test definitions only. Independent successful own producers, executable inventories and complete assertion receipts are required to claim software outcomes. Performance comparisons require complete original/current source and measurement receipts; cumulative-inclusive query duration is not exclusive clone cost. External Native/source/frame/cell/body/publication and edit receipts remain independent."
+      }
     }
   ]
 }

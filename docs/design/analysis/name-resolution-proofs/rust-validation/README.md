@@ -3161,3 +3161,47 @@ is lossless gzip; decompression returns SHA-256 `9f027d592e73f7c4e52276211c01512
 The [whole original log](frozen315/integration-runtime-own-test-build315/tests.log) retains
 SHA-256 `259b58a09c9e70d58d47a726cb33eb5f374033e59430e838e10aea697ceeafe2`. The complete original source association is identical
 to the independently retained [Source315 source snapshot](frozen315/sealed-own-compiler-image/source-snapshot.json.gz).
+
+## Source316 independent Compiler producer and inventory
+
+The independent Compiler own no-run command succeeds
+after 523.7596758709988 seconds with uniform source `true`. Its actual
+produced Cargo test artifact (`fresh: false`, features `[]`) admits the
+strict image SHA-256 `eb61994952379f9df6ec9cd5f0ae3ce3ca3fd13fea689f1ee92e52bf7c5ed939`.
+The separate exact executable inventory closes exit `0` after
+0.013747685006819665 seconds and lists 9,212 tests, zero benchmarks.
+The complete immutable 33,602-leaf source retains HEAD
+`f7cf1f8507492698172cd6a98270346058b4f201`. Neither command executes an
+assertion. The earlier linker Bus error and target-directory failure
+remain independently recorded failures; active selections are excluded.
+
+| Closed operation | Exact scope | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-compiler-own-test-build316` | `compile-passed`, exit `0`; no assertions | [lossless original](frozen316/integration-compiler-own-test-build316/receipt.json.gz) | [whole log](frozen316/integration-compiler-own-test-build316/tests.log) |
+| `integration-compiler-own-list316` | `listed`, exit `0`; no assertions | [lossless original](frozen316/integration-compiler-own-list316/receipt.json.gz) | [whole log](frozen316/integration-compiler-own-list316/tests.log) |
+
+The [complete source companion](frozen316/sealed-own-compiler-image/source-snapshot.json.gz),
+[strict original metadata](frozen316/sealed-own-compiler-image/pinned-compiler316.json)
+and [lossless image map](frozen316/sealed-own-compiler-image/lossless-compiler-image-storage.json)
+retain original producer, whole payload, mode and source associations.
+Restore the complete measured executable only after both integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image")
+record = json.loads((base / "lossless-compiler-image-storage.json").read_text())
+packed = (base / "pinned-compiler316.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-compiler316.elf")
+restored.write_bytes(original)
+restored.chmod(record["original_mode"])
+```
+
+Restoration does not replace or retire an active original executable and
+runs no assertion. No complete Compiler, VM, Runtime, Native provider or
+combined gate result is inferred from this producer and inventory.

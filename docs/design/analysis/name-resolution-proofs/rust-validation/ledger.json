@@ -206421,6 +206421,115 @@
       "question_ids": [],
       "limits": "The independent Runtime engine library-test no-run command closes exit101 with one cfg(test) E0283 at engine.rs:1401: Value::byte_array(Rc::from(...)) leaves the allocator/slice type ambiguous. No test-executable creation event, successful Runtime producer, strict Runtime image, inventory or assertion is admitted. The successful own Compiler command and its inventory are separate scopes; the workspace Compiler command does not compile the Runtime engine crate. Later fixture type correction supplies no retrospective producer or assertion credit.",
       "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen316.integration-compiler-own-test-build316",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-compiler-own-test-build316/receipt.json.gz",
+        "sha256": "42d1de47fe9c55b94db37bb44b3baf630bd47e46b5eb0ccf28e2b406ec6f5421",
+        "compression": "gzip",
+        "uncompressed_sha256": "4e0954b4930d7ede0ec57946f72bd245c94b0cd2d098766db1e42089b420ac46"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-compiler-own-test-build316/tests.log",
+        "sha256": "da8cf9aa2e50e52f1a36e7868223e864169631ede7ecf7009ec18fced2d4264a"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 0,
+      "seconds": 523.7596758709988,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged 33602-leaf original immutable Source316 source/head/command/archive associations; every original source leaf independently byte-verified. Current source differences carry no transferred assertion or executable availability."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent Compiler own no-run command succeeds, produces its actual fresh:false Cargo test artifact and admits only the exact strictly pinned Compiler316 image. The unchanged Source316 source predates borrowed-query568 and the subsequently integrated Receiver492/Diagnostic472b/Grammar457/Runtime493 owners. This successful producer runs no assertions and admits no separate Runtime or other workspace executable. Original Native answers, source evidence and other closed failed/successful operations remain unchanged.",
+      "sealed_images": {
+        "compiler": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.elf.gz",
+          "sha256": "3b63a82a7657d0f7e6a2809e55a911d47d147a6c153c0bb7a109de6b37131664",
+          "compression": "gzip",
+          "uncompressed_sha256": "eb61994952379f9df6ec9cd5f0ae3ce3ca3fd13fea689f1ee92e52bf7c5ed939",
+          "uncompressed_bytes": 206975000,
+          "compressed_bytes": 39947052,
+          "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/lossless-compiler-image-storage.json",
+          "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.json",
+          "metadata_sha256": "c4d771bf0ca4102b088dc2d40d5d86f97b371bd5a54875a18a85229c9eb55ba5",
+          "build_receipt_id": "rust.frozen316.integration-compiler-own-test-build316",
+          "original_source_snapshot_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830",
+          "source_snapshot": {
+            "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/source-snapshot.json.gz",
+            "sha256": "4fdb08702a001bdd93e9ae64bff6200a3051bf3312a3c04dc7cebf0db49abee8",
+            "compression": "gzip",
+            "uncompressed_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830"
+          }
+        }
+      }
+    },
+    {
+      "id": "rust.frozen316.integration-compiler-own-list316",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-compiler-own-list316/receipt.json.gz",
+        "sha256": "6d76ad8dcaec48e338a5d8658ff185de788730398cd1e5954209db088ad23034",
+        "compression": "gzip",
+        "uncompressed_sha256": "4d22c41583c85b53061e9d72b9f5c3e3fa3960e4b97f15ff0b51a7bca9f6fcf4"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/integration-compiler-own-list316/tests.log",
+        "sha256": "844b17ee4f255b40973821d67f10fdc42766b02cbd9b68c8acbf8149637754b5"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-compiler316.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.013747685006819665,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged 33602-leaf original immutable Source316 source/head/command/archive associations; every original source leaf independently byte-verified. Current source differences carry no transferred assertion or executable availability."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact strictly pinned Compiler316 image lists all9212 actual test selectors and zero benchmarks. Listing executes no assertion. Source controls, runtime features and independently active selected test commands receive no donated result. Original Native answers, source evidence and other closed failed/successful operations remain unchanged.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.elf.gz",
+        "sha256": "3b63a82a7657d0f7e6a2809e55a911d47d147a6c153c0bb7a109de6b37131664",
+        "compression": "gzip",
+        "uncompressed_sha256": "eb61994952379f9df6ec9cd5f0ae3ce3ca3fd13fea689f1ee92e52bf7c5ed939",
+        "uncompressed_bytes": 206975000,
+        "compressed_bytes": 39947052,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/lossless-compiler-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/pinned-compiler316.json",
+        "metadata_sha256": "c4d771bf0ca4102b088dc2d40d5d86f97b371bd5a54875a18a85229c9eb55ba5",
+        "build_receipt_id": "rust.frozen316.integration-compiler-own-test-build316",
+        "original_source_snapshot_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen316/sealed-own-compiler-image/source-snapshot.json.gz",
+          "sha256": "4fdb08702a001bdd93e9ae64bff6200a3051bf3312a3c04dc7cebf0db49abee8",
+          "compression": "gzip",
+          "uncompressed_sha256": "08f8ea6d64afa0087c27b420719fc620b0a9c039a7bf323dcd5eb4ecb00a3830"
+        }
+      }
     }
   ]
 }

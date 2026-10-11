@@ -308,7 +308,10 @@ fn original_collection_empty_and_abstract_length_keep_their_actual_cache_purpose
             .native_invocation_dialect()
             .native_string_protocol()
             .unwrap();
-        let plan = tcl_cmd_core::lseq::decode(&[b"1", b"3", b"1"]).unwrap();
+        let plan = match tcl_cmd_core::lseq::decode(&[b"1", b"3", b"1"]) {
+            Ok(plan) => plan,
+            Err(_) => panic!("original arithmetic-series operands must decode"),
+        };
         let series = tcl_cmd_core::lseq::prepare_series(&plan).unwrap().unwrap();
         let value =
             obj::Owned::fresh(crate::native_arithseries::new_series(series, protocol).unwrap());
