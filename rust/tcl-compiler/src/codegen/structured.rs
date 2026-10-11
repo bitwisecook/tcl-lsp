@@ -766,7 +766,7 @@ mod tests {
         );
         let entry = crate::environment_ingress::captured_native_entry(profile);
         // Native entry and complete conditional metadata retain their own owners.
-        let mut lowerer = Lowerer::new(&registry)
+        let mut lowerer = Lowerer::with_config(&registry, input.lexer_config())
             .with_dialect(Some(profile))
             .with_resolved_analysis_input(input);
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {

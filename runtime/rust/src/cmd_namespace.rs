@@ -1427,7 +1427,9 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .native_command_name_protocol()
         .is_some()
     {
-        interp.native_namespace_origin(argv[2])
+        interp
+            .native_namespace_origin(argv[2])
+            .map_err(tcl_cmd_core::CmdError::from)
     } else {
         // Jim's scripted helper follows source-name aliases, not C command tokens.
         let name = match interp.native_string_bytes(&argv[2]) {
@@ -6079,7 +6081,9 @@ namespace eval ::caller {
             assert_eq!(i.command_name_bytes(id).as_deref(), Some(raw));
             // The shared cores reach the same answer.
             assert_eq!(
-                tcl_cmd_core::namespace::origin_bytes(i, raw).as_deref(),
+                tcl_cmd_core::namespace::origin_bytes_checked(i, raw)
+                    .unwrap()
+                    .as_deref(),
                 Some(raw)
             );
             assert_eq!(
@@ -6090,7 +6094,11 @@ namespace eval ::caller {
             // characters name a different (absent) command. This is the
             // divergence the byte-valued entry points exist to remove.
             assert_eq!(
-                tcl_cmd_core::namespace::origin(i, &String::from_utf8_lossy(raw)),
+                tcl_cmd_core::namespace::origin_bytes_checked(
+                    i,
+                    String::from_utf8_lossy(raw).as_bytes()
+                )
+                .unwrap(),
                 None
             );
         });

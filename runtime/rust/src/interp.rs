@@ -110,6 +110,7 @@ mod native_command_rename;
 #[path = "interp/native_eval_object_tests.rs"]
 mod native_eval_object_tests;
 mod native_event_context;
+mod native_name_queries;
 mod native_object_vector;
 pub(crate) mod native_operation_currency;
 pub(crate) mod native_scalar_context;
@@ -4119,51 +4120,6 @@ impl Interp {
             }
             _ => Ok(tcl_runtime_api::AliasPrefixLookup::NotAlias),
         }
-    }
-
-    /// Select the actual interned generation before projecting alias bytes.
-    pub(crate) fn command_alias_prefix_by_id_checked(
-        &self,
-        id: u32,
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
-        let (_, generation) = self.command_identity(id).ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("alias prefix command token"),
-        )?;
-        let Some(command) = self.raw_command_by_generation(generation) else {
-            return Ok(None);
-        };
-        self.alias_prefix_bytes_checked(&command)
-    }
-
-    /// Project bytes only for an actual byte query. Alias definition and
-    /// object introspection keep every original prefix member untouched.
-    pub(crate) fn alias_prefix_bytes_checked(
-        &self,
-        command: &Command,
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
-        let Command::Alias {
-            original_prefix, ..
-        } = command
-        else {
-            return Ok(None);
-        };
-        let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original alias List protocol",
-            ))?;
-        obj::check_native_liveness(original_prefix.as_ptr())?;
-        let members =
-            crate::list::list_elements_native_checked(original_prefix.as_ptr(), protocol)?;
-        members
-            .into_iter()
-            .map(|member| {
-                self.native_object_string_bytes(member)
-                    .map(|bytes| bytes.to_vec())
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(Some)
     }
 
     /// Object query projection: C creates a fresh List header over retained

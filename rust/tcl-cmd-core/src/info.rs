@@ -90,7 +90,8 @@ where
         requested
     };
     if target >= 1
-        && let Some(argv) = ops.level_argv(usize::try_from(target).unwrap_or(0))
+        && let Some(argv) = ops
+            .level_argv(usize::try_from(target).unwrap_or(0))
             .map_err(CmdError::from_execution_refusal)?
     {
         return Ok(argv);
@@ -123,9 +124,10 @@ where
 pub fn body<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Procs,
+    O::OperationError: Into<CmdError>,
 {
     let n = ops.native_string_bytes(name)?;
-    match ops.proc_body_bytes(&n)? {
+    match ops.proc_body_bytes(&n).map_err(Into::into)? {
         Some(body) => Ok(ops.new_bytes(&body)),
         None => Err(not_a_proc(&n)),
     }
@@ -137,12 +139,13 @@ where
 pub fn args<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Procs,
+    O::OperationError: Into<CmdError>,
 {
     let n = ops.native_string_bytes(name)?;
     if let Some(original) = ops.proc_original_formal_list_value(&n)? {
         return Ok(original);
     }
-    let Some(parameters) = ops.proc_formal_names_bytes(&n)? else {
+    let Some(parameters) = ops.proc_formal_names_bytes(&n).map_err(Into::into)? else {
         return Err(not_a_proc(&n));
     };
     let mut names = Vec::with_capacity(parameters.len());
@@ -166,10 +169,11 @@ where
 pub fn default<O, V>(ops: &mut O, name: &V, arg: &V) -> Result<(V, bool), CmdError>
 where
     O: ValueOps<Value = V> + Procs,
+    O::OperationError: Into<CmdError>,
 {
     let n = ops.native_string_bytes(name)?;
     let a = ops.native_string_bytes(arg)?;
-    match ops.proc_default_value_bytes(&n, &a)? {
+    match ops.proc_default_value_bytes(&n, &a).map_err(Into::into)? {
         tcl_runtime_api::ProcDefaultValue::MissingProcedure => Err(not_a_proc(&n)),
         tcl_runtime_api::ProcDefaultValue::MissingParameter => {
             let mut message = b"procedure \"".to_vec();

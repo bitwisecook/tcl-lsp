@@ -98,6 +98,19 @@ mod tests {
         )
     }
 
+    /// Native CFG controls retain actual selected availability independently
+    /// from their complete caller-supplied lexical configuration.
+    fn native_source_input(config: tcl_lexer::LexerConfig) -> ResolvedAnalysisInput {
+        let environment = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .expect("selected native CFG source environment");
+        ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            environment.default_context_registry(),
+            config,
+        )
+    }
+
     fn original_tokens(source: &str, input: &ResolvedAnalysisInput) -> CommandTokens {
         let image = tcl_lexer::SourceImage::document(source);
         let registry = input.borrowed_context_registry().commands();
@@ -412,7 +425,7 @@ mod tests {
         let config = tcl_lexer::LexerConfig::from_grammar(
             tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,
         );
-        let input = source_input(config);
+        let input = native_source_input(config);
         let registry = input.borrowed_context_registry().commands();
         let profile = input.unit_profile();
         let (_native_owner, captured) =
@@ -513,7 +526,7 @@ mod tests {
         let config = tcl_lexer::LexerConfig::from_grammar(
             tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,
         );
-        let input = source_input(config);
+        let input = native_source_input(config);
         let registry = input.borrowed_context_registry().commands();
         let profile = input.unit_profile();
         let (_native_owner, captured) =

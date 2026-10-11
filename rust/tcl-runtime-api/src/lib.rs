@@ -1795,14 +1795,10 @@ pub trait Aliases: tcl_syntax::value::ValueOps {
 
 /// The namespace tree and actual command lookup owners.
 pub trait Namespaces {
+    /// Full failure of an original name query and its retained command owner.
+    type OriginalNameError: From<tcl_syntax::value::ValueError> + From<NativeExecutionError>;
     /// Whether imports retain source tokens or resolve source names on use.
     fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
-        None
-    }
-
-    /// The full target prefix of an ordinary same-interpreter alias.
-    /// Byte-native runtimes preserve the target words verbatim.
-    fn command_alias_prefix_bytes(&self, _cmd: CommandId) -> Option<Vec<Vec<u8>>> {
         None
     }
 
@@ -1812,12 +1808,10 @@ pub trait Namespaces {
     /// # Errors
     /// The default supplies no actual alias-prefix owner and refuses.
     fn command_alias_prefix_bytes_checked(
-        &self,
+        &mut self,
         _cmd: CommandId,
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
-        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-            "alias prefix owner",
-        ))
+    ) -> Result<Option<Vec<Vec<u8>>>, Self::OriginalNameError> {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable("alias prefix owner").into())
     }
 
     /// Original report keys of actual live alias entries in this command table.
@@ -2127,20 +2121,14 @@ pub trait Introspect {
 /// Metadata queries return owned bytes. Default-value queries retain the
 /// original runtime object, independently of its resident spelling or cache.
 pub trait Procs: tcl_syntax::value::ValueOps {
-    /// The formals + body of the user procedure `name` resolves to (following
-    /// `namespace import` redirects, exactly as a call would), or `None` if
-    /// `name` is not a user procedure (a builtin, alias, or unknown command).
-    fn proc_info(&self, name: &str) -> Option<ProcInfo>;
-
-    /// Resolve a procedure using the original native string bytes. Unicode-only
-    /// adapters refuse an unrepresentable name before looking it up.
-    fn proc_info_bytes(
-        &self,
-        name: &[u8],
-    ) -> Result<Option<ProcInfo>, tcl_syntax::value::ValueError> {
-        let name = tcl_syntax::raw_string::RawString::from_bytes(name).unicode()?;
-        Ok(self.proc_info(&name))
-    }
+    /// Full failure of a reached procedure query, preserving execution refusal.
+    type OperationError: From<tcl_syntax::value::ValueError> + From<NativeExecutionError>;
+    /// Query the selected retained declaration using the original byte name.
+    /// A callback cannot replace that declaration with a same-named command.
+    ///
+    /// # Errors
+    /// Retains full failure from reached getters or the original query owner.
+    fn proc_info_bytes(&mut self, name: &[u8]) -> Result<Option<ProcInfo>, Self::OperationError>;
 
     /// Project a retained formal storage key or a query operand for native
     /// `info args`/`default`. This is introspection, not formal binding.
@@ -2163,9 +2151,9 @@ pub trait Procs: tcl_syntax::value::ValueOps {
 
     /// Stored formal names without materialising their default objects.
     fn proc_formal_names_bytes(
-        &self,
+        &mut self,
         name: &[u8],
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+    ) -> Result<Option<Vec<Vec<u8>>>, Self::OperationError> {
         Ok(self.proc_info_bytes(name)?.map(|info| {
             info.params
                 .into_iter()
@@ -2175,10 +2163,7 @@ pub trait Procs: tcl_syntax::value::ValueOps {
     }
 
     /// Retain body bytes without inspecting or materialising any default object.
-    fn proc_body_bytes(
-        &self,
-        name: &[u8],
-    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+    fn proc_body_bytes(&mut self, name: &[u8]) -> Result<Option<Vec<u8>>, Self::OperationError> {
         Ok(self.proc_info_bytes(name)?.map(|info| info.body))
     }
 
@@ -2188,7 +2173,7 @@ pub trait Procs: tcl_syntax::value::ValueOps {
         &mut self,
         name: &[u8],
         arg: &[u8],
-    ) -> Result<ProcDefaultValue<Self::Value>, tcl_syntax::value::ValueError> {
+    ) -> Result<ProcDefaultValue<Self::Value>, Self::OperationError> {
         let selected = self.formal_introspection_name_bytes(arg)?;
         let Some(info) = self.proc_info_bytes(name)? else {
             return Ok(ProcDefaultValue::MissingProcedure);
@@ -2215,7 +2200,7 @@ pub enum ProcDefaultValue<V> {
     Declared(Option<V>),
 }
 
-/// A user procedure's introspectable definition — the [`Procs::proc_info`] answer.
+/// A user procedure's introspectable definition — the [`Procs::proc_info_bytes`] answer.
 #[derive(Debug, Clone)]
 pub struct ProcInfo {
     /// The procedure body source (`info body`), byte-exact.

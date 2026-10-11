@@ -729,50 +729,17 @@ pub fn variable_fqn<O: Namespaces + ?Sized>(
         .map(|fqn| String::from_utf8_lossy(&fqn).into_owned())
 }
 
-/// `namespace origin command` over a **byte-valued** name — the fully-qualified
-/// name of the *original* command `name` resolves to, following `namespace
-/// import` links to their source. This is `NamespaceOriginCmd`
-/// (`tclNamesp.c`): resolve the word to a command token, ask
-/// `TclGetOriginalCommand` for the token it was imported from (falling back to
-/// the token itself when it was not imported), and report that token's
-/// fully-qualified name. `None` when the word resolves to no command at all —
-/// the caller reports `invalid command name "<name>"`.
-pub fn origin_bytes<O: Namespaces + ?Sized>(ops: &O, name: &[u8]) -> Option<Vec<u8>> {
-    let cur = ops.current();
-    let mut cmd = ops.find_command_bytes(cur, name)?;
-    if ops.namespace_import_binding() == Some(tcl_dialect::NamespaceImportBinding::SourceName) {
-        let root = ops.root_command_context_checked().ok()??;
-        let mut visited = std::collections::HashSet::new();
-        while let Some(prefix) = ops.command_alias_prefix_bytes(cmd) {
-            if !visited.insert(cmd) {
-                return None;
-            }
-            // Jim's namespace helper passes the entire `info alias` result
-            // as one command-name word, including any prefix arguments.
-            let target = if let [target] = prefix.as_slice() {
-                target.clone()
-            } else {
-                let mut list = Vec::new();
-                for (index, word) in prefix.iter().enumerate() {
-                    tcl_syntax::list::append_list_element(&mut list, word, index == 0);
-                }
-                list
-            };
-            cmd = ops.find_command_bytes(root, &target)?;
-        }
-        return ops.command_name_bytes(cmd);
-    }
-    ops.command_name_bytes(ops.command_origin(cmd).unwrap_or(cmd))
-}
-
 /// Checked original-token query, retaining native byte aliases and refusals.
 ///
 /// # Errors
 /// Propagates checked command/namespace lookup failures at each alias hop.
 pub fn origin_bytes_checked<O: Namespaces + ?Sized>(
-    ops: &O,
+    ops: &mut O,
     name: &[u8],
-) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+) -> Result<Option<Vec<u8>>, crate::CmdError>
+where
+    O::OriginalNameError: Into<crate::CmdError>,
+{
     let Some(mut command) = ops.find_command_bytes_checked(ops.current(), name)? else {
         return Ok(None);
     };
@@ -781,7 +748,10 @@ pub fn origin_bytes_checked<O: Namespaces + ?Sized>(
             return Ok(None);
         };
         let mut visited = std::collections::HashSet::new();
-        while let Some(prefix) = ops.command_alias_prefix_bytes_checked(command)? {
+        while let Some(prefix) = ops
+            .command_alias_prefix_bytes_checked(command)
+            .map_err(Into::into)?
+        {
             if !visited.insert(command) {
                 return Ok(None);
             }
@@ -800,10 +770,13 @@ pub fn origin_bytes_checked<O: Namespaces + ?Sized>(
             command = target;
         }
         return ops.command_name_bytes(command).map(Some).ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("command origin reporting"),
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("command origin reporting")
+                .into(),
         );
     }
-    origin_from_command_checked(ops, command).map(Some)
+    origin_from_command_checked(ops, command)
+        .map(Some)
+        .map_err(Into::into)
 }
 
 /// Report the original command from an already resolved, retained command token.
@@ -819,11 +792,6 @@ pub fn origin_from_command_checked<O: Namespaces + ?Sized>(
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "command origin reporting",
         ))
-}
-
-/// [`origin_bytes`] for the UTF-8-keyed adapters (the VM).
-pub fn origin<O: Namespaces + ?Sized>(ops: &O, name: &str) -> Option<String> {
-    origin_bytes(ops, name.as_bytes()).map(|fqn| String::from_utf8_lossy(&fqn).into_owned())
 }
 
 /// A byte-valued namespace target that did not resolve.

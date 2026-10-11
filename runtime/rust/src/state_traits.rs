@@ -29,7 +29,7 @@
 
 use tcl_runtime_api::{
     ArrayElementRead, ArrayTarget, CommandId, Commands, Completion, FrameId, Frames, Introspect,
-    Namespaces, NsId, ProcInfo, ProcParam, Procs, Traces, VarStore, VarUnsetError,
+    Namespaces, NsId, ProcInfo, Procs, Traces, VarStore, VarUnsetError,
 };
 
 use crate::interp::{new_string, Interp};
@@ -706,9 +706,7 @@ impl Introspect for Interp {
 /// contract is value-agnostic. Jim `info args` instead returns the original
 /// retained formal list, including defaults, reference names and rest labels.
 impl Procs for Interp {
-    fn proc_info(&self, name: &str) -> Option<ProcInfo> {
-        self.proc_info_bytes(name.as_bytes()).ok().flatten()
-    }
+    type OperationError = tcl_cmd_core::CmdError;
 
     fn formal_introspection_name_bytes(
         &self,
@@ -726,20 +724,8 @@ impl Procs for Interp {
             .to_vec())
     }
 
-    fn proc_body_bytes(
-        &self,
-        name: &[u8],
-    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
-        let Some(definition) = self.proc_def(name) else {
-            return Ok(None);
-        };
-        definition.check_native_liveness()?;
-        let mut context = self.clone();
-        tcl_syntax::value::ValueOps::native_string_bytes(
-            &mut context,
-            &definition.body.checked_ptr()?,
-        )
-        .map(|bytes| Some(bytes.to_vec()))
+    fn proc_body_bytes(&mut self, name: &[u8]) -> Result<Option<Vec<u8>>, Self::OperationError> {
+        self.original_proc_body_query(name)
     }
 
     fn proc_original_formal_list_value(
@@ -768,9 +754,9 @@ impl Procs for Interp {
     }
 
     fn proc_formal_names_bytes(
-        &self,
+        &mut self,
         name: &[u8],
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+    ) -> Result<Option<Vec<Vec<u8>>>, Self::OperationError> {
         let Some(definition) = self.proc_def(name) else {
             return Ok(None);
         };
@@ -788,7 +774,7 @@ impl Procs for Interp {
         &mut self,
         name: &[u8],
         arg: &[u8],
-    ) -> Result<tcl_runtime_api::ProcDefaultValue<Self::Value>, tcl_syntax::value::ValueError> {
+    ) -> Result<tcl_runtime_api::ProcDefaultValue<Self::Value>, Self::OperationError> {
         use tcl_runtime_api::ProcDefaultValue;
         let selected = self.formal_introspection_name_bytes(arg)?;
         let Some(definition) = self.proc_def(name) else {
@@ -809,44 +795,8 @@ impl Procs for Interp {
         Ok(ProcDefaultValue::MissingParameter)
     }
 
-    fn proc_info_bytes(
-        &self,
-        name: &[u8],
-    ) -> Result<Option<ProcInfo>, tcl_syntax::value::ValueError> {
-        let Some(def) = self.proc_def(name) else {
-            return Ok(None);
-        };
-        def.check_native_liveness()?;
-        let mut context = self.clone();
-        let params = def
-            .params
-            .iter()
-            .map(|parameter| {
-                let default = parameter
-                    .default
-                    .as_ref()
-                    .map(|value| {
-                        tcl_syntax::value::ValueOps::native_string_bytes(
-                            &mut context,
-                            &value.checked_ptr()?,
-                        )
-                        .map(|bytes| bytes.to_vec())
-                    })
-                    .transpose()?;
-                Ok(ProcParam {
-                    name: parameter.name.clone(),
-                    default,
-                })
-            })
-            .collect::<Result<Vec<_>, tcl_syntax::value::ValueError>>()?;
-        Ok(Some(ProcInfo {
-            body: tcl_syntax::value::ValueOps::native_string_bytes(
-                &mut context,
-                &def.body.checked_ptr()?,
-            )?
-            .to_vec(),
-            params,
-        }))
+    fn proc_info_bytes(&mut self, name: &[u8]) -> Result<Option<ProcInfo>, Self::OperationError> {
+        self.original_proc_info_query(name)
     }
 }
 
@@ -1155,19 +1105,16 @@ impl tcl_runtime_api::Aliases for Interp {
 }
 
 impl Namespaces for Interp {
+    type OriginalNameError = tcl_cmd_core::CmdError;
     fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
         self.dialect_profile().namespace_import_binding()
     }
 
-    fn command_alias_prefix_bytes(&self, cmd: CommandId) -> Option<Vec<Vec<u8>>> {
-        self.command_alias_prefix_bytes_checked(cmd).ok().flatten()
-    }
-
     fn command_alias_prefix_bytes_checked(
-        &self,
+        &mut self,
         cmd: CommandId,
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
-        self.command_alias_prefix_by_id_checked(cmd.0)
+    ) -> Result<Option<Vec<Vec<u8>>>, Self::OriginalNameError> {
+        self.original_alias_bytes_query(cmd.0)
     }
     fn variable_lookup_policy(&self) -> Option<tcl_dialect::VariableLookupPolicy> {
         self.name_policy_protocol()

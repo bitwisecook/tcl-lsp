@@ -9151,8 +9151,8 @@ mod tests {
         )
         .unwrap();
         let source = "interp alias {} unpack {} dict with {$dictionary}; unpack {}";
-        let mut lowerer =
-            crate::lowering::Lowerer::new(registry).with_resolved_analysis_input(input.clone());
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+            .with_resolved_analysis_input(input.clone());
         let module = lowerer.lower(source);
         let statement = module
             .top_level
@@ -9226,8 +9226,8 @@ mod tests {
         assert!(
             dict_body_operand_with_metadata_context(registry, stale_metadata, tokens).is_none()
         );
-        let mut replaced =
-            crate::lowering::Lowerer::new(registry).with_resolved_analysis_input(input.clone());
+        let mut replaced = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+            .with_resolved_analysis_input(input.clone());
         let changed = replaced.lower("proc dict args {return CUSTOM}; dict with {$dictionary} {}");
         let changed_call = changed
             .top_level

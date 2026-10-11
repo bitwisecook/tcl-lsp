@@ -52,9 +52,9 @@ use tcl_runtime_api::jim_error_stack::{
 use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
     ArtefactIdentityManifest, Code, CommandId, Commands, CompileService, Completion, FatalTail,
-    FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId, ProcInfo, ProcParam,
-    ProcedureDispatch, Procs, ROOT_NS, RegisteredBacking, Rung, RuntimeContext,
-    ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId, ProcInfo, ProcedureDispatch,
+    Procs, ROOT_NS, RegisteredBacking, Rung, RuntimeContext, ScriptCompileTarget, Traces, VarId,
+    VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::eval;
 use variable_trace_outcomes::VariableTraceOutcome;
@@ -102,6 +102,7 @@ pub(crate) mod native_jim_lookup;
 #[cfg(test)]
 mod native_legacy_increment_tests;
 mod native_name_operands;
+mod native_name_queries;
 mod native_name_world;
 mod native_namespace_names;
 #[cfg(test)]
@@ -25107,9 +25108,7 @@ impl Introspect for Vm {
 /// names use the declaration's compiled records; Jim `info args` returns its
 /// retained original formal-list object, including default and reference specs.
 impl Procs for Vm {
-    fn proc_info(&self, name: &str) -> Option<ProcInfo> {
-        self.proc_info_bytes(name.as_bytes()).ok().flatten()
-    }
+    type OperationError = tcl_cmd_core::CmdError;
 
     fn formal_introspection_name_bytes(
         &self,
@@ -25125,21 +25124,8 @@ impl Procs for Vm {
             .to_vec())
     }
 
-    fn proc_body_bytes(
-        &self,
-        name: &[u8],
-    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
-        self.proc_def_bytes(name)
-            .map(|definition| {
-                self.native_name_operand_bytes(&definition.body_src)
-                    .map(|bytes| bytes.to_vec())
-                    .map_err(|_| {
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "procedure body string",
-                        )
-                    })
-            })
-            .transpose()
+    fn proc_body_bytes(&mut self, name: &[u8]) -> Result<Option<Vec<u8>>, Self::OperationError> {
+        self.original_proc_body_query(name)
     }
 
     fn proc_original_formal_list_value(
@@ -25170,9 +25156,9 @@ impl Procs for Vm {
     }
 
     fn proc_formal_names_bytes(
-        &self,
+        &mut self,
         name: &[u8],
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+    ) -> Result<Option<Vec<Vec<u8>>>, Self::OperationError> {
         Ok(self.proc_def_bytes(name).map(|definition| {
             definition
                 .params
@@ -25186,7 +25172,7 @@ impl Procs for Vm {
         &mut self,
         name: &[u8],
         arg: &[u8],
-    ) -> Result<tcl_runtime_api::ProcDefaultValue<Self::Value>, tcl_syntax::value::ValueError> {
+    ) -> Result<tcl_runtime_api::ProcDefaultValue<Self::Value>, Self::OperationError> {
         use tcl_runtime_api::ProcDefaultValue;
         let selected = self.formal_introspection_name_bytes(arg)?;
         let Some(definition) = self.proc_def_bytes(name) else {
@@ -25200,36 +25186,8 @@ impl Procs for Vm {
         Ok(ProcDefaultValue::MissingParameter)
     }
 
-    fn proc_info_bytes(
-        &self,
-        name: &[u8],
-    ) -> Result<Option<ProcInfo>, tcl_syntax::value::ValueError> {
-        let Some(proc) = self.proc_def_bytes(name) else {
-            return Ok(None);
-        };
-        let bytes = |value: &Value| {
-            self.native_name_operand_bytes(value)
-                .map(|bytes| bytes.to_vec())
-                .map_err(|_| {
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "procedure string materialisation",
-                    )
-                })
-        };
-        let params = proc
-            .params
-            .iter()
-            .map(|parameter| {
-                Ok(ProcParam {
-                    name: parameter.name.as_bytes().to_vec(),
-                    default: parameter.default.as_ref().map(bytes).transpose()?,
-                })
-            })
-            .collect::<Result<Vec<_>, tcl_syntax::value::ValueError>>()?;
-        Ok(Some(ProcInfo {
-            body: bytes(&proc.body_src)?,
-            params,
-        }))
+    fn proc_info_bytes(&mut self, name: &[u8]) -> Result<Option<ProcInfo>, Self::OperationError> {
+        self.original_proc_info_query(name)
     }
 }
 
@@ -25581,45 +25539,16 @@ impl tcl_runtime_api::Aliases for Vm {
 }
 
 impl Namespaces for Vm {
+    type OriginalNameError = tcl_cmd_core::CmdError;
     fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
         self.dialect_profile().namespace_import_binding()
     }
 
-    fn command_alias_prefix_bytes(&self, cmd: CommandId) -> Option<Vec<Vec<u8>>> {
-        self.command_alias_prefix_bytes_checked(cmd).ok().flatten()
-    }
-
     fn command_alias_prefix_bytes_checked(
-        &self,
+        &mut self,
         cmd: CommandId,
-    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
-        let key = self.command_sidecar_key(cmd.0).ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("alias prefix command token"),
-        )?;
-        let Some(command) = self.command_at_sidecar_key(&key) else {
-            return Ok(None);
-        };
-        let words = match command {
-            Command::Alias { words, .. } => words.as_ref().clone(),
-            Command::CallerAlias(original) => original
-                .native_object_list_elements(
-                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                )?
-                .as_ref()
-                .clone(),
-            _ => return Ok(None),
-        };
-        words
-            .iter()
-            .map(|word| {
-                self.native_name_operand_bytes(word)
-                    .map(|bytes| bytes.to_vec())
-                    .map_err(|error| {
-                        tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into()
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(Some)
+    ) -> Result<Option<Vec<Vec<u8>>>, Self::OriginalNameError> {
+        self.original_alias_bytes_query(cmd)
     }
     fn variable_lookup_policy(&self) -> Option<tcl_dialect::VariableLookupPolicy> {
         self.name_policy_protocol()
