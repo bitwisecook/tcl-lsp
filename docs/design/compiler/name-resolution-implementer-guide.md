@@ -8567,15 +8567,36 @@ supplied `ResolvedAnalysisInput` retains its exact configuration; default file
 ingress uses the selected file grammar's BOM treatment. These joins must match
 the retained parent image and input, including availability and source channel.
 
-At a genuine extracted body or bracket interior, parse with the parent's
-`LexerConfig::nested()`. `descend_token` performs this projection itself. A BOM
-at the child's start remains script content even when the parent file skips its
-own leading BOM. Original `NativeWord`s retain their whole parent image and
-configuration; a child parse configuration cannot replace that correspondence.
-An isolated body analyser receives its actual retained input through
-`ResolvedAnalysisInput::for_nested_source()`. Neither projection supplies a
-Native entry, selected implementation, class allocation or method frame. See
-the [configured source contract](../analysis/name-resolution-proofs/source-original-configured-script-completeness.md)
+The source producer selects the shared Lexer `SourceSegmentationPurpose`:
+`WholeInput` for an independently supplied complete source and `NestedScript`
+for an extracted body, command substitution, authored operand or materialised
+script. Use `purpose.config(parent_config)` for its local parser. A body at byte
+zero still uses `NestedScript`; an offset or nesting depth cannot establish its
+owner. `descend_token` projects a genuine extracted body itself.
+
+Pass the full parent configuration and the explicit purpose to
+`SourceCommandBindings::analyse_image_in_frame_with_purpose` or
+`native_script_words_in_with_purpose`. Original `NativeWord`s, command vectors,
+metadata and source cache ownership retain that full configuration; the cache
+also distinguishes the selected purpose. Replacing their owner configuration
+with the local nested configuration breaks the original-input correspondence.
+The compatibility `analyse_image_in_frame_with_options` and
+`native_script_words_in` wrappers select `WholeInput`, so they are suitable only
+when the producer actually owns that purpose. An isolated body analyser uses
+its retained input's `ResolvedAnalysisInput::for_nested_source()` projection.
+
+Parser purpose supplies no execution, Native header, selected implementation or
+frame. A nested body can run in the real global frame, but its declaration
+projection must retain the actual entered source, frame and namespace evidence;
+`NestedScript` neither creates nor erases that evidence. An unentered body at
+zero cannot borrow the whole-input `RootScript` declaration carrier.
+
+The bounded controls
+`original_script_purpose_keeps_parent_words_at_zero_and_body_offsets`,
+`original_binding_purpose_retains_full_input_and_separates_cached_interpretations`
+and `original_nested_parser_keeps_entered_root_frame_separate_from_whole_input`
+cover the separate word, cache and entered-frame joins. See the
+[configured source contract](../analysis/name-resolution-proofs/source-original-configured-script-completeness.md)
 and [original receiver body contract](../analysis/name-resolution-proofs/tcloo-original-source-receiver-body-declaration.md).
 
 ### Executable IR and semantic metadata

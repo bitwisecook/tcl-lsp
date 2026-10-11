@@ -419,3 +419,34 @@ roles. The original custom MethodType controls distinguish idle deletion,
 self-deletion, inherited `next`, same-record replacement and cache cleanup.
 Their observed native references do not attest a procedure-body activation or
 a generation from a printed method address.
+
+### Original method names and rename entries
+
+Each named Runtime Method record retains the genuine original name header.
+Its declaration table owns a separate native key reference to that header.
+Authored method and forward installers use the supplied operand; generated
+built-ins use their real generated String object. Constructors and destructors
+have no named table entry. A shallow Rust observation shares these owners,
+whereas declaration duplication acquires independent record-name and key
+references alongside its copied payload.
+
+Rename looks up the source before accessing the destination. It keeps the
+original target and exact source-entry observation across the checked
+original destination getter, and refuses deletion/recreation of that entry.
+The selected Registry policy distinguishes the same entry from an occupied
+different entry. It preserves counted keys, including NUL and literal colon
+bytes, while native diagnostic `%s` fields use their separate C string extent.
+A successful splice preserves the record and its visibility, installs the
+destination's two actual name references, then retires the old record-name
+and key owners outside the OO borrow. Reached callback effects remain visible;
+original currency and entry checks precede later cache or result publication.
+`self method` reads the current entered record's genuine name header, so an
+active rename does not report the old selector spelling. Unnamed reporting
+retains its existing separate sentinel path; native Foundation sentinel
+identity and aggregate self reports remain independent purposes.
+
+[The original rename proof](../analysis/name-resolution-proofs/tcloo-original-method-rename-operands-and-records.md)
+separates stock worker stages from public Eval error-context and code-reset
+stages for C 8.6.18, 9.0.4 and 9.1.0. Its custom MethodType payload does not
+attest Runtime procedure, forward or property execution. Initialised C 8.4.20,
+8.5.19 and Jim availability controls supply no supported OO rename purpose.

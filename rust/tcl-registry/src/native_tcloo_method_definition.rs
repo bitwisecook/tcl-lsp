@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Selected native method declaration layout and visibility.
+//! Selected native method declaration layout, visibility and rename verdicts.
 //!
 //! This pure argv recipe supplies no method table, call context, compiler
 //! preparation, body object or native registration capability.
 
 use crate::InvocationDialect;
-use tcl_dialect::{TclVersion, model::Family};
+use tcl_dialect::{model::Family, TclVersion};
 
 const EXPORT_MODES: &[&str] = &["-export", "-private", "-unexport"];
 
@@ -18,6 +18,46 @@ pub enum NativeTclooMethodVisibility {
     Unexported,
     /// C9 method restricted to the declaring class or object context.
     Private,
+}
+
+/// A rename verdict over actual entries in the retained native method table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooMethodRenameFailure {
+    /// The original source lookup found no declaration.
+    MissingSource,
+    /// The destination is the same actual table entry as the source.
+    SameEntry,
+    /// A different declaration occupies the destination entry.
+    OccupiedDestination,
+}
+impl NativeTclooMethodRenameFailure {
+    /// Original worker diagnostic; `%s` presentation has a C string extent.
+    #[must_use]
+    pub fn message(self, original_name: &[u8]) -> Vec<u8> {
+        let name = tcl_core_types::c_string_extent(original_name);
+        match self {
+            Self::MissingSource => [b"method ".as_slice(), name, b" does not exist"].concat(),
+            Self::SameEntry => b"cannot rename method to itself".to_vec(),
+            Self::OccupiedDestination => {
+                [b"method called ".as_slice(), name, b" already exists"].concat()
+            }
+        }
+    }
+    /// Error-code fields for the reached stock worker failure. A name field is
+    /// diagnostic presentation, independent of the full counted table key.
+    #[must_use]
+    pub fn error_code(self, original_name: &[u8]) -> Vec<&[u8]> {
+        match self {
+            Self::MissingSource => vec![
+                b"TCL",
+                b"LOOKUP",
+                b"METHOD",
+                tcl_core_types::c_string_extent(original_name),
+            ],
+            Self::SameEntry => vec![b"TCL", b"OO", b"RENAME_TO_SELF"],
+            Self::OccupiedDestination => vec![b"TCL", b"OO", b"RENAME_OVER"],
+        }
+    }
 }
 
 /// Post-head operand positions selected by the actual declaration argc.
@@ -111,6 +151,25 @@ impl NativeTclooMethodDefinitionProtocol {
         }
     }
 
+    /// Check the actual destination entry after the source lookup. This pure
+    /// policy cannot establish either entry, its lifetime or lookup authority.
+    ///
+    /// # Errors
+    /// Returns the reached native self/occupied destination verdict.
+    pub const fn rename_destination(
+        self,
+        same_entry: bool,
+        occupied: bool,
+    ) -> Result<(), NativeTclooMethodRenameFailure> {
+        if same_entry {
+            Err(NativeTclooMethodRenameFailure::SameEntry)
+        } else if occupied {
+            Err(NativeTclooMethodRenameFailure::OccupiedDestination)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Native wrong-argument usage including the worker name.
     #[must_use]
     pub const fn usage(self) -> &'static str {
@@ -125,6 +184,52 @@ impl NativeTclooMethodDefinitionProtocol {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_method_rename_verdict_keeps_entry_identity_and_diagnostic_extent_separate() {
+        // naming.tcloo.original-method-rename-operands-and-records
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-method-rename-operands-and-records.md
+        // Pure verdict over supplied actual entry facts; no table or invocation admission.
+        use NativeTclooMethodRenameFailure as Failure;
+        for version in TclVersion::ALL {
+            let selected = NativeTclooMethodDefinitionProtocol::select(
+                InvocationDialect::for_version(version),
+            );
+            assert_eq!(selected.is_some(), version >= TclVersion::V8_6);
+            let Some(selected) = selected else {
+                continue;
+            };
+            assert_eq!(
+                selected.rename_destination(true, true),
+                Err(Failure::SameEntry)
+            );
+            assert_eq!(
+                selected.rename_destination(false, true),
+                Err(Failure::OccupiedDestination)
+            );
+            assert_eq!(selected.rename_destination(false, false), Ok(()));
+        }
+        let jim = InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        assert!(NativeTclooMethodDefinitionProtocol::select(jim).is_none());
+        assert_eq!(
+            Failure::MissingSource.message(b"missing\0tail"),
+            b"method missing does not exist"
+        );
+        assert_eq!(
+            Failure::MissingSource.error_code(b"missing\0tail"),
+            vec![b"TCL".as_slice(), b"LOOKUP", b"METHOD", b"missing"]
+        );
+        assert_eq!(
+            Failure::OccupiedDestination.message(b"o\0x"),
+            b"method called o already exists"
+        );
+        assert_eq!(
+            Failure::SameEntry.error_code(b"counted\0name"),
+            vec![b"TCL".as_slice(), b"OO", b"RENAME_TO_SELF"]
+        );
+    }
 
     #[test]
     fn method_argc_and_visibility_keep_private_separate_from_unexported() {

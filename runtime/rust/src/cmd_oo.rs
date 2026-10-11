@@ -565,14 +565,14 @@ pub fn install(interp: &mut Interp) {
     if let Some(c) = interp.oo.borrow_mut().classes.get_mut(&object_root) {
         drop(
             c.methods
-                .insert(b"unknown".to_vec(), Method::Builtin(oo_object_unknown)),
+                .insert_generated(b"unknown".to_vec(), Method::Builtin(oo_object_unknown)),
         );
         c.unexported.insert(b"unknown".to_vec());
         // `<cloned>` copies the instance namespace during `oo::copy`; reachable
         // via `next` from a user-defined `<cloned>` override.
         drop(
             c.methods
-                .insert(b"<cloned>".to_vec(), Method::Builtin(oo_object_cloned)),
+                .insert_generated(b"<cloned>".to_vec(), Method::Builtin(oo_object_cloned)),
         );
         c.unexported.insert(b"<cloned>".to_vec());
     }
@@ -744,7 +744,7 @@ fn install_configurable(interp: &mut Interp) {
     {
         drop(
             c.methods
-                .insert(b"configure".to_vec(), Method::Builtin(oo_configure)),
+                .insert_generated(b"configure".to_vec(), Method::Builtin(oo_configure)),
         );
     }
     // The `oo::configurable` metaclass. Its instances (configurable classes) get
@@ -1318,7 +1318,10 @@ fn install_slot_class(interp: &mut Interp) {
     let slot_class = interp.oo_resolve_object(b"::oo::Slot");
     if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&slot_class) {
         for (name, f) in ops {
-            drop(cl.methods.insert(name.to_vec(), Method::Builtin(*f)));
+            drop(
+                cl.methods
+                    .insert_generated(name.to_vec(), Method::Builtin(*f)),
+            );
         }
     }
 }
@@ -1353,22 +1356,22 @@ fn install_slot_instances(interp: &mut Interp) {
         if let Some(o) = interp.oo.borrow_mut().objects.get_mut(&slot) {
             drop(
                 o.methods
-                    .insert(b"Get".to_vec(), Method::Builtin(slot_inst_get)),
+                    .insert_generated(b"Get".to_vec(), Method::Builtin(slot_inst_get)),
             );
             drop(
                 o.methods
-                    .insert(b"Set".to_vec(), Method::Builtin(slot_inst_set)),
+                    .insert_generated(b"Set".to_vec(), Method::Builtin(slot_inst_set)),
             );
             o.unexported.insert(b"Get".to_vec());
             o.unexported.insert(b"Set".to_vec());
             if *class_ref {
                 drop(
                     o.methods
-                        .insert(b"Resolve".to_vec(), Method::Builtin(slot_inst_resolve)),
+                        .insert_generated(b"Resolve".to_vec(), Method::Builtin(slot_inst_resolve)),
                 );
                 o.unexported.insert(b"Resolve".to_vec());
                 // Class-reference slots default to `-set` (not the base `-append`).
-                drop(o.methods.insert(
+                drop(o.methods.insert_generated(
                     b"--default-operation".to_vec(),
                     Method::Forward {
                         prefix: obj::Owned::fresh(interp.new_list_object(&[
@@ -2219,9 +2222,9 @@ enum MethodVis {
 
 /// Install `method` into the current definition target (class or object) with
 /// the default visibility for its name (or `private` block).
-fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
+fn install_method(interp: &mut Interp, name: Vec<u8>, original: *mut TclObj, m: Method) -> Code {
     let vis = default_vis(interp, &name);
-    install_method_vis(interp, name, m, vis)
+    install_original_method_vis(interp, name, original, m, vis)
 }
 
 /// Default visibility for a method name in the current definition context.
@@ -2239,10 +2242,26 @@ fn default_vis(interp: &Interp, name: &[u8]) -> MethodVis {
 }
 
 fn install_method_vis(interp: &mut Interp, name: Vec<u8>, m: Method, vis: MethodVis) -> Code {
+    let original = obj::Owned::fresh(obj::new_string_bytes(&name));
+    let code = install_original_method_vis(interp, name, original.as_ptr(), m, vis);
+    drop(original);
+    if let Err(first) = interp.check_entered_native_operation() {
+        return interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(first));
+    }
+    code
+}
+
+fn install_original_method_vis(
+    interp: &mut Interp,
+    name: Vec<u8>,
+    original: *mut TclObj,
+    m: Method,
+    vis: MethodVis,
+) -> Code {
     let apply = |methods: &mut native_method_cache::MethodTable,
                  unexp: &mut BTreeSet<Vec<u8>>,
                  priv_set: &mut BTreeSet<Vec<u8>>| {
-        let retired = methods.insert(name.clone(), m);
+        let retired = methods.insert_original(name.clone(), original, m);
         match vis {
             MethodVis::Public => {
                 unexp.remove(&name);
@@ -2369,59 +2388,206 @@ fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     })
 }
 
-/// `renamemethod oldName newName` — rename a method on the current target.
+/// `renamemethod oldName newName` — rename the exact original table entry.
 fn def_renamemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
+        use tcl_registry::native_tcloo_method_definition::{
+            NativeTclooMethodDefinitionProtocol, NativeTclooMethodRenameFailure,
+        };
         if argv.len() != 3 {
             return wrong_args(interp, b"renamemethod oldName newName");
         }
-        let from = oo_original_bytes!(interp, originals, 1);
-        let to = oo_original_bytes!(interp, originals, 2);
+        let Some(selected) =
+            NativeTclooMethodDefinitionProtocol::select(interp.native_invocation_dialect())
+        else {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native TclOO method rename",
+                )
+                .into(),
+            );
+        };
+        let Some(policy) = interp.name_policy_protocol() else {
+            return interp.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native TclOO method name",
+                )
+                .into(),
+            );
+        };
         let target = match def_target(interp) {
-            Ok(t) => t,
-            Err(c) => return c,
+            Ok(target) => target,
+            Err(code) => return code,
         };
-        let renamed = {
-            let mut oo = interp.oo.borrow_mut();
-            match &target {
-                DefTarget::Class(c) => oo.classes.get_mut(c).is_some_and(|cl| {
-                    if let Some(m) = cl.methods.remove(&from) {
-                        cl.methods.insert_owner(to.clone(), m);
-                        if cl.unexported.remove(&from) {
-                            cl.unexported.insert(to.clone());
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }),
-                DefTarget::Object(o) => oo.objects.get_mut(o).is_some_and(|ob| {
-                    if let Some(m) = ob.methods.remove(&from) {
-                        ob.methods.insert_owner(to.clone(), m);
-                        if ob.unexported.remove(&from) {
-                            ob.unexported.insert(to.clone());
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }),
-            }
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::for_definition(interp, &target)
+        );
+        let from = oo_original_bytes!(interp, originals, 1);
+        oo_checked!(interp, target_owner.check(interp));
+        let from = oo_checked!(
+            interp,
+            policy.recipe().oo_method_input(&from).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native TclOO method name",
+                )
+            })
+        )
+        .selected()
+        .to_vec();
+        // Native source lookup precedes any destination String getter. This is
+        // an observation of the exact entry, not an entered call-chain hold.
+        let source = {
+            let state = interp.oo.borrow();
+            let methods = match &target {
+                DefTarget::Class(id) => state.classes.get(id).map(|owner| &owner.methods),
+                DefTarget::Object(id) => state.objects.get(id).map(|owner| &owner.methods),
+            };
+            methods.and_then(|methods| {
+                methods
+                    .get_key_value(&from)
+                    .map(|(_, owner)| Rc::downgrade(owner))
+            })
         };
-        if !renamed {
-            let mut m = b"method ".to_vec();
-            m.extend_from_slice(&from);
-            m.extend_from_slice(b" does not exist");
-            return err(interp, &m);
+        let Some(source) = source else {
+            return method_rename_failure(
+                interp,
+                NativeTclooMethodRenameFailure::MissingSource,
+                &from,
+            );
+        };
+        let to = oo_original_bytes!(interp, originals, 2);
+        oo_checked!(interp, target_owner.check(interp));
+        let to = oo_checked!(
+            interp,
+            policy.recipe().oo_method_input(&to).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native TclOO method name",
+                )
+            })
+        )
+        .selected()
+        .to_vec();
+        let source_observation = source;
+        let Some(source) = source_observation.upgrade() else {
+            return original_method_entry_unavailable(interp);
+        };
+        let verdict = {
+            let state = interp.oo.borrow();
+            let methods = match &target {
+                DefTarget::Class(id) => state.classes.get(id).map(|owner| &owner.methods),
+                DefTarget::Object(id) => state.objects.get(id).map(|owner| &owner.methods),
+            };
+            methods
+                .filter(|methods| methods.is_original_entry(&from, &source))
+                .map(|methods| {
+                    let destination = methods.get_key_value(&to).map(|(_, owner)| owner);
+                    selected.rename_destination(
+                        destination.is_some_and(|owner| Rc::ptr_eq(owner, &source)),
+                        destination.is_some(),
+                    )
+                })
+        };
+        let Some(verdict) = verdict else {
+            return original_method_entry_unavailable(interp);
+        };
+        if let Err(failure) = verdict {
+            drop(source);
+            oo_original_check!(interp, originals);
+            return method_rename_failure(interp, failure, &to);
         }
-        match &target {
-            DefTarget::Class(id) => interp.native_property_structure_changed(*id, true),
-            DefTarget::Object(id) => interp.native_property_structure_changed(*id, false),
+        let retired = {
+            let mut state = interp.oo.borrow_mut();
+            let fields = match &target {
+                DefTarget::Class(id) => state.classes.get_mut(id).map(|owner| {
+                    (
+                        &mut owner.methods,
+                        &mut owner.unexported,
+                        &mut owner.exported,
+                        &mut owner.private,
+                    )
+                }),
+                DefTarget::Object(id) => state.objects.get_mut(id).map(|owner| {
+                    (
+                        &mut owner.methods,
+                        &mut owner.unexported,
+                        &mut owner.exported,
+                        &mut owner.private,
+                    )
+                }),
+            };
+            fields.and_then(|(methods, unexported, exported, private)| {
+                let retired = methods.rename_original(&from, to.clone(), &source, argv[2])?;
+                // Rename keeps the original record's flags; case does not
+                // recompute its declaration visibility.
+                if unexported.remove(&from) {
+                    unexported.insert(to.clone());
+                }
+                if exported.remove(&from) {
+                    exported.insert(to.clone());
+                }
+                if private.remove(&from) {
+                    private.insert(to.clone());
+                }
+                Some(retired)
+            })
+        };
+        let Some(retired) = retired else {
+            return original_method_entry_unavailable(interp);
+        };
+        // The old hash-key role can run a native free callback. The destination
+        // already owns both real name roles, and the OO table is unborrowed.
+        drop(source);
+        drop(retired);
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
+        let still_original = {
+            let state = interp.oo.borrow();
+            source_observation
+                .upgrade()
+                .is_some_and(|source| match &target {
+                    DefTarget::Class(id) => state
+                        .classes
+                        .get(id)
+                        .is_some_and(|owner| owner.methods.is_original_entry(&to, &source)),
+                    DefTarget::Object(id) => state
+                        .objects
+                        .get(id)
+                        .is_some_and(|owner| owner.methods.is_original_entry(&to, &source)),
+                })
+        };
+        oo_original_check!(interp, originals);
+        if !still_original {
+            return original_method_entry_unavailable(interp);
         }
+        match target {
+            DefTarget::Class(id) => interp.native_property_structure_changed(id, true),
+            DefTarget::Object(id) => interp.native_property_structure_changed(id, false),
+        }
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         interp.set_result_bytes(b"");
         Code::Ok
     })
 }
+fn method_rename_failure(
+    interp: &mut Interp,
+    failure: tcl_registry::native_tcloo_method_definition::NativeTclooMethodRenameFailure,
+    original_name: &[u8],
+) -> Code {
+    let message = failure.message(original_name);
+    let code = crate::interp::error_code_list(&failure.error_code(original_name));
+    interp.error_with_code(&message, &code)
+}
+fn original_method_entry_unavailable(interp: &mut Interp) -> Code {
+    interp.report_cmd_error(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("original TclOO method entry")
+            .into(),
+    )
+}
+
+#[cfg(test)]
+mod native_method_rename_tests;
 
 /// `class className` (objdefine only) — change the object's class.
 fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -2633,7 +2799,7 @@ fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // argument; its file-absolute line (minus one) is the body's line base.
         let src = method_body_src(interp, argv.len() - 1);
         let method = native_method_body(interp, params, chosen, src);
-        install_method_vis(interp, name, method, vis)
+        install_original_method_vis(interp, name, argv[layout.name + 1], method, vis)
     })
 }
 
@@ -2665,7 +2831,7 @@ fn def_forward(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let prefix = obj::Owned::fresh(interp.new_list_object(&argv[2..]));
         oo_original_check!(interp, originals);
         oo_checked!(interp, target_owner.check(interp));
-        install_method(interp, name, Method::Forward { prefix })
+        install_method(interp, name, argv[1], Method::Forward { prefix })
     })
 }
 
@@ -3126,7 +3292,22 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Some(b"class") => interp.set_result(obj::new_string_bytes(
                 &interp.oo_name(class.expect("declaring class checked above")),
             )),
-            Some(b"method") => interp.set_result(obj::new_string_bytes(&method)),
+            Some(b"method") => {
+                // TclOOSelfObjCmd reports the entered current Method name, not
+                // the selector spelling retained when its chain was assembled.
+                let original = chain
+                    .get(index)
+                    .and_then(|step| step.method_owner.as_ref())
+                    .and_then(|record| record.original_name());
+                if let Some(original) = original {
+                    oo_checked!(interp, obj::check_native_liveness(original));
+                    interp.set_result(original);
+                } else {
+                    // Unnamed constructor/destructor reporting keeps its
+                    // existing explicit sentinel path; it owns no table name.
+                    interp.set_result(obj::new_string_bytes(&method));
+                }
+            }
             Some(b"namespace") => {
                 let ns = interp.oo.borrow().objects.get(&object).map(|o| o.var_ns);
                 let name = ns

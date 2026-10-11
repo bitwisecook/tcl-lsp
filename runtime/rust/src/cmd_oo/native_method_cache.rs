@@ -3,7 +3,35 @@
 use super::*;
 use std::ops::Deref;
 
-pub(super) type MethodOwner = Rc<RefCell<Method>>;
+/// A Method record retains its current native name independently of the table key.
+pub(super) struct NativeMethodRecord {
+    payload: RefCell<Method>,
+    name: RefCell<Option<obj::Owned>>,
+}
+impl NativeMethodRecord {
+    fn unnamed(method: Method) -> Self {
+        Self {
+            payload: RefCell::new(method),
+            name: RefCell::new(None),
+        }
+    }
+    fn named(original: *mut TclObj, method: Method) -> Self {
+        Self {
+            payload: RefCell::new(method),
+            name: RefCell::new(Some(obj::Owned::retain(original))),
+        }
+    }
+    pub(super) fn original_name(&self) -> Option<*mut TclObj> {
+        self.name.borrow().as_ref().map(obj::Owned::as_ptr)
+    }
+}
+impl Deref for NativeMethodRecord {
+    type Target = RefCell<Method>;
+    fn deref(&self) -> &Self::Target {
+        &self.payload
+    }
+}
+pub(super) type MethodOwner = Rc<NativeMethodRecord>;
 #[derive(Default)]
 pub(super) struct MethodSlot(Option<MethodOwner>);
 impl Clone for MethodSlot {
@@ -13,12 +41,11 @@ impl Clone for MethodSlot {
 }
 impl MethodSlot {
     pub(super) fn duplicate_declaration(&self) -> Result<Self, tcl_syntax::value::ValueError> {
-        let method = self.get();
-        method
+        self.get()
             .map(|method| {
                 method
                     .duplicate_native_payload()
-                    .map(|copied| Self(Some(Rc::new(RefCell::new(copied)))))
+                    .map(|copied| Self(Some(Rc::new(NativeMethodRecord::unnamed(copied)))))
             })
             .transpose()
             .map(|slot| slot.unwrap_or_default())
@@ -36,65 +63,145 @@ impl MethodSlot {
         self.0.as_ref().map(|owner| owner.borrow().clone())
     }
     pub(super) fn install(&mut self, method: Method) -> Option<MethodOwner> {
-        // Constructors and destructors have no name-table entry to replace.
-        self.0.replace(Rc::new(RefCell::new(method)))
+        self.0.replace(Rc::new(NativeMethodRecord::unnamed(method)))
     }
 }
 
+/// Declaration deletion releases the Method role before its independent hash key.
+pub(super) struct RetiredMethodEntry {
+    _record: MethodOwner,
+    _key: Rc<obj::Owned>,
+}
+/// Rename publishes the destination before releasing the old hash key outside OO borrows.
+pub(super) struct RetiredMethodName {
+    _record_name: obj::Owned,
+    _table_key: Rc<obj::Owned>,
+}
 #[derive(Default)]
-pub(super) struct MethodTable(BTreeMap<Vec<u8>, MethodOwner>, bool);
+pub(super) struct MethodTable {
+    records: BTreeMap<Vec<u8>, MethodOwner>,
+    allocated: bool,
+    keys: BTreeMap<Vec<u8>, Rc<obj::Owned>>,
+}
 impl Clone for MethodTable {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), self.1)
+        // A Rust observation shares the existing native key role; it is not a new declaration.
+        Self {
+            records: self.records.clone(),
+            allocated: self.allocated,
+            keys: self.keys.clone(),
+        }
     }
 }
 impl Deref for MethodTable {
     type Target = BTreeMap<Vec<u8>, MethodOwner>;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.records
     }
 }
 impl MethodTable {
     pub(super) fn duplicate_declarations(&self) -> Result<Self, tcl_syntax::value::ValueError> {
-        self.0
-            .iter()
-            .map(|(name, owner)| {
-                let method = owner.borrow().clone();
-                Ok((
-                    name.clone(),
-                    Rc::new(RefCell::new(method.duplicate_native_payload()?)),
-                ))
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .map(|table| Self(table, self.1))
+        let mut copied = Self {
+            allocated: self.allocated,
+            ..Self::default()
+        };
+        for (key, owner) in &self.records {
+            let observed = owner.borrow().clone();
+            let method = observed.duplicate_native_payload()?;
+            let original_name = owner
+                .original_name()
+                .expect("named table record owns its original name");
+            let original_key = self.keys[key].as_ptr();
+            copied.records.insert(
+                key.clone(),
+                Rc::new(NativeMethodRecord::named(original_name, method)),
+            );
+            copied
+                .keys
+                .insert(key.clone(), Rc::new(obj::Owned::retain(original_key)));
+        }
+        Ok(copied)
     }
     pub(super) fn get(&self, key: &[u8]) -> Option<Method> {
-        self.0.get(key).map(|owner| owner.borrow().clone())
+        self.records.get(key).map(|owner| owner.borrow().clone())
     }
     pub(super) fn owner(&self, key: &[u8]) -> Option<MethodOwner> {
-        self.0.get(key).cloned()
+        self.records.get(key).cloned()
     }
     pub(super) fn mark_allocated(&mut self) {
-        self.1 = true;
+        self.allocated = true;
     }
     pub(super) fn allocated(&self) -> bool {
-        self.1
+        self.allocated
     }
-    pub(super) fn insert(&mut self, key: Vec<u8>, method: Method) -> Option<Method> {
-        self.1 = true;
-        if let Some(owner) = self.0.get(&key) {
+    pub(super) fn insert_generated(&mut self, key: Vec<u8>, method: Method) -> Option<Method> {
+        let original = obj::Owned::fresh(obj::new_string_bytes(&key));
+        self.insert_original(key, original.as_ptr(), method)
+    }
+    pub(super) fn insert_original(
+        &mut self,
+        key: Vec<u8>,
+        original: *mut TclObj,
+        method: Method,
+    ) -> Option<Method> {
+        self.allocated = true;
+        if let Some(owner) = self.records.get(&key) {
+            // Tcl_NewMethod keeps the original name/key when replacing clientData.
             Some(owner.replace(method))
         } else {
-            self.0.insert(key, Rc::new(RefCell::new(method)));
+            self.keys
+                .insert(key.clone(), Rc::new(obj::Owned::retain(original)));
+            self.records
+                .insert(key, Rc::new(NativeMethodRecord::named(original, method)));
             None
         }
     }
-    pub(super) fn remove(&mut self, key: &[u8]) -> Option<MethodOwner> {
-        self.0.remove(key)
+    pub(super) fn remove(&mut self, key: &[u8]) -> Option<RetiredMethodEntry> {
+        let record = self.records.remove(key)?;
+        let key = self
+            .keys
+            .remove(key)
+            .expect("named Method entry owns its native table key");
+        Some(RetiredMethodEntry {
+            _record: record,
+            _key: key,
+        })
     }
-    pub(super) fn insert_owner(&mut self, key: Vec<u8>, owner: MethodOwner) {
-        self.1 = true;
-        self.0.insert(key, owner);
+    pub(super) fn is_original_entry(&self, key: &[u8], original: &MethodOwner) -> bool {
+        self.records
+            .get(key)
+            .is_some_and(|owner| Rc::ptr_eq(owner, original))
+    }
+    pub(super) fn rename_original(
+        &mut self,
+        from: &[u8],
+        to: Vec<u8>,
+        original: &MethodOwner,
+        destination: *mut TclObj,
+    ) -> Option<RetiredMethodName> {
+        if !self.is_original_entry(from, original) || self.records.contains_key(&to) {
+            return None;
+        }
+        let new_key = Rc::new(obj::Owned::retain(destination));
+        let new_name = obj::Owned::retain(destination);
+        let old_name = original
+            .name
+            .replace(Some(new_name))
+            .expect("named source retains its native Method name");
+        let owner = self
+            .records
+            .remove(from)
+            .expect("exact original source entry");
+        let old_key = self
+            .keys
+            .remove(from)
+            .expect("exact source native table key");
+        self.records.insert(to.clone(), owner);
+        self.keys.insert(to, new_key);
+        Some(RetiredMethodName {
+            _record_name: old_name,
+            _table_key: old_key,
+        })
     }
 }
 
@@ -137,7 +244,7 @@ pub(crate) struct NativeMethodChain {
 }
 // Idle caches observe the exact record, without retaining its clientData.
 struct CachedCallStep {
-    method_owner: Weak<RefCell<Method>>,
+    method_owner: Weak<NativeMethodRecord>,
     provider: OoId,
     method: Vec<u8>,
     is_object: bool,
@@ -1017,7 +1124,7 @@ mod original_ownership_tests {
         static MODE: Cell<u8> = const {Cell::new(0)};
         static FREES: Cell<usize> = const {Cell::new(0)};
         static OUTSIDE_BORROW: Cell<bool> = const {Cell::new(false)};
-        static ORIGINAL_RECORD: RefCell<Option<Weak<RefCell<Method>>>> = const {RefCell::new(None)};
+        static ORIGINAL_RECORD: RefCell<Option<Weak<NativeMethodRecord>>> = const {RefCell::new(None)};
         static DELETED_BEFORE_ENTRY: Cell<bool> = const {Cell::new(false)};
     }
     extern "C" fn update_selector(original: *mut TclObj) {

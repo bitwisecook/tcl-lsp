@@ -517,10 +517,11 @@ impl SourceInvocationBinding {
             )?;
             let source = parent.bytes().get(body.as_range())?;
             let image = tcl_lexer::SourceImage::native(source);
-            let plan = tcl_lexer::native_script_words_in(
+            let plan = tcl_lexer::native_script_words_in_with_purpose(
                 image,
                 tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
                 row.config,
+                tcl_lexer::SourceSegmentationPurpose::NestedScript,
             )
             .ok()?;
             let selected = plan.commands.get(command)?;
@@ -974,5 +975,54 @@ mod original_bracket_parser_purpose_tests {
             }
             assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
         }
+    }
+}
+
+#[cfg(test)]
+mod original_produced_static_source_purpose_tests {
+    #[test]
+    fn original_static_value_child_keeps_bom_and_full_parent_word_recipe() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original static word-to-value source geometry only, without expression execution or header authority.
+        let version = tcl_dialect::TclVersion::V9_1;
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let original = tcl_lexer::SourceImage::document("list {\u{feff}#prefix[list kept]}");
+        let parent = tcl_lexer::native_script_words_in(
+            original.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(original.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = &parent.commands[0].words[1];
+        let value =
+            crate::signature_scan::scope::SignatureSourceNameValue::from_original_static_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                tcl_syntax::naming::NamePolicyProtocol::authored_tcl(version),
+            )
+            .unwrap();
+        assert_eq!(value.bytes(), "\u{feff}#prefix[list kept]".as_bytes());
+        assert_eq!(word.image(), &original);
+        assert_eq!(word.config(), config);
+        let image = tcl_lexer::SourceImage::native(value.bytes());
+        let region = tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap());
+        let nested = tcl_lexer::native_script_words_in_with_purpose(
+            image.clone(),
+            region,
+            config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .unwrap();
+        assert_eq!(nested.commands.len(), 1);
+        assert_eq!(nested.commands[0].words[0].written_bytes(), image.bytes());
+        assert_eq!(nested.commands[0].words[0].config(), config);
+        assert_eq!(nested.commands[0].words[0].image(), &image);
+        let whole = tcl_lexer::native_script_words_in(image, region, config).unwrap();
+        assert!(whole.commands.is_empty());
     }
 }
