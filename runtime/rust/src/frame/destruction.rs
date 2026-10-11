@@ -342,10 +342,7 @@ impl RetainedArrayCell {
         };
         // SAFETY: the selected physical element owns its new reference.
         unsafe { obj::incr_ref_count(value) };
-        if let Some(old) = members.insert(element.to_vec(), value) {
-            // SAFETY: balances the replaced physical element's owning hold.
-            unsafe { obj::decr_ref_count(old) };
-        }
+        let retired = members.insert(element.to_vec(), value);
         if !detached {
             contents.insert_member_entry(element);
             contents.rmw_member_shells.remove(element);
@@ -353,6 +350,12 @@ impl RetainedArrayCell {
                 .element_ids
                 .entry(element.to_vec())
                 .or_insert_with(super::fresh_var_id);
+        }
+        drop(contents);
+        if let Some(retired) = retired {
+            // SAFETY: balances the replaced selected element's owning hold,
+            // outside the cell borrow and after its new entry is public.
+            unsafe { obj::decr_ref_count(retired) };
         }
         Ok(())
     }

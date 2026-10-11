@@ -9623,6 +9623,33 @@ requires its separate closed lookup and quiet observer premises. Captured values
 keep their original producers; neither query invents current source words or spans
 for a captured prefix or a materialized script value.
 
+The materialized footprint keeps its lookup purpose. A present reached installer
+must retain a valid tagged full input; refusal is terminal. A positively Logical
+original declaration can instead retain its sealed advice snapshot and namespace
+for conditional MAY names. The full request input, original site, source image,
+complete lexer configuration, command store and whole declaration snapshots must
+agree. Quiet observers and lookup-preserving original operands remain required.
+The shared operand check recognises validated, non-expanding all-Text lexical
+words without selecting a Native string recipe; dynamic and expanded words keep
+their independent protocol and effect checks. ReferenceOnly bodies cannot supply
+PotentialEvaluation suppression. Neither lookup purpose supplies entered bodies,
+Normal continuation, physical frames, executed reads or stores, or erasure rights.
+
+Supplied unit-caller enumeration retains the actual Module in
+`CallSiteSourceContext` and joins its source owner with the CFG's tagged metadata
+before reading each original carrier through `Function::source_tokens_at`.
+`original_registry_words_for_supplied_tokens(realm, input, tokens)` selects the
+shared source schema only when the full input, retained realm, original site,
+complete recorded vector, image and lexer configuration agree.
+`OriginalSourceScriptBody::original_commands(context)` returns lexical vectors
+from that body's genuine whole-source geometry under its sealed container input
+and refuses a fatal tail. These vectors supply no child dispatch receipt: callers
+must join every child's original sidecar at its actual coordinate. Missing or
+conflicting child carriers retract caller seeds. Effective argument text, an
+equal-text parse and offset zero cannot replace these owners. Scalar compatibility
+requires independently explicit Standalone Module and CFG tags; supplied missing
+or unavailable metadata cannot reopen it.
+
 Choose the metadata purpose before selecting an operation. A retained reached
 point uses `original_invocation_metadata_at_point`; an invalid present point is
 terminal. A positively Logical, unentered declaration may instead use its sealed

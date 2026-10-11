@@ -318,15 +318,12 @@ impl VariableReceiver {
         if contents.constant {
             return Err(VarError::IsConstant);
         }
-        if let Some(key) = &self.element {
+        let retired = if let Some(key) = &self.element {
             match contents.var.as_mut() {
                 Some(Var::Array(values)) => {
-                    // SAFETY: the cell takes one owning hold on the live new value.
+                    // SAFETY: the selected cell takes its owning hold before release.
                     unsafe { obj::incr_ref_count(value) };
-                    if let Some(old) = values.insert(key.clone(), value) {
-                        // SAFETY: balances the old element's owning hold.
-                        unsafe { obj::decr_ref_count(old) };
-                    }
+                    values.insert(key.clone(), value).map(Var::Scalar)
                 }
                 Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
                 None => return Err(VarError::DeletedArray),
@@ -336,16 +333,21 @@ impl VariableReceiver {
             if matches!(contents.var.as_ref(), Some(Var::Array(_))) {
                 return Err(VarError::IsArray);
             }
-            // SAFETY: retain new contents before releasing old contents.
+            // SAFETY: retain the new owning contents before retiring the old value.
             unsafe { obj::incr_ref_count(value) };
-            if let Some(old) = contents.var.replace(Var::Scalar(value)) {
-                old.release();
-            }
+            let retired = contents.var.replace(Var::Scalar(value));
             contents.undefined_shell = false;
             contents.rmw_shell_entry = None;
-        }
+            retired
+        };
         if let Some(key) = &self.element {
             contents.rmw_member_shells.remove(key);
+        }
+        // A mandatory native release can reenter this exact cell. Its new
+        // contents and bookkeeping are already public, with no cell borrow.
+        drop(contents);
+        if let Some(retired) = retired {
+            retired.release();
         }
         Ok(())
     }

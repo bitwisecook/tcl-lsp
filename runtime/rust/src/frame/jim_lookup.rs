@@ -28,12 +28,12 @@ impl WeakJimVariableCell {
         let mut cell = cell.borrow_mut();
         match cell.var.as_mut() {
             Some(Var::Scalar(old)) => {
-                // SAFETY: this original live VarVal owns one value reference.
-                unsafe {
-                    obj::incr_ref_count(value);
-                    obj::decr_ref_count(*old);
-                }
-                *old = value;
+                // SAFETY: the actual VarVal takes its new owning reference first.
+                unsafe { obj::incr_ref_count(value) };
+                let retired = std::mem::replace(old, value);
+                drop(cell);
+                // SAFETY: the replaced hold retires outside the selected cell borrow.
+                unsafe { obj::decr_ref_count(retired) };
                 Ok(None)
             }
             Some(Var::Link(link)) => Ok(Some(link.clone())),

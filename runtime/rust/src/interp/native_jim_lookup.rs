@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original pinned Jim name objects, active command leases and weak VarVal caches.
 
-use super::{Code, Command, Interp};
+use super::{native_arguments::OriginalArguments, Code, Command, Interp};
 use crate::{
     frame::JimVariableRead,
     namespace::NsId,
@@ -248,12 +248,23 @@ impl Interp {
         original: *mut TclObj,
         value: *mut TclObj,
     ) -> Result<(), Code> {
-        if self.native_c_variable_name_protocol().is_some() {
-            return self.store_original_c_variable(original, value);
-        }
-        self.assign_original_named_variable(original, value)?;
-        self.set_result(value);
-        Ok(())
+        let arguments = OriginalArguments::enter(self, &[original, value])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let result = (|| {
+            if self.native_c_variable_name_protocol().is_some() {
+                return self.store_original_c_variable(original, value);
+            }
+            self.assign_original_named_variable(original, value)?;
+            arguments
+                .original(1)
+                .map_err(|error| self.report_cmd_error(error))?;
+            self.set_result(value);
+            Ok(())
+        })();
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        result
     }
 
     /// Assign through the original getter without publishing an interpreter result.
@@ -261,6 +272,21 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
         value: *mut TclObj,
+    ) -> Result<(), Code> {
+        let arguments = OriginalArguments::enter(self, &[original, value])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let result = self.assign_original_named_variable_entered(original, value, &arguments);
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        result
+    }
+
+    fn assign_original_named_variable_entered(
+        &mut self,
+        original: *mut TclObj,
+        value: *mut TclObj,
+        arguments: &OriginalArguments,
     ) -> Result<(), Code> {
         if self.native_c_variable_name_protocol().is_some() {
             return self.assign_original_c_variable(original, value);
@@ -271,57 +297,93 @@ impl Interp {
                 .native_jim_lookup_protocol()
                 .is_none()
         {
-            let bytes = self
-                .native_string_bytes(&original)
-                .map_err(|error| self.report_cmd_error(error.into()))?;
-            return self
-                .var_set_named(&bytes, value)
-                .map_err(|error| crate::builtins::var_error(self, &bytes, error));
+            let bytes = arguments
+                .bytes(0)
+                .map_err(|error| self.report_cmd_error(error))?;
+            arguments
+                .original(1)
+                .map_err(|error| self.report_cmd_error(error))?;
+            let assigned = self.var_set_named(&bytes, value);
+            arguments
+                .check()
+                .map_err(|error| self.report_cmd_error(error))?;
+            return assigned.map_err(|error| crate::builtins::var_error(self, &bytes, error));
         }
-        self.associate_native_jim_arguments(&[original, value])
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let associated = self.associate_native_jim_arguments(&[original, value]);
+        arguments
+            .original(1)
+            .map_err(|error| self.report_cmd_error(error))?;
+        associated.map_err(|error| self.report_cmd_error(error.into()))?;
         let cache = self
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?;
         if let Some(cache) = cache {
-            match cache.cell.store(value) {
+            let stored = cache.cell.store(value);
+            arguments
+                .original(1)
+                .map_err(|error| self.report_cmd_error(error))?;
+            match stored {
                 Ok(None) => {
                     return Ok(());
                 }
                 Ok(Some(link)) => {
-                    if let Some(result) = self.store_original_jim_link(&link, value) {
+                    let linked = self.store_original_jim_link(&link, value);
+                    arguments
+                        .original(1)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    if let Some(result) = linked {
                         return result;
                     }
-                    if crate::vars::store_jim_cached_link(
+                    let linked = crate::vars::store_jim_cached_link(
                         &mut self.frames.borrow_mut(),
                         &mut self.namespaces.borrow_mut(),
                         &link,
                         value,
-                    )
-                    .is_ok()
-                    {
+                    );
+                    arguments
+                        .original(1)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    if linked.is_ok() {
                         return Ok(());
                     }
                 }
                 Err(_) => {}
             }
         }
-        let bytes = self
-            .native_string_bytes(&original)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let bytes = arguments
+            .bytes(0)
+            .map_err(|error| self.report_cmd_error(error))?;
+        arguments
+            .original(1)
+            .map_err(|error| self.report_cmd_error(error))?;
         if self.is_native_jim_dictionary_name(original, &bytes) {
             return self.assign_native_jim_dictionary_sugar(original, value);
         }
-        self.install_original_jim_variable(original, &bytes)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let installed = self.install_original_jim_variable(original, &bytes);
+        arguments
+            .original(1)
+            .map_err(|error| self.report_cmd_error(error))?;
+        installed.map_err(|error| self.report_cmd_error(error.into()))?;
         if let Some(cache) = self
             .current_jim_variable_cache(original)
             .map_err(|error| self.report_cmd_error(error.into()))?
         {
-            if let Some(JimVariableRead::Link(link)) = cache.cell.read() {
-                if let Some(result) = self.store_original_jim_link(&link, value) {
-                    return result;
+            let stored = cache.cell.store(value);
+            arguments
+                .original(1)
+                .map_err(|error| self.report_cmd_error(error))?;
+            match stored {
+                Ok(None) => return Ok(()),
+                Ok(Some(link)) => {
+                    let linked = self.store_original_jim_link(&link, value);
+                    arguments
+                        .original(1)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    if let Some(result) = linked {
+                        return result;
+                    }
                 }
+                Err(_) => {}
             }
         }
         let existed = crate::vars::original_jim_variable_cell(
@@ -338,6 +400,9 @@ impl Interp {
             Some(element) => self.var_set_elem(&base, element, value),
             None => self.var_set(&base, value),
         };
+        arguments
+            .original(1)
+            .map_err(|error| self.report_cmd_error(error))?;
         assigned.map_err(|error| crate::builtins::var_error(self, &bytes, error))?;
         if !existed && element.is_none() {
             let key = if bytes.starts_with(b"::") {
@@ -358,8 +423,11 @@ impl Interp {
                 key.as_ptr(),
             );
         }
-        self.install_original_jim_variable(original, &bytes)
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let installed = self.install_original_jim_variable(original, &bytes);
+        arguments
+            .original(1)
+            .map_err(|error| self.report_cmd_error(error))?;
+        installed.map_err(|error| self.report_cmd_error(error.into()))?;
         Ok(())
     }
 }

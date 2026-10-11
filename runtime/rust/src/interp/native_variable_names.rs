@@ -9,7 +9,7 @@ mod native_exists;
 mod native_tcloo;
 #[path = "native_variable_names/native_upvar.rs"]
 mod native_upvar;
-use super::{Code, Interp};
+use super::{native_arguments::OriginalArguments, Code, Interp};
 #[path = "native_variable_names/native_unset.rs"]
 mod native_unset;
 use crate::obj::{self, Owned, TclObj};
@@ -1724,21 +1724,31 @@ impl Interp {
         publish_result: bool,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<(), Code> {
-        let selected = self
-            .prepare_original_c_name_for(original, purpose)?
-            .ok_or_else(|| {
+        let arguments = OriginalArguments::enter(self, &[original, value])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let result = (|| {
+            let reached = self.prepare_original_c_name_for(original, purpose);
+            arguments
+                .original(1)
+                .map_err(|error| self.report_cmd_error(error))?;
+            let selected = reached?.ok_or_else(|| {
                 self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("actual original write selection")
                         .into(),
                 )
             })?;
-        self.assign_prepared_original_c_selection(
-            original,
-            value,
-            publish_result,
-            purpose,
-            &selected,
-        )
+            self.assign_prepared_original_c_selection(
+                original,
+                value,
+                publish_result,
+                purpose,
+                &selected,
+            )
+        })();
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        result
     }
 
     fn assign_prepared_original_c_selection(
@@ -1768,58 +1778,75 @@ impl Interp {
         purpose: NativeVariableNameLookupPurpose,
         selected: &OriginalCNameSelection,
     ) -> Result<(), Code> {
-        let (receiver, home) = self
-            .capture_original_c_selection(lookup, selected, purpose)?
-            .ok_or_else(|| {
+        let arguments = OriginalArguments::enter(self, &[lookup, original, value])
+            .map_err(|error| self.report_cmd_error(error))?;
+        let result = (|| {
+            let reached = self.capture_original_c_selection(lookup, selected, purpose);
+            arguments
+                .original(2)
+                .map_err(|error| self.report_cmd_error(error))?;
+            let (receiver, home) = reached?.ok_or_else(|| {
                 self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("actual variable store receiver").into(),
                 )
             })?;
-        let protective_value = publish_result.then(|| Owned::retain(value));
-        receiver
-            .store(value)
-            .map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?;
-        if self.original_variable_trace_requires_name(&home, selected.element.as_deref(), b"write")
-        {
-            let bytes = self
-                .native_string_bytes(&original)
-                .map_err(|error| self.report_cmd_error(error.into()))?
-                .to_vec();
-            let access = self.trace_access(
-                &bytes,
-                &selected.root,
+            let protective_value = publish_result.then(|| Owned::retain(value));
+            let stored = receiver.store(value);
+            arguments
+                .original(2)
+                .map_err(|error| self.report_cmd_error(error))?;
+            stored.map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?;
+            if self.original_variable_trace_requires_name(
+                &home,
                 selected.element.as_deref(),
-                &home,
-                false,
-            );
-            if self.fire_var_trace_resolved_with_errors(
-                &home,
-                &access,
                 b"write",
-                purpose.leaves_error_message(),
             ) {
-                return Err(self.original_c_lookup_var_error(
-                    original,
-                    purpose,
-                    crate::frame::VarError::TraceError,
-                ));
+                let bytes = arguments
+                    .bytes(1)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let access = self.trace_access(
+                    &bytes,
+                    &selected.root,
+                    selected.element.as_deref(),
+                    &home,
+                    false,
+                );
+                let traced = self.fire_var_trace_resolved_with_errors(
+                    &home,
+                    &access,
+                    b"write",
+                    purpose.leaves_error_message(),
+                );
+                arguments
+                    .check()
+                    .map_err(|error| self.report_cmd_error(error))?;
+                if traced {
+                    return Err(self.original_c_lookup_var_error(
+                        original,
+                        purpose,
+                        crate::frame::VarError::TraceError,
+                    ));
+                }
             }
-        }
-        if self.host_refusal_pending() {
-            return Err(Code::Error);
-        }
-        if publish_result {
-            match receiver
-                .read()
-                .map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?
-            {
-                Some(value) => self.set_result(value),
-                None => self.set_result_bytes(b""),
+            if publish_result {
+                match receiver
+                    .read()
+                    .map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?
+                {
+                    Some(value) => self.set_result(value),
+                    None => self.set_result_bytes(b""),
+                }
             }
-        }
-        drop(protective_value);
-        Ok(())
+            drop(protective_value);
+            Ok(())
+        })();
+        // Receiver and protective result roles retire before final settlement.
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        result
     }
+
     pub(crate) fn store_original_c_property_variable(
         &mut self,
         lookup: *mut TclObj,
@@ -3837,5 +3864,206 @@ mod tests {
             include_bytes!("../../tests/data/native_variable_array_write/source.tcl"),
             include_bytes!("../../tests/data/native_variable_array_write/jim.txt"),
         );
+    }
+}
+
+#[cfg(test)]
+mod original_assignment_tests {
+    use super::*;
+    use std::cell::Cell;
+    use tcl_runtime_api::native_variable_trace::{
+        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+    };
+
+    thread_local! {
+        static MODE: Cell<u8> = const { Cell::new(0) };
+        static ELEMENT: Cell<bool> = const { Cell::new(false) };
+        static EXPECTED: Cell<*mut TclObj> = const { Cell::new(std::ptr::null_mut()) };
+        static CALLS: Cell<usize> = const { Cell::new(0) };
+        static SAW_NEW: Cell<bool> = const { Cell::new(false) };
+        static RELEASED: Cell<bool> = const { Cell::new(false) };
+        static WRITES: Cell<usize> = const { Cell::new(0) };
+    }
+    fn native(profile: &str) -> Interp {
+        Interp::with_native_core(
+            super::super::default_host(),
+            crate::environment::profile_for_dialect(profile),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+    struct Current(*mut Interp);
+    impl Current {
+        fn enter(interp: &mut Interp) -> Self {
+            let old = crate::codegen_abi::current_interp();
+            crate::codegen_abi::tcl_runtime_set_current_interp(interp);
+            Self(old)
+        }
+    }
+    impl Drop for Current {
+        fn drop(&mut self) {
+            crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
+        }
+    }
+    extern "C" fn retire(_original: *mut TclObj) {
+        CALLS.with(|value| value.set(value.get() + 1));
+        let Some(mut interp) = (unsafe { crate::codegen_abi::current_interp().as_ref() }).cloned()
+        else {
+            return;
+        };
+        let available =
+            interp.frames.try_borrow_mut().is_ok() && interp.namespaces.try_borrow_mut().is_ok();
+        RELEASED.with(|value| value.set(available));
+        let selected = if ELEMENT.with(Cell::get) {
+            interp.var_get_elem(b"arr", b"k")
+        } else {
+            interp.var_get(b"target")
+        };
+        SAW_NEW.with(|value| value.set(selected == Some(EXPECTED.with(Cell::get))));
+        match MODE.with(Cell::get) {
+            1 => {
+                interp.refuse_host_command("first original assignment retirement");
+            }
+            2 => {
+                let actual = interp.runtime_context();
+                let mut changed = actual.clone();
+                changed.packages = vec![("assignment-retirement".to_owned(), "1.0".to_owned())];
+                interp.pin_context(&changed).unwrap();
+                interp.pin_context(&actual).unwrap();
+            }
+            _ => {}
+        }
+    }
+    static RETIRE: obj::TclObjType = obj::TclObjType {
+        name: c"originalAssignmentRetirement".as_ptr(),
+        free_int_rep_proc: Some(retire),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    struct Write;
+    impl NativeVariableObserver<Interp> for Write {
+        type Error = tcl_cmd_core::CmdError;
+        fn observe(
+            &self,
+            _interp: &mut Interp,
+            _access: NativeVariableTraceAccess<'_>,
+        ) -> Result<(), Self::Error> {
+            WRITES.with(|value| value.set(value.get() + 1));
+            Ok(())
+        }
+    }
+    fn reset(mode: u8, element: bool, value: *mut TclObj) {
+        MODE.with(|selected| selected.set(mode));
+        ELEMENT.with(|selected| selected.set(element));
+        EXPECTED.with(|selected| selected.set(value));
+        CALLS.with(|selected| selected.set(0));
+        SAW_NEW.with(|selected| selected.set(false));
+        RELEASED.with(|selected| selected.set(false));
+        WRITES.with(|selected| selected.set(0));
+    }
+
+    #[test]
+    fn original_c_assignment_releases_old_value_before_trace_with_cell_borrows_released() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual receiver callbacks and ownership, without external refcount/order equivalence.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for element in [false, true] {
+                for mode in 0..=2 {
+                    let mut interp = native(profile);
+                    let name = Owned::fresh(obj::new_string_bytes(if element {
+                        b"arr(k)"
+                    } else {
+                        b"target"
+                    }));
+                    let old = Owned::fresh(obj::alloc_typed(&RETIRE, 0));
+                    unsafe { obj::set_native_updater_string_rep(old.as_ptr(), b"OLD", false) };
+                    interp
+                        .assign_original_named_variable(name.as_ptr(), old.as_ptr())
+                        .unwrap();
+                    drop(old);
+                    interp
+                        .add_native_variable_observer(
+                            name.as_ptr(),
+                            &[NativeVariableTraceOperation::Write],
+                            Rc::new(Write),
+                        )
+                        .unwrap();
+                    let next = Owned::fresh(obj::new_string_bytes(b"NEXT\0VALUE"));
+                    interp.set_result_bytes(b"PRIOR");
+                    let prior = interp.get_obj_result();
+                    let refs = unsafe { (*next.as_ptr()).ref_count };
+                    reset(mode, element, next.as_ptr());
+                    let current = Current::enter(&mut interp);
+                    let assigned =
+                        interp.assign_original_named_variable(name.as_ptr(), next.as_ptr());
+                    assert_eq!(assigned.is_ok(), mode == 0, "{profile}/{element}/{mode}");
+                    assert_eq!(CALLS.with(Cell::get), 1);
+                    assert!(RELEASED.with(Cell::get));
+                    assert!(SAW_NEW.with(Cell::get));
+                    assert_eq!(WRITES.with(Cell::get), usize::from(mode == 0));
+                    assert_eq!(unsafe { (*next.as_ptr()).ref_count }, refs + 1);
+                    assert_eq!(interp.get_obj_result(), prior);
+                    if mode == 0 {
+                        assert!(!interp.host_refusal_pending());
+                    } else {
+                        let cause = interp.native_execution_refusal().unwrap();
+                        if mode == 1 {
+                            let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(host) =
+                                cause
+                            else {
+                                panic!("actual original Host command cause");
+                            };
+                            assert_eq!(host.reason, "first original assignment retirement");
+                        }
+                        assert_eq!(assigned, Err(Code::Error));
+                    }
+                    drop(current);
+                    assert_eq!(interp.entered_native_operation_count(), 0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn original_jim_assignment_updates_actual_cached_cell_before_retirement_callback() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Original selected Jim VarVal; no C cache or native chronology grant.
+        for fresh_name in [false, true] {
+            for mode in 0..=2 {
+                let mut interp = native("jim");
+                let original = Owned::fresh(obj::new_string_bytes(b"target"));
+                let old = Owned::fresh(obj::alloc_typed(&RETIRE, 0));
+                unsafe { obj::set_native_updater_string_rep(old.as_ptr(), b"OLD", false) };
+                interp
+                    .assign_original_named_variable(original.as_ptr(), old.as_ptr())
+                    .unwrap();
+                drop(old);
+                let selected = if fresh_name {
+                    Owned::fresh(obj::new_string_bytes(b"target"))
+                } else {
+                    Owned::retain(original.as_ptr())
+                };
+                let next = Owned::fresh(obj::new_string_bytes(b"NEXT"));
+                interp.set_result_bytes(b"PRIOR");
+                let prior = interp.get_obj_result();
+                reset(mode, false, next.as_ptr());
+                let current = Current::enter(&mut interp);
+                let assigned =
+                    interp.assign_original_named_variable(selected.as_ptr(), next.as_ptr());
+                assert_eq!(assigned.is_ok(), mode == 0, "{fresh_name}/{mode}");
+                assert_eq!(CALLS.with(Cell::get), 1);
+                assert!(SAW_NEW.with(Cell::get));
+                assert!(RELEASED.with(Cell::get));
+                assert_eq!(interp.var_get(b"target"), Some(next.as_ptr()));
+                assert_eq!(interp.get_obj_result(), prior);
+                assert_eq!(unsafe { (*next.as_ptr()).ref_count }, 2);
+                assert_eq!(interp.host_refusal_pending(), mode != 0);
+                drop(current);
+                assert_eq!(interp.entered_native_operation_count(), 0);
+            }
+        }
     }
 }
