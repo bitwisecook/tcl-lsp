@@ -2294,8 +2294,11 @@ fn collect_stored_callback_writes(
     let Ok(offset) = u32::try_from(start) else {
         return true;
     };
-    let commands =
-        segment_commands_with_offset_and_config(&ctx.source[start..end], offset, ctx.config);
+    let commands = segment_commands_with_offset_and_config(
+        &ctx.source[start..end],
+        offset,
+        ctx.config.nested(),
+    );
     let mut has_scope_alias = false;
     for cmd in commands {
         let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, &cmd)
@@ -2431,7 +2434,7 @@ fn scan_my_method_region(
     let commands = segment_commands_with_offset_and_config(
         region,
         u32::try_from(start).unwrap_or(0),
-        ctx.config,
+        ctx.config.nested(),
     );
     for cmd in &commands {
         if !ctx.callbacks_only
@@ -2694,7 +2697,7 @@ fn command_prefix_targets_from_word(
     let built = segment_commands_with_offset_and_config(
         &ctx.source[*inner_start..*inner_end],
         offset,
-        ctx.config,
+        ctx.config.nested(),
     );
     let [builder] = built.as_slice() else {
         return Vec::new();
@@ -2847,7 +2850,7 @@ fn stored_callback_is_consumed(
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
-        ctx.config,
+        ctx.config.nested(),
     );
     commands.iter().any(|cmd| {
         callback_targets_from_command(ctx, cmd)
@@ -2876,7 +2879,7 @@ fn command_prefix_target_in_region(
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
-        ctx.config,
+        ctx.config.nested(),
     );
     for cmd in &commands {
         for target in callback_targets_from_command(ctx, cmd) {
@@ -2924,7 +2927,7 @@ fn original_self_receiver_word(ctx: MyMethodScan<'_>, head: tcl_lexer::Token) ->
     let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
         &ctx.source[*start..*end],
         offset,
-        ctx.config,
+        ctx.config.nested(),
     );
     let [child] = commands.as_slice() else {
         return false;
@@ -3047,7 +3050,7 @@ fn scan_next_dispatch_region_with_target(
     let commands = segment_commands_with_offset_and_config(
         body_text,
         u32::try_from(start).unwrap_or(0),
-        config,
+        config.nested(),
     );
     let Some(input) = analysis.resolved_input.as_ref() else {
         return;
@@ -3417,7 +3420,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
             out: &mut out,
             seen: &mut seen,
         };
-        scan_obj_method_region(ctx, 0, source.len(), 0, &mut sink);
+        scan_obj_method_region(ctx, 0, source.len(), false, 0, &mut sink);
     }
     // Regions 2/3: proc + method bodies (the top-level scan
     // skips braced body args, so descend explicitly).
@@ -3536,7 +3539,7 @@ fn scan_obj_method_body(
     if start >= end {
         return;
     }
-    scan_obj_method_region(ctx, start, end, 0, sink);
+    scan_obj_method_region(ctx, start, end, true, 0, sink);
 }
 
 /// Segment `source[start..end]` and record every `$v method` call site,
@@ -3550,6 +3553,7 @@ fn scan_obj_method_region(
     ctx: ObjMethodScan<'_>,
     start: usize,
     end: usize,
+    nested: bool,
     depth: u32,
     sink: &mut SpanSink<'_>,
 ) {
@@ -3562,7 +3566,11 @@ fn scan_obj_method_region(
     let commands = segment_commands_with_offset_and_config(
         region,
         u32::try_from(start).unwrap_or(0),
-        ctx.config,
+        if nested {
+            ctx.config.nested()
+        } else {
+            ctx.config
+        },
     );
     for cmd in &commands {
         // Only a written method selector may become an editable reference.
@@ -3598,14 +3606,14 @@ fn scan_obj_method_region(
         for (inner_start, inner_end) in
             nested_dispatch_regions(source, ctx.analysis, ctx.dialect, cmd)
         {
-            scan_obj_method_region(ctx, inner_start, inner_end, depth + 1, sink);
+            scan_obj_method_region(ctx, inner_start, inner_end, true, depth + 1, sink);
         }
         let shifted = ctx.frame_shifted();
         if shifted.has_receivers() {
             for (inner_start, inner_end) in
                 frame_shifted_dispatch_regions(source, ctx.analysis, ctx.dialect, cmd)
             {
-                scan_obj_method_region(shifted, inner_start, inner_end, depth + 1, sink);
+                scan_obj_method_region(shifted, inner_start, inner_end, true, depth + 1, sink);
             }
         }
     }
@@ -8054,5 +8062,88 @@ mod original_next_dispatch_context_tests {
         assert!(spans(source, &current).is_empty());
         current.resolved_input = None;
         assert!(spans(source, &current).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_dispatch_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_dispatch_body_scans_keep_bom_content_and_selected_full_config() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Source-only method reference geometry; no object or method execution.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = registry.get("dict").unwrap().surface;
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_dispatch",
+            arity: tcl_registry::Arity::at_least(1),
+            traits: tcl_registry::Traits::TCLOO_SELF_DISPATCH,
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let registry = std::sync::Arc::new(registry);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6").with_command_store(registry),
+        );
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context.clone(),
+            config,
+        );
+        for (source, expected) in [
+            ("source_dispatch selected", 1),
+            ("\u{feff}source_dispatch selected", 0),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            let body = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+            assert_eq!(
+                scan_my_method_sites(source, &analysis, &[body], "selected", None).len(),
+                expected
+            );
+            assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+            assert!(
+                analysis.matches_original_source_image(
+                    &tcl_lexer::SourceImage::document(source),
+                    config
+                )
+            );
+        }
+        let mut first_close = config;
+        first_close.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        let source = "puts ${a{b}; source_dispatch selected";
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            first_close,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let body = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert_eq!(
+            scan_my_method_sites(source, &analysis, &[body], "selected", None).len(),
+            1
+        );
+        let mut changed = analysis.clone();
+        changed.body_lexer_config = Some(config);
+        assert!(scan_my_method_sites(source, &changed, &[body], "selected", None).is_empty());
+        assert!(
+            scan_my_method_sites(
+                &format!("{source}#changed"),
+                &analysis,
+                &[body],
+                "selected",
+                None
+            )
+            .is_empty()
+        );
     }
 }

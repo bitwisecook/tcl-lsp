@@ -1,0 +1,91 @@
+int
+Tcl_ConstObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    Tcl_Size objc,		/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Argument objects. */
+{
+    Var *varPtr, *arrayPtr;
+    Tcl_Obj *part1Ptr;
+
+    if (objc != 3) {
+	Tcl_WrongNumArgs(interp, 1, objv, "varName value");
+	return TCL_ERROR;
+    }
+
+    part1Ptr = objv[1];
+    varPtr = TclObjLookupVarEx(interp, part1Ptr, NULL, TCL_LEAVE_ERR_MSG,
+	    "const", /*createPart1*/ 1, /*createPart2*/ 1, &arrayPtr);
+    if (varPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (TclIsVarArray(varPtr)) {
+	TclObjVarErrMsg(interp, part1Ptr, NULL, "make constant", ISARRAY, -1);
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "CONST", (char *)NULL);
+	return TCL_ERROR;
+    }
+    if (TclIsVarArrayElement(varPtr)) {
+	if (TclIsVarUndefined(varPtr)) {
+	    CleanupVar(varPtr, arrayPtr);
+	}
+	TclObjVarErrMsg(interp, part1Ptr, NULL, "make constant", ISARRAYELEMENT, -1);
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "CONST", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * If already exists, either a constant (no problem) or an error.
+     */
+    if (!TclIsVarUndefined(varPtr)) {
+	if (TclIsVarConstant(varPtr)) {
+	    return TCL_OK;
+	}
+	TclObjVarErrMsg(interp, part1Ptr, NULL, "make constant", EXISTS, -1);
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "CONST", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Make the variable and flag it as a constant.
+     */
+    if (TclPtrSetVar(interp, (Tcl_Var) varPtr, NULL, objv[1], NULL,
+	    objv[2], TCL_LEAVE_ERR_MSG) == NULL) {
+	if (TclIsVarUndefined(varPtr)) {
+	    CleanupVar(varPtr, arrayPtr);
+	}
+	return TCL_ERROR;
+    }
+    TclSetVarConstant(varPtr);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GlobalObjCmd --
+ *
+ *	This object-based function is invoked to process the "global" Tcl
+ *	command. See the user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl object result value.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_GlobalObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    Tcl_Size objc,		/* Number of arguments. */
+    Tcl_Obj *const *objv)	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+    Tcl_Obj *objPtr, *tailPtr;
+    const char *varName;
+    const char *tail;
+    int result;
+    Tcl_Size i;

@@ -191,7 +191,7 @@ fn enclosing_frame_region(
     global: &tcl_compiler::analyser::Scope,
     off: u32,
     source: &str,
-) -> (usize, usize) {
+) -> (usize, usize, bool) {
     fn walk(
         scope: &tcl_compiler::analyser::Scope,
         off: u32,
@@ -215,6 +215,7 @@ fn enclosing_frame_region(
     }
     let mut best = None;
     walk(global, off, &mut best);
+    let nested = best.is_some();
     let source_len = source.len();
     let (mut start, mut end) = match best {
         Some(span) => (
@@ -228,13 +229,13 @@ fn enclosing_frame_region(
     // braced *word* and finds no commands in it at all, so every lookup here
     // would silently answer "nothing binds this name".
     let bytes = source.as_bytes();
-    if start < end && bytes.get(start) == Some(&b'{') {
+    if nested && start < end && bytes.get(start) == Some(&b'{') {
         start += 1;
     }
-    if end > start && bytes.get(end - 1) == Some(&b'}') {
+    if nested && end > start && bytes.get(end - 1) == Some(&b'}') {
         end -= 1;
     }
-    (start, end)
+    (start, end, nested)
 }
 
 /// Whether any procedure in the document takes a parameter whose value names
@@ -313,8 +314,9 @@ pub(crate) fn caller_frame_bindings(
         read_offset: cursor_off,
     };
     if lexical {
-        let (start, end) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
-        collect_bindings_in_region(&ctx, start, end, 0, &mut out);
+        let (start, end, nested) =
+            enclosing_frame_region(&analysis.global_scope, cursor_off, source);
+        collect_bindings_in_region(&ctx, start, end, nested, 0, &mut out);
     } else {
         let Some(structure) =
             crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
@@ -373,30 +375,41 @@ fn collect_bindings_in_region(
     ctx: &BindingScan<'_>,
     start: usize,
     end: usize,
+    nested: bool,
     depth: u32,
     out: &mut Vec<CallerFrameBinding>,
 ) {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-
     if start >= end
         || end > ctx.source.len()
         || crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth)
     {
         return;
     }
-    let commands = segment_commands_with_offset_and_config(
-        &ctx.source[start..end],
-        u32::try_from(start).unwrap_or(0),
-        ctx.config,
-    );
+    let commands = binding_region_commands(ctx.source, start, end, ctx.config, nested);
     for cmd in &commands {
         bindings_from_call(ctx, cmd, out);
         for (inner_start, inner_end) in
             crate::references::nested_dispatch_regions(ctx.source, ctx.analysis, ctx.dialect, cmd)
         {
-            collect_bindings_in_region(ctx, inner_start, inner_end, depth + 1, out);
+            collect_bindings_in_region(ctx, inner_start, inner_end, true, depth + 1, out);
         }
     }
+}
+
+/// Local script purpose is selected by the actual enclosing frame or body.
+/// The parent BindingScan config remains unchanged for original token joins.
+fn binding_region_commands(
+    source: &str,
+    start: usize,
+    end: usize,
+    config: tcl_lexer::LexerConfig,
+    nested: bool,
+) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
+    tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        &source[start..end],
+        u32::try_from(start).unwrap_or(0),
+        if nested { config.nested() } else { config },
+    )
 }
 
 /// The bindings one call site contributes — at most one per parameter whose
@@ -700,7 +713,7 @@ pub(crate) fn caller_frame_reference_spans_from_bindings(
     }
     let mut spans: Vec<Span> = bindings.iter().map(|b| b.arg_span).collect();
     if analysis.allows_lexical_declaration_advice() {
-        let (start, end) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
+        let (start, end, _) = enclosing_frame_region(&analysis.global_scope, cursor_off, source);
         spans.extend(substituted_read_spans(source, analysis, start, end, name));
     } else {
         spans.extend(original_caller_read_spans(analysis, source, bindings, name));
@@ -2236,6 +2249,63 @@ oo::class create widget {
         assert!(
             crate::definition::definition(src, line, col, &analysis).is_empty(),
             "an unbound `$`-led read must report no definition"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_binding_region_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_binding_regions_keep_selected_frame_body_and_whole_file_purposes() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let source = "\u{feff}proc p {} {\u{feff}set x 1; puts $x}";
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let (start, end, nested) = enclosing_frame_region(
+            &analysis.global_scope,
+            u32::try_from(source.find("$x").unwrap()).unwrap(),
+            source,
+        );
+        assert!(nested);
+        assert_eq!(
+            binding_region_commands(source, start, end, config, nested)[0].name(),
+            "\u{feff}set"
+        );
+        let (start, end, nested) = enclosing_frame_region(&analysis.global_scope, 0, source);
+        assert!(!nested);
+        assert_eq!(
+            binding_region_commands(source, start, end, config, nested)[0].name(),
+            "proc"
+        );
+        let body = "\u{feff}set x 1";
+        assert_eq!(
+            binding_region_commands(body, 0, body.len(), config, true)[0].name(),
+            "\u{feff}set"
+        );
+        let mut first_close = config;
+        first_close.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        let body = "puts ${a{b}; set x 1";
+        assert_eq!(
+            binding_region_commands(body, 0, body.len(), first_close, true).len(),
+            2
+        );
+        assert!(binding_region_commands(body, 0, body.len(), config, true)[0].is_partial);
+        assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+        assert!(
+            analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
         );
     }
 }

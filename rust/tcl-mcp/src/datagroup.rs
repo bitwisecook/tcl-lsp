@@ -326,8 +326,8 @@ enum SetOrReturn {
 /// Parse a single-command arm body via the segmenter (like the Rust static
 /// extractor's `parse_set_or_return`, keeping only the kind + `set` variable).
 fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset_and_config(text, 0, config);
-    if commands.len() != 1 || commands[0].texts.is_empty() {
+    let commands = segment_commands_with_offset_and_config(text, 0, config.nested());
+    if commands.len() != 1 || commands[0].is_partial || commands[0].texts.is_empty() {
         return None;
     }
     let texts = &commands[0].texts;
@@ -763,5 +763,34 @@ mod tests {
         let config = analysis.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
         assert!(suggest_for_analysis(source, &analysis).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_arm_parser_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_datagroup_arm_parser_preserves_body_bom_and_actual_grammar_overrides() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Heuristic body shape only; static edit eligibility is independent.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        assert!(
+            matches!(parse_set_or_return("set x value", config), Some(SetOrReturn::Set(name)) if name == "x")
+        );
+        assert!(parse_set_or_return("\u{feff}set x value", config).is_none());
+        assert_eq!(
+            segment_commands_with_offset_and_config("\u{feff}set x value", 0, config)[0].name(),
+            "set"
+        );
+        let mut first_close = config;
+        first_close.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        assert!(matches!(
+            parse_set_or_return("return ${a{b}", first_close),
+            Some(SetOrReturn::Return)
+        ));
+        assert!(parse_set_or_return("return ${a{b}", config).is_none());
     }
 }

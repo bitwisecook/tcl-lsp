@@ -328,8 +328,33 @@ impl Analyser {
     /// then walks the top-level + every procedure, dispatching
     /// per-function emitters.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
-        let generation = self.analysis_context();
+        let Some(input) = self.result.resolved_input.clone() else {
+            return;
+        };
+        let Ok(generation) = self.try_analysis_context() else {
+            return;
+        };
         let registry = generation.commands().as_ref();
+        if self.source.as_bytes() != source.as_bytes()
+            || input.borrowed_context_registry().context() != generation.context()
+            || self
+                .resolved_input
+                .as_ref()
+                .is_some_and(|current| current != &input)
+            || crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                &input,
+                self.file_lexer_config(),
+                self.unit_profile,
+            )
+            .is_none()
+            || !self.result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(source),
+                input.lexer_config(),
+            )
+        {
+            return;
+        }
         // Seed each proc's SCCP with caller-side parameter constants so a
         // branch on a param every caller passes the same literal folds (the
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
@@ -342,8 +367,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
             return;
         }
-        // The profile name is `&'static str`, so no borrow of `self` is held
-        // across the firewall closure below (which needs `&mut self`).
+        // The actual input clone retains the same immutable generation across
+        // construction and emission. It does not supply the independent entry.
         // Firewall the lowering→CFG→SSA→interprocedural build (and the
         // emission that consumes it). A panic on adversarial input is contained
         // to "no CFG/SSA diagnostics for this document" instead of crashing the
@@ -352,9 +377,7 @@ impl Analyser {
         // overflow is separately bounded by the lowering depth guards;
         // `catch_unwind` cannot contain a SIGABRT.)
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let dialect_opt = Some(self.unit_profile.unwrap_or_else(|| {
-                crate::environment_ingress::resolve_environment(self.profile.name).unit_profile()
-            }));
+            let dialect_opt = Some(input.unit_profile());
             // Build under the analyser's own dialect, not a blind default: the
             // lowering needs it to parse a dialect-only operator (an iRules
             // `contains` condition) as an operator, and the lattice pipeline
@@ -383,14 +406,47 @@ impl Analyser {
                 // variable the command writes.
                 declared_commands: self.declared_commands.as_ref(),
             };
-            let cu = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            let cu = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                options,
+                self.source_analysis_entry.as_deref(),
+                &input,
+            )
+            .with_interprocedural(registry, dialect_opt);
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
+        }));
+    }
+
+    /// Explicit legacy fixture ingress without a supplied source analysis.
+    /// Actual production callers use the checked complete-input method above.
+    #[cfg(test)]
+    fn emit_cfg_ssa_diagnostics_standalone_for_test(&mut self, source: &str) {
+        let generation = self.analysis_context();
+        let registry = generation.commands().as_ref();
+        if let Some(cu) = self.cu_override.take() {
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
+            return;
+        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dialect = Some(self.unit_profile.unwrap_or_else(|| {
+                crate::environment_ingress::resolve_environment(self.profile.name).unit_profile()
+            }));
+            let options = crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: self.file_lexer_config(),
+                dialect,
+                external_call_sites: None,
+                declared_commands: self.declared_commands.as_ref(),
+            };
+            let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
                 source,
                 options,
                 self.source_analysis_entry.as_deref(),
                 std::sync::Arc::clone(&generation),
             )
-            .with_interprocedural(registry, dialect_opt);
-            self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
+            .with_interprocedural(registry, dialect);
+            self.emit_cfg_ssa_diagnostics_with_cu(&unit, registry);
         }));
     }
 
@@ -1216,3 +1272,153 @@ mod tests;
 
 #[cfg(test)]
 mod fp;
+
+#[cfg(test)]
+mod complete_cu_input_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use std::sync::Arc;
+
+    const SOURCE: &str = "proc f {} {set path literal.tcl; source $path}";
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        )
+    }
+
+    fn queued(input: &ResolvedAnalysisInput) -> Analyser {
+        let mut analyser = Analyser::new()
+            .with_resolved_input(input.clone())
+            .structure_only();
+        analyser.analyse_and_retain_result_for_test(SOURCE, "display-only");
+        let offset = u32::try_from(SOURCE.find("source $path").unwrap()).unwrap();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            "source $path",
+            offset,
+            input.lexer_config().nested(),
+        )
+        .pop()
+        .unwrap();
+        let original = analyser
+            .original_diagnostic_call_at(segment.argv[0], segment.arg_tokens())
+            .expect("the genuine retained source-file operand");
+        analyser.emit_w300_source_variable(Some(&original));
+        analyser.record_proven_site(&CallWords {
+            cmd_tok: segment.argv[0],
+            args: segment.args(),
+            arg_tokens: segment.arg_tokens(),
+            arg_single: segment.arg_single_token(),
+            arg_expand_in: segment.expand_word.as_deref().unwrap_or(&[]),
+        });
+        assert_eq!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::W300)
+                .count(),
+            1
+        );
+        assert_eq!(analyser.proven_sites.len(), 1);
+        analyser
+    }
+
+    #[test]
+    fn actual_diagnostic_cu_construction_retains_the_complete_source_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source contents only, independently of Native execution.
+        let input = input();
+        let mut analyser = queued(&input);
+        assert!(analyser.source_analysis_entry.is_none());
+        analyser.emit_cfg_ssa_diagnostics(SOURCE);
+        assert!(
+            analyser.proven_sites.is_empty(),
+            "the real CU consumed the queued operand"
+        );
+        assert!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .all(|d| d.code != DiagCode::W300),
+            "the retained Logical setter contents refine its own original read"
+        );
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        assert!(analyser.source_analysis_entry.is_none());
+        let result = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(SOURCE, "display-only");
+        assert_eq!(result.resolved_input.as_ref(), Some(&input));
+        assert!(result.diagnostics.iter().all(|d| d.code != DiagCode::W300));
+    }
+
+    #[test]
+    fn actual_diagnostic_cu_construction_refuses_withdrawn_and_changed_input_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let input = input();
+        for axis in [
+            "missing",
+            "config",
+            "foreign",
+            "availability",
+            "source",
+            "grammar",
+        ] {
+            let mut analyser = queued(&input);
+            let original = analyser.result.diagnostics.clone();
+            let mut current_source = SOURCE.to_owned();
+            match axis {
+                "missing" => analyser.result.resolved_input = None,
+                "config" => analyser.result.body_lexer_config = None,
+                "foreign" => {
+                    let mut changed = input.clone();
+                    changed.context = Arc::new(input.context.with_command_store(Arc::new(
+                        tcl_registry::CommandRegistry::build_default(),
+                    )));
+                    analyser.result.resolved_input = Some(changed);
+                }
+                "availability" => {
+                    let mut changed = input.clone();
+                    changed.context = Arc::new(
+                        tcl_registry::model::ingress::static_context_for("tcl8.4")
+                            .with_command_store(Arc::clone(input.context.commands())),
+                    );
+                    assert!(Arc::ptr_eq(
+                        changed.context.commands(),
+                        input.context.commands()
+                    ));
+                    assert_ne!(changed, input);
+                    analyser.result.resolved_input = Some(changed);
+                }
+                "source" => current_source.push('\n'),
+                "grammar" => {
+                    let mut changed = input.clone();
+                    changed.config.strict_quoting = !changed.config.strict_quoting;
+                    analyser.result.resolved_input = Some(changed);
+                }
+                _ => unreachable!(),
+            }
+            analyser.emit_cfg_ssa_diagnostics(&current_source);
+            assert_eq!(
+                analyser.result.diagnostics, original,
+                "{axis}: actual advice was retained"
+            );
+            assert_eq!(
+                analyser.proven_sites.len(),
+                1,
+                "{axis}: refusal precedes CU/emission"
+            );
+        }
+        let mut unowned = Analyser::new();
+        unowned.emit_cfg_ssa_diagnostics(SOURCE);
+        assert!(unowned.result.diagnostics.is_empty());
+        assert!(unowned.result.resolved_input.is_none());
+    }
+}

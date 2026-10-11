@@ -1,0 +1,142 @@
+{
+  "request_sha256": "0eb9e8fabd90918d982cf1399323103975b21d560b444b9f5d0592a8894a5625",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/compiler-version.receipt.json",
+      "sha256": "a20c866bcada63593e5c419b920b4bf0684a0ceb2203f5e8ad6c4aa533436d58",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/compile.receipt.json",
+      "sha256": "f4becf99a431c423bab86576adcee1a7efdb808706a9cf2d1489839fc37f9c55",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "9656efa533eaae7927ff124e0f5e5dfa7d16027088bfadc4931f75ddd4878964",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/execute.receipt.json",
+      "sha256": "1a01e4199b6a3f553d871df6ee1e01dc8145cfd475a4ec2a4466a212b2d8631f",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.5.19/compile.receipt.json",
+      "sha256": "9eb07dc42180f49ddee47e80a6113c4f8defe205edbdfda03d07e7c996034e0a",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "8399fd84dcf0b4d5693fac38704f972c6129eda99f8d4350f6e278ac467dcc48",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.5.19/execute.receipt.json",
+      "sha256": "1d0a10b7fcf0015668689ace054292b4ee69778e1dea9103def421e785861b4f",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.6.18/compile.receipt.json",
+      "sha256": "2c2e2da0767cbe1dc221a116b4dc678eb461a1299571cd8196886f6d4a489abf",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "db801d0173ae13a30447c2eee0fc31ab81127efdaccfb897cd8db239d78a48f1",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.6.18/execute.receipt.json",
+      "sha256": "dd6276e90c882312bd6e24d44c184a03f355c7aed85be638428b3e2f68421bcb",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/9.0.4/compile.receipt.json",
+      "sha256": "b38e1fa3321986c5d1d1e8bb6aa45e0ac03beadd49b6562ba4b2b0f32f2c32c4",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "031f517e095a50bd9536b46d0f507c56cd5e0322d9ddbfda0478dca18fe585e2",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/9.0.4/execute.receipt.json",
+      "sha256": "50ab0eb7bd23134399f008393343a32b93185c1d8c4c4e134ebc3d23ebff635f",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/9.1.0/compile.receipt.json",
+      "sha256": "ed573d9133a2983cdbad735178b3a1c4d56b95b78b6c3226dd16716f9d6fc4f1",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "88c079d4579eb809ed07a161c373a802c1941123db4f824fff57b23a374885cd",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/9.1.0/execute.receipt.json",
+      "sha256": "dddbdc2ec9702e30a6b5d108e3c4b573f278515e93cf6bfa53e8b8171681318a",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/jim/compile.receipt.json",
+      "sha256": "e58f900ccd9ab54caf88b27072822e34f6ce9111994a2e95e822adc47bd93c25",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/jim/dependencies.receipt.json",
+      "sha256": "46a49abedcef26b5679e24aaea8c151871d39ac899fb4270f624cda3c9e7b0e3",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505/providers/jim/execute.receipt.json",
+      "sha256": "a9fb535ab828599339767ec61a1b68891160731a640597d68f897cdabdf3f20a",
+      "status": "closed"
+    }
+  ],
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/native-variable-introspection-order505/providers",
+  "all_capture_processes_closed": true,
+  "scope": "Original process/source/link/runtime closure only; individual Guest failures and Jim unsupported observer/namespace purposes stay explicit."
+}

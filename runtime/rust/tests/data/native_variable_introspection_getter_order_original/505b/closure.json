@@ -1,0 +1,142 @@
+{
+  "request_sha256": "489071bc1661058953d58b17f456e8c26fc50ca0d0dd7a6d2c397a7b3b355fb1",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/compiler-version.receipt.json",
+      "sha256": "a8d524291457c7cd650274ef89844470b911e725033e50b324f8fb8f99837988",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.4.20/compile.receipt.json",
+      "sha256": "977c1b5f2c557e17af379b190de4d02c8da9a7429421b6ed8f4cb946bae8fac4",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "29ddc9cd1b297f8dda8e507bce46696dcbc9a006ba0b038eb9fc3af3970f76ff",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.4.20/execute.receipt.json",
+      "sha256": "20b7b6721c75bef2603396a1e39bc441523a3b9cc09101a474a98b617a36a739",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/compile.receipt.json",
+      "sha256": "fffdcb4dea73fcbaeadfff6c5f44affa26bf00cf016c465beadea217e7c5adb1",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "307f9ce21179be6bee736df6a1eb0fb5f0710d898b8aed8c76fb8e9745b2dc7a",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.5.19/execute.receipt.json",
+      "sha256": "26e7aff1af58ae916d0e671131667ac0fb8a300857809b3e3c62be423ae61b24",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.6.18/compile.receipt.json",
+      "sha256": "81cbd885112259aff266b8aa7439e4918f676458a99511e503620f18a813509f",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "25569227ff5725410c7eb042b517bf56807968bd43814bd4fa02ec61ec9d2d3a",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/8.6.18/execute.receipt.json",
+      "sha256": "5630caa2c040aaf3b631a73920c888aa50949a9959757888ef906778be06b9c1",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.0.4/compile.receipt.json",
+      "sha256": "f9762c3587c470d9f351cb5cffe2e47eb01ab3006d273a8320c5286aad66f04d",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "137840b5803e5f5ad8f972f2bfa57eb3af795f10f684e138d43b3cd69983124d",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.0.4/execute.receipt.json",
+      "sha256": "0dd67486cff8de92efb832cf0e9a0154d2ac9c63a887e5ce2b0bfb8bb57023e2",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.1.0/compile.receipt.json",
+      "sha256": "1ff4895eb96dfde893f6d68d61265ffdfb8cf6cefa1639b10e9d1d11339c48f6",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "0f1529fef3ce5b33f3b8ebbcb6619e6186f88fb8c56ecd677345b66d01d681a5",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/9.1.0/execute.receipt.json",
+      "sha256": "a02ef4768c1e875b33a1d548cfaf51aa2e444dd1c0403705a15d3fba1a4b7893",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/jim/compile.receipt.json",
+      "sha256": "97f3051e29e80dc2c3763e6dfe4f26e9fca8c64d6b227f2d38706457cdd4d077",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/jim/dependencies.receipt.json",
+      "sha256": "4b69f8dfa4dfc7bd4259be3a5bf8f7ac8ff326263ae7048dfb28aecbfcddd3fb",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-variable-introspection-order505b/providers/jim/execute.receipt.json",
+      "sha256": "8587c5ba9aab9f834b3e72811147136c44a2528ebfcff03471be1c60efbc54be",
+      "status": "closed"
+    }
+  ],
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/native-variable-introspection-order505b/providers",
+  "all_capture_processes_closed": true,
+  "scope": "Original process/source/link/runtime closure only; individual Guest failures and Jim unsupported observer/namespace purposes stay explicit."
+}

@@ -1181,10 +1181,12 @@ fn infer_list_length_from_recent_set(
     let mut script: &str = source;
     let mut base: u32 = 0;
     let mut best: Option<String> = None;
-    for _ in 0..MAX_SCOPE_DESCENT.0 {
+    for depth in 0..MAX_SCOPE_DESCENT.0 {
         best = None;
         let mut inner: Option<(&str, u32)> = None;
-        for cmd in segment_commands_with_offset_and_config(script, base, lexer_config) {
+        for cmd in
+            segment_commands_with_offset_and_config(script, base, lexer_config.at_depth(depth))
+        {
             if cmd.span.start() >= before_offset {
                 break;
             }
@@ -2991,5 +2993,44 @@ mod original_body_parser_purpose_tests {
         assert!(!body_may_exit("\u{feff}break", metadata, config));
         assert!(!body_may_exit("if 1 {\u{feff}break}", metadata, config));
         assert!(body_may_exit("if 1 {break}", metadata, config));
+    }
+}
+
+#[cfg(test)]
+mod original_list_descent_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_list_descent_keeps_file_bom_and_extracted_body_marks_distinct() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // This lexical list-length projection grants no getter, store or frame.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let context = BoundsMetadataContext::Standalone(None);
+        for (source, expected) in [
+            ("\u{feff}set xs {a b}; lset xs 9 v", Some(2)),
+            ("if 1 {\u{feff}set xs {a b}; lset xs 9 v}", None),
+            ("if 1 {set xs {a b}; lset xs 9 v}", Some(2)),
+        ] {
+            let before = u32::try_from(source.find("lset").unwrap()).unwrap();
+            assert_eq!(
+                infer_list_length_from_recent_set(source, "xs", before, context, config),
+                expected,
+                "{source:?}"
+            );
+        }
+        let source = "if 1 {puts ${a{b}; set xs {a b}; lset xs 9 v}}";
+        let before = u32::try_from(source.find("lset").unwrap()).unwrap();
+        let mut first_close = config;
+        first_close.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        assert_eq!(
+            infer_list_length_from_recent_set(source, "xs", before, context, first_close),
+            Some(2)
+        );
+        assert_eq!(
+            infer_list_length_from_recent_set(source, "xs", before, context, config),
+            None
+        );
     }
 }

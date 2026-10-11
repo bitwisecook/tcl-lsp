@@ -1,0 +1,86 @@
+int
+Tcl_UnsetObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    int i, flags = TCL_LEAVE_ERR_MSG;
+    const char *name;
+
+    if (objc == 1) {
+	/*
+	 * Do nothing if no arguments supplied, so as to match command
+	 * documentation.
+	 */
+
+	return TCL_OK;
+    }
+
+    /*
+     * Simple, restrictive argument parsing. The only options are -- and
+     * -nocomplain (which must come first and be given exactly to be an
+     * option).
+     */
+
+    i = 1;
+    name = TclGetString(objv[i]);
+    if (name[0] == '-') {
+	if (strcmp("-nocomplain", name) == 0) {
+	    i++;
+	    if (i == objc) {
+		return TCL_OK;
+	    }
+	    flags = 0;
+	    name = TclGetString(objv[i]);
+	}
+	if (strcmp("--", name) == 0) {
+	    i++;
+	}
+    }
+
+    for (; i < objc; i++) {
+	if ((TclObjUnsetVar2(interp, objv[i], NULL, flags) != TCL_OK)
+		&& (flags == TCL_LEAVE_ERR_MSG)) {
+	    return TCL_ERROR;
+	}
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_AppendObjCmd --
+ *
+ *	This object-based function is invoked to process the "append" Tcl
+ *	command. See the user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl object result value.
+ *
+ * Side effects:
+ *	A variable's value may be changed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_AppendObjCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Var *varPtr, *arrayPtr;
+    Tcl_Obj *varValuePtr = NULL;
+				/* Initialized to avoid compiler warning. */
+    int i;
+
+    if (objc < 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "varName ?value ...?");
+	return TCL_ERROR;
+    }
+
+    if (objc == 2) {
+	varValuePtr = Tcl_ObjGetVar2(interp, objv[1], NULL,TCL_LEAVE_ERR_MSG);

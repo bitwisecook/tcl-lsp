@@ -27,7 +27,8 @@
 //! introspection `body`/`args`/`default`. `info errorstack` (TIP 348) is the
 //! remaining `CmdFrame`-adjacent item.
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::{new_string, Code, Interp};
 use crate::obj::TclObj;
 use tcl_syntax::value::ValueOps;
 
@@ -36,6 +37,8 @@ mod native_jim;
 mod native_jim_inventory_tests;
 /// Register `info`.
 mod native_oo;
+#[cfg(test)]
+mod original_argument_tests;
 
 pub fn install(interp: &mut Interp) {
     const NAMES: &[&[u8]] = &[
@@ -239,6 +242,29 @@ fn stock_vars(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = info_cmd_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn info_name(
+    interp: &mut Interp,
+    arguments: &OriginalArguments,
+    index: usize,
+) -> Result<std::rc::Rc<[u8]>, Code> {
+    arguments
+        .bytes(index)
+        .map_err(|error| interp.report_cmd_error(error))
+}
+
+fn info_cmd_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     // `info` is an ensemble: resolve an exact name, else an unambiguous prefix
     // (so `info command` → `commands`, matching tclsh).
     const SUBS: &[&[u8]] = &[
@@ -284,11 +310,10 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .native_invocation_dialect()
         .native_jim_info_protocol()
     {
-        let dispatch =
-            match protocol.dispatch(argv.len(), |index| interp.native_string_bytes(&argv[index])) {
-                Ok(dispatch) => dispatch,
-                Err(error) => return interp.report_cmd_error(error.into()),
-            };
+        let dispatch = match protocol.dispatch(argv.len(), |index| arguments.bytes(index)) {
+            Ok(dispatch) => dispatch,
+            Err(error) => return interp.report_cmd_error(error),
+        };
         match dispatch {
             tcl_registry::commands::tcl::NativeJimInfoDispatch::Member {
                 name,
@@ -330,12 +355,19 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
                     subs,
                 );
-            match interp.native_index_operand(argv[1], &table, false, "option") {
+            let selected = interp.native_index_operand(argv[1], &table, false, "option");
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match selected {
                 Ok(index) => index,
                 Err(error) => return interp.report_cmd_error(error),
             }
         } else {
-            let raw = obj_bytes(argv[1]);
+            let raw = match info_name(interp, arguments, 1) {
+                Ok(raw) => raw,
+                Err(code) => return code,
+            };
             let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &raw, true) else {
                 return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
                     subs,
@@ -349,6 +381,17 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         subs[index]
     };
     let argv = if prepared.is_empty() { argv } else { &prepared };
+    let prepared_arguments = if prepared.is_empty() {
+        None
+    } else {
+        match OriginalArguments::enter(interp, argv) {
+            Ok(arguments) => Some(arguments),
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    };
+    // Jim's actual -nons shift retains the same headers. Operand positions now
+    // belong to that selected vector, while the original entry remains live.
+    let arguments = prepared_arguments.as_ref().unwrap_or(arguments);
     match sub {
         b"alias" => match tcl_cmd_core::info::jim_original_alias(interp, &argv[2]) {
             Ok(original) => {
@@ -453,7 +496,11 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     Err(error) => return interp.report_cmd_error(error.into()),
                 };
                 if let Some(&filename) = argv.get(2) {
-                    if let Err(error) = context.replace_current_filename(filename) {
+                    let result = context.replace_current_filename(filename);
+                    if let Err(error) = arguments.check() {
+                        return interp.report_cmd_error(error);
+                    }
+                    if let Err(error) = result {
                         return interp.report_cmd_error(error.into());
                     }
                 }
@@ -466,7 +513,10 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             if argv.len() == 3 {
                 // Set the current script name and return it (C's `info script F`).
-                let name = obj_bytes(argv[2]);
+                let name = match info_name(interp, arguments, 2) {
+                    Ok(name) => name,
+                    Err(code) => return code,
+                };
                 interp.set_current_script(&name);
                 interp.set_result_bytes(&name);
             } else {
@@ -478,7 +528,16 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 2 {
                 return interp.wrong_args_for_prefix(argv, 2, b"");
             }
-            let exe = interp.host().env().current_exe().unwrap_or_default();
+            let host = interp.host();
+            let environment = host.env();
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            let reached = environment.current_exe();
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            let exe = reached.unwrap_or_default();
             interp.set_result_bytes(exe.as_bytes());
             Code::Ok
         }
@@ -498,7 +557,10 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 2 {
                 return interp.wrong_args_for_prefix(argv, 2, b"");
             }
-            let h = hostname(interp);
+            let h = match hostname(interp, arguments) {
+                Ok(value) => value,
+                Err(error) => return interp.report_cmd_error(error),
+            };
             interp.set_result_bytes(&h);
             Code::Ok
         }
@@ -524,7 +586,11 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 3 {
                 return interp.wrong_args_for_prefix(argv, 2, b"varName");
             }
-            let is_const = interp.is_constant(&obj_bytes(argv[2]));
+            let name = match info_name(interp, arguments, 2) {
+                Ok(name) => name,
+                Err(code) => return code,
+            };
+            let is_const = interp.is_constant(&name);
             interp.set_result_bytes(if is_const { b"1" } else { b"0" });
             Code::Ok
         }
@@ -553,23 +619,46 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// The host name (`info hostname`, `Tcl_GetHostName`) — best-effort from
 /// `/proc/sys/kernel/hostname`, else `/etc/hostname`, else empty. Read through
 /// the host filesystem (empty when the host provides none).
-fn hostname(interp: &Interp) -> Vec<u8> {
+fn hostname(
+    interp: &Interp,
+    arguments: &OriginalArguments,
+) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
     let host = interp.host();
-    let fs = host.filesystem();
+    let filesystem = host.filesystem();
+    arguments.check()?;
     for path in ["/proc/sys/kernel/hostname", "/etc/hostname"] {
-        if let Some(bytes) = fs.and_then(|fs| fs.read(path).ok()) {
-            return String::from_utf8_lossy(&bytes).trim().as_bytes().to_vec();
+        let reached = filesystem.map(|filesystem| filesystem.read(path));
+        arguments.check()?;
+        if let Some(Ok(bytes)) = reached {
+            // Host catalogue presentation preserves the existing lossy/trim policy.
+            return Ok(String::from_utf8_lossy(&bytes).trim().as_bytes().to_vec());
         }
     }
-    Vec::new()
+    Ok(Vec::new())
 }
 
 /// `info cmdtype command` — the kind of command (`native`/`proc`/`alias`/…).
 fn info_cmdtype(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = info_cmdtype_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn info_cmdtype_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"commandName");
     }
-    let name = obj_bytes(argv[2]);
+    let name = match info_name(interp, arguments, 2) {
+        Ok(value) => value,
+        Err(code) => return code,
+    };
     match interp.cmdtype(&name) {
         Some(t) => {
             interp.set_result_bytes(t);
@@ -716,11 +805,28 @@ fn info_consts(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = info_exists_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn info_exists_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"varName");
     }
     if interp.native_c_variable_name_protocol().is_some() {
-        return match interp.exists_original_c_parts(argv[2], None) {
+        let reached = interp.exists_original_c_parts(argv[2], None);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        return match reached {
             Ok(found) => {
                 let result = crate::obj::new_boolean_obj(i32::from(found));
                 interp.set_result(result);
@@ -731,10 +837,17 @@ fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     // Tcl's existence query fires read traces and ignores their errors. The
     // resolved variable owner includes native linked-variable callbacks.
-    let name = obj_bytes(argv[2]);
+    let name = match info_name(interp, arguments, 2) {
+        Ok(value) => value,
+        Err(code) => return code,
+    };
     if interp.observed_name_policy_selected() {
         let level = interp.frames.borrow().current_level();
-        return match interp.observed_variable_exists(&name, level) {
+        let reached = interp.observed_variable_exists(&name, level);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        return match reached {
             Ok(found) => {
                 let result = crate::obj::new_boolean_obj(i32::from(found));
                 interp.set_result(result);
@@ -743,7 +856,13 @@ fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(_) => Code::Error,
         };
     }
-    let _ = interp.fire_var_traces_for(&name, b"read");
+    // Guest read-trace errors remain ignored by the existence query; an
+    // original Host refusal stops the later table read and result publication.
+    let reached_trace = interp.fire_var_traces_for(&name, b"read");
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    drop(reached_trace);
     // The shared Family-B core over `VarStore::exists`.
     let result = crate::obj::new_boolean_obj(i32::from(interp.var_exists(&name)));
     interp.set_result(result);
@@ -784,13 +903,29 @@ fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `proc`/`file` where applicable, and `level`). C ref `tclCmdIL.c`
 /// `InfoFrameCmd`; numbering matches `info level` (N>0 absolute, N<=0 relative).
 fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = info_frame_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn info_frame_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     match argv.len() {
         2 => {
             interp.set_result_bytes(interp.cmd_frame_depth().to_string().as_bytes());
             Code::Ok
         }
         3 => {
-            let spec = obj_bytes(argv[2]);
+            let spec = match info_name(interp, arguments, 2) {
+                Ok(value) => value,
+                Err(code) => return code,
+            };
             let n = match core::str::from_utf8(&spec)
                 .ok()
                 .and_then(|s| s.trim().parse::<i64>().ok())
@@ -921,24 +1056,72 @@ fn info_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = info_default_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn info_default_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args_for_prefix(argv, 2, b"procname arg varname");
     }
-    let var = obj_bytes(argv[4]);
-    // The core computes the `(value, has_default)` pair (and the not-a-proc /
-    // no-such-argument errors); the **store** stays here because it is
-    // trace-aware — a write trace or array-typed target makes it fail with the
-    // variable error verbatim (`can't set "a": variable is array`).
-    let (val, has) = match tcl_cmd_core::info::default(interp, &argv[2], &argv[3]) {
-        Ok(pair) => pair,
-        Err(e) => return interp.report_cmd_error(e),
-    };
-    if let Err(e) = interp.var_set(&var, val) {
-        crate::interp::drop_fresh(val);
-        return crate::builtins::var_error(interp, &var, e);
+    // The existing core reads procedure/formal and selects their actual
+    // declared default before the destination lookup is reached.
+    let reached = tcl_cmd_core::info::default(interp, &argv[2], &argv[3]);
+    if let Err(error) = arguments.check() {
+        if let Ok((fresh, false)) = reached {
+            crate::interp::drop_fresh(fresh);
+        }
+        return interp.report_cmd_error(error);
     }
-    interp.set_result_bytes(if has { b"1" } else { b"0" });
-    Code::Ok
+    let (value, has_default) = match reached {
+        Ok(pair) => pair,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    // Keep the borrowed default allocation safe without the native +1 that
+    // would change sharing before the selected destination lookup. This
+    // context also outlives failed-assignment cleanup of the new empty object.
+    let value_arguments = match OriginalArguments::enter(interp, &[value]) {
+        Ok(value_arguments) => value_arguments,
+        Err(error) => {
+            if !has_default {
+                crate::interp::drop_fresh(value);
+            }
+            return interp.report_cmd_error(error);
+        }
+    };
+    let code = (|| {
+        let destination = match arguments.original(4) {
+            Ok(destination) => destination,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let assigned = interp.assign_original_named_variable(destination, value);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        if let Err(code) = assigned {
+            return code;
+        }
+        if let Err(error) = value_arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        interp.set_result_bytes(if has_default { b"1" } else { b"0" });
+        Code::Ok
+    })();
+    // Only the new no-default empty object belongs to this adapter. A failed
+    // lookup can leave it unowned; borrowed declared values are never retired here.
+    if !has_default && crate::obj::allocation_is_live(value) && unsafe { (*value).ref_count } == 0 {
+        crate::interp::drop_fresh(value);
+    }
+    drop(value_arguments);
+    arguments.finish(code)
 }
 
 #[cfg(test)]

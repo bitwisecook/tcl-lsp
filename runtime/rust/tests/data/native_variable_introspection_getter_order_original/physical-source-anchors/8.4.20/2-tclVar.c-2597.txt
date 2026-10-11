@@ -1,0 +1,86 @@
+int
+Tcl_UnsetObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    register int i, flags = TCL_LEAVE_ERR_MSG;
+    register char *name;
+
+    if (objc < 1) {
+	Tcl_WrongNumArgs(interp, 1, objv,
+		"?-nocomplain? ?--? ?varName varName ...?");
+	return TCL_ERROR;
+    } else if (objc == 1) {
+	/*
+	 * Do nothing if no arguments supplied, so as to match
+	 * command documentation.
+	 */
+	return TCL_OK;
+    }
+
+    /*
+     * Simple, restrictive argument parsing.  The only options are --
+     * and -nocomplain (which must come first and be given exactly to
+     * be an option).
+     */
+    i = 1;
+    name = TclGetString(objv[i]);
+    if (name[0] == '-') {
+ 	if (strcmp("-nocomplain", name) == 0) {
+	    i++;
+ 	    if (i == objc) {
+		return TCL_OK;
+	    }
+ 	    flags = 0;
+ 	    name = TclGetString(objv[i]);
+ 	}
+ 	if (strcmp("--", name) == 0) {
+ 	    i++;
+ 	}
+    }
+
+    for (; i < objc;  i++) {
+	if ((TclObjUnsetVar2(interp, objv[i], NULL, flags) != TCL_OK)
+		&& (flags == TCL_LEAVE_ERR_MSG)) {
+	    return TCL_ERROR;
+	}
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_AppendObjCmd --
+ *
+ *	This object-based procedure is invoked to process the "append" 
+ *	Tcl command. See the user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl object result value.
+ *
+ * Side effects:
+ *	A variable's value may be changed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+int
+Tcl_AppendObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    Var *varPtr, *arrayPtr;
+    char *part1;
+
+    register Tcl_Obj *varValuePtr = NULL;
+    					/* Initialized to avoid compiler
+				         * warning. */
+    int i;
+
+    if (objc < 2) {

@@ -142,7 +142,7 @@ pub fn declaration(
     };
     let mut found = DeclSpans::default();
     for region in &regions {
-        collect_declarations_in_region(&scan, *region, 0, &mut found);
+        collect_declarations_in_region(&scan, *region, !visible.is_empty(), 0, &mut found);
     }
 
     if found.spans.is_empty() {
@@ -233,6 +233,7 @@ struct DeclScan<'a> {
 fn collect_declarations_in_region(
     scan: &DeclScan<'_>,
     region: Span,
+    nested: bool,
     depth: u32,
     found: &mut DeclSpans,
 ) {
@@ -247,30 +248,7 @@ fn collect_declarations_in_region(
         scan.registry,
     );
     let identities = scan.identities;
-    let (mut start, mut end) = (region.start() as usize, region.end() as usize);
-    if start >= end || end > source.len() {
-        return;
-    }
-    // A scope `body_span` keeps its delimiters (`proc p {} { … }`'s
-    // span starts on the `{`), so segmenting from `start` would parse
-    // the whole body as one braced word.  Peel a leading `{` / `"` /
-    // `[` and the matching trailing delimiter so the body's own
-    // commands are segmented — mirrors `references.rs`'s `[`/`]` strip.
-    let bytes = source.as_bytes();
-    if matches!(bytes.get(start), Some(b'{' | b'"' | b'[')) {
-        start += 1;
-    }
-    if end > start && matches!(bytes.get(end - 1), Some(b'}' | b'"' | b']')) {
-        end -= 1;
-    }
-    if start >= end {
-        return;
-    }
-    let commands = segment_commands_with_offset_and_config(
-        &source[start..end],
-        u32::try_from(start).unwrap_or(0),
-        config,
-    );
+    let commands = declaration_region_commands(source, region, config, nested);
     for cmd in &commands {
         if cmd.argv.is_empty() {
             continue;
@@ -320,7 +298,7 @@ fn collect_declarations_in_region(
         // into (control-flow blocks, `namespace eval`, `catch`, …).
         for body_idx in assistance.body_arguments {
             if let Some(body_tok) = arg_tokens.get(body_idx) {
-                collect_declarations_in_region(scan, body_tok.span, depth + 1, found);
+                collect_declarations_in_region(scan, body_tok.span, true, depth + 1, found);
             }
         }
 
@@ -353,10 +331,44 @@ fn collect_declarations_in_region(
                 && body_span.start() <= scan.cursor
                 && scan.cursor <= body_span.end()
             {
-                collect_declarations_in_region(scan, body_span, depth + 1, found);
+                collect_declarations_in_region(scan, body_span, true, depth + 1, found);
             }
         }
     }
+}
+
+/// The caller identifies a whole document or an authentic extracted body.
+/// Original token/metadata joins continue using the complete parent config.
+fn declaration_region_commands(
+    source: &str,
+    region: Span,
+    config: LexerConfig,
+    nested: bool,
+) -> Vec<tcl_compiler::segmenter::SegmentedCommand> {
+    let (mut start, mut end) = (region.start() as usize, region.end() as usize);
+    if start >= end || end > source.len() {
+        return Vec::new();
+    }
+    // A scope `body_span` keeps its delimiters (`proc p {} { … }`'s
+    // span starts on the `{`), so segmenting from `start` would parse
+    // the whole body as one braced word.  Peel a leading `{` / `"` /
+    // `[` and the matching trailing delimiter so the body's own
+    // commands are segmented — mirrors `references.rs`'s `[`/`]` strip.
+    let bytes = source.as_bytes();
+    if nested && matches!(bytes.get(start), Some(b'{' | b'"' | b'[')) {
+        start += 1;
+    }
+    if nested && end > start && matches!(bytes.get(end - 1), Some(b'}' | b'"' | b']')) {
+        end -= 1;
+    }
+    if start >= end {
+        return Vec::new();
+    }
+    segment_commands_with_offset_and_config(
+        &source[start..end],
+        u32::try_from(start).unwrap_or(0),
+        if nested { config.nested() } else { config },
+    )
 }
 
 fn original_lambda_body_at(
@@ -945,7 +957,7 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
             cursor: end,
         };
         let mut found = DeclSpans::default();
-        collect_declarations_in_region(&scan, Span::new(0, end), 0, &mut found);
+        collect_declarations_in_region(&scan, Span::new(0, end), false, 0, &mut found);
         let line_index = LineIndex::new(src);
         let mut lines: Vec<u32> = found
             .spans
@@ -1071,5 +1083,66 @@ proc p {} {upvar #0 ::v\uD800 local; puts $local}";
                    puts $x\n\
                    }\n";
         assert!(scanned_declaration_lines(src, "x").is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_declaration_region_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let source = "\u{feff}global x; if 1 {\u{feff}global x}";
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let image = tcl_lexer::SourceImage::document(source);
+        assert!(analysis.matches_original_source_image(&image, config));
+        let whole = declaration_region_commands(
+            source,
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+            false,
+        );
+        assert_eq!(whole[0].name(), "global");
+        let body = whole[1].argv[2].span;
+        let nested = declaration_region_commands(source, body, config, true);
+        assert_eq!(nested[0].name(), "\u{feff}global");
+        assert!(nested[0].argv[0].span.start() > body.start());
+        let body_value = "\u{feff}global x";
+        let zero = Span::new(0, u32::try_from(body_value.len()).unwrap());
+        assert_eq!(
+            declaration_region_commands(body_value, zero, config, true)[0].name(),
+            "\u{feff}global"
+        );
+        assert_eq!(
+            declaration_region_commands(body_value, zero, config, false)[0].name(),
+            "global"
+        );
+        let mut first_close = config;
+        first_close.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        let value = "puts ${a{b}; global x";
+        let region = Span::new(0, u32::try_from(value.len()).unwrap());
+        assert_eq!(
+            declaration_region_commands(value, region, first_close, true).len(),
+            2
+        );
+        assert!(declaration_region_commands(value, region, config, true)[0].is_partial);
+        assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+        assert!(analysis.matches_original_source_image(&image, config));
+        assert!(!analysis.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(&format!("{source}#changed")),
+            config
+        ));
     }
 }

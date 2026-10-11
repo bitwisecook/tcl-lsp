@@ -1,0 +1,81 @@
+ * command argument. */
+int Jim_EvalObjVector(Jim_Interp *interp, int objc, Jim_Obj *const *objv)
+{
+    int i, retcode;
+    Jim_EvalFrame frame;
+
+    /* Incr refcount of arguments. */
+    for (i = 0; i < objc; i++)
+        Jim_IncrRefCount(objv[i]);
+
+    /* Note that we have no source for this command so push NULL as the scriptObj */
+    JimPushEvalFrame(interp, &frame, NULL);
+
+    retcode = JimInvokeCommand(interp, objc, objv);
+
+    JimPopEvalFrame(interp);
+
+    /* Decr refcount of arguments and return the retcode */
+    for (i = 0; i < objc; i++)
+        Jim_DecrRefCount(interp, objv[i]);
+
+    return retcode;
+}
+
+/**
+ * Invokes 'prefix' as a command with the objv array as arguments.
+ */
+int Jim_EvalObjPrefix(Jim_Interp *interp, Jim_Obj *prefix, int objc, Jim_Obj *const *objv)
+{
+    int ret;
+    Jim_Obj **nargv = Jim_Alloc((objc + 1) * sizeof(*nargv));
+
+    nargv[0] = prefix;
+    memcpy(&nargv[1], &objv[0], sizeof(nargv[0]) * objc);
+    ret = Jim_EvalObjVector(interp, objc + 1, nargv);
+    Jim_Free(nargv);
+    return ret;
+}
+
+/* Perform one substitution step for a parsed script token. */
+static int JimSubstOneToken(Jim_Interp *interp, const ScriptToken *token, Jim_Obj **objPtrPtr)
+{
+    Jim_Obj *objPtr;
+    int ret = JIM_ERR;
+
+    switch (token->type) {
+        case JIM_TT_STR:
+        case JIM_TT_ESC:
+            objPtr = token->objPtr;
+            break;
+        case JIM_TT_VAR:
+            objPtr = Jim_GetVariable(interp, token->objPtr, JIM_ERRMSG);
+            break;
+        case JIM_TT_DICTSUGAR:
+            objPtr = JimExpandDictSugar(interp, token->objPtr);
+            break;
+        case JIM_TT_EXPRSUGAR:
+            ret = Jim_EvalExpression(interp, token->objPtr);
+            if (ret == JIM_OK) {
+                objPtr = Jim_GetResult(interp);
+            }
+            else {
+                objPtr = NULL;
+            }
+            break;
+        case JIM_TT_CMD:
+            ret = Jim_EvalObj(interp, token->objPtr);
+            if (ret == JIM_OK || ret == JIM_RETURN) {
+                objPtr = interp->result;
+            } else {
+                /* includes JIM_BREAK, JIM_CONTINUE */
+                objPtr = NULL;
+            }
+            break;
+        default:
+            JimPanic((1,
+                "default token type (%d) reached " "in Jim_SubstObj().", token->type));
+            objPtr = NULL;
+            break;
+    }
+    if (objPtr) {

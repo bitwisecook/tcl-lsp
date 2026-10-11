@@ -1,0 +1,4 @@
+/workspace/.proofs/native-variable-introspection-order505b/probe.c: In function 'lazy_command':
+/workspace/.proofs/native-variable-introspection-order505b/probe.c:125:23: warning: assignment discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+  125 |     original->typePtr = &lazy_type;
+      |                       ^

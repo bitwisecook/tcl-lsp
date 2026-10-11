@@ -3579,3 +3579,68 @@ SHA-256 `ac3e47822b683e2887c82de25c62be50c9f441513d4ff7b33f29f4b293dd767e`. The 
 matches the retained [Source320 source snapshot](frozen320/sealed-own-images/source-snapshot.json.gz),
 whose decompressed SHA-256 is `6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0`.
 The original error-source bodies independently match this source map.
+
+## Distinct closed Compiler321 and Source320 selected commands
+
+These three independently closed commands retain their exact original
+source, argv, wall time, whole log and receipt. Compiler321 produces no
+owned executable. Core320 is a failed selected suite. The single passing
+alias control retains its own finite software and trace scope. Open
+Compiler320 selections and performance runs receive no outcome here.
+
+
+### Independent Compiler321 compilation failure
+
+The own Compiler no-run command closes exit `101` after149.77999120298773
+seconds with uniform source `true`. The original log records one `E0599`
+for missing `SourceInvocationBinding.original_recorded_command_tokens`
+at `source_structure.rs:2012`. No executable creation event, strict image,
+inventory or assertion is admitted.
+
+The complete35,415-leaf source retains HEAD `737e53fef505a9e1b158590f5b4b2b77e857a500` and the distinct
+isolated compile source `/workspace/.checkpoints/naming-current-validation321`.
+The [original receipt](frozen321/integration-compiler-own-test-build321/receipt.json.gz) restores
+SHA-256 `139eb231a5eb7015d65021b79698feaa8958e135a5c83d025d65559868ba040a`; the [whole log](frozen321/integration-compiler-own-test-build321/tests.log)
+retains SHA-256 `8addeaf4c3c1f13e97ee0a1fd0aea66f5e6f70610fbed1875c7e43f4f7abc65a`. The [complete original source snapshot](frozen321/integration-compiler-own-test-build321/source-snapshot.json.gz)
+restores SHA-256 `f1b67d623a0d5984c17ea747c12c8509bcfc6f283d32eaaf6a33ff4b1f2578f0` and exactly matches the receipt source value.
+Current source repairs supply no credit to this failed command.
+
+
+### Selected Core320 assertions
+
+The exact owned Source320 command closes exit `101` after291.9436310430174
+seconds with uniform source `true`: 127 passed,50 failed,
+zero ignored/measured and2761 filtered. The exact admitted177-selector Core320 command closes127 passed/50 failed,0 ignored/measured and2761 filtered. All individual outcomes/failures remain in the full original log. This is a failed selected software suite, not an overall Core, Source320 or current-source pass. Failure causes are not attributed to later repairs.
+
+The [complete original receipt](frozen320/integration-core-consumer-focus320/receipt.json.gz)
+restores SHA-256 `425f14f2961fbb6a8cca7017be6e459807e1b4f4ba88d6efa843232e537841e9`. The [whole original log](frozen320/integration-core-consumer-focus320/tests.log)
+retains SHA-256 `b3cb113f6adbb3b1f593f5fba8d5e0f3b3fe5cc6f1a3b458ebef57f0462fbc8b`. The [actual selection admission](frozen320/selections/core-selected320.json)
+and [original request](frozen320/selections/core-requested320.json) retain the
+strict original image and actual2938-test inventory association.
+The exact executed selector set is independently joined to every result in
+the whole log; no other admitted selector receives credit.
+
+The complete35388-leaf [Source320 snapshot](frozen320/sealed-own-images/source-snapshot.json.gz)
+and [lossless own core image](frozen320/sealed-own-images/pinned-core320.elf.gz)
+retain the independently closed successful producer and listing scope.
+Current source/implementation bindings and original provider answers remain unchanged.
+
+
+### Exact alias thirty-analysis control
+
+The exact owned Source320 command closes exit `0` after728.3137710480078
+seconds with uniform source `true`: 1 passed,0 failed,
+zero ignored/measured and9253 filtered. The exact admitted single alias software control closes1 passed/0 failed/0 ignored,9253 filtered. Its30 source analyses and inclusive trace fields remain in the whole original log. Receipt wall time728.3137710480078s and libtest728.14s are distinct fields. The selection admission file also names a regex control; this command executes only the exact alias selector. No full600 or458 suite result, complete-source performance/dominance/gain, later569–571 owner credit or original-provider process is inferred.
+
+The [complete original receipt](frozen320/integration-compiler-performance-alias30320/receipt.json.gz)
+restores SHA-256 `ef93e81c2428c021938e9f35899e5e1d941ebd54fde3791fd1653f719cbb0d12`. The [whole original log](frozen320/integration-compiler-performance-alias30320/tests.log)
+retains SHA-256 `9de8b6853aeaaea1b2a6d944fedc49fc8d127f038c77c578df82bdc5b31f24fa`. The [actual selection admission](frozen320/selections/performance-selected320.json)
+and [original request](frozen320/selections/performance-requested320.json) retain the
+strict original image and actual9254-test inventory association.
+The exact executed selector set is independently joined to every result in
+the whole log; no other admitted selector receives credit.
+
+The complete35388-leaf [Source320 snapshot](frozen320/sealed-own-images/source-snapshot.json.gz)
+and [lossless own compiler image](frozen320/sealed-own-images/pinned-compiler320.elf.gz)
+retain the independently closed successful producer and listing scope.
+Current source/implementation bindings and original provider answers remain unchanged.

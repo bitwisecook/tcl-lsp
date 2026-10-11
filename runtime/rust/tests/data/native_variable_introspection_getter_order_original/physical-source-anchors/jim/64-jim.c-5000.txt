@@ -1,0 +1,31 @@
+
+Jim_Obj *Jim_GetGlobalVariableStr(Jim_Interp *interp, const char *name, int flags)
+{
+    Jim_CallFrame *savedFramePtr;
+    Jim_Obj *objPtr;
+
+    savedFramePtr = interp->framePtr;
+    interp->framePtr = interp->topFramePtr;
+    objPtr = Jim_GetVariableStr(interp, name, flags);
+    interp->framePtr = savedFramePtr;
+
+    return objPtr;
+}
+
+/* Unset a variable.
+ * Note: On success unset invalidates all the (cached) variable objects
+ * by incrementing callFrameEpoch
+ */
+int Jim_UnsetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
+{
+    Jim_VarVal *vv;
+    int retval;
+    Jim_CallFrame *framePtr;
+
+    retval = SetVariableFromAny(interp, nameObjPtr);
+    if (retval == JIM_DICT_SUGAR) {
+        /* [dict] syntax sugar. */
+        return JimDictSugarSet(interp, nameObjPtr, NULL);
+    }
+    else if (retval == JIM_OK) {
+        vv = nameObjPtr->internalRep.varValue.vv;

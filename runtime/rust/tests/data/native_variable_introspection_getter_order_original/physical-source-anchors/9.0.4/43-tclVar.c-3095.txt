@@ -1,0 +1,101 @@
+static int
+ArrayForNRCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const *objv)
+{
+    Tcl_Obj *varListObj, *arrayNameObj, *scriptObj;
+    ArraySearch *searchPtr = NULL;
+    Var *varPtr;
+    int isArray;
+    Tcl_Size numVars;
+
+    /*
+     * array for {k v} a body
+     */
+
+    if (objc != 4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "{key value} arrayName script");
+	return TCL_ERROR;
+    }
+
+    /*
+     * Parse arguments.
+     */
+
+    if (TclListObjLength(interp, objv[1], &numVars) != TCL_OK) {
+	return TCL_ERROR;
+    }
+
+    if (numVars != 2) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"must have two variable names", -1));
+	Tcl_SetErrorCode(interp, "TCL", "SYNTAX", "array", "for", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    arrayNameObj = objv[2];
+
+    if (TCL_ERROR == LocateArray(interp, arrayNameObj, &varPtr, &isArray)) {
+	return TCL_ERROR;
+    }
+
+    if (!isArray) {
+	return NotArrayError(interp, arrayNameObj);
+    }
+
+    /*
+     * Make a new array search, put it on the stack.
+     */
+
+    searchPtr = (ArraySearch *)Tcl_Alloc(sizeof(ArraySearch));
+    ArrayPopulateSearch(interp, arrayNameObj, varPtr, searchPtr);
+
+    /*
+     * Make sure that these objects (which we need throughout the body of the
+     * loop) don't vanish.
+     */
+
+    varListObj = TclListObjCopy(NULL, objv[1]);
+    if (!varListObj) {
+	return TCL_ERROR;
+    }
+    scriptObj = objv[3];
+    Tcl_IncrRefCount(scriptObj);
+
+    /*
+     * Run the script.
+     */
+
+    TclNRAddCallback(interp, ArrayForLoopCallback, searchPtr, varListObj,
+	    arrayNameObj, scriptObj);
+    return TCL_OK;
+}
+
+static int
+ArrayForLoopCallback(
+    void *data[],
+    Tcl_Interp *interp,
+    int result)
+{
+    Interp *iPtr = (Interp *) interp;
+    ArraySearch *searchPtr = (ArraySearch *)data[0];
+    Tcl_Obj *varListObj = (Tcl_Obj *)data[1];
+    Tcl_Obj *arrayNameObj = (Tcl_Obj *)data[2];
+    Tcl_Obj *scriptObj = (Tcl_Obj *)data[3];
+    Tcl_Obj **varv;
+    Tcl_Obj *keyObj, *valueObj;
+    Var *varPtr;
+    Var *arrayPtr;
+    int done;
+    Tcl_Size varc;
+
+    /*
+     * Process the result from the previous execution of the script body.
+     */
+
+    done = TCL_ERROR;
+
+    if (result == TCL_CONTINUE) {
+	result = TCL_OK;

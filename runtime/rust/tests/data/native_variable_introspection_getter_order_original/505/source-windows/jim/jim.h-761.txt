@@ -1,0 +1,6 @@
+/** Evaluate a command vector as if it were a parsed command. */
+JIM_EXPORT int Jim_EvalObjVector (Jim_Interp *interp, int objc,
+        Jim_Obj *const *objv);
+/** Evaluate a list object as a command. */
+JIM_EXPORT int Jim_EvalObjList(Jim_Interp *interp, Jim_Obj *listObj);
+/** Evaluate a command by prepending a command prefix object to an argument vector. */

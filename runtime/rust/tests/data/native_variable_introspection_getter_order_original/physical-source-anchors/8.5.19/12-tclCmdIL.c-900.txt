@@ -1,0 +1,113 @@
+static int
+InfoDefaultCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+    char *procName, *argName, *varName;
+    Proc *procPtr;
+    CompiledLocal *localPtr;
+    Tcl_Obj *valueObjPtr;
+
+    if (objc != 4) {
+	Tcl_WrongNumArgs(interp, 1, objv, "procname arg varname");
+	return TCL_ERROR;
+    }
+
+    procName = TclGetString(objv[1]);
+    argName = TclGetString(objv[2]);
+
+    procPtr = TclFindProc(iPtr, procName);
+    if (procPtr == NULL) {
+	Tcl_AppendResult(interp, "\"", procName, "\" isn't a procedure",NULL);
+	return TCL_ERROR;
+    }
+
+    for (localPtr = procPtr->firstLocalPtr;  localPtr != NULL;
+	    localPtr = localPtr->nextPtr) {
+	if (TclIsVarArgument(localPtr)
+		&& (strcmp(argName, localPtr->name) == 0)) {
+	    if (localPtr->defValuePtr != NULL) {
+		valueObjPtr = Tcl_ObjSetVar2(interp, objv[3], NULL,
+			localPtr->defValuePtr, 0);
+		if (valueObjPtr == NULL) {
+		    goto defStoreError;
+		}
+		Tcl_SetObjResult(interp, Tcl_NewIntObj(1));
+	    } else {
+		Tcl_Obj *nullObjPtr = Tcl_NewObj();
+		valueObjPtr = Tcl_ObjSetVar2(interp, objv[3], NULL,
+			nullObjPtr, 0);
+		if (valueObjPtr == NULL) {
+		    goto defStoreError;
+		}
+		Tcl_SetObjResult(interp, Tcl_NewIntObj(0));
+	    }
+	    return TCL_OK;
+	}
+    }
+
+    Tcl_AppendResult(interp, "procedure \"", procName,
+	    "\" doesn't have an argument \"", argName, "\"", NULL);
+    return TCL_ERROR;
+
+  defStoreError:
+    varName = TclGetString(objv[3]);
+    Tcl_AppendResult(interp, "couldn't store default value in variable \"",
+	    varName, "\"", NULL);
+    return TCL_ERROR;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclInfoExistsCmd --
+ *
+ *	Called to implement the "info exists" command that determines whether
+ *	a variable exists. Handles the following syntax:
+ *
+ *	    info exists varName
+ *
+ * Results:
+ *	Returns TCL_OK if successful and TCL_ERROR if there is an error.
+ *
+ * Side effects:
+ *	Returns a result in the interpreter's result object. If there is an
+ *	error, the result is an error message.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclInfoExistsCmd(
+    ClientData dummy,		/* Not used. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    char *varName;
+    Var *varPtr;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "varName");
+	return TCL_ERROR;
+    }
+
+    varName = TclGetString(objv[1]);
+    varPtr = TclVarTraceExists(interp, varName);
+
+    Tcl_SetObjResult(interp,
+	    Tcl_NewBooleanObj(varPtr && varPtr->value.objPtr));
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InfoFrameCmd --
+ *	TIP #280
+ *
+ *	Called to implement the "info frame" command that returns the location
+ *	of either the currently executing command, or its caller. Handles the

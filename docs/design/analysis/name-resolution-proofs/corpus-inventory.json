@@ -3537,6 +3537,2251 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/cases.json",
+      "sha256": "612a90683b52c1e565b14f68dd8bde5139720a936de88569f2550aa3486efeb6",
+      "bytes": 6251,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/closure.json",
+      "sha256": "b2db5f6e5c0b317ce2feb2858046f284f673967808ab2a21e734940fc52bab30",
+      "bytes": 5997,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/compiler-version.receipt.json",
+      "sha256": "a20c866bcada63593e5c419b920b4bf0684a0ceb2203f5e8ad6c4aa533436d58",
+      "bytes": 947,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/launch.py",
+      "sha256": "c7ca16b8d0ee7bb0085d031c676857aafc74c4daa5df9ba8e3654f5044438744",
+      "bytes": 9143,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/manifest.json",
+      "sha256": "3bd6e4ced2e057c37de90525c483ce2def96cc7a9b9ef12515a10ec752891278",
+      "bytes": 11857,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/outer-launch.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/outer-launch.stdout",
+      "sha256": "b5009446bd85957c31c49425d6096a68dd67a50a06f83163ea4bc75c4e247afa",
+      "bytes": 69,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/prepare.py",
+      "sha256": "abf1dcaa425f5db08ca49875b2decf4a08e1fc0e27214b9b29395f99229b2cc1",
+      "bytes": 12319,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/probe.c",
+      "sha256": "a13751018b5ff6f71e0be257839787431b00943434cfc85b7318c6c513692ee6",
+      "bytes": 12420,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/compile.d",
+      "sha256": "9f6e4508a5cb2facdbe5c6770d1cf86d5695d9dc7d11d75e462eb03e750b8660",
+      "bytes": 1603,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/compile.receipt.json",
+      "sha256": "f4becf99a431c423bab86576adcee1a7efdb808706a9cf2d1489839fc37f9c55",
+      "bytes": 25932,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/compile.stderr",
+      "sha256": "e2571fbcccbf8c56941cbac42780346ab0179ac63e29f2ea02a9608d18841e6d",
+      "bytes": 342,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "9656efa533eaae7927ff124e0f5e5dfa7d16027088bfadc4931f75ddd4878964",
+      "bytes": 3038,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/dependencies.stdout",
+      "sha256": "bc21c5bf1eb34960f8889c10b2688134319e09914acc93d2c1696a50ce07ed8e",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/execute.receipt.json",
+      "sha256": "1a01e4199b6a3f553d871df6ee1e01dc8145cfd475a4ec2a4466a212b2d8631f",
+      "bytes": 5786,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/execute.stdout",
+      "sha256": "8b0ee1a73a32bf8e4a4d750dfe42ad853aa0fc69b7cc9d6242b2cbbb81c7cbc2",
+      "bytes": 17393,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/link.map",
+      "sha256": "3c66bf6a679b059d0c247ad2853f615a606cc81663a162c4545410a980d6def0",
+      "bytes": 195511,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.4.20/probe.elf.gz",
+      "sha256": "c61b17e54a1cdf36ad7b17fbefb1912312b52f7c39a2c6fb0a379b7e8641eb39",
+      "bytes": 387887,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/compile.d",
+      "sha256": "8e1473ddea3b3b8ec57cf13d8d9e910ea74abbb8105c08ed57fef3be7ea3d6ad",
+      "bytes": 1603,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/compile.receipt.json",
+      "sha256": "9eb07dc42180f49ddee47e80a6113c4f8defe205edbdfda03d07e7c996034e0a",
+      "bytes": 25933,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/compile.stderr",
+      "sha256": "e2571fbcccbf8c56941cbac42780346ab0179ac63e29f2ea02a9608d18841e6d",
+      "bytes": 342,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "8399fd84dcf0b4d5693fac38704f972c6129eda99f8d4350f6e278ac467dcc48",
+      "bytes": 3039,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/dependencies.stdout",
+      "sha256": "1ef9e850ca5907587bd3ddc55507ca3d76bc2872555b5c42719461b6ba3f4498",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/execute.receipt.json",
+      "sha256": "1d0a10b7fcf0015668689ace054292b4ee69778e1dea9103def421e785861b4f",
+      "bytes": 5788,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/execute.stdout",
+      "sha256": "2e37c0e84c5cbca3c70e4ee1b77e876d2c3bbff7269466f9ac256731107ffd4a",
+      "bytes": 17457,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/link.map",
+      "sha256": "dc25628bc068422ef9d756eb251410b883edd57f20121bf2c2ddad4e38ad3993",
+      "bytes": 297024,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.5.19/probe.elf.gz",
+      "sha256": "e6ede0f15f1b02eeab061bbc3975d880903b49b64dbc76f9109fea5e2943540e",
+      "bytes": 567928,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/compile.d",
+      "sha256": "7bfbcbf5de571d0873eafe2c21e2d6db987e491c0a2aff688fead1292384fd12",
+      "bytes": 1603,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/compile.receipt.json",
+      "sha256": "2c2e2da0767cbe1dc221a116b4dc678eb461a1299571cd8196886f6d4a489abf",
+      "bytes": 25933,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "db801d0173ae13a30447c2eee0fc31ab81127efdaccfb897cd8db239d78a48f1",
+      "bytes": 3406,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/dependencies.stdout",
+      "sha256": "440eabd8f7decbb22f2b67747d9d09c260e46fb808741dfbc5e4d3aac60ef31e",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/execute.receipt.json",
+      "sha256": "dd6276e90c882312bd6e24d44c184a03f355c7aed85be638428b3e2f68421bcb",
+      "bytes": 6522,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/execute.stdout",
+      "sha256": "2fd8bcda7e5f07e9cf3c09e162cf2c805a7d0517b8972996472d7bbd8b46e3c6",
+      "bytes": 17583,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/link.map",
+      "sha256": "4f4456c76375ff2fd6b9619650415113b3e4ab3e953a7743c82164a973186b95",
+      "bytes": 343328,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/8.6.18/probe.elf.gz",
+      "sha256": "0f20caacf25b9a70de233a3a0ac663f0131002710a0c9ee88c9845f853a426ae",
+      "bytes": 809716,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/compile.d",
+      "sha256": "876a11a690a7f494c73d5fc5af7e8d315795a9a9d2db95e92c4e7505ade191e8",
+      "bytes": 1599,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/compile.receipt.json",
+      "sha256": "b38e1fa3321986c5d1d1e8bb6aa45e0ac03beadd49b6562ba4b2b0f32f2c32c4",
+      "bytes": 25911,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "031f517e095a50bd9536b46d0f507c56cd5e0322d9ddbfda0478dca18fe585e2",
+      "bytes": 3401,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/dependencies.stdout",
+      "sha256": "54019a80aced9ce98c0dc644080881b17795aa84db5b5303e8a949cfdb59e7ab",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/execute.receipt.json",
+      "sha256": "50ab0eb7bd23134399f008393343a32b93185c1d8c4c4e134ebc3d23ebff635f",
+      "bytes": 6478,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/execute.stdout",
+      "sha256": "97e3ee1f7221eba182c8428f3360a9ca222e684f4c6d69e95a94a7964fe3c992",
+      "bytes": 16841,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/link.map",
+      "sha256": "62db0d2ee9d66e8a0e59574fae476470d72d6034f839f3417849c0566400d9b2",
+      "bytes": 369331,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.0.4/probe.elf.gz",
+      "sha256": "ab5031942f32bd87f9c207dd7f972b0e020565ebe5c8ba7d8f2e44ca74dc345f",
+      "bytes": 959895,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/compile.d",
+      "sha256": "266fc60ed2fe7f2f99150c72ae0dfa10f1e23462b8ef7754f0757ada9bc0cd1b",
+      "bytes": 1599,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/compile.receipt.json",
+      "sha256": "ed573d9133a2983cdbad735178b3a1c4d56b95b78b6c3226dd16716f9d6fc4f1",
+      "bytes": 25911,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "88c079d4579eb809ed07a161c373a802c1941123db4f824fff57b23a374885cd",
+      "bytes": 3401,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/dependencies.stdout",
+      "sha256": "dfb03d6fcdb2dabd21fcc86dfd55723d7012437f8fef73c2ee3cb11ae3a1fa06",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/execute.receipt.json",
+      "sha256": "dddbdc2ec9702e30a6b5d108e3c4b573f278515e93cf6bfa53e8b8171681318a",
+      "bytes": 6478,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/execute.stdout",
+      "sha256": "6473ca15a506af43386fa4c609bd3f0723d8f1d272678783b5fb5b2ceb8bc35b",
+      "bytes": 16841,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/link.map",
+      "sha256": "fa0f9c5a94a1e91303877b123fa5d1f0d10a48cc0a47f72ddd5c0a348a0a7636",
+      "bytes": 380532,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/9.1.0/probe.elf.gz",
+      "sha256": "0562efd1f08a22330245bf0d86f6fc188c2801705f68dc26654e134cf055afa1",
+      "bytes": 1028609,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/compile.d",
+      "sha256": "8bd5bfa1b89cde0876c4c432042e63e9b8cd295de5c75f4406c348e8da6184b8",
+      "bytes": 1973,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/compile.receipt.json",
+      "sha256": "e58f900ccd9ab54caf88b27072822e34f6ce9111994a2e95e822adc47bd93c25",
+      "bytes": 29338,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/dependencies.receipt.json",
+      "sha256": "46a49abedcef26b5679e24aaea8c151871d39ac899fb4270f624cda3c9e7b0e3",
+      "bytes": 4502,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/dependencies.stdout",
+      "sha256": "d05cdd538bb009a41b7125795322473aaa697b373090dcfd9679f58b435066f6",
+      "bytes": 510,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/execute.receipt.json",
+      "sha256": "a9fb535ab828599339767ec61a1b68891160731a640597d68f897cdabdf3f20a",
+      "bytes": 8987,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/execute.stdout",
+      "sha256": "95622769f4c025a417c4c36716ef86286e55494bb4bac777b532b468e7a17681",
+      "bytes": 14468,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/link.map",
+      "sha256": "8681adbd4b8d621ac13ed518943811af296505bc666b8e98c0d1ce297c709036",
+      "bytes": 103505,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/providers/jim/probe.elf.gz",
+      "sha256": "c3edd3af0f7617a82801b165922e37c1593c266366dc6d6c8ede3ad60c796521",
+      "bytes": 188501,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/request.json",
+      "sha256": "0eb9e8fabd90918d982cf1399323103975b21d560b444b9f5d0592a8894a5625",
+      "bytes": 1160377,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.4.20/tclBasic.c-3351.txt",
+      "sha256": "5020b1c0026241672844f9337d2dc11088b89c1489b33ebd4b591103e2dd503d",
+      "bytes": 3351,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.4.20/tclCmdIL.c-328.txt",
+      "sha256": "a99bce640ad1647bd9f54baf40bfe365a0b3b4b07f162463f9f6896cfcc450bc",
+      "bytes": 3450,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.4.20/tclCmdIL.c-928.txt",
+      "sha256": "a562f4cea93deba43f4f98f6f0d12a5f25972cc1caf5c1a7fca12ade0f4adad6",
+      "bytes": 3491,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.4.20/tclVar.c-1493.txt",
+      "sha256": "88ee60b06357fdeb69a0fa2ad70dbf822b897cf440dbea2f63b152f8edee275c",
+      "bytes": 3840,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.4.20/tclVar.c-2597.txt",
+      "sha256": "250b25da13496a30c96419807d62a6bf48d3e89b1af565a1e3c37e6b745830f1",
+      "bytes": 2091,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.4.20/tclVar.c-2921.txt",
+      "sha256": "a2c78578e8ac59bee9cb6cf56490aa0af2455aa093da3b3ed31d21f3f9b39c7c",
+      "bytes": 18513,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclBasic.c-3916.txt",
+      "sha256": "5071b0e9aa52c54dbfbebdaa1fc3821edc552eab9e4a75ea918c4754c6d9e3db",
+      "bytes": 3416,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclCmdIL.c-333.txt",
+      "sha256": "9017bdec69b06fb7afc4d9e6d498b21550d782cc043130824b4bca3e9aef739c",
+      "bytes": 2950,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclCmdIL.c-900.txt",
+      "sha256": "0aa80a81edac608e41a2ebf1a6de3688305383a33a3d22ddce0a2a36aa3af824",
+      "bytes": 3070,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclVar.c-1727.txt",
+      "sha256": "0b0f07ef7ce03cbcc8dede5f70cf8de6f8af44fdd05e80703bc4b49592c7b6ab",
+      "bytes": 3793,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclVar.c-2019.txt",
+      "sha256": "7416107cfd284fbc1bd897c086594376a9c82ec0e4a62500349a411fef7c448f",
+      "bytes": 3683,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclVar.c-2073.txt",
+      "sha256": "e9ac27302b2892077d43b55585069b70521051cb7baa5aca289d2fd7a4feb0cf",
+      "bytes": 4907,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclVar.c-2516.txt",
+      "sha256": "c786ad1c107f094d71774da9db7abdbcb507a6b6eff3b7d8da7fe580a1f293ff",
+      "bytes": 2036,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.5.19/tclVar.c-2792.txt",
+      "sha256": "f591fb9343668c87657cdd58644c224484ee524b849c143c519043c664bf2a09",
+      "bytes": 17409,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclBasic.c-4246.txt",
+      "sha256": "a2f44b9eb2fb3d08abed182b04ca45cbfc5fb6b972db51e14c1960528fe6ff09",
+      "bytes": 3425,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclCmdIL.c-388.txt",
+      "sha256": "0b9f1be6f0bb9ab2bd360ebfbf7264e4adf47ebfca6324072e74703d43b42ee6",
+      "bytes": 3054,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclCmdIL.c-959.txt",
+      "sha256": "570adcbf8edf8c8295d02b88bc58b4e1ee52ad6e63490544b1969e8e7e4eb8ad",
+      "bytes": 2981,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclVar.c-1734.txt",
+      "sha256": "eea2622a0eb2a5f891b87d8690016c3689ca1e26c5c6acd40553370ac5c62031",
+      "bytes": 3825,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclVar.c-2071.txt",
+      "sha256": "362381f673504c2ca7042fe0fc07f5384398b9c5a44d2d5c1f4e1cf49c814bd8",
+      "bytes": 3724,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclVar.c-2125.txt",
+      "sha256": "6d74658ca3e22bd95fcf209b2723826cd1229bd77474927ca98dbedaf638e92a",
+      "bytes": 5468,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclVar.c-2710.txt",
+      "sha256": "667e9e70beb78fc77ca0f20220a434d1466b29c6857f09ced181a71668f99428",
+      "bytes": 2004,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/8.6.18/tclVar.c-3655.txt",
+      "sha256": "4b27dc87bcf463926d10c1a79347a43864a43310781ef9722c0828f6031554a6",
+      "bytes": 5529,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclBasic.c-4472.txt",
+      "sha256": "1d7307abe544853a4ea3d7ab63d7ee0fedde79ae7e1dcbd26fd1870c9af15f55",
+      "bytes": 3454,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclCmdIL.c-387.txt",
+      "sha256": "f0e25c3704e0c1b729c7ee986fc5b6bb0ebeab21bc6a694a68e1fde041ae159f",
+      "bytes": 3024,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclCmdIL.c-948.txt",
+      "sha256": "55a93629449c0c16b44071ebc6e8e003ff13e0fd4519af9c47c19ea185597dc9",
+      "bytes": 2951,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-1673.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5",
+      "bytes": 3723,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-2116.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60",
+      "bytes": 3725,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-2170.txt",
+      "sha256": "f7c882d147bbbbf220ed11ba10f2111476ffcca7d99c371a076c5a16fb069110",
+      "bytes": 5591,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-2746.txt",
+      "sha256": "40f9bc555a90ae205f84f4ad620707d0db611bc716740dbc66f08da30f75fac8",
+      "bytes": 1910,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-3095.txt",
+      "sha256": "e5757eaef2285ddfa685e94a94cbf53592af39446fca90e72e1428a827be078f",
+      "bytes": 2215,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-3170.txt",
+      "sha256": "e508e7d04fa1b9a099a91568c2446880f165a465160b732f16f06894bde5c347",
+      "bytes": 3858,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-4014.txt",
+      "sha256": "4981adc5c9bc2a31037d294bd0cc0118caacff2753211b01427a1611efd149fd",
+      "bytes": 5429,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.0.4/tclVar.c-4879.txt",
+      "sha256": "6226d934b4d0e107fb3321c319c18723a2325d75a4b6e1d67ab04c730c2e031b",
+      "bytes": 2474,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclBasic.c-4442.txt",
+      "sha256": "a45093a9d772249842cb795d31a5d1530d40bcb140c4ba11df0ef4d58813a8da",
+      "bytes": 3478,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclCmdIL.c-389.txt",
+      "sha256": "1ea502cd9f6097fe2a3f42aa97f68324ea01de69dcad35a57cf10ae9012619d2",
+      "bytes": 3064,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclCmdIL.c-926.txt",
+      "sha256": "32c1d115b17017ce4c4cdd8da4d3eab245ebe0c23836db51e1fc45939f87af4d",
+      "bytes": 2957,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-1727.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5",
+      "bytes": 3723,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-2170.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60",
+      "bytes": 3725,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-2224.txt",
+      "sha256": "e51b50333d21e7068de42c8d5370fe28b4e36edcfbf33c3a9c8a25280a5845c0",
+      "bytes": 5595,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-2797.txt",
+      "sha256": "efdc02ca4edce2fc2c8bb50ee9380af140918c2b9239fb0962588cbf7d2daf22",
+      "bytes": 1926,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-3146.txt",
+      "sha256": "d49c81bd12968385c7d7d20efbd26b73d297cb1de35c516a9c855e5bc820e7be",
+      "bytes": 2220,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-3221.txt",
+      "sha256": "dc0ff646af583da64f6567714a956af1b1f7c96cb9fc367f245ee2c26e3bfa8e",
+      "bytes": 3913,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-4069.txt",
+      "sha256": "fb2cbca5a01469c34c029186088c67a2f0112d79d55198bd6af9e6351fc0a0c8",
+      "bytes": 5437,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/9.1.0/tclVar.c-4894.txt",
+      "sha256": "1f44c424021b2494fd4c2108cffc54be7580bcb3b103fd3e3042d0deb683bd89",
+      "bytes": 2488,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/jim/jim-array.c-168.txt",
+      "sha256": "df02802a132fab6b6770d1e95333017b13dc472835c271732c43f4f2bdcc8c13",
+      "bytes": 1850,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/jim/jim.c-10953.txt",
+      "sha256": "19553cc2a728fb9513f488acefcffd0925d17a5a2c834818d8b2446186759962",
+      "bytes": 1987,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/jim/jim.c-11217.txt",
+      "sha256": "2b48b3f1bba63cf8f80c06bd5051aec9237dabcebe29e44782867f178d3527ac",
+      "bytes": 2393,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/jim/jim.c-12753.txt",
+      "sha256": "bf3125b2e2598541b2a0fb3302034d5b2da7802e7a4edadecdf369cf0a31dbb6",
+      "bytes": 1096,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/jim/jim.c-15986.txt",
+      "sha256": "af047188017fbeadbcfa9026128eb44cd91137a8e6a429994bdfd82942e7eee0",
+      "bytes": 7924,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/jim/jim.c-5000.txt",
+      "sha256": "8d5fc6d3e3b376bb99e00e35642f2a446fdbd07a6da76c7f20b71a5f4542f5af",
+      "bytes": 883,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505/source-windows/jim/jim.h-761.txt",
+      "sha256": "b691049b9358d090143239903a14eeed7f65bf25b55d2938794cb4e40df7895f",
+      "bytes": 361,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/cases.json",
+      "sha256": "612a90683b52c1e565b14f68dd8bde5139720a936de88569f2550aa3486efeb6",
+      "bytes": 6251,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/closure.json",
+      "sha256": "7e37d6e5c3ab529e6924fb7d56ffb9c9149fd4fce41a0986a39ccadb1dfa0672",
+      "bytes": 6017,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/compiler-version.receipt.json",
+      "sha256": "a8d524291457c7cd650274ef89844470b911e725033e50b324f8fb8f99837988",
+      "bytes": 947,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/launch.py",
+      "sha256": "c7ca16b8d0ee7bb0085d031c676857aafc74c4daa5df9ba8e3654f5044438744",
+      "bytes": 9143,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/manifest.json",
+      "sha256": "7b8f560840195e43d0083250b9756000b481759a9d2c2dd4f01c8ada3817a448",
+      "bytes": 11913,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/outer-launch.receipt.json",
+      "sha256": "920e3c79a8bef713efc187378d5bd6e4c39b71653421c9fd3a5188e44ee3f6ab",
+      "bytes": 316,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/outer-launch.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/outer-launch.stdout",
+      "sha256": "b5009446bd85957c31c49425d6096a68dd67a50a06f83163ea4bc75c4e247afa",
+      "bytes": 69,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/prepare.py",
+      "sha256": "0f57e414c6e44b3662cad340fca5177f8556f982ec3eeafe07c11a37813d1e14",
+      "bytes": 12994,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/probe.c",
+      "sha256": "3d8db6cb4de0f895365184d88a8bcb49a87ecd63de8d1cd32ac81bf1acbb1099",
+      "bytes": 11926,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/compile.d",
+      "sha256": "8e18510cfc9274e40ff9b0dbd158818cd3ac214a810d85e4aafb801642734bef",
+      "bytes": 1605,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/compile.receipt.json",
+      "sha256": "977c1b5f2c557e17af379b190de4d02c8da9a7429421b6ed8f4cb946bae8fac4",
+      "bytes": 25945,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/compile.stderr",
+      "sha256": "879d406044c9baf0eb5f40b28a6c461b6b6660beefd97e4ece88a27e5539583c",
+      "bytes": 344,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "29ddc9cd1b297f8dda8e507bce46696dcbc9a006ba0b038eb9fc3af3970f76ff",
+      "bytes": 3043,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/dependencies.stdout",
+      "sha256": "79ce0f7044f769f38283899ac74096dc105c29ecce2f99a49cc9ec7d27a24146",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/execute.receipt.json",
+      "sha256": "20b7b6721c75bef2603396a1e39bc441523a3b9cc09101a474a98b617a36a739",
+      "bytes": 6522,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/execute.stdout",
+      "sha256": "a01e3a168150141f397a72552c2b9500753d06a008ec88329d129890c4e8e4b7",
+      "bytes": 15293,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/link.map",
+      "sha256": "9bbe4caefc1d836367d7a38774891f6270cbafb97b9c297c47d1157278b55c3e",
+      "bytes": 195606,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/probe.elf.gz",
+      "sha256": "c63e4e21e686a8edf89c723e6685c3aec9510278f5dd9b3553d5b472749cc603",
+      "bytes": 387784,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/compile.d",
+      "sha256": "635de2a2ca63f8d68a0be72929067425296aca45a302cc66b2daa5c4157e38de",
+      "bytes": 1605,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/compile.receipt.json",
+      "sha256": "fffdcb4dea73fcbaeadfff6c5f44affa26bf00cf016c465beadea217e7c5adb1",
+      "bytes": 25946,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/compile.stderr",
+      "sha256": "879d406044c9baf0eb5f40b28a6c461b6b6660beefd97e4ece88a27e5539583c",
+      "bytes": 344,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "307f9ce21179be6bee736df6a1eb0fb5f0710d898b8aed8c76fb8e9745b2dc7a",
+      "bytes": 3046,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/dependencies.stdout",
+      "sha256": "c5f34914ffdab8e7f3339fb2b4a6c88ff81a228eed7d8d57650171698eaca285",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/execute.receipt.json",
+      "sha256": "26e7aff1af58ae916d0e671131667ac0fb8a300857809b3e3c62be423ae61b24",
+      "bytes": 6525,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/execute.stdout",
+      "sha256": "409203417ae68d6bba821d6471af8e8251e229060b056f22f6e07f7ea5d97bdf",
+      "bytes": 15357,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/link.map",
+      "sha256": "75a66275efcc8422f3aa5731b7537fc8ae4c5c0e6eb2b8ecf5982e448de17f6b",
+      "bytes": 296978,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/probe.elf.gz",
+      "sha256": "b3c0287d74c28fb667da38400299774537d9eadce52613c0dfb7b979c0f68e0e",
+      "bytes": 567990,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/compile.d",
+      "sha256": "f33f0381e373b3870f90c311efa68e8fcd0052e61698098fdcfc6c4483f727ee",
+      "bytes": 1605,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/compile.receipt.json",
+      "sha256": "81cbd885112259aff266b8aa7439e4918f676458a99511e503620f18a813509f",
+      "bytes": 25945,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "25569227ff5725410c7eb042b517bf56807968bd43814bd4fa02ec61ec9d2d3a",
+      "bytes": 3413,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/dependencies.stdout",
+      "sha256": "94d3696d8f80772e1c79cb9eb5f6c36b6ee91f817480c919766c74d6caf282a4",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/execute.receipt.json",
+      "sha256": "5630caa2c040aaf3b631a73920c888aa50949a9959757888ef906778be06b9c1",
+      "bytes": 7259,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/execute.stdout",
+      "sha256": "943d98e5869187fc521c39b478eaf235da33c06457918e92f3f97d974d2b6cf3",
+      "bytes": 15483,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/link.map",
+      "sha256": "6ae9a042874ccf842b48c1b1e897c9be67a64b564129f4e9aa7ddde25c0a9803",
+      "bytes": 343329,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/probe.elf.gz",
+      "sha256": "67ab69b0bf66d938a28648de26691dc54e20f5873b718a1c6998176d158de0b5",
+      "bytes": 809675,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/compile.d",
+      "sha256": "a609eada83c34415f71cae6ffee71c71a0cd63371ebef1531213c6c26fa1a01f",
+      "bytes": 1601,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/compile.receipt.json",
+      "sha256": "f9762c3587c470d9f351cb5cffe2e47eb01ab3006d273a8320c5286aad66f04d",
+      "bytes": 25924,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "137840b5803e5f5ad8f972f2bfa57eb3af795f10f684e138d43b3cd69983124d",
+      "bytes": 3407,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/dependencies.stdout",
+      "sha256": "e6b70f5074441237aecdd9d3a7b56487c33d761da0c7d7ecec7ffbc854558eee",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/execute.receipt.json",
+      "sha256": "0dd67486cff8de92efb832cf0e9a0154d2ac9c63a887e5ce2b0bfb8bb57023e2",
+      "bytes": 7214,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/execute.stdout",
+      "sha256": "c3fdf39c0f4296037edebdf12ea2bf7a5bfa684c7c989f8f1cb2e3ec1a3abeb8",
+      "bytes": 14695,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/link.map",
+      "sha256": "f000f22354a136db7486b802a6447ea0ee2ca731c736727e639b38294fbd21e8",
+      "bytes": 369332,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/probe.elf.gz",
+      "sha256": "5defdc4de5a9c7eebdc11bcd42e550503537a3bf97c91f312cc71f1ba98a5eb3",
+      "bytes": 959981,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/compile.d",
+      "sha256": "884c544bce0ed9fba3f800df47bf1c215a2ba5e3d0e7ea83b2862fa5eca53cfa",
+      "bytes": 1601,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/compile.receipt.json",
+      "sha256": "1ff4895eb96dfde893f6d68d61265ffdfb8cf6cefa1639b10e9d1d11339c48f6",
+      "bytes": 25921,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "0f1529fef3ce5b33f3b8ebbcb6619e6186f88fb8c56ecd677345b66d01d681a5",
+      "bytes": 3407,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/dependencies.stdout",
+      "sha256": "e05fee297c998816a0f00c24da4eec1ed38afe99ab2bd5fb2f839913419da5ee",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/execute.receipt.json",
+      "sha256": "a02ef4768c1e875b33a1d548cfaf51aa2e444dd1c0403705a15d3fba1a4b7893",
+      "bytes": 7214,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/execute.stdout",
+      "sha256": "7d4fb484e3fba3c0f728ce7f523e7cf907d958c24e8028c1f846d215b8d76425",
+      "bytes": 14695,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/link.map",
+      "sha256": "6b0482288f40be46ededb968b9238aca596cf4f8dd1390523726c4b08905ca95",
+      "bytes": 380486,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/probe.elf.gz",
+      "sha256": "5f59fe52ad642b6523d4b3da064626f32919653df272e9adf2e0376770942012",
+      "bytes": 1028387,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/compile.d",
+      "sha256": "65b013e26b652d85a261ba0420fb2c4f7645fdb27222848a4b7fe5d8dc31045c",
+      "bytes": 1975,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/compile.receipt.json",
+      "sha256": "97f3051e29e80dc2c3763e6dfe4f26e9fca8c64d6b227f2d38706457cdd4d077",
+      "bytes": 29350,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/dependencies.receipt.json",
+      "sha256": "4b69f8dfa4dfc7bd4259be3a5bf8f7ac8ff326263ae7048dfb28aecbfcddd3fb",
+      "bytes": 4508,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/dependencies.stdout",
+      "sha256": "5a84f5840885c030bbbb50c0d9d17bf2b0a866cfba2d5e25027fba2a63859e07",
+      "bytes": 510,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/execute.receipt.json",
+      "sha256": "8587c5ba9aab9f834b3e72811147136c44a2528ebfcff03471be1c60efbc54be",
+      "bytes": 9722,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/execute.stdout",
+      "sha256": "d5f012bb3ee9c45c5eab6363b0795bef318e08dd45a3506874cc033e266f64c7",
+      "bytes": 14752,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/link.map",
+      "sha256": "28d33fb975197d3c96cd449b595c249fddf2d165c68dba575d468b43d837ad13",
+      "bytes": 103459,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/probe.elf.gz",
+      "sha256": "462cc255cdba6aa4a8aa74aff6343a8e47ce806795118645998e0ed3001354d1",
+      "bytes": 188382,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/request.json",
+      "sha256": "489071bc1661058953d58b17f456e8c26fc50ca0d0dd7a6d2c397a7b3b355fb1",
+      "bytes": 1161210,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.4.20/tclBasic.c-3351.txt",
+      "sha256": "5020b1c0026241672844f9337d2dc11088b89c1489b33ebd4b591103e2dd503d",
+      "bytes": 3351,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.4.20/tclCmdIL.c-328.txt",
+      "sha256": "a99bce640ad1647bd9f54baf40bfe365a0b3b4b07f162463f9f6896cfcc450bc",
+      "bytes": 3450,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.4.20/tclCmdIL.c-928.txt",
+      "sha256": "a562f4cea93deba43f4f98f6f0d12a5f25972cc1caf5c1a7fca12ade0f4adad6",
+      "bytes": 3491,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.4.20/tclVar.c-1493.txt",
+      "sha256": "88ee60b06357fdeb69a0fa2ad70dbf822b897cf440dbea2f63b152f8edee275c",
+      "bytes": 3840,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.4.20/tclVar.c-2597.txt",
+      "sha256": "250b25da13496a30c96419807d62a6bf48d3e89b1af565a1e3c37e6b745830f1",
+      "bytes": 2091,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.4.20/tclVar.c-2921.txt",
+      "sha256": "a2c78578e8ac59bee9cb6cf56490aa0af2455aa093da3b3ed31d21f3f9b39c7c",
+      "bytes": 18513,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclBasic.c-3916.txt",
+      "sha256": "5071b0e9aa52c54dbfbebdaa1fc3821edc552eab9e4a75ea918c4754c6d9e3db",
+      "bytes": 3416,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclCmdIL.c-333.txt",
+      "sha256": "9017bdec69b06fb7afc4d9e6d498b21550d782cc043130824b4bca3e9aef739c",
+      "bytes": 2950,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclCmdIL.c-900.txt",
+      "sha256": "0aa80a81edac608e41a2ebf1a6de3688305383a33a3d22ddce0a2a36aa3af824",
+      "bytes": 3070,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclVar.c-1727.txt",
+      "sha256": "0b0f07ef7ce03cbcc8dede5f70cf8de6f8af44fdd05e80703bc4b49592c7b6ab",
+      "bytes": 3793,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclVar.c-2019.txt",
+      "sha256": "7416107cfd284fbc1bd897c086594376a9c82ec0e4a62500349a411fef7c448f",
+      "bytes": 3683,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclVar.c-2073.txt",
+      "sha256": "e9ac27302b2892077d43b55585069b70521051cb7baa5aca289d2fd7a4feb0cf",
+      "bytes": 4907,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclVar.c-2516.txt",
+      "sha256": "c786ad1c107f094d71774da9db7abdbcb507a6b6eff3b7d8da7fe580a1f293ff",
+      "bytes": 2036,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.5.19/tclVar.c-2792.txt",
+      "sha256": "f591fb9343668c87657cdd58644c224484ee524b849c143c519043c664bf2a09",
+      "bytes": 17409,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclBasic.c-4246.txt",
+      "sha256": "a2f44b9eb2fb3d08abed182b04ca45cbfc5fb6b972db51e14c1960528fe6ff09",
+      "bytes": 3425,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclCmdIL.c-388.txt",
+      "sha256": "0b9f1be6f0bb9ab2bd360ebfbf7264e4adf47ebfca6324072e74703d43b42ee6",
+      "bytes": 3054,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclCmdIL.c-959.txt",
+      "sha256": "570adcbf8edf8c8295d02b88bc58b4e1ee52ad6e63490544b1969e8e7e4eb8ad",
+      "bytes": 2981,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclVar.c-1734.txt",
+      "sha256": "eea2622a0eb2a5f891b87d8690016c3689ca1e26c5c6acd40553370ac5c62031",
+      "bytes": 3825,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclVar.c-2071.txt",
+      "sha256": "362381f673504c2ca7042fe0fc07f5384398b9c5a44d2d5c1f4e1cf49c814bd8",
+      "bytes": 3724,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclVar.c-2125.txt",
+      "sha256": "6d74658ca3e22bd95fcf209b2723826cd1229bd77474927ca98dbedaf638e92a",
+      "bytes": 5468,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclVar.c-2710.txt",
+      "sha256": "667e9e70beb78fc77ca0f20220a434d1466b29c6857f09ced181a71668f99428",
+      "bytes": 2004,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/8.6.18/tclVar.c-3655.txt",
+      "sha256": "4b27dc87bcf463926d10c1a79347a43864a43310781ef9722c0828f6031554a6",
+      "bytes": 5529,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclBasic.c-4472.txt",
+      "sha256": "1d7307abe544853a4ea3d7ab63d7ee0fedde79ae7e1dcbd26fd1870c9af15f55",
+      "bytes": 3454,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclCmdIL.c-387.txt",
+      "sha256": "f0e25c3704e0c1b729c7ee986fc5b6bb0ebeab21bc6a694a68e1fde041ae159f",
+      "bytes": 3024,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclCmdIL.c-948.txt",
+      "sha256": "55a93629449c0c16b44071ebc6e8e003ff13e0fd4519af9c47c19ea185597dc9",
+      "bytes": 2951,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-1673.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5",
+      "bytes": 3723,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-2116.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60",
+      "bytes": 3725,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-2170.txt",
+      "sha256": "f7c882d147bbbbf220ed11ba10f2111476ffcca7d99c371a076c5a16fb069110",
+      "bytes": 5591,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-2746.txt",
+      "sha256": "40f9bc555a90ae205f84f4ad620707d0db611bc716740dbc66f08da30f75fac8",
+      "bytes": 1910,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-3095.txt",
+      "sha256": "e5757eaef2285ddfa685e94a94cbf53592af39446fca90e72e1428a827be078f",
+      "bytes": 2215,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-3170.txt",
+      "sha256": "e508e7d04fa1b9a099a91568c2446880f165a465160b732f16f06894bde5c347",
+      "bytes": 3858,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-4014.txt",
+      "sha256": "4981adc5c9bc2a31037d294bd0cc0118caacff2753211b01427a1611efd149fd",
+      "bytes": 5429,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.0.4/tclVar.c-4879.txt",
+      "sha256": "6226d934b4d0e107fb3321c319c18723a2325d75a4b6e1d67ab04c730c2e031b",
+      "bytes": 2474,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclBasic.c-4442.txt",
+      "sha256": "a45093a9d772249842cb795d31a5d1530d40bcb140c4ba11df0ef4d58813a8da",
+      "bytes": 3478,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclCmdIL.c-389.txt",
+      "sha256": "1ea502cd9f6097fe2a3f42aa97f68324ea01de69dcad35a57cf10ae9012619d2",
+      "bytes": 3064,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclCmdIL.c-926.txt",
+      "sha256": "32c1d115b17017ce4c4cdd8da4d3eab245ebe0c23836db51e1fc45939f87af4d",
+      "bytes": 2957,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-1727.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5",
+      "bytes": 3723,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-2170.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60",
+      "bytes": 3725,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-2224.txt",
+      "sha256": "e51b50333d21e7068de42c8d5370fe28b4e36edcfbf33c3a9c8a25280a5845c0",
+      "bytes": 5595,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-2797.txt",
+      "sha256": "efdc02ca4edce2fc2c8bb50ee9380af140918c2b9239fb0962588cbf7d2daf22",
+      "bytes": 1926,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-3146.txt",
+      "sha256": "d49c81bd12968385c7d7d20efbd26b73d297cb1de35c516a9c855e5bc820e7be",
+      "bytes": 2220,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-3221.txt",
+      "sha256": "dc0ff646af583da64f6567714a956af1b1f7c96cb9fc367f245ee2c26e3bfa8e",
+      "bytes": 3913,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-4069.txt",
+      "sha256": "fb2cbca5a01469c34c029186088c67a2f0112d79d55198bd6af9e6351fc0a0c8",
+      "bytes": 5437,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/9.1.0/tclVar.c-4894.txt",
+      "sha256": "1f44c424021b2494fd4c2108cffc54be7580bcb3b103fd3e3042d0deb683bd89",
+      "bytes": 2488,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/jim/jim-array.c-168.txt",
+      "sha256": "df02802a132fab6b6770d1e95333017b13dc472835c271732c43f4f2bdcc8c13",
+      "bytes": 1850,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/jim/jim.c-10953.txt",
+      "sha256": "19553cc2a728fb9513f488acefcffd0925d17a5a2c834818d8b2446186759962",
+      "bytes": 1987,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/jim/jim.c-11217.txt",
+      "sha256": "2b48b3f1bba63cf8f80c06bd5051aec9237dabcebe29e44782867f178d3527ac",
+      "bytes": 2393,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/jim/jim.c-12753.txt",
+      "sha256": "bf3125b2e2598541b2a0fb3302034d5b2da7802e7a4edadecdf369cf0a31dbb6",
+      "bytes": 1096,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/jim/jim.c-15986.txt",
+      "sha256": "af047188017fbeadbcfa9026128eb44cd91137a8e6a429994bdfd82942e7eee0",
+      "bytes": 7924,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/jim/jim.c-5000.txt",
+      "sha256": "8d5fc6d3e3b376bb99e00e35642f2a446fdbd07a6da76c7f20b71a5f4542f5af",
+      "bytes": 883,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/505b/source-windows/jim/jim.h-761.txt",
+      "sha256": "b691049b9358d090143239903a14eeed7f65bf25b55d2938794cb4e40df7895f",
+      "bytes": 361,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/independent-stage-interpretation/interpretation.md",
+      "sha256": "99ec1efa9a30a5aec7e45d0617df0c21244c92989fb0fdfc4ab179a37353e76f",
+      "bytes": 3133,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/independent-stage-interpretation/manifest.json",
+      "sha256": "7b96957be8d6723e0a59fccc16b1393a7feab3218bb4c9fe221f2a295c6bd109",
+      "bytes": 2435,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/independent-stage-interpretation/observations.json",
+      "sha256": "f42b222a7c9e562e329556b6a9fe17afaf5dd009481d084fb8f9c6bc6f69467e",
+      "bytes": 138471,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/independent-stage-interpretation/source-joins.json",
+      "sha256": "c1b8b0942da29b305ec0c0aec59817024f80422c00219c6f1a467de55cbb4d9e",
+      "bytes": 22929,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/original-inputs/workspace--.proofs--native-providers--jimtcl--jim-array.c",
+      "sha256": "ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda",
+      "bytes": 8369,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/original-stage-observations.json",
+      "sha256": "629ab2603da0a05ea04ac80707d4c5da563a52cbe545dfd0b44175722cc9b078",
+      "bytes": 1396905,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.4.20/0-tclCmdIL.c-928.txt",
+      "sha256": "a562f4cea93deba43f4f98f6f0d12a5f25972cc1caf5c1a7fca12ade0f4adad6",
+      "bytes": 3491,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.4.20/1-tclCmdIL.c-328.txt",
+      "sha256": "a99bce640ad1647bd9f54baf40bfe365a0b3b4b07f162463f9f6896cfcc450bc",
+      "bytes": 3450,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.4.20/10-tclVar.c-1493.txt",
+      "sha256": "88ee60b06357fdeb69a0fa2ad70dbf822b897cf440dbea2f63b152f8edee275c",
+      "bytes": 3840,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.4.20/11-tclBasic.c-3351.txt",
+      "sha256": "5020b1c0026241672844f9337d2dc11088b89c1489b33ebd4b591103e2dd503d",
+      "bytes": 3351,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.4.20/2-tclVar.c-2597.txt",
+      "sha256": "250b25da13496a30c96419807d62a6bf48d3e89b1af565a1e3c37e6b745830f1",
+      "bytes": 2091,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.4.20/6-tclVar.c-2921.txt",
+      "sha256": "a2c78578e8ac59bee9cb6cf56490aa0af2455aa093da3b3ed31d21f3f9b39c7c",
+      "bytes": 18513,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/12-tclCmdIL.c-900.txt",
+      "sha256": "0aa80a81edac608e41a2ebf1a6de3688305383a33a3d22ddce0a2a36aa3af824",
+      "bytes": 3070,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/13-tclCmdIL.c-333.txt",
+      "sha256": "9017bdec69b06fb7afc4d9e6d498b21550d782cc043130824b4bca3e9aef739c",
+      "bytes": 2950,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/14-tclVar.c-2516.txt",
+      "sha256": "c786ad1c107f094d71774da9db7abdbcb507a6b6eff3b7d8da7fe580a1f293ff",
+      "bytes": 2036,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/15-tclVar.c-2019.txt",
+      "sha256": "7416107cfd284fbc1bd897c086594376a9c82ec0e4a62500349a411fef7c448f",
+      "bytes": 3683,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/16-tclVar.c-2073.txt",
+      "sha256": "e9ac27302b2892077d43b55585069b70521051cb7baa5aca289d2fd7a4feb0cf",
+      "bytes": 4907,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/18-tclVar.c-2792.txt",
+      "sha256": "f591fb9343668c87657cdd58644c224484ee524b849c143c519043c664bf2a09",
+      "bytes": 17409,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/22-tclVar.c-1727.txt",
+      "sha256": "0b0f07ef7ce03cbcc8dede5f70cf8de6f8af44fdd05e80703bc4b49592c7b6ab",
+      "bytes": 3793,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.5.19/23-tclBasic.c-3916.txt",
+      "sha256": "5071b0e9aa52c54dbfbebdaa1fc3821edc552eab9e4a75ea918c4754c6d9e3db",
+      "bytes": 3416,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/24-tclCmdIL.c-959.txt",
+      "sha256": "570adcbf8edf8c8295d02b88bc58b4e1ee52ad6e63490544b1969e8e7e4eb8ad",
+      "bytes": 2981,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/25-tclCmdIL.c-388.txt",
+      "sha256": "0b9f1be6f0bb9ab2bd360ebfbf7264e4adf47ebfca6324072e74703d43b42ee6",
+      "bytes": 3054,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/26-tclVar.c-2710.txt",
+      "sha256": "667e9e70beb78fc77ca0f20220a434d1466b29c6857f09ced181a71668f99428",
+      "bytes": 2004,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/27-tclVar.c-2071.txt",
+      "sha256": "362381f673504c2ca7042fe0fc07f5384398b9c5a44d2d5c1f4e1cf49c814bd8",
+      "bytes": 3724,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/28-tclVar.c-2125.txt",
+      "sha256": "6d74658ca3e22bd95fcf209b2723826cd1229bd77474927ca98dbedaf638e92a",
+      "bytes": 5468,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/29-tclVar.c-3655.txt",
+      "sha256": "4b27dc87bcf463926d10c1a79347a43864a43310781ef9722c0828f6031554a6",
+      "bytes": 5529,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/34-tclVar.c-1734.txt",
+      "sha256": "eea2622a0eb2a5f891b87d8690016c3689ca1e26c5c6acd40553370ac5c62031",
+      "bytes": 3825,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/8.6.18/35-tclBasic.c-4246.txt",
+      "sha256": "a2f44b9eb2fb3d08abed182b04ca45cbfc5fb6b972db51e14c1960528fe6ff09",
+      "bytes": 3425,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/36-tclCmdIL.c-948.txt",
+      "sha256": "55a93629449c0c16b44071ebc6e8e003ff13e0fd4519af9c47c19ea185597dc9",
+      "bytes": 2951,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/37-tclCmdIL.c-387.txt",
+      "sha256": "f0e25c3704e0c1b729c7ee986fc5b6bb0ebeab21bc6a694a68e1fde041ae159f",
+      "bytes": 3024,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/38-tclVar.c-2746.txt",
+      "sha256": "40f9bc555a90ae205f84f4ad620707d0db611bc716740dbc66f08da30f75fac8",
+      "bytes": 1910,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/39-tclVar.c-2116.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60",
+      "bytes": 3725,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/40-tclVar.c-2170.txt",
+      "sha256": "f7c882d147bbbbf220ed11ba10f2111476ffcca7d99c371a076c5a16fb069110",
+      "bytes": 5591,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/41-tclVar.c-4014.txt",
+      "sha256": "4981adc5c9bc2a31037d294bd0cc0118caacff2753211b01427a1611efd149fd",
+      "bytes": 5429,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/43-tclVar.c-3095.txt",
+      "sha256": "e5757eaef2285ddfa685e94a94cbf53592af39446fca90e72e1428a827be078f",
+      "bytes": 2215,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/44-tclVar.c-3170.txt",
+      "sha256": "e508e7d04fa1b9a099a91568c2446880f165a465160b732f16f06894bde5c347",
+      "bytes": 3858,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/45-tclVar.c-4879.txt",
+      "sha256": "6226d934b4d0e107fb3321c319c18723a2325d75a4b6e1d67ab04c730c2e031b",
+      "bytes": 2474,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/46-tclVar.c-1673.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5",
+      "bytes": 3723,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.0.4/47-tclBasic.c-4472.txt",
+      "sha256": "1d7307abe544853a4ea3d7ab63d7ee0fedde79ae7e1dcbd26fd1870c9af15f55",
+      "bytes": 3454,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/48-tclCmdIL.c-926.txt",
+      "sha256": "32c1d115b17017ce4c4cdd8da4d3eab245ebe0c23836db51e1fc45939f87af4d",
+      "bytes": 2957,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/49-tclCmdIL.c-389.txt",
+      "sha256": "1ea502cd9f6097fe2a3f42aa97f68324ea01de69dcad35a57cf10ae9012619d2",
+      "bytes": 3064,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/50-tclVar.c-2797.txt",
+      "sha256": "efdc02ca4edce2fc2c8bb50ee9380af140918c2b9239fb0962588cbf7d2daf22",
+      "bytes": 1926,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/51-tclVar.c-2170.txt",
+      "sha256": "e96b7786d76e2e8e3e84b354cfc29d02969b2655a927cfe14fd334ad16c46a60",
+      "bytes": 3725,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/52-tclVar.c-2224.txt",
+      "sha256": "e51b50333d21e7068de42c8d5370fe28b4e36edcfbf33c3a9c8a25280a5845c0",
+      "bytes": 5595,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/53-tclVar.c-4069.txt",
+      "sha256": "fb2cbca5a01469c34c029186088c67a2f0112d79d55198bd6af9e6351fc0a0c8",
+      "bytes": 5437,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/55-tclVar.c-3146.txt",
+      "sha256": "d49c81bd12968385c7d7d20efbd26b73d297cb1de35c516a9c855e5bc820e7be",
+      "bytes": 2220,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/56-tclVar.c-3221.txt",
+      "sha256": "dc0ff646af583da64f6567714a956af1b1f7c96cb9fc367f245ee2c26e3bfa8e",
+      "bytes": 3913,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/57-tclVar.c-4894.txt",
+      "sha256": "1f44c424021b2494fd4c2108cffc54be7580bcb3b103fd3e3042d0deb683bd89",
+      "bytes": 2488,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/58-tclVar.c-1727.txt",
+      "sha256": "0e83813bc9a209308ac400dc48917053ed09bc03e568b40ed6b64be1fc24f6b5",
+      "bytes": 3723,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/9.1.0/59-tclBasic.c-4442.txt",
+      "sha256": "a45093a9d772249842cb795d31a5d1530d40bcb140c4ba11df0ef4d58813a8da",
+      "bytes": 3478,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/jim/60-jim.c-15986.txt",
+      "sha256": "af047188017fbeadbcfa9026128eb44cd91137a8e6a429994bdfd82942e7eee0",
+      "bytes": 7924,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/jim/61-jim.c-10953.txt",
+      "sha256": "19553cc2a728fb9513f488acefcffd0925d17a5a2c834818d8b2446186759962",
+      "bytes": 1987,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/jim/62-jim.c-12753.txt",
+      "sha256": "bf3125b2e2598541b2a0fb3302034d5b2da7802e7a4edadecdf369cf0a31dbb6",
+      "bytes": 1096,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/jim/63-jim.c-11217.txt",
+      "sha256": "2b48b3f1bba63cf8f80c06bd5051aec9237dabcebe29e44782867f178d3527ac",
+      "bytes": 2393,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/jim/64-jim.c-5000.txt",
+      "sha256": "8d5fc6d3e3b376bb99e00e35642f2a446fdbd07a6da76c7f20b71a5f4542f5af",
+      "bytes": 883,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/jim/65-jim-array.c-168.txt",
+      "sha256": "df02802a132fab6b6770d1e95333017b13dc472835c271732c43f4f2bdcc8c13",
+      "bytes": 1850,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-anchors/jim/66-jim.h-761.txt",
+      "sha256": "b691049b9358d090143239903a14eeed7f65bf25b55d2938794cb4e40df7895f",
+      "bytes": 361,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/physical-source-joins.json",
+      "sha256": "96beb89060f83cbd53eec5645e6c73f1e6feb7945ee758d0e67e1354a56c35f4",
+      "bytes": 35469,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_variable_introspection_getter_order_original/recorded-path-map.json",
+      "sha256": "89a0bbbae34a22456eaf3ea8ea435ec3b80ec3dc311675b13dc50de00dad23ec",
+      "bytes": 2594680,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.invocation.original-variable-and-introspection-getter-order"
+      ],
+      "reason": "Complete independently fixed original request/process/source/closure evidence or bounded source/phase joins. Actual unavailable, observer and public error-presentation limits remain explicit; no Rust admission or Native application grant."
+    },
+    {
       "path": "runtime/rust/tests/data/native_variable_qualified_target/README.md",
       "sha256": "5456b3c55e8396d8da94d41f9848abf2c31da230213d9e04a20fa3f41c47b208",
       "bytes": 623,

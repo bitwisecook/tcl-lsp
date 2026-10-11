@@ -1,0 +1,5143 @@
+{
+  "purpose": "Derived exact projection of independent505b full public API stages; not independent Native data or core-worker-entry observation.",
+  "rows": [
+    {
+      "provider": "8.4.20",
+      "case": 0,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "223a3a6d697373696e67222069736e277420612070726f636564757265",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 1,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "70726f63656475726520223a3a702220646f65736e2774206861766520616e20617267756d656e74202262616422",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 2,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 3,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 4,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "public-result-getter"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b6b2056414c55457d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 5,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6c697374206d757374206861766520616e206576656e206e756d626572206f6620656c656d656e7473",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 6,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "6d",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031207b6d205345434f4e44206b2046495253547d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 7,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "626164206f7074696f6e2022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 8,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "626164206f7074696f6e2022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 9,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "626164206f7074696f6e2022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 10,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 11,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31204f4c44",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 12,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "B",
+          "payload_hex": "32",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "33",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312033",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 13,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e673a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "657870656374656420696e74656765722062757420676f74202262616422",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 14,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 15,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 16,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.4.20",
+      "case": 17,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e342e3230",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 0,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "223a3a6d697373696e67222069736e277420612070726f636564757265",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 1,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "70726f63656475726520223a3a702220646f65736e2774206861766520616e20617267756d656e74202262616422",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 2,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 3,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 4,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "public-result-getter"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b6b2056414c55457d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 5,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6c697374206d757374206861766520616e206576656e206e756d626572206f6620656c656d656e7473",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 6,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "6d",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031207b6d205345434f4e44206b2046495253547d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 7,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "626164206f7074696f6e2022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 8,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "626164206f7074696f6e2022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 9,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "626164206f7074696f6e2022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 10,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 11,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31204f4c44",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 12,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "32",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "33",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312033",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 13,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e673a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e2774207265616420223a3a6d697373696e673a3a746172676574223a20706172656e74206e616d65737061636520646f65736e2774206578697374",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 14,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 15,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 16,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "case": 17,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e352e3139",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 0,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "223a3a6d697373696e67222069736e277420612070726f636564757265",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 1,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "70726f63656475726520223a3a702220646f65736e2774206861766520616e20617267756d656e74202262616422",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 2,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 3,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 4,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "public-result-getter"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b6b2056414c55457d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 5,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6c697374206d757374206861766520616e206576656e206e756d626572206f6620656c656d656e7473",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 6,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "6d",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031207b6d205345434f4e44206b2046495253547d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 7,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 8,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 9,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e642022666f72223a206d75737420626520616e796d6f72652c20646f6e657365617263682c206578697374732c206765742c206e616d65732c206e657874656c656d656e742c207365742c2073697a652c2073746172747365617263682c20737461746973746963732c206f7220756e736574",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 10,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 11,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31204f4c44",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 12,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "32",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "33",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312033",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 13,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e673a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e2774207265616420223a3a6d697373696e673a3a746172676574223a20706172656e74206e616d65737061636520646f65736e2774206578697374",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 14,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 15,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 16,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "case": 17,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "382e362e3138",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 0,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "223a3a6d697373696e67222069736e277420612070726f636564757265",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 1,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "70726f63656475726520223a3a702220646f65736e2774206861766520616e20617267756d656e74202262616422",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 2,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 3,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 4,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "public-result-getter"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b6b2056414c55457d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 5,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6c697374206d757374206861766520616e206576656e206e756d626572206f6620656c656d656e7473",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 6,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "6d",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031207b6d205345434f4e44206b2046495253547d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 7,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "C",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 8,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6d75737420686176652074776f207661726961626c65206e616d6573",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 9,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "C",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "223a3a6d697373696e67222069736e277420616e206172726179",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 10,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "public-result-getter"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 11,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e2774206d616b6520636f6e7374616e7420223a3a746172676574223a207661726961626c6520616c726561647920657869737473",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31204f4c44",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 12,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "32",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "33",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312033",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 13,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e673a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e2774207265616420223a3a6d697373696e673a3a746172676574223a20706172656e74206e616d65737061636520646f65736e2774206578697374",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 14,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 15,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 16,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "case": 17,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e302e34",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 0,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "223a3a6d697373696e67222069736e277420612070726f636564757265",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 1,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "70726f63656475726520223a3a702220646f65736e2774206861766520616e20617267756d656e74202262616422",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 2,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 3,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a70",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "78",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 4,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "public-result-getter"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b6b2056414c55457d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 5,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6c697374206d757374206861766520616e206576656e206e756d626572206f6620656c656d656e7473",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30207b7d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 6,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "6d",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031207b6d205345434f4e44206b2046495253547d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 7,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "C",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 8,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6d75737420686176652074776f207661726961626c65206e616d6573",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 9,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "C",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "A",
+          "payload_hex": "3a3a6b",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "B",
+          "payload_hex": "3a3a76",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "223a3a6d697373696e67222069736e277420616e206172726179",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 10,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "public-result-getter"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 11,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "56414c5545",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e2774206d616b6520636f6e7374616e7420223a3a746172676574223a207661726961626c6520616c726561647920657869737473",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31204f4c44",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 12,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "32",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "33",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312033",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 13,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e673a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e2774207265616420223a3a6d697373696e673a3a746172676574223a20706172656e74206e616d65737061636520646f65736e2774206578697374",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 14,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 15,
+      "vector_return_code": 1,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 16,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "case": 17,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "392e312e30",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 0,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 1,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 2,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 3,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e666f2c20756e6b6e6f776e20636f6d6d616e64202264656661756c74223a2073686f756c6420626520616c6961732c20616c69617365732c20617267732c20626f64792c206368616e6e656c732c20636f6d6d616e64732c20636f6d706c6574652c206578697374732c206672616d652c20676c6f62616c732c2068656c702c20686f73746e616d652c206c6576656c2c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207265666572656e6365732c2072657475726e636f6465732c207363726970742c20736f757263652c20737461636b74726163652c20737461746963732c207461696e7465642c2075736167652c20766172732c2076657273696f6e",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 4,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "poststate"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "56414c5545",
+          "phase": "poststate"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31207b6b2056414c55457d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 5,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "6c697374206d757374206861766520616e206576656e206e756d626572206f6620656c656d656e7473",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30207b7d",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 6,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a617272",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "6b",
+          "phase": "poststate"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "6d",
+          "phase": "poststate"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312031207b6b204649525354206d205345434f4e447d",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 7,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "61727261792c20756e6b6e6f776e20636f6d6d616e642022666f72223a2073686f756c64206265206578697374732c206765742c206e616d65732c207365742c2073697a652c20737461742c20756e736574",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 8,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "61727261792c20756e6b6e6f776e20636f6d6d616e642022666f72223a2073686f756c64206265206578697374732c206765742c206e616d65732c207365742c2073697a652c20737461742c20756e736574",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 9,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "61727261792c20756e6b6e6f776e20636f6d6d616e642022666f72223a2073686f756c64206265206578697374732c206765742c206e616d65732c207365742c2073697a652c20737461742c20756e736574",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 10,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "3020414253454e54",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 11,
+      "vector_return_code": 1,
+      "events_at_vector_return": 0,
+      "events": [],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "696e76616c696420636f6d6d616e64206e616d652022636f6e737422",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "31204f4c44",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 12,
+      "vector_return_code": 0,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "B",
+          "payload_hex": "32",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "33",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312033",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 13,
+      "vector_return_code": 1,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "B",
+          "payload_hex": "626164",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "657870656374656420696e74656765722065787072657373696f6e2062757420676f74202262616422",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "30",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 14,
+      "vector_return_code": 1,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 15,
+      "vector_return_code": 1,
+      "events_at_vector_return": 2,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 1,
+          "result_hex": "63616e277420756e73657420223a3a6d697373696e67223a206e6f2073756368207661726961626c65",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302031",
+          "events_after_public_result_getter": 2,
+          "events_at_eval_return": 2
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 16,
+      "vector_return_code": 0,
+      "events_at_vector_return": 3,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        },
+        {
+          "sequence": 2,
+          "label": "B",
+          "payload_hex": "3a3a6d697373696e67",
+          "phase": "worker"
+        },
+        {
+          "sequence": 3,
+          "label": "C",
+          "payload_hex": "3a3a7375727669766f72",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "302030",
+          "events_after_public_result_getter": 3,
+          "events_at_eval_return": 3
+        }
+      }
+    },
+    {
+      "provider": "jim",
+      "case": 17,
+      "vector_return_code": 0,
+      "events_at_vector_return": 1,
+      "events": [
+        {
+          "sequence": 1,
+          "label": "A",
+          "payload_hex": "3a3a746172676574",
+          "phase": "worker"
+        }
+      ],
+      "stages": {
+        "version": {
+          "code": 0,
+          "result_hex": "302e38342d392d6735626163376339",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "setup": {
+          "code": 0,
+          "result_hex": "5245414459",
+          "events_after_public_result_getter": 0,
+          "events_at_eval_return": 0
+        },
+        "worker": {
+          "code": 0,
+          "result_hex": "31",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        },
+        "poststate": {
+          "code": 0,
+          "result_hex": "312056414c5545",
+          "events_after_public_result_getter": 1,
+          "events_at_eval_return": 1
+        }
+      }
+    }
+  ]
+}

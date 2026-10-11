@@ -208989,6 +208989,1421 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "The independent Runtime engine library-test no-run command records six errors: two production missing oo_original_bytes macro errors at native_context.rs:211 and :104; four cfg-test E0308 match-arm type errors at native_context.rs:662, native_variable_names.rs:1952 and native_eval_object_tests.rs:69/:84. No test executable is created or admitted; there is no successful Runtime producer, strict Runtime image, inventory or assertion. Independent successful Compiler/Core producer and inventory scopes retain their own receipts. Current implementation and fixture bytes supply no credit to this closed failed command; original Native provider answers and evidence are unchanged."
+    },
+    {
+      "id": "rust.frozen321.integration-compiler-own-test-build321",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen321/integration-compiler-own-test-build321/receipt.json.gz",
+        "sha256": "dc3a058d9c999a8bd2a0eb14a5a0e8b9c7eb5766a69fb9ad5bef86c7257c6bb6",
+        "compression": "gzip",
+        "uncompressed_sha256": "139eb231a5eb7015d65021b79698feaa8958e135a5c83d025d65559868ba040a"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen321/integration-compiler-own-test-build321/tests.log",
+        "sha256": "8addeaf4c3c1f13e97ee0a1fd0aea66f5e6f70610fbed1875c7e43f4f7abc65a"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 149.77999120298773,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen321/integration-compiler-own-test-build321/source-snapshot.json.gz",
+        "sha256": "f1612e97f3ef9d676d1913585da26095ead379579b3549fb0b8aeeda2807bccd",
+        "compression": "gzip",
+        "uncompressed_sha256": "f1b67d623a0d5984c17ea747c12c8509bcfc6f283d32eaaf6a33ff4b1f2578f0",
+        "json_pointer": "/source",
+        "authority": "Complete original35415-leaf immutable Source321 snapshot exactly matches the original failed own command source/head/archive and isolated compile_source_root associations; original error-source body independently matches its map. No Source320 or current source substitution."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The own Compiler321 no-run command records one E0599 missing SourceInvocationBinding.original_recorded_command_tokens at source_structure.rs:2012. No test-executable creation event, strict Compiler321 image, inventory or assertion is admitted. Complete Source321 source and isolated compile_source_root remain unchanged. Current facade repair supplies no producer or assertion credit to this failed command; original provider answers are unchanged."
+    },
+    {
+      "id": "rust.frozen320.integration-core-consumer-focus320",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/integration-core-consumer-focus320/receipt.json.gz",
+        "sha256": "d229f2709722d53404bcc05d150fce808cd11b9060c49fc9b7df65bc38c2d816",
+        "compression": "gzip",
+        "uncompressed_sha256": "425f14f2961fbb6a8cca7017be6e459807e1b4f4ba88d6efa843232e537841e9"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/integration-core-consumer-focus320/tests.log",
+        "sha256": "b3cb113f6adbb3b1f593f5fba8d5e0f3b3fe5cc6f1a3b458ebef57f0462fbc8b"
+      },
+      "command": [
+        "/tmp/naming-owned320/pinned-core320.elf",
+        "call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source",
+        "call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame",
+        "code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner",
+        "code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes",
+        "code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range",
+        "code_actions::diagnostic_currency::tests::original_check_actions_require_the_issuers_source_config_and_registry",
+        "code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input",
+        "code_actions::diagnostic_currency::tests::original_diagnostic_actions_require_current_whole_source_and_owned_fixes",
+        "code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel",
+        "code_lens::tests::lens_count_matches_references_same_name_other_namespace",
+        "code_lens::tests::lens_per_user_proc",
+        "code_lens::tests::original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps",
+        "code_lens::tests::original_logical_lenses_keep_complete_source_currency_and_actual_profile",
+        "completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source",
+        "completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals",
+        "declaration::tests::conditional_declaration_preview_declines_explicit_body_replacements",
+        "declaration::tests::declaration_does_not_resolve_an_unclosed_braced_reference",
+        "declaration::tests::declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc",
+        "declaration::tests::declaration_scan_follows_a_renamed_scoping_command",
+        "declaration::tests::declaration_scan_follows_an_aliased_scoping_command",
+        "declaration::tests::declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding",
+        "declaration::tests::declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv",
+        "declaration::tests::declaration_scan_maps_alias_prefixes_to_original_local_operands",
+        "declaration::tests::declaration_scan_recurses_through_an_aliased_body_command",
+        "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+        "declaration::tests::declaration_var_decoration_vectors_preserve_incomplete_braces",
+        "declaration::tests::global_declaration_in_proc_body",
+        "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+        "declaration::tests::global_declared_inside_apply_lambda_body_is_not_visible_outside_it",
+        "declaration::tests::global_declared_inside_control_flow_body_is_found",
+        "declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan",
+        "declaration::tests::namespace_variable_declaration_does_not_supply_a_global_bare_read",
+        "declaration::tests::non_variable_falls_back_to_definition",
+        "declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand",
+        "declaration::tests::original_declaration_navigation_declines_unowned_analysis_without_recapture",
+        "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+        "declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners",
+        "declaration::tests::upvar_local_alias_is_a_declaration",
+        "declaration::tests::variable_declaration_in_namespace",
+        "definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability",
+        "definition::tests::original_external_self_visibility_requires_its_own_entry_after_internal_dispatch",
+        "definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch",
+        "definition::tests::original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input",
+        "definition::tests::original_internal_visibility_uses_the_selected_receiver_local_head",
+        "definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose",
+        "diagnostic_report::tests::an_unavailable_overlay_is_not_a_successfully_empty_report",
+        "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+        "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+        "document_links::original_hosted_document_link_tests::original_hosted_links_keep_source_schema_and_name_purposes_independent",
+        "document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values",
+        "document_links::original_link_parse_purpose_tests::original_link_anchors_parse_actual_substitution_content_without_file_prologue_rules",
+        "document_links::original_link_parse_purpose_tests::original_pack_links_keep_document_marks_distinct_from_include_body_content",
+        "document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export",
+        "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+        "folding::tests::original_folding_keeps_actual_availability_without_native_body_entry",
+        "folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements",
+        "formatting::engine::tests::analysed_layout_retains_supplied_entry_and_provider_world_without_recapture",
+        "formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis",
+        "formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands",
+        "formatting::tests::analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode",
+        "formatting::tests::analysed_formatting_keeps_current_source_and_typed_unavailability",
+        "formatting::tests::analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency",
+        "formatting::tests::analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate",
+        "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+        "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+        "formatting::tests::range_formatting_withdraws_before_analysis_above_lexical_budget",
+        "graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names",
+        "graphs::original::tests::original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps",
+        "graphs::original::tests::original_graph_summary_requires_body_allocation_even_when_ir_labels_agree",
+        "graphs::tests::original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals",
+        "hover::original_registry::tests::original_registry_head_hover_lists_only_retained_version_subcommands",
+        "hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers",
+        "hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins",
+        "hover::original_registry::tests::original_registry_operand_hover_keeps_parent_nested_and_option_availability",
+        "hover::original_registry::tests::original_scoped_hover_keeps_body_receipts_and_ignores_copied_reporting_regions",
+        "hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability",
+        "hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners",
+        "hover::tests::logical_registry_hover_keeps_actual_context_and_source_currency",
+        "hover::tests::logical_registry_hover_preserves_whole_alias_operands_and_declines_data",
+        "inlay_hints::retained_hint_context_tests::logical_format_escape_hints_use_the_complete_selected_grammar",
+        "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_actual_context_and_full_source_currency",
+        "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors",
+        "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+        "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+        "inlay_hints::retained_hint_context_tests::original_builtin_hints_use_the_selected_availability_not_registry_profile",
+        "inlay_hints::retained_hint_context_tests::original_format_hints_follow_actual_nested_roles_and_known_shadow",
+        "inlay_hints::retained_hint_context_tests::original_format_hints_use_selected_option_roles_under_the_actual_context",
+        "inlay_hints::retained_hint_context_tests::original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared",
+        "inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source",
+        "linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words",
+        "linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source",
+        "linked_editing_range::tests::links_recursive_self_call_to_declaration",
+        "linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner",
+        "namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal",
+        "namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles",
+        "namespace_rename::tests::tn_a_computed_namespace_word_elsewhere_does_not_refuse",
+        "original_context::tests::current_source_currency_is_independent_of_advice_and_execution_purpose",
+        "original_context::tests::current_source_currency_withdraws_changed_grammar_foreign_input_and_missing_owner",
+        "original_context::tests::original_logical_type_advice_keeps_current_class_source_and_withdraws_stale_owner",
+        "original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency",
+        "original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants",
+        "receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency",
+        "receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration",
+        "receiver_identity::tests::original_method_reference_sets_do_not_merge_reused_class_names",
+        "receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation",
+        "receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename",
+        "receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps",
+        "refactor::datagroup::original_arm_parser_tests::original_datagroup_arm_parsing_keeps_nested_marks_and_literal_extents",
+        "refactor::datagroup::tests::original_datagroup_proposals_require_the_selected_output_surface",
+        "refactor::datagroup::tests::supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons",
+        "refactor::datagroup::tests::supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner",
+        "refactor::datagroup::tests::supplied_datagroup_alias_does_not_restore_a_removed_output_handler",
+        "refactor::extract_proc::selected_source_variable_tests::original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers",
+        "refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners",
+        "refactor::extract_proc::selected_source_variable_tests::original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input",
+        "refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour",
+        "refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration",
+        "refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set",
+        "refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body",
+        "refactor::extract_variable::tests::original_variable_extraction_never_promotes_naming_proposals_to_motion_permission",
+        "refactor::inline_proc::original_inline_tests::original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared",
+        "refactor::inline_proc::selected_source_body_tests::logical_inline_call_selection_uses_current_original_body_regions",
+        "refactor::inline_proc::selected_source_body_tests::original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias",
+        "refactor::inline_variable::tests::logical_inline_edits_require_current_source_and_complete_metadata_owner",
+        "refactor::inline_variable::tests::logical_inline_set_uses_selected_operation_and_preserves_capture_geometry",
+        "refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps",
+        "refactor::original_parse_purpose_tests::original_frame_segmentation_labels_document_and_nested_sources_explicitly",
+        "refactor::selected_frame_context_tests::original_frame_regions_keep_selected_expression_template_and_replacement_horizon",
+        "refactor::selected_frame_context_tests::original_frame_roles_keep_actual_availability_captures_and_source_currency",
+        "refactor::source_rewrite::tests::logical_source_rewrite_keeps_captured_values_outside_written_clause_positions",
+        "refactor::source_rewrite::tests::original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell",
+        "refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions",
+        "refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons",
+        "refactor::switch_to_dict::original_branch_parser_tests::original_dictionary_branches_keep_nested_bom_content_and_parent_edit_geometry",
+        "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+        "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+        "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+        "references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability",
+        "references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source",
+        "references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry",
+        "references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store",
+        "references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes",
+        "references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+        "references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+        "references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers",
+        "rename_safety::original_hazard_context_tests::original_hazard_walk_preserves_grammar_and_missing_foreign_owner_refusal",
+        "rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions",
+        "rename_safety::original_hazard_context_tests::original_variable_hazards_keep_selected_alias_origins_and_unknown_roles",
+        "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_do_not_exclude_native_or_missing_targets",
+        "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible",
+        "rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose",
+        "rename_safety::tests::the_computed_name_bound_follows_the_document_close_rule",
+        "rename_safety::tests::tn_a_dominating_constant_name_no_longer_refuses",
+        "rename_safety::tests::tn_a_dynamic_name_under_another_namespace_no_longer_refuses",
+        "rename_safety::tests::tn_a_dynamic_name_with_an_unsatisfiable_affix_no_longer_refuses",
+        "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+        "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+        "semantic_tokens::original_realm_consumer_tests::original_semantic_consumer_declines_missing_realm_without_nominal_recapture",
+        "semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata",
+        "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy",
+        "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability",
+        "semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source",
+        "semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands",
+        "semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data",
+        "semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body",
+        "semantic_tokens::selected_source_token_tests::original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner",
+        "semantic_tokens::tests::cross_file_constructor_dispatch_resolves",
+        "semantic_tokens::tests::tcloo_dispatch_pattern_fixture",
+        "source_structure::tests::original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject",
+        "source_structure::tests::original_cursor_declines_malformed_data_and_native_resolution_promotion",
+        "source_structure::tests::original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear",
+        "source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies",
+        "source_structure::tests::original_syntax_tokens_join_absolute_region_and_command_geometry",
+        "source_structure::tests::original_variable_cursor_keeps_selected_roots_and_complete_source_geometry",
+        "source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles",
+        "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+        "tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 291.9436310430174,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 127,
+        "failed": 50,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 2761
+      },
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/source-snapshot.json.gz",
+        "sha256": "253f730cdb991accb29fd5227820d3363b7c2aff9bd81c30c13674d44f71ab7f",
+        "compression": "gzip",
+        "uncompressed_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0",
+        "json_pointer": "/source",
+        "authority": "Complete original35388-leaf Source320 source association exactly joins retained own successful producer, strict image and actual inventory. Exact selection/request and independent original run outcomes are preserved; source equality supplies no assertion credit."
+      },
+      "tests": [
+        {
+          "selector": "call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_check_actions_require_the_issuers_source_config_and_registry",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_diagnostic_actions_require_current_whole_source_and_owned_fixes",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_lens::tests::lens_count_matches_references_same_name_other_namespace",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_lens::tests::lens_per_user_proc",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_lens::tests::original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "code_lens::tests::original_logical_lenses_keep_complete_source_currency_and_actual_profile",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::conditional_declaration_preview_declines_explicit_body_replacements",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_does_not_resolve_an_unclosed_braced_reference",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_follows_a_renamed_scoping_command",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_follows_an_aliased_scoping_command",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_maps_alias_prefixes_to_original_local_operands",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_recurses_through_an_aliased_body_command",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::declaration_var_decoration_vectors_preserve_incomplete_braces",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declaration_in_proc_body",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_found",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declared_inside_apply_lambda_body_is_not_visible_outside_it",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::global_declared_inside_control_flow_body_is_found",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::namespace_variable_declaration_does_not_supply_a_global_bare_read",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::non_variable_falls_back_to_definition",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::original_declaration_navigation_declines_unowned_analysis_without_recapture",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::upvar_local_alias_is_a_declaration",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "declaration::tests::variable_declaration_in_namespace",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "definition::tests::original_external_self_visibility_requires_its_own_entry_after_internal_dispatch",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "definition::tests::original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "definition::tests::original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "definition::tests::original_internal_visibility_uses_the_selected_receiver_local_head",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "diagnostic_report::tests::an_unavailable_overlay_is_not_a_successfully_empty_report",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "document_links::original_hosted_document_link_tests::original_hosted_links_keep_source_schema_and_name_purposes_independent",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "document_links::original_link_parse_purpose_tests::original_link_anchors_parse_actual_substitution_content_without_file_prologue_rules",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "document_links::original_link_parse_purpose_tests::original_pack_links_keep_document_marks_distinct_from_include_body_content",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "folding::tests::original_folding_keeps_actual_availability_without_native_body_entry",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::engine::tests::analysed_layout_retains_supplied_entry_and_provider_world_without_recapture",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::engine::tests::original_source_formatting_uses_effective_roles_without_widening_captured_operands",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_keeps_current_source_and_typed_unavailability",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "formatting::tests::range_formatting_withdraws_before_analysis_above_lexical_budget",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "graphs::original::tests::original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "graphs::original::tests::original_graph_summary_requires_body_allocation_even_when_ir_labels_agree",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "graphs::tests::original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_head_hover_lists_only_retained_version_subcommands",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::original_registry::tests::original_registry_operand_hover_keeps_parent_nested_and_option_availability",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::original_registry::tests::original_scoped_hover_keeps_body_receipts_and_ignores_copied_reporting_regions",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::tests::logical_registry_hover_keeps_actual_context_and_source_currency",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "hover::tests::logical_registry_hover_preserves_whole_alias_operands_and_declines_data",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_format_escape_hints_use_the_complete_selected_grammar",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_actual_context_and_full_source_currency",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_format_hints_keep_nested_escaped_words_and_refuse_captured_anchors",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_actual_context_and_original_source_currency",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_builtin_hints_use_the_selected_availability_not_registry_profile",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_format_hints_follow_actual_nested_roles_and_known_shadow",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_format_hints_use_selected_option_roles_under_the_actual_context",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_hint_metadata_keeps_the_generation_after_reporting_maps_are_cleared",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "inlay_hints::retained_hint_context_tests::original_inlay_hints_keep_retained_profile_registry_and_whole_source",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "linked_editing_range::tests::links_recursive_self_call_to_declaration",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace_rename::tests::tn_a_computed_namespace_word_elsewhere_does_not_refuse",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "original_context::tests::current_source_currency_is_independent_of_advice_and_execution_purpose",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "original_context::tests::current_source_currency_withdraws_changed_grammar_foreign_input_and_missing_owner",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "original_context::tests::original_logical_type_advice_keeps_current_class_source_and_withdraws_stale_owner",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::original_method_reference_sets_do_not_merge_reused_class_names",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::datagroup::original_arm_parser_tests::original_datagroup_arm_parsing_keeps_nested_marks_and_literal_extents",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::datagroup::tests::original_datagroup_proposals_require_the_selected_output_surface",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::datagroup::tests::supplied_datagroup_advice_keeps_actual_output_availability_and_arm_horizons",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::datagroup::tests::supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::datagroup::tests::supplied_datagroup_alias_does_not_restore_a_removed_output_handler",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_proc::selected_source_variable_tests::original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_proc::selected_source_variable_tests::original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_complete_value_words_keep_explicit_compatibility_behaviour",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_extraction_keeps_supplied_availability_and_source_configuration",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::extract_variable::tests::original_variable_extraction_never_promotes_naming_proposals_to_motion_permission",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::inline_proc::original_inline_tests::original_inline_uses_opaque_allocation_formals_and_absolute_body_with_reports_cleared",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::inline_proc::selected_source_body_tests::logical_inline_call_selection_uses_current_original_body_regions",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::inline_proc::selected_source_body_tests::original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::inline_variable::tests::logical_inline_edits_require_current_source_and_complete_metadata_owner",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::inline_variable::tests::logical_inline_set_uses_selected_operation_and_preserves_capture_geometry",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::original_parse_purpose_tests::original_frame_segmentation_labels_document_and_nested_sources_explicitly",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::selected_frame_context_tests::original_frame_regions_keep_selected_expression_template_and_replacement_horizon",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::selected_frame_context_tests::original_frame_roles_keep_actual_availability_captures_and_source_currency",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::logical_source_rewrite_keeps_captured_values_outside_written_clause_positions",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::source_rewrite::tests::source_rewrites_keep_actual_availability_and_command_horizons",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "refactor::switch_to_dict::original_branch_parser_tests::original_dictionary_branches_keep_nested_bom_content_and_parent_edit_geometry",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::original_hazard_walk_preserves_grammar_and_missing_foreign_owner_refusal",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::original_variable_hazards_keep_selected_alias_origins_and_unknown_roles",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_do_not_exclude_native_or_missing_targets",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::original_hazard_context_tests::supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::the_computed_name_bound_follows_the_document_close_rule",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::tn_a_dominating_constant_name_no_longer_refuses",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::tn_a_dynamic_name_under_another_namespace_no_longer_refuses",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "rename_safety::tests::tn_a_dynamic_name_with_an_unsatisfiable_affix_no_longer_refuses",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::original_realm_consumer_tests::original_semantic_consumer_declines_missing_realm_without_nominal_recapture",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::selected_source_token_tests::original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::tests::cross_file_constructor_dispatch_resolves",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "semantic_tokens::tests::tcloo_dispatch_pattern_fixture",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_cursor_declines_malformed_data_and_native_resolution_promotion",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_syntax_tokens_join_absolute_region_and_command_geometry",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_variable_cursor_keeps_selected_roots_and_complete_source_geometry",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        },
+        {
+          "selector": "tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source",
+          "status": "failed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/pinned-core320.elf.gz",
+        "sha256": "3c3d0c95250dd73586a783285220fca826952b6371dbfe347d98c281bd63296c",
+        "compression": "gzip",
+        "uncompressed_sha256": "e62d1086f8d79fc8f72dd0fc9d35522a189324c9aba0f4a50ee80e92d22517aa",
+        "uncompressed_bytes": 173748792,
+        "compressed_bytes": 31247190,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/lossless-core-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/pinned-core320.json",
+        "metadata_sha256": "ee8ab7c9054b1bf5723d482dead201aad405caf9b62f9573e77dc451ce4561a9",
+        "build_receipt_id": "rust.frozen320.integration-core-own-test-build320",
+        "original_source_snapshot_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/source-snapshot.json.gz",
+          "sha256": "253f730cdb991accb29fd5227820d3363b7c2aff9bd81c30c13674d44f71ab7f",
+          "compression": "gzip",
+          "uncompressed_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0"
+        }
+      },
+      "limits": "The exact admitted177-selector Core320 command closes127 passed/50 failed,0 ignored/measured and2761 filtered. All individual outcomes/failures remain in the full original log. This is a failed selected software suite, not an overall Core, Source320 or current-source pass. Failure causes are not attributed to later repairs. Canonical implementation/source bindings and original Native provider answers remain unchanged."
+    },
+    {
+      "id": "rust.frozen320.integration-compiler-performance-alias30320",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/integration-compiler-performance-alias30320/receipt.json.gz",
+        "sha256": "bcf37f37073901217cd578194c98c4d48420d63a18f44f3043a43296d34f59af",
+        "compression": "gzip",
+        "uncompressed_sha256": "ef93e81c2428c021938e9f35899e5e1d941ebd54fde3791fd1653f719cbb0d12"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/integration-compiler-performance-alias30320/tests.log",
+        "sha256": "9de8b6853aeaaea1b2a6d944fedc49fc8d127f038c77c578df82bdc5b31f24fa"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_SOURCE_PHASES=1",
+        "/tmp/naming-owned320/pinned-compiler320.elf",
+        "analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "seconds": 728.3137710480078,
+      "uniform_source": true,
+      "status": "passed",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 9253
+      },
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/source-snapshot.json.gz",
+        "sha256": "253f730cdb991accb29fd5227820d3363b7c2aff9bd81c30c13674d44f71ab7f",
+        "compression": "gzip",
+        "uncompressed_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0",
+        "json_pointer": "/source",
+        "authority": "Complete original35388-leaf Source320 source association exactly joins retained own successful producer, strict image and actual inventory. Exact selection/request and independent original run outcomes are preserved; source equality supplies no assertion credit."
+      },
+      "tests": [
+        {
+          "selector": "analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque",
+          "status": "passed",
+          "purpose": "Exact independently executed owned Source320 software assertion, retained with full frozen source and complete original log. No current source/body or independent original-provider outcome is inferred.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/pinned-compiler320.elf.gz",
+        "sha256": "c70c2af0f891be7cf0ac6f284a997d083a01d94b3fb527135010c80fd3d11c60",
+        "compression": "gzip",
+        "uncompressed_sha256": "0a1c686be466da2b87d04062ae605d724766830fad24eff87272288bb53138aa",
+        "uncompressed_bytes": 207456576,
+        "compressed_bytes": 40160491,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/lossless-compiler-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/pinned-compiler320.json",
+        "metadata_sha256": "2aed6b76fc34370190a566178767484c3747bb8b42d417a4205ee90904793bd8",
+        "build_receipt_id": "rust.frozen320.integration-compiler-own-test-build320",
+        "original_source_snapshot_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen320/sealed-own-images/source-snapshot.json.gz",
+          "sha256": "253f730cdb991accb29fd5227820d3363b7c2aff9bd81c30c13674d44f71ab7f",
+          "compression": "gzip",
+          "uncompressed_sha256": "6c375d3f584d9bce4054f9284f4bfb85aa28a4f4c0c4686efeb4281dc3eb29e0"
+        }
+      },
+      "limits": "The exact admitted single alias software control closes1 passed/0 failed/0 ignored,9253 filtered. Its30 source analyses and inclusive trace fields remain in the whole original log. Receipt wall time728.3137710480078s and libtest728.14s are distinct fields. The selection admission file also names a regex control; this command executes only the exact alias selector. No full600 or458 suite result, complete-source performance/dominance/gain, later569\u2013571 owner credit or original-provider process is inferred. Canonical implementation/source bindings and original Native provider answers remain unchanged."
     }
   ]
 }

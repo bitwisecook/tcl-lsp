@@ -1,0 +1,111 @@
+int
+Tcl_EvalObjv(
+    Tcl_Interp *interp,		/* Interpreter in which to evaluate the
+				 * command. Also used for error reporting. */
+    int objc,			/* Number of words in command. */
+    Tcl_Obj *const objv[],	/* An array of pointers to objects that are
+				 * the words that make up the command. */
+    int flags)			/* Collection of OR-ed bits that control the
+				 * evaluation of the script. Only
+				 * TCL_EVAL_GLOBAL and TCL_EVAL_INVOKE are
+				 * currently supported. */
+{
+    Interp *iPtr = (Interp *) interp;
+    int code = TCL_OK;
+    int allowExceptions = (iPtr->evalFlags & TCL_ALLOW_EXCEPTIONS);
+
+    iPtr->numLevels++;
+    code = TclEvalObjvInternal(interp, objc, objv, NULL, 0, flags);
+    iPtr->numLevels--;
+
+    if (code == TCL_OK) {
+	return code;
+    } else {
+
+	/*
+	 * If we are again at the top level, process any unusual return code
+	 * returned by the evaluated code.
+	 */
+
+	if (iPtr->numLevels == 0) {
+	    if (code == TCL_RETURN) {
+		code = TclUpdateReturnInfo(iPtr);
+	    }
+	    if ((code != TCL_ERROR) && !allowExceptions) {
+		ProcessUnexpectedResult(interp, code);
+		code = TCL_ERROR;
+	    }
+	}
+
+	if ((code == TCL_ERROR) && !(flags & TCL_EVAL_INVOKE)) {
+	    /*
+	     * If there was an error, a command string will be needed for the
+	     * error log: generate it now. Do not worry too much about doing
+	     * it expensively.
+	     */
+
+	    Tcl_Obj *listPtr;
+	    char *cmdString;
+	    int cmdLen;
+
+	    listPtr = Tcl_NewListObj(objc, objv);
+	    cmdString = Tcl_GetStringFromObj(listPtr, &cmdLen);
+	    Tcl_LogCommandInfo(interp, cmdString, cmdString, cmdLen);
+	    Tcl_DecrRefCount(listPtr);
+	}
+
+	return code;
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_EvalTokensStandard --
+ *
+ *	Given an array of tokens parsed from a Tcl command (e.g., the tokens
+ *	that make up a word or the index for an array variable) this function
+ *	evaluates the tokens and concatenates their values to form a single
+ *	result value.
+ *
+ * Results:
+ *	The return value is a standard Tcl completion code such as TCL_OK or
+ *	TCL_ERROR. A result or error message is left in interp's result.
+ *
+ * Side effects:
+ *	Depends on the array of tokens being evaled.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_EvalTokensStandard(
+    Tcl_Interp *interp,		/* Interpreter in which to lookup variables,
+				 * execute nested commands, and report
+				 * errors. */
+    Tcl_Token *tokenPtr,	/* Pointer to first in an array of tokens to
+				 * evaluate and concatenate. */
+    int count)			/* Number of tokens to consider at tokenPtr.
+				 * Must be at least 1. */
+{
+    return TclSubstTokens(interp, tokenPtr, count, /* numLeftPtr */ NULL, 1,
+			  NULL, NULL);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_EvalTokens --
+ *
+ *	Given an array of tokens parsed from a Tcl command (e.g., the tokens
+ *	that make up a word or the index for an array variable) this function
+ *	evaluates the tokens and concatenates their values to form a single
+ *	result value.
+ *
+ * Results:
+ *	The return value is a pointer to a newly allocated Tcl_Obj containing
+ *	the value of the array of tokens. The reference count of the returned
+ *	object has been incremented. If an error occurs in evaluating the
+ *	tokens then a NULL value is returned and an error message is left in
+ *	interp's result.
+ *

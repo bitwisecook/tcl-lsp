@@ -1,0 +1,110 @@
+{
+  "0": {
+    "description": "info default missing procedure",
+    "setup": "proc ::p {{x VALUE}} {}; set ::a [lazy A 3a3a6d697373696e67]; set ::b [lazy B 78]; set ::c [lazy C 3a3a746172676574]; set ::setup_marker READY",
+    "worker": "direct info default $::a $::b $::c",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "1": {
+    "description": "info default missing formal",
+    "setup": "proc ::p {{x VALUE}} {}; set ::a [lazy A 3a3a70]; set ::b [lazy B 626164]; set ::c [lazy C 3a3a746172676574]; set ::setup_marker READY",
+    "worker": "direct info default $::a $::b $::c",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "2": {
+    "description": "info default declared default",
+    "setup": "proc ::p {{x VALUE}} {}; set ::a [lazy A 3a3a70]; set ::b [lazy B 78]; set ::c [lazy C 3a3a746172676574]; set ::setup_marker READY",
+    "worker": "direct info default $::a $::b $::c",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "3": {
+    "description": "info default no default",
+    "setup": "proc ::p {x} {}; set ::a [lazy A 3a3a70]; set ::b [lazy B 78]; set ::c [lazy C 3a3a746172676574]; set ::setup_marker READY",
+    "worker": "direct info default $::a $::b $::c",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "4": {
+    "description": "array set pure List original key/value",
+    "setup": "set ::a [lazy A 3a3a617272]; set ::b [lazy B 6b]; set ::c [lazy C 56414c5545]; set ::pairs [list $::b $::c]; set ::setup_marker READY",
+    "worker": "direct array set $::a $::pairs",
+    "post": "list [array exists ::arr] [array get ::arr]"
+  },
+  "5": {
+    "description": "array set odd List rejects before member getters",
+    "setup": "set ::a [lazy A 3a3a617272]; set ::b [lazy B 6b]; set ::c [lazy C 56414c5545]; set ::pairs [list $::b $::c extra]; set ::setup_marker READY",
+    "worker": "direct array set $::a $::pairs",
+    "post": "list [array exists ::arr] [array get ::arr]"
+  },
+  "6": {
+    "description": "array set first pair commitment before second key getter",
+    "setup": "set ::a [lazy A 3a3a617272]; set ::b [lazy B 6b]; set ::c [lazy C 6d]; set ::pairs [list $::b FIRST $::c SECOND]; set ::setup_marker READY",
+    "worker": "direct array set $::a $::pairs",
+    "post": "list [info exists ::arr(k)] [info exists ::arr(m)] [array get ::arr]"
+  },
+  "7": {
+    "description": "array for valid two original variable-name members",
+    "setup": "array set ::arr {key VALUE}; set ::a [lazy A 3a3a6b]; set ::b [lazy B 3a3a76]; set ::c [lazy C 3a3a617272]; set ::vars [list $::a $::b]; set ::setup_marker READY",
+    "worker": "direct array for $::vars $::c {}",
+    "post": "list [info exists ::k] [info exists ::v]"
+  },
+  "8": {
+    "description": "array for invalid List length precedes array getter",
+    "setup": "array set ::arr {key VALUE}; set ::a [lazy A 3a3a6b]; set ::b [lazy B 3a3a617272]; set ::vars [list $::a]; set ::setup_marker READY",
+    "worker": "direct array for $::vars $::b {}",
+    "post": "list [info exists ::k] [array exists ::arr]"
+  },
+  "9": {
+    "description": "array for absent array precedes variable member getters",
+    "setup": "set ::a [lazy A 3a3a6b]; set ::b [lazy B 3a3a76]; set ::c [lazy C 3a3a6d697373696e67]; set ::vars [list $::a $::b]; set ::setup_marker READY",
+    "worker": "direct array for $::vars $::c {}",
+    "post": "list [info exists ::k] [info exists ::v]"
+  },
+  "10": {
+    "description": "const creates scalar without value getter",
+    "setup": "set ::a [lazy A 3a3a746172676574]; set ::b [lazy B 56414c5545]; set ::setup_marker READY",
+    "worker": "direct const $::a $::b",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "11": {
+    "description": "const existing scalar rejects before value getter",
+    "setup": "set ::target OLD; set ::a [lazy A 3a3a746172676574]; set ::b [lazy B 56414c5545]; set ::setup_marker READY",
+    "worker": "direct const $::a $::b",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "12": {
+    "description": "incr selected name and amount getter order",
+    "setup": "set ::target 1; set ::a [lazy A 3a3a746172676574]; set ::b [lazy B 32]; set ::setup_marker READY",
+    "worker": "direct incr $::a $::b",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "13": {
+    "description": "incr missing namespace versus invalid amount precedence",
+    "setup": "set ::a [lazy A 3a3a6d697373696e673a3a746172676574]; set ::b [lazy B 626164]; set ::setup_marker READY",
+    "worker": "direct incr $::a $::b",
+    "post": "info exists ::missing::target"
+  },
+  "14": {
+    "description": "unset first missing name leaves later target unread",
+    "setup": "set ::target VALUE; set ::a [lazy A 3a3a6d697373696e67]; set ::b [lazy B 3a3a746172676574]; set ::setup_marker READY",
+    "worker": "direct unset $::a $::b",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  },
+  "15": {
+    "description": "unset prefix deletion survives next missing-name failure",
+    "setup": "set ::target VALUE; set ::survivor STILL; set ::a [lazy A 3a3a746172676574]; set ::b [lazy B 3a3a6d697373696e67]; set ::c [lazy C 3a3a7375727669766f72]; set ::setup_marker READY",
+    "worker": "direct unset $::a $::b $::c",
+    "post": "list [info exists ::target] [info exists ::survivor]"
+  },
+  "16": {
+    "description": "unset nocomplain continues through missing name",
+    "setup": "set ::target VALUE; set ::survivor STILL; set ::a [lazy A 3a3a746172676574]; set ::b [lazy B 3a3a6d697373696e67]; set ::c [lazy C 3a3a7375727669766f72]; set ::setup_marker READY",
+    "worker": "direct unset -nocomplain $::a $::b $::c",
+    "post": "list [info exists ::target] [info exists ::survivor]"
+  },
+  "17": {
+    "description": "info exists reads original scalar name",
+    "setup": "set ::target VALUE; set ::a [lazy A 3a3a746172676574]; set ::setup_marker READY",
+    "worker": "direct info exists $::a",
+    "post": "if {[info exists ::target]} {list 1 [set ::target]} else {list 0 ABSENT}"
+  }
+}

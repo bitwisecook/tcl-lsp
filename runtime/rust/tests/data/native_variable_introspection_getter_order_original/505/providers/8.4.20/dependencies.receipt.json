@@ -1,0 +1,83 @@
+{
+  "provider": "8.4.20",
+  "channel": "dependencies",
+  "status": "closed",
+  "command": [
+    "/usr/bin/ldd",
+    "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-variable-introspection-order505",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "BASH_ENV",
+      "ENV"
+    ]
+  },
+  "request_sha256": "0eb9e8fabd90918d982cf1399323103975b21d560b444b9f5d0592a8894a5625",
+  "source_sha256": "a13751018b5ff6f71e0be257839787431b00943434cfc85b7318c6c513692ee6",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.009090477979043499,
+  "stdout_sha256": "bc21c5bf1eb34960f8889c10b2688134319e09914acc93d2c1696a50ce07ed8e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "actual_dynamic_dependencies": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "executable_before": {
+    "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/probe.elf",
+    "sha256": "c2f5aa44ae20e3f0fe4c9ac8db83769dfd1986548a87ec62530beabdfcfb9c5d",
+    "size": 863616,
+    "device": 27,
+    "inode": 1041320,
+    "mtime_ns": 1791684062923222270,
+    "ctime_ns": 1791684062923243449
+  },
+  "executable_after": {
+    "path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-variable-introspection-order505/providers/8.4.20/probe.elf",
+    "sha256": "c2f5aa44ae20e3f0fe4c9ac8db83769dfd1986548a87ec62530beabdfcfb9c5d",
+    "size": 863616,
+    "device": 27,
+    "inode": 1041320,
+    "mtime_ns": 1791684062923222270,
+    "ctime_ns": 1791684062923243449
+  }
+}
