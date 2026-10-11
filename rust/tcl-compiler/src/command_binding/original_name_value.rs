@@ -26,6 +26,17 @@ impl OriginalWordSourcePurpose {
     }
 }
 
+#[cfg(test)]
+fn trace_original_word_config(stage: &str, tokens: &crate::ir::CommandTokens, passed: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        let offset = tokens
+            .words()
+            .first()
+            .map(|word| word.source().span.start());
+        eprintln!("ORIGINAL_WORD_CONFIG stage={stage} offset={offset:?} passed={passed}");
+    }
+}
+
 pub(crate) const MAX_ORIGINS: usize = 32;
 pub(crate) const MAX_BYTES: usize = 65_536;
 
@@ -815,10 +826,43 @@ impl super::SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<tcl_lexer::LexerConfig> {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            eprintln!(
+                "ORIGINAL_WORD_CONFIG stage=request offset={:?} words={} synthetic={:?} written={} compiler={} declaration={}",
+                tokens
+                    .words()
+                    .first()
+                    .map(|word| word.source().span.start()),
+                tokens.words().len(),
+                tokens.synthetic,
+                self.original_written_words.is_some(),
+                self.original_compiler_words.is_some(),
+                self.declaration_layout_observations.is_some(),
+            );
+        }
         if !tokens.original_words_match_argv_text() {
+            #[cfg(test)]
+            trace_original_word_config("compatibility_vector", tokens, false);
             return None;
         }
+        #[cfg(test)]
+        trace_original_word_config("compatibility_vector", tokens, true);
         if let Some(original) = &self.original_written_words {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+                trace_original_word_config(
+                    "written_site",
+                    tokens,
+                    self.invocation_site()
+                        .is_some_and(|site| original.site == *site),
+                );
+                trace_original_word_config(
+                    "written_vector",
+                    tokens,
+                    original.words.as_ref() == tokens.words(),
+                );
+            }
             return (original.site == *self.invocation_site()?
                 && original.words.as_ref() == tokens.words())
             .then_some(original.config);
@@ -826,7 +870,40 @@ impl super::SourceInvocationBinding {
         if let Some(original) = &self.original_compiler_words {
             // A compiler visit can own this vector after an abrupt runtime
             // prefix. Its exact snapshot supplies syntax, never invocation.
+            #[cfg(test)]
+            trace_original_word_config(
+                "compiler_snapshot",
+                tokens,
+                self.compiler_lookup_state.is_some(),
+            );
             let snapshot = self.compiler_lookup_state.as_ref()?;
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+                trace_original_word_config(
+                    "compiler_origin",
+                    tokens,
+                    snapshot.state.current_source_origin.as_ref() == Some(&original.site.source),
+                );
+                trace_original_word_config(
+                    "compiler_site",
+                    tokens,
+                    self.invocation_site()
+                        .is_none_or(|site| site == &original.site),
+                );
+                trace_original_word_config(
+                    "compiler_head",
+                    tokens,
+                    tokens
+                        .words()
+                        .first()
+                        .is_some_and(|word| word.source().span.start() == original.site.offset),
+                );
+                trace_original_word_config(
+                    "compiler_vector",
+                    tokens,
+                    original.words.as_ref() == tokens.words(),
+                );
+            }
             return (snapshot.state.current_source_origin.as_ref() == Some(&original.site.source)
                 && self
                     .invocation_site()
@@ -835,11 +912,36 @@ impl super::SourceInvocationBinding {
                 && original.words.as_ref() == tokens.words())
             .then_some(original.config);
         }
+        #[cfg(test)]
+        trace_original_word_config("declaration_site", tokens, self.invocation_site().is_some());
         let site = self.invocation_site()?;
         let rows = super::declaration_layout::original_declaration_layouts(
             self.declaration_layout_observations.as_deref()?,
         )?;
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            trace_original_word_config("declaration_rows", tokens, rows.clone().next().is_some());
+        }
         let first = rows.clone().next()?;
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            trace_original_word_config(
+                "declaration_vector",
+                tokens,
+                first.words.as_ref() == tokens.words(),
+            );
+            trace_original_word_config(
+                "declaration_origin",
+                tokens,
+                first.snapshot.state.current_source_origin.as_ref() == Some(&site.source),
+            );
+            trace_original_word_config(
+                "declaration_consensus",
+                tokens,
+                rows.clone()
+                    .all(|row| row.words == first.words && row.config == first.config),
+            );
+        }
         (first.words.as_ref() == tokens.words()
             && first.snapshot.state.current_source_origin.as_ref() == Some(&site.source)
             && rows

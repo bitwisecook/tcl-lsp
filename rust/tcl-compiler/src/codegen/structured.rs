@@ -749,9 +749,26 @@ mod tests {
     fn events(src: &str) -> Vec<String> {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0")
             .expect("selected native structured-walk fixture");
-        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let registry =
+            std::sync::Arc::new(CommandRegistry::build_default().project_for_profile(profile));
+        let mut prepared = crate::analyser::Analyser::new();
+        let prepared_input = prepared.prepare_analysis_input(profile.name).unwrap();
+        let context = std::sync::Arc::new(
+            prepared_input
+                .context_registry()
+                .with_command_store(registry.clone()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            prepared_input.analyser_profile(),
+            prepared_input.unit_profile(),
+            context,
+            prepared_input.lexer_config(),
+        );
         let entry = crate::environment_ingress::captured_native_entry(profile);
-        let mut lowerer = Lowerer::new(&registry).with_dialect(Some(profile));
+        // Native entry and complete conditional metadata retain their own owners.
+        let mut lowerer = Lowerer::new(&registry)
+            .with_dialect(Some(profile))
+            .with_resolved_analysis_input(input);
         lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
             native_entry: Some(entry.as_entry()),
             invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),

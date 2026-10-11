@@ -1358,9 +1358,13 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
         // Conditional original geometry/inventory, never Native child dispatch or result.
         let mut prepared = crate::analyser::Analyser::new();
-        let base_input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        // The authored Logical owner retains this independently selected grammar.
+        let base_input = prepared.prepare_analysis_input("tcl").unwrap();
+        let selected_config = tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar,
+        );
         for leading_bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
-            let mut config = base_input.lexer_config();
+            let mut config = selected_config;
             config.leading_bom = leading_bom;
             let input = crate::analyser::ResolvedAnalysisInput::new(
                 base_input.analyser_profile(),

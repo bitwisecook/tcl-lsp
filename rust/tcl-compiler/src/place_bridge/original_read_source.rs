@@ -88,7 +88,8 @@ mod tests {
 
     fn source_input(config: tcl_lexer::LexerConfig) -> ResolvedAnalysisInput {
         let mut analyser = Analyser::new();
-        let original = analyser.prepare_analysis_input("tcl9.1").unwrap();
+        // Logical source naming and the supplied lexical policy are independent.
+        let original = analyser.prepare_analysis_input("tcl").unwrap();
         ResolvedAnalysisInput::new(
             original.analyser_profile(),
             original.unit_profile(),
