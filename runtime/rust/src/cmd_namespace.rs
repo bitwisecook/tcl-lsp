@@ -24,8 +24,8 @@
 //! [`crate::namespace`] (the command-binding contract's A1/A2). `import`/`export`
 //! match with the shared `string match` glob ([`tcl_syntax::glob`]); an `import`
 //! installs a transparent [`Command::Imported`](crate::interp::Command) redirect
-//! that dispatch re-resolves by the source FQN, and `forget` removes those
-//! redirects by matching the same FQN.
+//! retaining the actual source generation; `forget` selects those redirects
+//! through the shared qualifier, tail and namespace resolver.
 //!
 //! See `docs/design/runtime/namespace-tree.md` for the model.
 //!
@@ -33,9 +33,10 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::ensemble::EnsembleConfig;
-use crate::interp::{Code, Command, Interp, error_code_list, obj_bytes};
+use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::{error_code_list, Code, Command, Interp};
 use crate::list;
-use crate::namespace::{GLOBAL, NsId};
+use crate::namespace::{NsId, GLOBAL};
 use crate::obj::{self, TclObj};
 use tcl_syntax::value::ValueOps;
 
@@ -175,12 +176,25 @@ fn stock_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = namespace_cmd_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn namespace_cmd_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
     // Resolve the subcommand by exact name or unambiguous prefix (the ensemble
     // contract), so e.g. `namespace exist` → `exists`.
-    let original = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &argv[1]) {
+    let original = match arguments.bytes(1) {
         Ok(bytes) => bytes,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
@@ -259,17 +273,15 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"which" => ns_which(interp, argv),
         b"origin" => ns_origin(interp, argv),
         b"export" => {
-            if interp.dialect_profile().namespace_import_binding()
-                == Some(tcl_dialect::NamespaceImportBinding::SourceName)
-            {
+            if policy.recipe().is_jim084() {
                 interp.set_result_bytes(b"");
                 Code::Ok
             } else {
-                ns_export(interp, argv)
+                ns_export(interp, argv, arguments)
             }
         }
-        b"import" => ns_import(interp, argv),
-        b"forget" => ns_forget(interp, argv),
+        b"import" => ns_import(interp, argv, arguments),
+        b"forget" => ns_forget(interp, argv, arguments),
         b"path" => ns_path(interp, argv),
         b"ensemble" => ns_ensemble(interp, argv),
         b"inscope" => ns_inscope(interp, argv),
@@ -287,6 +299,19 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// sub-namespace with no handler reports the empty string (and falls back to
 /// `::unknown` at dispatch). Mirrors `NamespaceUnknownCmd` (`tclNamesp.c`).
 fn ns_unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = ns_unknown_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn ns_unknown_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"?script?");
     }
@@ -300,8 +325,14 @@ fn ns_unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let handler = (length != 0).then(|| obj::Owned::retain(argv[2]));
         let retired = interp.namespaces_mut().set_unknown_handler(cur, None);
         drop(retired);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
         let retired = interp.namespaces_mut().set_unknown_handler(cur, handler);
         drop(retired);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
         interp.set_result(argv[2]);
         return Code::Ok;
     }
@@ -722,45 +753,74 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `namespace export ?-clear? ?pattern ...?` — query / append (or clear+set)
 /// the current namespace's export patterns.
-fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn namespace_pattern(
+    interp: &Interp,
+    arguments: &OriginalArguments,
+    index: usize,
+    purpose: tcl_syntax::naming::NativeNamePurpose,
+) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+    let original = arguments.bytes(index)?;
+    let policy = interp.name_policy_protocol().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("namespace pattern issuer"),
+    )?;
+    policy
+        .recipe()
+        .namespace_pattern_input(&original, purpose)
+        .map(|projection| projection.selected().to_vec())
+        .map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("namespace pattern purpose")
+                .into()
+        })
+}
+
+fn ns_export(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     let cur = interp.current_ns();
-    // No words at all ⇒ query (C's `objc == 1` arm, before `-clear` is even
-    // looked at).
     if argv.len() == 2 {
-        let pats = interp.namespaces().exports(cur).to_vec();
-        set_list_bytes(interp, &pats);
+        let patterns = interp.namespaces().exports(cur).to_vec();
+        set_list_bytes(interp, &patterns);
         return Code::Ok;
     }
-    // `-clear` is *positional*: C tests only `objv[1]`, so a second `-clear`
-    // is an ordinary pattern (the registry says the same with
-    // `max_leading_option_words: Some(1)`).
-    let mut words = argv[2..].iter().map(|&a| obj_bytes(a));
-    let mut first = words.next();
+    let mut first = match namespace_pattern(
+        interp,
+        arguments,
+        2,
+        tcl_syntax::naming::NativeNamePurpose::NamespaceExportPattern,
+    ) {
+        Ok(pattern) => Some(pattern),
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let clear = first.as_deref() == Some(b"-clear");
-    if clear {
-        first = words.next();
-    }
-    let patterns: Vec<Vec<u8>> = first.into_iter().chain(words).collect();
-    // `-clear` commits before any pattern is even looked at: C spends a whole
-    // `Tcl_Export(…, "::", 1)` call on it, which resets the list and then
-    // fails its own qualifier check — an error `NamespaceExportCmd` discards
-    // with `Tcl_ResetResult`. So a later invalid pattern cannot undo it.
-    if clear {
+    let start = if clear {
         interp.namespaces_mut().clear_exports(cur);
-    }
-    // An export pattern names commands in the *current* namespace only, so it
-    // may not be namespace-qualified (C's `NamespaceExportCmd`). C calls
-    // `Tcl_Export` once per pattern and returns on the first failure, leaving
-    // the earlier patterns committed — this is a per-pattern loop, not a
-    // batch gate.
-    for p in &patterns {
-        if tcl_syntax::naming::is_qualified(p) {
-            let mut m = b"invalid export pattern \"".to_vec();
-            m.extend_from_slice(p);
-            m.extend_from_slice(b"\": pattern can't specify a namespace");
-            return interp.set_error(&m);
+        first = None;
+        3
+    } else {
+        2
+    };
+    // Original C drivers commit clear and each accepted pattern before the next
+    // String getter. A failed pattern leaves earlier effects and later originals untouched.
+    for index in start..argv.len() {
+        let pattern = match first.take().map(Ok).unwrap_or_else(|| {
+            namespace_pattern(
+                interp,
+                arguments,
+                index,
+                tcl_syntax::naming::NativeNamePurpose::NamespaceExportPattern,
+            )
+        }) {
+            Ok(pattern) => pattern,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        if tcl_syntax::naming::is_qualified(&pattern) {
+            let mut message = b"invalid export pattern \"".to_vec();
+            message.extend_from_slice(&pattern);
+            message.extend_from_slice(b"\": pattern can't specify a namespace");
+            return interp.set_error(&message);
         }
-        interp.namespaces_mut().export(cur, p);
+        interp.namespaces_mut().export(cur, &pattern);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -768,11 +828,12 @@ fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `namespace import ?-force? pattern ?pattern ...?` — install transparent
 /// redirects in the current ns for the exported commands matching each pattern.
-fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if interp.dialect_profile().namespace_import_binding()
-        == Some(tcl_dialect::NamespaceImportBinding::SourceName)
+fn ns_import(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
+    if interp
+        .name_policy_protocol()
+        .is_some_and(|policy| policy.recipe().is_jim084())
     {
-        return ns_import_source_names(interp, &argv[2..]);
+        return ns_import_source_names(interp, &argv[2..], arguments);
     }
     let dest = interp.current_ns();
     // The introspection form is `objc == 1` — literally no words after
@@ -784,21 +845,35 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         set_list_bytes(interp, &names);
         return Code::Ok;
     }
-    // `-force` is positional in the same way `-clear` is: C reads it from
-    // `objv[1]` only, so a trailing `-force` becomes a pattern — and then
-    // fails the "the pattern must name a source namespace" check below.
-    let mut words = argv[2..].iter().map(|&a| obj_bytes(a));
-    let mut first = words.next();
+    let mut first = match namespace_pattern(
+        interp,
+        arguments,
+        2,
+        tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+    ) {
+        Ok(pattern) => Some(pattern),
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let force = first.as_deref() == Some(b"-force");
-    if force {
-        first = words.next();
-    }
-    let patterns: Vec<Vec<u8>> = first.into_iter().chain(words).collect();
-    if patterns.is_empty() {
-        interp.set_result_bytes(b"");
-        return Code::Ok;
-    }
-    for pat in &patterns {
+    let start = if force {
+        first = None;
+        3
+    } else {
+        2
+    };
+    for index in start..argv.len() {
+        let pattern = match first.take().map(Ok).unwrap_or_else(|| {
+            namespace_pattern(
+                interp,
+                arguments,
+                index,
+                tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+            )
+        }) {
+            Ok(pattern) => pattern,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let pat = pattern.as_slice();
         let destination = tcl_runtime_api::Namespaces::current(interp);
         let validated = match tcl_cmd_core::namespace::import_pattern(interp, destination, pat) {
             Ok(validated) => validated,
@@ -899,13 +974,20 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     identity: std::rc::Rc::new(crate::interp::ImportToken),
                 },
             );
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
         }
     }
     interp.set_result_bytes(b"");
     Code::Ok
 }
 
-fn ns_import_source_names(interp: &mut Interp, patterns: &[*mut TclObj]) -> Code {
+fn ns_import_source_names(
+    interp: &mut Interp,
+    patterns: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     use tcl_syntax::value::ValueOps;
     let Some(policy) = interp.name_policy_protocol() else {
         return interp.report_cmd_error(
@@ -1002,7 +1084,11 @@ fn ns_import_source_names(interp: &mut Interp, patterns: &[*mut TclObj]) -> Code
                     return interp.set_error(&error);
                 }
             }
-            if let Err(name) = interp.install_alias(&destination, source, Vec::new()) {
+            let installed = interp.install_alias(&destination, source, Vec::new());
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            if let Err(name) = installed {
                 let mut error = b"import pattern \"".to_vec();
                 error.extend_from_slice(&original);
                 error.extend_from_slice(b"\" would create a loop containing command \"");
@@ -1018,10 +1104,18 @@ fn ns_import_source_names(interp: &mut Interp, patterns: &[*mut TclObj]) -> Code
 
 /// `namespace forget ?pattern ...?` — remove imported redirects in the current
 /// ns whose source FQN matches each (resolved) pattern.
-fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
     let dest = interp.current_ns();
-    for &a in &argv[2..] {
-        let pat = obj_bytes(a);
+    for index in 2..argv.len() {
+        let pat = match namespace_pattern(
+            interp,
+            arguments,
+            index,
+            tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
+        ) {
+            Ok(pattern) => pattern,
+            Err(error) => return interp.report_cmd_error(error),
+        };
         // Resolve the pattern's namespace to an absolute FQN so we match against
         // the redirect's stored source FQN.
         let q = match tcl_cmd_core::namespace::qualifier(&pat) {
@@ -1051,6 +1145,9 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .collect();
         for simple in victims {
             interp.namespaces_mut().remove_in(dest, &simple);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
         }
     }
     interp.set_result_bytes(b"");
@@ -1764,6 +1861,10 @@ fn apply_ensemble_option(
 /// existing ensemble's configuration (`tclEnsemble.c`). No options: a dict of
 /// all settings; one bare `-option`: its value; `-option value …` pairs: update.
 fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     let Some(options) = interp
         .native_invocation_dialect()
         .native_ensemble_configuration_protocol()
@@ -1780,7 +1881,10 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp
             .wrong_args(b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?");
     }
-    let cmd = obj_bytes(argv[3]);
+    let cmd = match arguments.bytes(3) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     // Follow a `namespace import` alias to the ensemble that owns the config:
     // reads and writes both act on the origin, so both spellings observe one
     // configuration and the alias stays an alias.
@@ -1980,10 +2084,18 @@ fn ensemble_config_list(
 
 /// `namespace ensemble exists command` — 1 if it resolves to an ensemble.
 fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     if argv.len() != 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"exists cmdname");
     }
-    let exists = interp.is_ensemble(&obj_bytes(argv[3]));
+    let name = match arguments.bytes(3) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let exists = interp.is_ensemble(&name);
     interp.set_result_bytes(if exists { b"1" } else { b"0" });
     Code::Ok
 }
@@ -6077,3 +6189,6 @@ mod native_holder_routing;
 
 #[cfg(test)]
 mod native_map_prefix_tests;
+
+#[cfg(test)]
+pub(crate) mod original_argument_tests;

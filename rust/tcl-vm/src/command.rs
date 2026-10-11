@@ -35,6 +35,8 @@ use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
 #[cfg(test)]
+mod native_definition_order_tests;
+#[cfg(test)]
 mod native_encoding_tests;
 mod native_procedure;
 #[cfg(test)]
@@ -2132,9 +2134,49 @@ fn define_procedure(
     let name = &args[definition.name_at];
     let params = &args[definition.parameters_at];
     let body_text = &args[definition.body_at];
+    let Some(creation) = tcl_registry::native_procedure::procedure_activation_protocol(
+        vm.actual_native_invocation_dialect(),
+    ) else {
+        return completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original procedure definition order",
+            )
+            .into(),
+        );
+    };
+    let prepared = if creation.definition_formals_precede_name() {
+        let body = match vm.capture_procedure_declaration_body(params, body_text) {
+            Ok(body) => body,
+            Err(error) => return completion_from_cmd_error(vm, error.into()),
+        };
+        let statics = match definition
+            .statics_at
+            .map(|index| vm.prepare_procedure_statics_value(&args[index]))
+            .transpose()
+        {
+            Ok(statics) => statics,
+            Err(error) => return error,
+        };
+        let parameters = match parse_params_value(vm, params, b"") {
+            Ok(parameters) => parameters,
+            Err(error) => return error,
+        };
+        Some((body, statics, parameters))
+    } else {
+        None
+    };
     let written = match vm.native_name_operand_bytes(name) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => {
+            return completion_from_cmd_error(
+                vm,
+                tcl_syntax::value::ValueError::NativeStringAccess(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                )
+                .into(),
+            );
+        }
     };
     if let Err(completion) = validate_procedure_publication_name(vm, &written) {
         return completion;
@@ -2142,21 +2184,27 @@ fn define_procedure(
     let Some(parameter_grammar) = vm.native_invocation_dialect().parameter_grammar() else {
         return err("native parameter grammar is not selected");
     };
-    let body = match vm.capture_procedure_declaration_body(params, body_text) {
-        Ok(body) => body,
-        Err(error) => return completion_from_cmd_error(vm, error.into()),
-    };
-    let statics = match definition
-        .statics_at
-        .map(|index| vm.prepare_procedure_statics_value(&args[index]))
-        .transpose()
-    {
-        Ok(statics) => statics,
-        Err(error) => return error,
-    };
-    let (params_vec, has_args) = match parse_params_value(vm, params, &written) {
-        Ok(parsed) => parsed,
-        Err(error) => return error,
+    let (body, statics, (params_vec, has_args)) = match prepared {
+        Some(prepared) => prepared,
+        None => {
+            let body = match vm.capture_procedure_declaration_body(params, body_text) {
+                Ok(body) => body,
+                Err(error) => return completion_from_cmd_error(vm, error.into()),
+            };
+            let statics = match definition
+                .statics_at
+                .map(|index| vm.prepare_procedure_statics_value(&args[index]))
+                .transpose()
+            {
+                Ok(statics) => statics,
+                Err(error) => return error,
+            };
+            let parameters = match parse_params_value(vm, params, &written) {
+                Ok(parameters) => parameters,
+                Err(error) => return error,
+            };
+            (body, statics, parameters)
+        }
     };
     let (reg_name, slot, ns_id) = match vm.native_procedure_publication(&written) {
         Ok(publication) => publication,

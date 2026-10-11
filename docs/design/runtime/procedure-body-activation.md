@@ -10,6 +10,17 @@ object. The definition owner inspects sharing before acquiring another handle.
 Only the native bare-`args` header check reaches an otherwise unshared body
 string updater; other definitions preserve pure List and ByteArray backing.
 
+Definition also has a selected original-argument order. The shared
+`NativeProcedureActivationProtocol` makes C validate the original name and
+namespace before selecting the declaration body and formal parameters. Jim
+creates its outer formal List, retains the body and statics, validates formal
+members, and then reads and qualifies the original name. It retains the
+original body without a definition-time String getter. The Runtime and VM
+use this same protocol; their argument transports preserve the original
+objects and stop at the first reached refusal. The bounded original getter
+and public result observations are recorded in
+[the naming argument proof](../analysis/name-resolution-proofs/invocation-original-naming-argument-getter-and-effect-order.md).
+
 `ProcDef.body: Option<CompiledUnit>` distinguishes original source from an
 admitted C body cache. An unprepared definition has `None`; it does not carry
 empty assembly or compiler provenance. Host definitions, `apply`, ordinary

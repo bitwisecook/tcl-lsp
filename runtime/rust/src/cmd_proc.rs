@@ -24,7 +24,8 @@
 //! (`Interp::call_proc`) pushes a frame, binds the args, and runs the body —
 //! see `proc-call-and-stack-traces.md`. `puts` writes to stdout/stderr.
 
-use crate::interp::{CallMeta, Code, Interp, Param, ProcFrame, obj_bytes};
+use crate::interp::native_arguments::OriginalArguments;
+use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;
 use crate::obj::{self, Owned};
 use tcl_cmd_core::CmdError;
@@ -93,12 +94,25 @@ pub(crate) fn install_stock_scripted_library(
 
 /// `proc name params body` — define a procedure.
 fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let arguments = match OriginalArguments::enter(interp, argv) {
+        Ok(arguments) => arguments,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let code = proc_cmd_original(interp, argv, &arguments);
+    arguments.finish(code)
+}
+
+fn proc_cmd_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    arguments: &OriginalArguments,
+) -> Code {
     use tcl_registry::native_procedure::{
         NativeProcedureDefinitionSelection, NativeProcedureDefinitionSpec,
         ProcedureDefinitionResult,
     };
     let dialect = interp.native_invocation_dialect();
-    let argument_count = argv.len() - 1;
+    let argument_count = argv.len().saturating_sub(1);
     // This selected definition grammar needs cardinality only. Its name,
     // parameter bytes and body remain their actual evaluated values.
     let words = vec![tcl_registry::InvocationWord::Dynamic; argument_count];
@@ -112,7 +126,63 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .as_bytes(),
         );
     };
-    let name = obj_bytes(argv[1]);
+    let Some(creation) = tcl_registry::native_procedure::procedure_activation_protocol(dialect)
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original procedure definition order",
+            )
+            .into(),
+        );
+    };
+    let original_body = argv[definition.body_at + 1];
+    let mut prepared_body = None;
+    let mut prepared_formals = None;
+    let mut prepared_statics = None;
+    if creation.definition_formals_precede_name() {
+        // Jim reaches the outer List before retaining the body, then validates
+        // statics/formal members before qualifying the original command name.
+        let outer = ValueOps::list_elements(interp, &argv[definition.parameters_at + 1]);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        if let Err(error) = outer {
+            return interp.report_cmd_error(error.into());
+        }
+        let body = interp.choose_original_procedure_body(original_body);
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        prepared_body = match body {
+            Ok(body) => Some(body),
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        if let Some(index) = definition.statics_at {
+            let statics = prepare_static_variables(interp, argv[index + 1]);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            prepared_statics = match statics {
+                Ok(statics) => Some(std::rc::Rc::new(statics)),
+                Err(error) => return interp.report_cmd_error(error),
+            };
+        }
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        let formals = parse_params_object(interp, argv[definition.parameters_at + 1], b"");
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
+        prepared_formals = match formals {
+            Ok(formals) => Some(formals),
+            Err(error) => return interp.report_cmd_error(error),
+        };
+    }
+    let name = match arguments.bytes(1) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error),
+    };
     // A namespace-qualified proc name requires that namespace to already exist
     // (C's `Tcl_ProcObjCmd` via `TclGetNamespaceForQualName`).
     let flat_jim = interp
@@ -164,22 +234,47 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
     }
-    let original_body = argv[definition.body_at + 1];
     // C chooses its body before parsing the formal list, whose conversions
     // can enter callbacks and change the incoming object's sharing.
-    let chosen_body = match interp.choose_original_procedure_body(original_body) {
-        Ok(body) => body,
-        Err(error) => return interp.report_cmd_error(error.into()),
+    let chosen_body = match prepared_body {
+        Some(body) => body,
+        None => {
+            let body = interp.choose_original_procedure_body(original_body);
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match body {
+                Ok(body) => body,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        }
     };
-    let params = match parse_params_object(
-        interp,
-        argv[definition.parameters_at + 1],
-        tcl_syntax::naming::written_command_tail(&name),
-    ) {
-        Ok(parameters) => parameters,
-        Err(error) => return interp.report_cmd_error(error),
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let params = match prepared_formals {
+        Some(formals) => formals,
+        None => {
+            let formals = parse_params_object(
+                interp,
+                argv[definition.parameters_at + 1],
+                tcl_syntax::naming::written_command_tail(&name),
+            );
+            if let Err(error) = arguments.check() {
+                return interp.report_cmd_error(error);
+            }
+            match formals {
+                Ok(formals) => formals,
+                Err(error) => return interp.report_cmd_error(error),
+            }
+        }
     };
-    let statics = if let Some(index) = definition.statics_at {
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
+    let statics = if creation.definition_formals_precede_name() {
+        prepared_statics
+    } else if let Some(index) = definition.statics_at {
         match prepare_static_variables(interp, argv[index + 1]) {
             Ok(statics) => Some(std::rc::Rc::new(statics)),
             Err(error) => return interp.report_cmd_error(error),
@@ -187,6 +282,9 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         None
     };
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
+    }
     interp.define_proc_chosen_storage(
         &name,
         params,
@@ -195,8 +293,8 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         None,
         statics,
     );
-    if interp.host_refusal_pending() {
-        return Code::Error;
+    if let Err(error) = arguments.check() {
+        return interp.report_cmd_error(error);
     }
     match definition.result {
         ProcedureDefinitionResult::Empty => interp.set_result_bytes(b""),
@@ -1178,3 +1276,6 @@ mod tests {
 
 #[cfg(test)]
 mod native_apply_original_tests;
+
+#[cfg(test)]
+mod original_argument_tests;

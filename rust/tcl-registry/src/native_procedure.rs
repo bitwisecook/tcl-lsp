@@ -20,7 +20,7 @@
 
 use crate::InvocationArguments;
 
-/// Actual procedure activation ordering, separate from definition grammar.
+/// Actual procedure creation and activation order, separate from argv grammar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeProcedureActivationProtocol {
     /// Real C procedure compilation and formal binding for the selected release.
@@ -66,6 +66,14 @@ impl NativeProcedureActivationProtocol {
     /// Whether definition converts the outer formal list before pinning its body.
     #[must_use]
     pub fn formal_list_precedes_body_capture(self) -> bool {
+        matches!(self, Self::Jim084)
+    }
+
+    /// Whether definition creates its formal/body/static declaration before
+    /// reading the command name. Jim's original procedure constructor owns this
+    /// order; C validates its name and namespace before body/formal creation.
+    #[must_use]
+    pub const fn definition_formals_precede_name(self) -> bool {
         matches!(self, Self::Jim084)
     }
 
@@ -1060,6 +1068,7 @@ mod tests {
             assert!(protocol.retains_prepared_body());
             assert!(protocol.copies_shared_definition_body());
             assert!(!protocol.formal_list_precedes_body_capture());
+            assert!(!protocol.definition_formals_precede_name());
             assert!(!protocol.validates_arguments_before_body());
             assert!(!protocol.empty_body_skips_activation());
             assert_eq!(
@@ -1074,6 +1083,7 @@ mod tests {
         assert!(!protocol.retains_prepared_body());
         assert!(!protocol.copies_shared_definition_body());
         assert!(protocol.formal_list_precedes_body_capture());
+        assert!(protocol.definition_formals_precede_name());
         assert!(protocol.validates_arguments_before_body());
         assert!(protocol.empty_body_skips_activation());
         assert!(!protocol.parse_failure_precedes_arguments());
