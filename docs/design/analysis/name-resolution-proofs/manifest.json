@@ -574,8 +574,8 @@
           "id": "owner-1",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
-          "sha256": "569c7449d4d9c27f6f0efe041697f9e2ce739c0ec7f3369cd4fa84cd436fa0ff",
-          "description": "Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome."
+          "sha256": "85d64f8030fd90a3a8aa94871fa757fcd4b097151205fdb0c0eb2431bb0e6452",
+          "description": "The Derived original-word issuer requires the real complete parent site/vector/input/configuration, actual bound origin and canonical original_body_source_for_word equality before geometry freezing. Existing captured aliases, native value/allocation roles and whole-vector source guards remain independent."
         },
         {
           "id": "owner-2",
@@ -36235,8 +36235,22 @@
           "id": "authored-compiler-registry633-24bce0430d4a",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/unit_scope.rs",
-          "sha256": "fd58807edc351ee9481c2badac226d55b22c3267f5abe435e97838a29482e4f8",
-          "description": "Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome."
+          "sha256": "ec76f918433ab285ab3a2b11a5d214822d90f8db57c7b1ea211269998fef4342",
+          "description": "The original Module supplies full metadata before the caller can use its exact root input or explicit nested projection. Both invocation and ArgumentEvaluation retain original child owner/Registry/configuration checks; lexical Proc argv roles and covered alias source effects supply no actual entry or Normal completion."
+        },
+        {
+          "id": "original-compiler-purpose-260685d258d3",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+          "sha256": "4ba423961c213a01769d61e9020acd91524c4c4e8a7035f264a1f901524e2f1b",
+          "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
+        },
+        {
+          "id": "original-compiler-purpose-39861efc24cc",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs",
+          "sha256": "6e18561f6b4abb138678334888927b6b1cdd825b1b3c6e73926fe2fbbb8b6cbc",
+          "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
         }
       ],
       "source_anchors": [],
@@ -39914,6 +39928,48 @@
           "selector": "word_subst::tests::original_braced_expression_inventory_still_requires_actual_selected_roles",
           "assertion": "Braced expression descent retains the actual original selected source roles: an unknown role owner refuses, a literal puts operand supplies no nested commands, and an authentic expr operand retains its original dict child. Removing the genuine source binding withdraws this role-specific inventory; lexical bracket geometry cannot donate it.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs",
+          "selector": "lowering::original_body_word_geometry_tests::original_derived_body_geometry_retains_the_exact_parent_word_and_namespace",
+          "status": "linked",
+          "assertion": "Authentic Derived body descent joins the real parent site/vector, full input/configuration/Registry and canonical original body value before freezing readonly geometry. The selected namespace survives descent and enclosing state is restored; no Native lookup, handler, Normal completion or entered frame follows."
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs",
+          "selector": "lowering::original_body_word_geometry_tests::original_derived_body_geometry_refuses_changed_parent_vector_span_and_input",
+          "status": "linked",
+          "assertion": "Changed actual parent vector, body span or full input/configuration cannot issue Derived original-word geometry. The controls use real Lowerer bodies and their original source owner, with no substituted metadata or manufactured body authority."
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs",
+          "selector": "lowering::original_body_word_geometry_tests::original_derived_body_geometry_refuses_counterfeit_source_ordinal_and_parent_site",
+          "status": "linked",
+          "assertion": "Counterfeit Source spans, changed body ordinal and unrelated parent sites refuse the Derived geometry issuer even when display bytes match. Actual original parent/body/configuration equality remains required before freezing a location-only owner."
+        },
+        {
+          "path": "rust/tcl-compiler/src/unit_scope.rs",
+          "selector": "unit_scope::tests::original_argument_caller_metadata_joins_from_the_module_to_its_nested_owner",
+          "status": "linked",
+          "assertion": "The real Module is the metadata producer. Its exact input or explicit nested-source projection owns each caller; independent changes to BOM/configuration or foreign input refuse before point metadata. Argument-role/effect-only purpose remains separate from invocation and actual body entry."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+          "selector": "command_binding::original_body_namespace::tests::original_conditional_entry_retains_selected_native_source_without_entered_frames",
+          "status": "linked",
+          "assertion": "Conditional body descent preserves the real source selection and analysis frame/namespace while withholding actual entered-frame and receiver observations. Genuine selected entry remains distinct; lexical geometry is not dropped merely because execution is conditional."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+          "selector": "command_binding::original_body_namespace::tests::original_conditional_calls_lambda_and_materialized_sources_preserve_the_entry_purpose",
+          "status": "linked",
+          "assertion": "Conditional entry purpose remains sticky across real call/lambda/materialized descendants under the same source selection. Frame geometry remains readable, but no descendant may report an actual entered frame or receiver from speculative source correspondence."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+          "selector": "command_binding::original_body_namespace::tests::original_known_compiler_branch_and_finally_keep_the_selected_frame",
+          "status": "linked",
+          "assertion": "Genuine known compiler-selected branches and unconditional finally retain their selected frame purpose. Unknown conditional branches retain source/analysis geometry only; no conditional child can upgrade an already conditional parent to actual entry."
         }
       ],
       "replay": {
@@ -40013,8 +40069,8 @@
           "id": "naming-compiler-original-compiler-operand-coordinates-registry_invocation.rs",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
-          "sha256": "ece7adebe04e55374e255d93ac9ed5d35fdacaf4fb5bd13fd7dac7cf71d62f69",
-          "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
+          "sha256": "a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283",
+          "description": "Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced."
         },
         {
           "id": "naming-compiler-original-compiler-operand-coordinates-native_compilation.rs",
@@ -40758,6 +40814,20 @@
           "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
           "description": "Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.",
           "json_pointer": "/exact_question_body_outcomes"
+        },
+        {
+          "id": "original-compiler-purpose-2ae5968d01c6",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+          "sha256": "ebed9fc984f532ae372ca061a2de7f08e5c6963f1a14c63da73ec82698f7eff3",
+          "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
+        },
+        {
+          "id": "original-compiler-purpose-8f80d33b964b",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+          "sha256": "93b6c55abc1aaed92ecdeb5292d5d11c99fe1ef6280caed785a606422d62d530",
+          "description": "Original invocation and ArgumentEvaluation purposes retain full Module/input/owner/source/Registry/configuration joins. Dedicated positively Logical declaration layout supplies lexical Proc roles with public allocations removed; Native/formal allocation and reached layout remain independent."
         }
       ],
       "source_anchors": [],
@@ -40832,6 +40902,36 @@
           "selector": "command_binding::declaration_layout::logical_purpose_tests::native_callee_advice_keeps_its_independently_retained_allocation",
           "status": "linked",
           "assertion": "Native callee advice keeps its independently retained allocation. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+          "selector": "command_binding::materialized_footprint::tests::original_logical_procedure_roles_keep_declaration_layout_separate_from_allocation_advice",
+          "status": "linked",
+          "assertion": "Complete Logical original Proc/alias source provides lexical argv roles through its dedicated declaration layout. Returned public targets carry no implementation allocation, and the Native/formal allocation-bearing layout remains unavailable; opaque, unsupported, changed vector/input/store paths refuse."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+          "selector": "command_binding::materialized_footprint::tests::original_native_source_procedure_roles_keep_the_genuine_allocation_purpose",
+          "status": "linked",
+          "assertion": "A held genuine Native issuer retains the actual original Proc allocation and alias prefix for lexical argument roles under exact source/input/configuration/current-world joins. Logical declaration advice cannot supply that allocation or actual execution authority."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+          "selector": "command_binding::declaration_layout::original_logical_declaration_receipt_tests::original_logical_nested_declaration_retains_availability_without_dispatch",
+          "status": "linked",
+          "assertion": "Actual Lowerer-stamped nested declaration tokens retain closed unanimous source availability under full original input/Registry/configuration/vector/world guards. Raw lookup remains absent, generic targets empty and unknown, with no execution/handler/Native compiler admission or public allocation grant."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+          "selector": "command_binding::declaration_layout::original_logical_declaration_receipt_tests::original_logical_declaration_receipt_rejects_changed_inputs_rows_and_world",
+          "status": "linked",
+          "assertion": "The no-point declaration receipt refuses changed full input/configuration, foreign Registry/world, changed original rows or vector, mutated raw projection, synthetic argv and mismatched joins. It cannot be regenerated from a mutated binding or a reporting label."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+          "selector": "command_binding::declaration_layout::original_logical_declaration_receipt_tests::original_logical_declaration_receipt_keeps_reached_and_opaque_guards",
+          "status": "linked",
+          "assertion": "A present reached lookup keeps its independent unknown/absence/post-operand target guards and does not use the no-point receipt. Opaque callback/declaration worlds remain unavailable; source correspondence grants no runtime dispatch or execution."
         }
       ],
       "replay": {
@@ -76965,8 +77065,8 @@
           "id": "naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-command_binding-materialized_footprint.rs",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
-          "sha256": "7d1cf44810a6f230ef62ce7ec703eaf9a84f8759971e02de219ec42fed50a5ac",
-          "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
+          "sha256": "93b6c55abc1aaed92ecdeb5292d5d11c99fe1ef6280caed785a606422d62d530",
+          "description": "Original invocation and ArgumentEvaluation purposes retain full Module/input/owner/source/Registry/configuration joins. Dedicated positively Logical declaration layout supplies lexical Proc roles with public allocations removed; Native/formal allocation and reached layout remain independent."
         },
         {
           "id": "naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-ir_helpers-materialized_footprint.rs",
@@ -113681,8 +113781,8 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
-          "sha256": "ece7adebe04e55374e255d93ac9ed5d35fdacaf4fb5bd13fd7dac7cf71d62f69",
-          "description": "Reviewed Rust owner for this invariant; not a provider execution capture."
+          "sha256": "a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283",
+          "description": "Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced."
         },
         {
           "id": "implementation-2",
@@ -143621,8 +143721,8 @@
           "id": "implementation-4",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
-          "sha256": "ece7adebe04e55374e255d93ac9ed5d35fdacaf4fb5bd13fd7dac7cf71d62f69",
-          "description": "Preserve byte-only evaluated values at the shared Compiler/Registry seam.",
+          "sha256": "a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283",
+          "description": "Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced.",
           "contains": "as_registry_word"
         }
       ],
@@ -190484,8 +190584,8 @@
           "id": "naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
-          "sha256": "ece7adebe04e55374e255d93ac9ed5d35fdacaf4fb5bd13fd7dac7cf71d62f69",
-          "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
+          "sha256": "a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283",
+          "description": "Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced."
         },
         {
           "id": "naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-optimiser-chain_fold.rs",
@@ -213383,8 +213483,8 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
-          "sha256": "ece7adebe04e55374e255d93ac9ed5d35fdacaf4fb5bd13fd7dac7cf71d62f69",
-          "description": "Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied."
+          "sha256": "a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283",
+          "description": "Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced."
         }
       ],
       "replay": {
@@ -227078,7 +227178,15 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "original-compiler-purpose-a41b187442e0",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "sha256": "c7eab3b02f24cfa12f8205227123efecbd8f86f55f8e67780ce887e9fc57bd8f",
+          "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
+        }
+      ],
       "source_anchors": [],
       "tests": [
         {
@@ -227134,6 +227242,18 @@
           "selector": "command_binding::source_transition_advice::tests::logical_original_advice_words_keep_lossless_values_and_native_units_independent",
           "assertion": "Original Logical advice accepts the explicit replacement operand and withholds its unrepresentable interpreted source operand despite equal presentation; original words remain attached. Native naming input is independently selected and retains its own value/unit channel.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "selector": "command_binding::source_transition_advice::tests::original_logical_unicode_transitions_keep_exact_alias_and_move_inputs",
+          "status": "linked",
+          "assertion": "Positive Logical source retains valid UTF8/no literal-zero authored slots and namespace segments through actual alias/move transfers. Raw bytes and shared colon geometry remain original; source correspondence supplies no Native command allocation, lookup, Handler or Normal receipt."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "selector": "command_binding::source_transition_advice::tests::original_logical_nested_expression_keeps_bom_head_and_parent_configuration",
+          "status": "linked",
+          "assertion": "A genuine nested Logical expression uses NestedScript source purpose and preserves its BOM as head content while retaining the complete parent image/configuration and original alias input. Changed input/configuration declines; no runtime entry or Native compiler grant follows."
         }
       ],
       "owners": [
@@ -229299,7 +229419,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md",
       "problem_statement": "A retained Logical source model needs bounded command moves/deletions, alias prefix composition and quiet scalar writes without borrowing a Native compilation baseline or actual runtime receipt. Reporting labels and chosen symbolic contents cannot supply missing original ownership.",
       "question": "When can Registry-selected original Logical authored operations preserve static command moves/deletions, alias prefix composition and quiet scalar contents without granting Native lookup, execution or Normal completion?",
-      "conclusion": "transfer requires a positive actual retained Logical input, genuine whole Authored Document origin/vector, current image/configuration, invocation offset, source frame/namespace and a singleton current Registry-backed target. It resolves that selected operation under the actual ContextRegistry and source dialect, freezes genuine static written values plus literal captured alias arguments, and accepts only selected arity with no frame effect. Quiet scalar store updates the existing symbolic scalar model only when selected VarWrite roles and bounded effects agree and no observer, dynamic binding/trace, physical execution/storage identity, array/index or store error is present. Registry-selected move/delete/alias transfers require bounded command/trace/namespace effects and OnOkOnly descriptors; move/delete require a known source target, destination geometry must be valid, and alias source/target interpreter operands must both denote the current interpreter with static arguments. Unknown or replaced workers, occupied move targets, foreign interpreters, opaque domains and missing/stale ownership decline. The resulting authored continuation has no Native Normal certificate, handler, publication, command-world completion, compiler/frame/argv or actual store authority. Symbolic incoming values and subsequent W123 slot advice belong to this explicit Logical model only. Original scalar continuation retains actual Logical source values and captured setter operands while checking the current typed Authored namespace through the shared namespace footprint. Its independently retained InterpreterNamespace storage facet remains unchanged; source namespace spelling does not construct a physical owner. Conditional Logical dispatch queries retain the exact point-owned interpreted head, complete input/config/store and literal captured operands. A reporting name does not select the query target. Missing or changed metadata, withdrawn Logical input and uninterpreted heads keep the target unknown; a Native source query independently requires its authentic original head receipt.",
+      "conclusion": "transfer requires a positive actual retained Logical input, genuine whole Authored Document origin/vector, current image/configuration, invocation offset, source frame/namespace and a singleton current Registry-backed target. It resolves that selected operation under the actual ContextRegistry and source dialect, freezes genuine static written values plus literal captured alias arguments, and accepts only selected arity with no frame effect. Quiet scalar store updates the existing symbolic scalar model only when selected VarWrite roles and bounded effects agree and no observer, dynamic binding/trace, physical execution/storage identity, array/index or store error is present. Registry-selected move/delete/alias transfers require bounded command/trace/namespace effects and OnOkOnly descriptors; move/delete require a known source target, destination geometry must be valid, and alias source/target interpreter operands must both denote the current interpreter with static arguments. Unknown or replaced workers, occupied move targets, foreign interpreters, opaque domains and missing/stale ownership decline. The resulting authored continuation has no Native Normal certificate, handler, publication, command-world completion, compiler/frame/argv or actual store authority. Symbolic incoming values and subsequent W123 slot advice belong to this explicit Logical model only. Original scalar continuation retains actual Logical source values and captured setter operands while checking the current typed Authored namespace through the shared namespace footprint. Its independently retained InterpreterNamespace storage facet remains unchanged; source namespace spelling does not construct a physical owner. Conditional Logical dispatch queries retain the exact point-owned interpreted head, complete input/config/store and literal captured operands. A reporting name does not select the query target. Missing or changed metadata, withdrawn Logical input and uninterpreted heads keep the target unknown; a Native source query independently requires its authentic original head receipt. Logical commands with an actual retained source point use Conditional dispatch advice. Nested declaration-only commands use original Lowerer-stamped tokens and the explicit Logical declaration-target projection under the same complete source input, configuration, Registry, vector and declaration-world guards. Their potential source correspondence does not change an absent runtime lookup into Conditional or Reached dispatch; raw targets remain empty and unknown. Neither purpose supplies a Native handler, compiler admission, entered frame, variable execution policy or original Native head receipt.",
       "scope": "Fixed source/API controls test static selected move/delete/scalar-head outcomes, captured alias composition and quiet scalar transfer with observer/foreign/missing-owner refusal. All seven providers are not tested. No C/Jim/BIG-IP interpreter stores or commands are executed by this proof; genuine full-source Logical W123 diagnostics are separate from Native head admission. Conditional original Unicode source heads and qualified definer aliases share the selected symbolic move/delete continuation. Native abrupt-edge classification and current runtime publication remain independent. Two additional software definitions retain conditional source-model continuation only. Native, worker, unknown or same-display foreign namespace, stale generations, changed configuration and missing full input refuse. No actual cell/store, physical frame, native naming/compiled recipe, Handler or Normal receipt follows. Three current query controls grant no Native execution target, handler envelope, compiler admission, evaluated argv, physical frame, cell contents or Normal completion. They are current source/API definitions without attached assertion results or original-provider observations.",
       "providers": [
         {
@@ -229403,6 +229523,13 @@
           "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
           "description": "Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.",
           "json_pointer": "/exact_question_body_outcomes"
+        },
+        {
+          "id": "original-compiler-purpose-7adb1666df91",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs",
+          "sha256": "c36253a85faefd27592be2fea677720a773b7c37be8f8bdae91ce818ec86792c",
+          "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
         }
       ],
       "source_anchors": [],
@@ -229514,7 +229641,7 @@
           "path": "rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs",
           "selector": "command_binding::logical_dispatch_purpose_tests::original_logical_root_and_nested_dispatch_keep_conditional_targets_and_original_owners",
           "status": "linked",
-          "assertion": "Finite source-defined control: original logical root and nested dispatch keep conditional targets and original owners. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+          "assertion": "The four fixed root/nested sources retain the same Registry-backed targets, literal require prefixes, original offset/image and Native/handler/compiler/variable-policy/execution negatives. Root cases query actual point-owned Conditional dispatch; nested cases use authentic Lowerer-stamped original declaration tokens and explicitly retain raw unknown/empty targets, absent lookup and no runtime Conditional or Reached authority. This source definition has no attached matching current owned assertion result."
         },
         {
           "path": "rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs",
@@ -229985,15 +230112,15 @@
           "id": "implementation-source-2",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/lowering/mod.rs",
-          "sha256": "4ef9ed859c96dcd7233953eac5208a980ec5d4dd58d61afeaaf25359ea33b024",
-          "description": "Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission."
+          "sha256": "b026c80df28972b9c4e0db8822302da0820de0de403d68af281c6a2927bf7657",
+          "description": "Authentic descent retains independently selected namespace, complete parent/body/source/input/configuration correspondence and the opaque readonly geometry owner; the temporary parent/enclosing owner is restored. Source selection does not manufacture Native body entry, lookup or handler authority, and conditional frame purpose remains distinct."
         },
         {
           "id": "implementation-source-3",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b",
-          "description": "Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission."
+          "sha256": "56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25",
+          "description": "Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations."
         },
         {
           "id": "original-compiler341345-software-validation",
@@ -233850,7 +233977,15 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "original-compiler-purpose-2dbda1a4b26a",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/naming/authored_source.rs",
+          "sha256": "721b625a6f8d88ceb87f09022a33d4ca9c4618582a1f984917424158fe9607c0",
+          "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
+        }
+      ],
       "source_anchors": [],
       "owners": [
         {
@@ -234205,6 +234340,18 @@
           "selector": "command_binding::source_declared_command::tests::original_declared_words_require_the_authentic_stub_block",
           "assertion": "Canonical orphan stub lines decline; the same complete call receives authored Expr roles only after genuine stubs-begin/stubs-end framing, with unchanged original source anchors.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming/authored_source.rs",
+          "selector": "naming::authored_source::tests::original_authored_unicode_scope_keeps_raw_components_and_canonical_colons",
+          "status": "linked",
+          "assertion": "Authored source accepts valid UTF8/no literal-zero components and retains exact bytes plus the shared colon-qualified geometry. It is a Logical naming projection, independently unavailable as Native or Normal execution authority."
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming/authored_source.rs",
+          "selector": "naming::authored_source::tests::original_authored_unicode_scope_refuses_invalid_written_and_retained_units",
+          "status": "linked",
+          "assertion": "Invalid UTF8, raw zero and invalid retained namespace units refuse the authored source slot projection. Display spelling and valid neighbouring components cannot donate actual Native naming, entered scope or command authority."
         }
       ],
       "replay": {
@@ -235663,6 +235810,13 @@
           "path": "docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/retention.json",
           "sha256": "d34d8b9086aff5acec4e2a4cf1261f63aa96b91101a1d1855360e8e9225728cb",
           "description": "Whole original three-owner sources, compiler/Lexer library bytes, driver inputs, streams and lossless executable images; limited to the actual recorded diagnostic."
+        },
+        {
+          "id": "original-compiler-purpose-8f80d33b964b",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+          "sha256": "93b6c55abc1aaed92ecdeb5292d5d11c99fe1ef6280caed785a606422d62d530",
+          "description": "Original invocation and ArgumentEvaluation purposes retain full Module/input/owner/source/Registry/configuration joins. Dedicated positively Logical declaration layout supplies lexical Proc roles with public allocations removed; Native/formal allocation and reached layout remain independent."
         }
       ],
       "source_anchors": [],
@@ -235801,6 +235955,12 @@
           "selector": "parsing::syntax::red::tests::original_cst_lexer_tokens_keep_actual_trivia_and_empty_terminators",
           "status": "linked",
           "assertion": "Across seven configured dialects, nine original sources and both document/native-byte channels, the lexical CST API exactly preserves original lexer kind/span/content-offset/quote records, including empty separators/terminators and anchor translation; the semantic API retains its separately filtered contract. This source-defined control has no matching current whole-Compiler assertion outcome or external-provider result."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+          "selector": "command_binding::materialized_footprint::tests::original_logical_procedure_roles_keep_declaration_layout_separate_from_allocation_advice",
+          "status": "linked",
+          "assertion": "Complete Logical original Proc/alias source provides lexical argv roles through its dedicated declaration layout. Returned public targets carry no implementation allocation, and the Native/formal allocation-bearing layout remains unavailable; opaque, unsupported, changed vector/input/store paths refuse."
         }
       ],
       "replay": {
@@ -238480,8 +238640,8 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b",
-          "description": "Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture."
+          "sha256": "56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25",
+          "description": "Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations."
         },
         {
           "id": "implementation-1",
@@ -453460,8 +453620,8 @@
           "id": "retained-positioned-command-binding",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b",
-          "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+          "sha256": "56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25",
+          "description": "Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations."
         },
         {
           "id": "retained-positioned-retained-source",
@@ -453523,8 +453683,8 @@
           "id": "retained-positioned-unit-scope",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/unit_scope.rs",
-          "sha256": "fd58807edc351ee9481c2badac226d55b22c3267f5abe435e97838a29482e4f8",
-          "description": "Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached."
+          "sha256": "ec76f918433ab285ab3a2b11a5d214822d90f8db57c7b1ea211269998fef4342",
+          "description": "The original Module supplies full metadata before the caller can use its exact root input or explicit nested projection. Both invocation and ArgumentEvaluation retain original child owner/Registry/configuration checks; lexical Proc argv roles and covered alias source effects supply no actual entry or Normal completion."
         },
         {
           "id": "original-compiler341345-software-validation",
@@ -475617,9 +475777,9 @@
         {
           "id": "publication-rows-command-binding",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b",
+          "sha256": "56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25",
           "role": "implementation",
-          "description": "Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit."
+          "description": "Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations."
         },
         {
           "id": "publication-rows-source-command-world",
@@ -488359,9 +488519,9 @@
         {
           "id": "shared-noop-command-binding",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b",
+          "sha256": "56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25",
           "role": "implementation",
-          "description": "Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit."
+          "description": "Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations."
         },
         {
           "id": "shared-noop-lib",
@@ -488494,9 +488654,9 @@
         {
           "id": "direct-token-command_binding-rs",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b",
+          "sha256": "56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25",
           "role": "implementation",
-          "description": "Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit."
+          "description": "Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations."
         },
         {
           "id": "direct-token-command_binding-retained_source-rs",
@@ -549233,9 +549393,9 @@
         {
           "id": "collection-source-5",
           "path": "rust/tcl-compiler/src/lowering/mod.rs",
-          "sha256": "4ef9ed859c96dcd7233953eac5208a980ec5d4dd58d61afeaaf25359ea33b024",
+          "sha256": "b026c80df28972b9c4e0db8822302da0820de0de403d68af281c6a2927bf7657",
           "role": "implementation",
-          "description": "Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result."
+          "description": "Authentic descent retains independently selected namespace, complete parent/body/source/input/configuration correspondence and the opaque readonly geometry owner; the temporary parent/enclosing owner is restored. Source selection does not manufacture Native body entry, lookup or handler authority, and conditional frame purpose remains distinct."
         },
         {
           "id": "collection-source-6",

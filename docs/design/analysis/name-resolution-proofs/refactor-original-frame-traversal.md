@@ -65,7 +65,7 @@ This Rust consumer contract has no native execution receipt.
 ## Exact evidence
 
 - `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/mod.rs](../../../../rust/tcl-lsp-core/src/refactor/mod.rs). SHA-256 `48d9eac1fa3a6dbd56fb2d5e39331ad205d93ea4412b067d83fdab34b2979eaa`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `ece7adebe04e55374e255d93ac9ed5d35fdacaf4fb5bd13fd7dac7cf71d62f69`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283`. Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced.
 
 ## Source inspection
 

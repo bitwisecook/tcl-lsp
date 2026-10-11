@@ -64,7 +64,7 @@ This is a Rust ownership contract. No interpreter or appliance observation is at
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25`. Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations.
 - `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/normal_result.rs](../../../../rust/tcl-compiler/src/command_binding/normal_result.rs). SHA-256 `d6a41edd775c2bec3bb62f1a4cdc0128bc22d1049dc3e4a7da2b5b1881b6c10f`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
 
 ## Source inspection
