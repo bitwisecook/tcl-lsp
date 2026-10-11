@@ -2093,6 +2093,23 @@ mod tests {
     use super::*;
     use tcl_dialect::model::SpecSurface;
 
+    #[test]
+    fn original_abstract_grammar_rust_render_keeps_the_shared_named_descriptor() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let seeded = draft::from_command_spec(registry.get("oo::abstract").unwrap());
+        let rendered = render(&seeded);
+        assert!(
+            rendered.contains("definition_body: Some(&crate::definer::TCLOO_ABSTRACT_GRAMMAR)")
+        );
+        assert!(rendered.contains("manufacturer_methods:"));
+        assert_eq!(
+            definition_body_expr(&serde_json::json!("tcloo-abstract"), ""),
+            Some("Some(&crate::definer::TCLOO_ABSTRACT_GRAMMAR)".into())
+        );
+    }
+
     /// A draft that is nothing but a name — all these tests read is the stem.
     fn named_draft(name: &str) -> (String, Draft) {
         let mut draft = draft::default_command_draft();

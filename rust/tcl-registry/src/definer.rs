@@ -4087,6 +4087,25 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     property_accessor_methods: &[],
 };
 
+/// Definition grammar and manufactured-class surface of `oo::abstract`.
+/// The metaclass's own factory methods are separate: each abstract class it
+/// manufactures begins with private `create`, `new` and `createWithNamespace`.
+/// Original class-object export operations can refine these defaults.
+pub const TCLOO_ABSTRACT_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+    manufacturers: &[
+        ManufacturerMethod {
+            visibility: MemberVisibility::Unexported,
+            ..TCLOO_CREATE_MANUFACTURER
+        },
+        ManufacturerMethod {
+            visibility: MemberVisibility::Unexported,
+            ..TCLOO_NEW_MANUFACTURER
+        },
+        TCLOO_CREATE_WITH_NAMESPACE_MANUFACTURER,
+    ],
+    ..TCLOO_GRAMMAR
+};
+
 /// The definition-body grammar for `oo::configurable` — [`TCLOO_GRAMMAR`]
 /// plus the one method that metaclass generates for a class's declared
 /// `property` members.
@@ -5178,6 +5197,76 @@ mod tests {
     use crate::arg_role::ArgRole;
     use crate::invocation_words::{InvocationArguments, InvocationWord};
     use crate::value_transfer::inputs::OperandId;
+
+    #[test]
+    fn original_abstract_manufacturer_visibility_keeps_metaclass_and_created_class_surfaces() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        // Public C9 observations establish defaults, not Native constructor admission.
+        for environment in ["tcl9.0", "tcl9.1"] {
+            let context = crate::model::ingress::resolve_known_environment(environment)
+                .unwrap()
+                .default_context_registry();
+            let spec = context
+                .context()
+                .resolve_spec(context.commands(), "oo::abstract")
+                .expect("selected abstract metaclass");
+            let grammar = spec.definition_body.expect("manufactured-class grammar");
+            for selector in ["create", "new", "createWithNamespace"] {
+                assert_eq!(
+                    grammar.manufacturer(selector).unwrap().visibility,
+                    MemberVisibility::Unexported
+                );
+            }
+            assert_eq!(
+                context
+                    .commands()
+                    .exported_manufacturer_method("oo::abstract", "create")
+                    .unwrap()
+                    .visibility,
+                MemberVisibility::Exported
+            );
+            assert!(
+                context
+                    .commands()
+                    .exported_manufacturer_method("oo::abstract", "new")
+                    .is_some()
+            );
+            assert!(
+                context
+                    .commands()
+                    .exported_manufacturer_method("oo::abstract", "createWithNamespace")
+                    .is_none()
+            );
+            let ordinary = context
+                .context()
+                .resolve_spec(context.commands(), "oo::class")
+                .unwrap()
+                .definition_body
+                .unwrap();
+            assert_eq!(
+                ordinary.manufacturer("new").unwrap().visibility,
+                MemberVisibility::Exported
+            );
+            assert_eq!(
+                grammar.member("method").unwrap().arg_roles,
+                ordinary.member("method").unwrap().arg_roles
+            );
+            assert_eq!(grammar.family, ordinary.family);
+        }
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "jim"] {
+            let context = crate::model::ingress::resolve_known_environment(environment)
+                .unwrap()
+                .default_context_registry();
+            assert!(
+                context
+                    .context()
+                    .resolve_spec(context.commands(), "oo::abstract")
+                    .is_none(),
+                "availability does not supply an abstract factory worker: {environment}"
+            );
+        }
+    }
 
     #[test]
     fn source_member_reference_indices_keep_byte_values_and_control_words_separate() {

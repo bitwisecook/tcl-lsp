@@ -10600,8 +10600,11 @@ impl Analyser {
             .context()
             .resolve_spec(context.commands(), cmd_name)
             .filter(|spec| spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS))
-            .and_then(|spec| spec.definition_body)
-            .filter(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::TclOo);
+            .filter(|spec| {
+                spec.definition_body.is_some_and(|grammar| {
+                    grammar.family == tcl_registry::definer::DefinerFamily::TclOo
+                })
+            });
         let user_factory = if registry_definer.is_some() {
             None
         } else {
@@ -10612,18 +10615,17 @@ impl Analyser {
                 cmd_tok.span.start(),
             )?)
         };
-        let grammar = registry_definer.or_else(|| {
-            user_factory
-                .as_ref()
-                .and_then(|factory| self.definition_grammar(&factory.root_metaclass))
-        });
         let manufacturer = match user_factory.as_ref() {
-            None => grammar
-                .and_then(|grammar| grammar.manufacturer(&args[0]))
-                .filter(|method| {
-                    method.visibility == tcl_registry::definer::MemberVisibility::Exported
-                }),
-            Some(_) => grammar.and_then(|grammar| grammar.manufacturer(&args[0])),
+            None => tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
+                registry_definer?,
+                &args[0],
+            )
+            .filter(|method| {
+                method.visibility == tcl_registry::definer::MemberVisibility::Exported
+            }),
+            Some(factory) => self
+                .definition_grammar(&factory.root_metaclass)
+                .and_then(|grammar| grammar.manufacturer(&args[0])),
         }?;
         if user_factory.as_ref().is_some_and(|factory| {
             !factory

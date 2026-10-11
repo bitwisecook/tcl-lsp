@@ -58,6 +58,34 @@ being dropped as a flag.  Known limit: an unrecognised leading `-op` word
 aborts the whole definition in real Tcl; the fold conservatively leaves the
 slot unchanged rather than modelling the abort.
 
+### Manufactured-class visibility
+
+A registered metaclass command's `CommandSpec::manufacturer_methods` describes
+calls on that command. `CommandRegistry::manufacturer_method_for_descriptor`
+reads the authentic selected descriptor, preferring these own-command rows. Its
+`definition_body.manufacturers` describes the default
+manufacturer surface of the class it creates. `TCLOO_ABSTRACT_GRAMMAR` keeps
+`create`, `new` and `createWithNamespace` private on an abstract class, while
+`oo::abstract` itself retains its selected factory methods. A concrete subclass
+created by `oo::class` uses the ordinary class grammar.
+
+Original constructor-shape queries read this selected grammar and then apply
+original class-object export and unexport operations. An explicit
+`oo::objdefine Abstract export new` can therefore expose `new`. A retained
+factory attempt remains distinct from visible constructor syntax. Logical
+advice and Native source names retain their separate purposes; neither issues
+a Native constructor entry, runtime class identity or successful result.
+
+SpecTcl and Studio share the shipped `tcloo-abstract` grammar name, preserving
+these defaults when a selected command descriptor is imported or rendered.
+Custom definers must describe their actual manufactured-class visibility in
+the same grammar rather than relying on a metaclass reporting name.
+
+[The abstract manufacturer visibility proof](../analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md)
+records public C9.0 and C9.1 method visibility, concrete subclass construction
+and explicit export. C8.4, C8.5, C8.6 and Jim controls do not reach an abstract
+factory worker; those availability observations supply no abstract semantics.
+
 ### Member arguments that name commands (`record_member_command_references`)
 
 A member argument that *names a command* is a first-class command reference,

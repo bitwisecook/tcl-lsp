@@ -116,7 +116,13 @@ impl OriginalSourceClassDeclaration {
         } else if grammar.family == DefinerFamily::TclOo {
             let selector =
                 std::str::from_utf8(self.factory.arguments.first()?.value.as_deref()?).ok()?;
-            usize::from(grammar.manufacturer(selector)?.definition_body_at?)
+            let spec = context
+                .context()
+                .resolve_spec(context.commands(), self.factory.command())?;
+            usize::from(
+                tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(spec, selector)?
+                    .definition_body_at?,
+            )
         } else {
             return None;
         };
@@ -643,10 +649,8 @@ impl AdviceInvocationContext<'_> {
     ) -> Option<Arc<OriginalSourceClassDeclaration>> {
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
-        let grammar = schema
-            .authored_source_descriptors()
-            .command
-            .definition_body?;
+        let selected = schema.authored_source_descriptors().command;
+        let grammar = selected.definition_body?;
         if schema.facts().arity_accepts_frozen_arguments() != Some(true)
             || invocation.native.iter().any(|word| word.group().expand)
         {
@@ -657,7 +661,9 @@ impl AdviceInvocationContext<'_> {
         } else if grammar.family == DefinerFamily::TclOo {
             let selector =
                 std::str::from_utf8(invocation.arguments.first()?.value.as_deref()?).ok()?;
-            let manufacturer = grammar.manufacturer(selector)?;
+            let manufacturer = tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
+                selected, selector,
+            )?;
             usize::from(manufacturer.names_instance_at?)
         } else {
             return None;
@@ -891,6 +897,148 @@ impl AdviceInvocationContext<'_> {
 mod tests {
     use crate::analyser::Analyser;
     use crate::registry_invocation::source_structure::source_constructor_call_at;
+
+    #[test]
+    fn original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        // A Native source-name model is not a entered Native constructor receipt.
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            let environment =
+                tcl_registry::model::ingress::resolve_known_environment(dialect).unwrap();
+            let profile = environment.analyser_profile();
+            let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            config.strict_quoting = false;
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                environment.default_context_registry(),
+                config,
+            );
+            for (source, marker, visible) in [
+                ("oo::abstract create Base {}; Base new", "Base new", false),
+                (
+                    "oo::abstract create Base {}; Base create object",
+                    "Base create object",
+                    false,
+                ),
+                (
+                    "oo::abstract create Base {}; Base createWithNamespace object ::ns",
+                    "Base createWithNamespace",
+                    false,
+                ),
+                (
+                    "oo::abstract create Base {}; oo::objdefine Base export new; Base new",
+                    "Base new",
+                    true,
+                ),
+                (
+                    "oo::abstract create Base {}; oo::class create Concrete {superclass Base}; Concrete new",
+                    "Concrete new",
+                    true,
+                ),
+                (
+                    "rename oo::abstract Factory; Factory create Base {}; Base new",
+                    "Base new",
+                    false,
+                ),
+                (
+                    "interp alias {} Factory {} oo::abstract create; Factory Base {}; Base new",
+                    "Base new",
+                    false,
+                ),
+                (
+                    "oo::abstract create Base {}; rename Base Moved; Moved new",
+                    "Moved new",
+                    false,
+                ),
+            ] {
+                let analysis = Analyser::new()
+                    .with_resolved_input(input.clone())
+                    .analyse(source, dialect);
+                let offset = u32::try_from(source.rfind(marker).unwrap()).unwrap();
+                let call = source_constructor_call_at(source, &analysis, offset).expect(source);
+                assert_eq!(
+                    call.constructor_shape(&analysis).is_some(),
+                    visible,
+                    "{dialect}: {source}"
+                );
+                assert!(call.logical_constructor_shape(&analysis).is_none());
+                let mut changed = analysis.clone();
+                let mut changed_config = config;
+                changed_config.strict_quoting = true;
+                changed.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    input.context_registry(),
+                    changed_config,
+                ));
+                assert!(call.constructor_shape(&changed).is_none());
+                let mut missing = analysis.clone();
+                missing.resolved_input = None;
+                assert!(call.constructor_shape(&missing).is_none());
+                assert!(
+                    source_constructor_call_at(
+                        &source.replace("Base", "Foreign"),
+                        &analysis,
+                        offset
+                    )
+                    .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+                .unwrap()
+                .default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        for (source, visible) in [
+            ("oo::abstract create Base {}; Base new", false),
+            (
+                "oo::abstract create Base {}; oo::objdefine Base export new; Base new",
+                true,
+            ),
+            (
+                "oo::abstract create Base {}; oo::class create Concrete {superclass Base}; Concrete new",
+                true,
+            ),
+            (
+                "rename oo::abstract Factory; Factory create Base {}; Base new",
+                false,
+            ),
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            let offset = u32::try_from(source.rfind(';').unwrap() + 2).unwrap();
+            let call = source_constructor_call_at(source, &analysis, offset).expect(source);
+            assert_eq!(
+                call.logical_constructor_shape(&analysis).is_some(),
+                visible,
+                "{source}"
+            );
+            assert!(call.constructor_shape(&analysis).is_none());
+            assert!(call.class_declaration().source_class(&analysis).is_none());
+            assert!(
+                call.class_declaration()
+                    .logical_source_class(&analysis)
+                    .is_some()
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(call.logical_constructor_shape(&missing).is_none());
+        }
+    }
 
     #[test]
     fn original_logical_constructor_shape_keeps_canonical_factory_without_native_authority() {

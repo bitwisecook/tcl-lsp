@@ -5637,6 +5637,10 @@ fn manufacturer_row(stmt: &Stmt, log: &mut Log) -> ManufacturerMethod {
 pub const SHIPPED_DEFINITION_BODIES: &[(&str, &DefinitionBodyGrammar)] = &[
     ("tcloo", &tcl_registry::definer::TCLOO_GRAMMAR),
     (
+        "tcloo-abstract",
+        &tcl_registry::definer::TCLOO_ABSTRACT_GRAMMAR,
+    ),
+    (
         "tcloo-configurable",
         &tcl_registry::definer::TCLOO_CONFIGURABLE_GRAMMAR,
     ),
@@ -9172,6 +9176,30 @@ mod tests {
     use tcl_dialect::model::{BuildProfileId, EnvironmentKind, Provenance, Release, WorldPolicy};
 
     use super::*;
+
+    #[test]
+    fn original_abstract_definition_grammar_loads_without_changing_factory_visibility() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command makeAbstract { definition_body tcloo-abstract; \
+             manufacturer create -names-instance-at 1 -definition-body-at 2 -constructor-args-from 2 } }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = &pack.command("makeAbstract").unwrap().spec;
+        let grammar = spec.definition_body.unwrap();
+        for selector in ["create", "new", "createWithNamespace"] {
+            assert_eq!(
+                grammar.manufacturer(selector).unwrap().visibility,
+                MemberVisibility::Unexported
+            );
+        }
+        assert_eq!(
+            spec.manufacturer_methods[0].visibility,
+            MemberVisibility::Exported
+        );
+        assert!(spec.native_result.is_none());
+    }
 
     #[test]
     fn expression_representation_coercion_loads_without_a_native_hook() {

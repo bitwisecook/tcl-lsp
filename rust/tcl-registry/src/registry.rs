@@ -2954,8 +2954,11 @@ impl CommandRegistry {
 
     /// Manufacturer vocabulary of one independently selected descriptor.
     /// The caller retains availability and original invocation ownership.
+    /// A command's own manufacturer rows take precedence over the defaults
+    /// its definition grammar assigns to manufactured classes. This descriptor
+    /// supplies layout and default visibility, never Native entry or execution.
     #[must_use]
-    pub(crate) fn manufacturer_method_for_descriptor(
+    pub fn manufacturer_method_for_descriptor(
         spec: &CommandSpec,
         word: &str,
     ) -> Option<&'static crate::definer::ManufacturerMethod> {

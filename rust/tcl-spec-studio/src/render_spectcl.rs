@@ -4235,6 +4235,35 @@ mod tests {
     }
 
     #[test]
+    fn original_abstract_grammar_roundtrip_keeps_created_class_and_factory_visibilities() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let selected = registry.get("oo::abstract").unwrap();
+        // Roundtrip the selected semantic data without exporting Native hooks.
+        let spec = tcl_registry::CommandSpec {
+            name: "AbstractFactory",
+            definition_body: selected.definition_body,
+            manufacturer_methods: selected.manufacturer_methods,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let seeded = draft::from_command_spec(&spec);
+        assert_eq!(seeded["definition_body"], json!("tcloo-abstract"));
+        let (text, losses) = render_pack_reporting(&[seeded], "probe");
+        assert!(losses.is_empty(), "{losses:?}");
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        let imported = &loaded.command("AbstractFactory").unwrap().spec;
+        let grammar = imported.definition_body.unwrap();
+        for selector in ["create", "new", "createWithNamespace"] {
+            assert_eq!(
+                grammar.manufacturer(selector).unwrap().visibility,
+                tcl_registry::definer::MemberVisibility::Unexported
+            );
+        }
+        assert_eq!(imported.manufacturer_methods, spec.manufacturer_methods);
+    }
+
+    #[test]
     fn native_object_method_operations_keep_grammar_identity_and_explicit_inline_loss() {
         use tcl_registry::definer::{DefinitionBodyGrammar, TCLOO_GRAMMAR};
 
