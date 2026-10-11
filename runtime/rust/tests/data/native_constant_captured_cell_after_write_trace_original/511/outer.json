@@ -1,0 +1,22 @@
+{
+  "command": [
+    "python3",
+    "/workspace/.proofs/native-constant-captured-cell-order511/launch.py"
+  ],
+  "cwd": "/workspace/.proofs/native-constant-captured-cell-order511",
+  "started_ns": 1791689006018496705,
+  "ended_ns": 1791689012192279612,
+  "exit_code": 0,
+  "manifest_sha256": "b73d405dfdaafab9409f2d8d2a6d8fc627be9bd2625b5f49a08b53eddee0f59e",
+  "request_sha256": "355bfa4d4625fabbd1ecdeb163abb2eedbdb4e93d10140d3dfece53d19196ac6",
+  "stdout": {
+    "path": "/workspace/.proofs/native-constant-captured-cell511-outer.stdout",
+    "sha256": "77c70123c27a0e56e2b0361b2470c7d1c5f7ca38ff413427faaddb97bfb67411"
+  },
+  "stderr": {
+    "path": "/workspace/.proofs/native-constant-captured-cell511-outer.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "manifest_unchanged": true,
+  "manifested_inputs_unchanged": true
+}

@@ -1,0 +1,142 @@
+{
+  "request_sha256": "355bfa4d4625fabbd1ecdeb163abb2eedbdb4e93d10140d3dfece53d19196ac6",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/compiler-version.receipt.json",
+      "sha256": "151bf4faf9653de00ca9171e5f303148fdac0bd605b2c8a65292a39822bd8fbe",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.4.20/compile.receipt.json",
+      "sha256": "3968c3f39db6f8b323553d1206e586b0a8f24ef16e8384bffc8cc3c8f9d624fe",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "14f1c8aee64e2d862494b376d1e2d9b0fe8d7fdfcb653979b50a9c2e53cedb34",
+      "status": "closed"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.4.20/execute.receipt.json",
+      "sha256": "c61abd0b1d89bf18e91ceb9b14f49172eaee2770787679f6977377f0665d6caf",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.5.19/compile.receipt.json",
+      "sha256": "cfb0c0c175102e3bd4d27376bbf2a4a079ef76ed096c43de2c1cbfe28c114b9c",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "f687423750d2ff2685e985fc1c28822c8ffa3973afc44b30615b8b108404a8bb",
+      "status": "closed"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.5.19/execute.receipt.json",
+      "sha256": "10d9bd8eecfbb3ff3e41ae00b5af66167160286d15e42ff8f319efcc59b9c8ef",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.6.18/compile.receipt.json",
+      "sha256": "dffe4d3497a748a91d13465ade38536f9dcfa0aa88b815611ed1983544862845",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "0580523865344cfd282e71c6fe0582c5eab9a94cba6680b0290c713e1204ee3c",
+      "status": "closed"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/8.6.18/execute.receipt.json",
+      "sha256": "81a17e0a34fbf558a066d16ba1442c5540c3df8132c0b223a9b1b63d49003ab6",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/9.0.4/compile.receipt.json",
+      "sha256": "fd808b8fdeaa02d9089b128399c90fac258d4441c1a152e636be16836f1fef32",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "67012962aa117e01b8baf77489e077ebfb09444af076ac8ffb54efdde239f943",
+      "status": "closed"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/9.0.4/execute.receipt.json",
+      "sha256": "86e614651e764ea82896307489881ff889f70b28355aa2119005142fa519e37f",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/9.1.0/compile.receipt.json",
+      "sha256": "f823abca20f80c80da3fe196519dd483eb5a31c202cb679e496394f6bf777cf4",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "ee32f5de98a5f93306332724b28d720e3f223e5f18a786edc61256ecbb5b06fd",
+      "status": "closed"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/9.1.0/execute.receipt.json",
+      "sha256": "ddbc6b86aaad1d346cba66ef874865298c9c36e9a8b431cc950dced016915707",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "compile",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/jim/compile.receipt.json",
+      "sha256": "6542572e5a16b6ffbccd3dfc10fbadc7c80d27769e95d323279110efb9cd505a",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "dependencies",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/jim/dependencies.receipt.json",
+      "sha256": "171d7e127e2bb2c6f9fc46fb08cb67a4bbed0f3178350d0a6b9343ecc4984e2e",
+      "status": "closed"
+    },
+    {
+      "provider": "jim",
+      "channel": "execute",
+      "path": "/workspace/.proofs/native-constant-captured-cell-order511/providers/jim/execute.receipt.json",
+      "sha256": "13df26b6b50c539d0dc4a0e18a3f8356006fc1182fbac412b2b66743a80257b8",
+      "status": "closed"
+    }
+  ],
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/native-constant-captured-cell-order511/providers",
+  "all_capture_processes_closed": false,
+  "scope": "Original process/source/link/runtime closure only; individual Guest failures and Jim unsupported observer/namespace purposes stay explicit."
+}

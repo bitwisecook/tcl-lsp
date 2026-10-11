@@ -1,0 +1,30 @@
+{
+  "status": "Source-only, unrun",
+  "question": "naming.tcloo.original-selected-method-role-report",
+  "selectors": [
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "selector": "cmd_oo::native_method_report_tests::original_foundation_headers_and_inherited_next_keep_genuine_report_roles",
+      "source": "runtime/rust/src/cmd_oo/native_method_report_tests.rs"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "lib",
+      "selector": "cmd_oo::native_method_report_tests::original_foundation_report_refuses_missing_headers_and_unsupported_selection",
+      "source": "runtime/rust/src/cmd_oo/native_method_report_tests.rs"
+    },
+    {
+      "package": "tcl-vm",
+      "target": "lib",
+      "selector": "cmd_oo::native_method_report_tests::original_foundation_value_headers_follow_constructor_destructor_next_roles",
+      "source": "rust/tcl-vm/src/cmd_oo/native_method_report_tests.rs"
+    },
+    {
+      "package": "tcl-vm",
+      "target": "lib",
+      "selector": "cmd_oo::native_method_report_tests::original_foundation_value_report_refuses_missing_and_unsupported_owners",
+      "source": "rust/tcl-vm/src/cmd_oo/native_method_report_tests.rs"
+    }
+  ]
+}

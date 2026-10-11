@@ -3883,3 +3883,27 @@ root `naming-current-validation323`. The checkpoint number does not
 substitute a derived compile-root path. Receipt and snapshot gzip copies
 round-trip to their exact original bytes; source and provider observations
 retain their separate scopes.
+
+## Source328 Compiler compilation failure
+
+The own Compiler328 library-test no-run producer closes exit `101` after
+151.63929428200936 seconds with uniform source `true`. Its original log
+records three VM library errors: one unresolved `NativeValueAccessRefusal`
+import at `interp/native_operation_currency.rs:16`, and two conflicting
+mutable/immutable borrows at `expr/native_boolean_truth.rs:158` and `:160`.
+No executable creation event, own
+Compiler image, executable inventory or assertion is admitted.
+
+The [whole original log](frozen328/integration-compiler-own-test-build328/tests.log) and
+[exact failed receipt](frozen328/integration-compiler-own-test-build328/receipt.json.gz)
+retain the actual command, exit and empty assertion summaries. This failed
+producer has no executable or assertion result. Other producers and external
+Native observations do not establish an outcome for this run.
+
+The [complete original source snapshot](frozen328/integration-compiler-own-test-build328/source-snapshot.json.gz)
+retains all 37,116 independently verified source leaves, HEAD
+`1cc6cd92da2ecdf30cf00fa3885280ae592ad751`, immutable archive `naming328` and the recorded compile
+root `naming-current-validation323`. The checkpoint number does not
+substitute a derived compile-root path. Receipt and snapshot gzip copies
+round-trip to their exact original bytes; source and provider observations
+retain their separate scopes.

@@ -1,0 +1,10 @@
+	Tcl_SetObjResult(interp, TclOOObjectName(interp, clsPtr->thisPtr));
+	return TCL_OK;
+    }
+    case SELF_METHOD:
+	Tcl_SetObjResult(interp, MethodName(fPtr, contextPtr,
+		CurrentlyInvoked(contextPtr).mPtr));
+	return TCL_OK;
+    case SELF_FILTER:
+	if (!CurrentlyInvoked(contextPtr).isFilter) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(

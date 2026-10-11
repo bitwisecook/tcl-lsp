@@ -1,0 +1,220 @@
+{
+  "status": "Inspected exact pinned source/API facts only; no external interpreter execution or software test outcome.",
+  "purpose": "Foundation-owned constructor/destructor report headers are independent of unnamed Method records; actual chain flags originate at real constructor/destructor entry and survive next.",
+  "sources": [
+    {
+      "provider": "8.6.18",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOO.c",
+      "sha256": "e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef",
+      "windows": [
+        {
+          "anchor": "TclNewLiteralStringObj(fPtr->constructorName",
+          "first": 345,
+          "last": 356,
+          "text": "    fPtr->epoch = 0;\n    fPtr->tsdPtr = tsdPtr;\n    TclNewLiteralStringObj(fPtr->unknownMethodNameObj, \"unknown\");\n    TclNewLiteralStringObj(fPtr->constructorName, \"<constructor>\");\n    TclNewLiteralStringObj(fPtr->destructorName, \"<destructor>\");\n    TclNewLiteralStringObj(fPtr->clonedName, \"<cloned>\");\n    TclNewLiteralStringObj(fPtr->defineName, \"::oo::define\");\n    Tcl_IncrRefCount(fPtr->unknownMethodNameObj);\n    Tcl_IncrRefCount(fPtr->constructorName);\n    Tcl_IncrRefCount(fPtr->destructorName);\n    Tcl_IncrRefCount(fPtr->clonedName);\n    Tcl_IncrRefCount(fPtr->defineName);\n"
+        },
+        {
+          "anchor": "Tcl_IncrRefCount(fPtr->constructorName",
+          "first": 350,
+          "last": 361,
+          "text": "    TclNewLiteralStringObj(fPtr->clonedName, \"<cloned>\");\n    TclNewLiteralStringObj(fPtr->defineName, \"::oo::define\");\n    Tcl_IncrRefCount(fPtr->unknownMethodNameObj);\n    Tcl_IncrRefCount(fPtr->constructorName);\n    Tcl_IncrRefCount(fPtr->destructorName);\n    Tcl_IncrRefCount(fPtr->clonedName);\n    Tcl_IncrRefCount(fPtr->defineName);\n    Tcl_CreateObjCommand(interp, \"::oo::UnknownDefinition\",\n\t    TclOOUnknownDefinition, NULL, NULL);\n    TclNewLiteralStringObj(namePtr, \"::oo::UnknownDefinition\");\n    Tcl_SetNamespaceUnknownHandler(interp, fPtr->defineNs, namePtr);\n    Tcl_SetNamespaceUnknownHandler(interp, fPtr->objdefNs, namePtr);\n"
+        },
+        {
+          "anchor": "TclDecrRefCount(fPtr->constructorName",
+          "first": 588,
+          "last": 599,
+          "text": "    Foundation *fPtr = GetFoundation(interp);\n\n    TclDecrRefCount(fPtr->unknownMethodNameObj);\n    TclDecrRefCount(fPtr->constructorName);\n    TclDecrRefCount(fPtr->destructorName);\n    TclDecrRefCount(fPtr->clonedName);\n    TclDecrRefCount(fPtr->defineName);\n    TclOODecrRefCount(fPtr->objectCls->thisPtr);\n    TclOODecrRefCount(fPtr->classCls->thisPtr);\n\n    ckfree(fPtr);\n}\n"
+        },
+        {
+          "anchor": "TclOOGetCallContext(oPtr, NULL, DESTRUCTOR",
+          "first": 1141,
+          "last": 1152,
+          "text": "\n    if (!Tcl_InterpDeleted(interp) && !(oPtr->flags & DESTRUCTOR_CALLED)) {\n\tCallContext *contextPtr =\n\t\tTclOOGetCallContext(oPtr, NULL, DESTRUCTOR, NULL);\n\n\toPtr->flags |= DESTRUCTOR_CALLED;\n\tif (contextPtr != NULL) {\n\t    int result;\n\t    Tcl_InterpState state;\n\n\t    contextPtr->callPtr->flags |= DESTRUCTOR;\n\t    contextPtr->skip = 0;\n"
+        },
+        {
+          "anchor": "TclOOGetCallContext(oPtr, NULL, CONSTRUCTOR",
+          "first": 1663,
+          "last": 1674,
+          "text": "\n    if (objc >= 0) {\n\tCallContext *contextPtr =\n\t\tTclOOGetCallContext(oPtr, NULL, CONSTRUCTOR, NULL);\n\n\tif (contextPtr != NULL) {\n\t    int isRoot, result;\n\t    Tcl_InterpState state;\n\n\t    state = Tcl_SaveInterpState(interp, TCL_OK);\n\t    contextPtr->callPtr->flags |= CONSTRUCTOR;\n\t    contextPtr->skip = skip;\n"
+        }
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c",
+      "sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "windows": [
+        {
+          "first": 1030,
+          "last": 1046,
+          "text": "\tTcl_SetObjResult(interp, TclOOObjectName(interp, clsPtr->thisPtr));\n\treturn TCL_OK;\n    }\n    case SELF_METHOD:\n\tif (contextPtr->callPtr->flags & CONSTRUCTOR) {\n\t    Tcl_SetObjResult(interp, contextPtr->oPtr->fPtr->constructorName);\n\t} else if (contextPtr->callPtr->flags & DESTRUCTOR) {\n\t    Tcl_SetObjResult(interp, contextPtr->oPtr->fPtr->destructorName);\n\t} else {\n\t    Tcl_SetObjResult(interp,\n\t\t    CurrentlyInvoked(contextPtr).mPtr->namePtr);\n\t}\n\treturn TCL_OK;\n    case SELF_FILTER:\n\tif (!CurrentlyInvoked(contextPtr).isFilter) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t    \"not inside a filtering context\", -1));\n"
+        }
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOCall.c",
+      "sha256": "12d5776939aaf9b968377fa956ae37cc0a3729d446667ce544ed3c60dc45431b",
+      "windows": [
+        {
+          "first": 899,
+          "last": 910,
+          "text": "     * there is a call into stereotypical object after it has finished running\n     * its destructor phase. Such things can't be cached for a long time so the\n     * epoch can be bogus. [Bug 7842f33a5c]\n     */\n\n    callPtr->flags = flags &\n\t    (PUBLIC_METHOD | PRIVATE_METHOD | SPECIAL | FILTER_HANDLING);\n    if (oPtr->flags & USE_CLASS_CACHE) {\n\toPtr = (oPtr->selfCls ? oPtr->selfCls->thisPtr : NULL);\n\tcallPtr->flags |= USE_CLASS_CACHE;\n    }\n    if (oPtr) {\n"
+        },
+        {
+          "first": 978,
+          "last": 989,
+          "text": "TclOOGetCallContext(\n    Object *oPtr,\t\t/* The object to get the context for. */\n    Tcl_Obj *methodNameObj,\t/* The name of the method to get the context\n\t\t\t\t * for. NULL when getting a constructor or\n\t\t\t\t * destructor chain. */\n    int flags,\t\t\t/* What sort of context are we looking for.\n\t\t\t\t * Only the bits PUBLIC_METHOD, CONSTRUCTOR,\n\t\t\t\t * PRIVATE_METHOD, DESTRUCTOR and\n\t\t\t\t * FILTER_HANDLING are useful. */\n    Tcl_Obj *cacheInThisObj)\t/* What object to cache in, or NULL if it is\n\t\t\t\t * to be in the same object as the\n\t\t\t\t * methodNameObj. */\n"
+        },
+        {
+          "first": 305,
+          "last": 318,
+          "text": "\tcontextPtr->oPtr->flags |= FILTER_HANDLING;\n    } else {\n\tcontextPtr->oPtr->flags &= ~FILTER_HANDLING;\n    }\n\n    /*\n     * Run the method implementation.\n     */\n\n    return mPtr->typePtr->callProc(mPtr->clientData, interp,\n\t    (Tcl_ObjectContext) contextPtr, objc, objv);\n}\n\nstatic int\n"
+        }
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOO.c",
+      "sha256": "2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7",
+      "windows": [
+        {
+          "anchor": "TclNewLiteralStringObj(fPtr->constructorName",
+          "first": 423,
+          "last": 434,
+          "text": "    fPtr->tsdPtr = tsdPtr;\n\n    TclNewLiteralStringObj(fPtr->unknownMethodNameObj, \"unknown\");\n    TclNewLiteralStringObj(fPtr->constructorName, \"<constructor>\");\n    TclNewLiteralStringObj(fPtr->destructorName, \"<destructor>\");\n    TclNewLiteralStringObj(fPtr->clonedName, \"<cloned>\");\n    TclNewLiteralStringObj(fPtr->defineName, \"::oo::define\");\n    TclNewLiteralStringObj(fPtr->myName, \"my\");\n    TclNewLiteralStringObj(fPtr->slotGetName, \"Get\");\n    TclNewLiteralStringObj(fPtr->slotSetName, \"Set\");\n    TclNewLiteralStringObj(fPtr->slotResolveName, \"Resolve\");\n    TclNewLiteralStringObj(fPtr->slotDefOpName, \"--default-operation\");\n"
+        },
+        {
+          "anchor": "Tcl_IncrRefCount(fPtr->constructorName",
+          "first": 433,
+          "last": 444,
+          "text": "    TclNewLiteralStringObj(fPtr->slotResolveName, \"Resolve\");\n    TclNewLiteralStringObj(fPtr->slotDefOpName, \"--default-operation\");\n    Tcl_IncrRefCount(fPtr->unknownMethodNameObj);\n    Tcl_IncrRefCount(fPtr->constructorName);\n    Tcl_IncrRefCount(fPtr->destructorName);\n    Tcl_IncrRefCount(fPtr->clonedName);\n    Tcl_IncrRefCount(fPtr->defineName);\n    Tcl_IncrRefCount(fPtr->myName);\n    Tcl_IncrRefCount(fPtr->slotGetName);\n    Tcl_IncrRefCount(fPtr->slotSetName);\n    Tcl_IncrRefCount(fPtr->slotResolveName);\n    Tcl_IncrRefCount(fPtr->slotDefOpName);\n"
+        },
+        {
+          "anchor": "TclDecrRefCount(fPtr->constructorName",
+          "first": 818,
+          "last": 829,
+          "text": "    Foundation *fPtr = GetFoundation(interp);\n\n    TclDecrRefCount(fPtr->unknownMethodNameObj);\n    TclDecrRefCount(fPtr->constructorName);\n    TclDecrRefCount(fPtr->destructorName);\n    TclDecrRefCount(fPtr->clonedName);\n    TclDecrRefCount(fPtr->defineName);\n    TclDecrRefCount(fPtr->myName);\n    TclDecrRefCount(fPtr->slotGetName);\n    TclDecrRefCount(fPtr->slotSetName);\n    TclDecrRefCount(fPtr->slotResolveName);\n    TclDecrRefCount(fPtr->slotDefOpName);\n"
+        },
+        {
+          "anchor": "TclOOGetCallContext(oPtr, NULL, DESTRUCTOR",
+          "first": 1439,
+          "last": 1450,
+          "text": "\n    if (!Tcl_InterpDeleted(interp) && !(oPtr->flags & DESTRUCTOR_CALLED)) {\n\tCallContext *contextPtr =\n\t\tTclOOGetCallContext(oPtr, NULL, DESTRUCTOR, NULL, NULL, NULL);\n\n\toPtr->flags |= DESTRUCTOR_CALLED;\n\tif (contextPtr != NULL) {\n\t    int result;\n\t    Tcl_InterpState state;\n\n\t    contextPtr->callPtr->flags |= DESTRUCTOR;\n\t    contextPtr->skip = 0;\n"
+        },
+        {
+          "anchor": "TclOOGetCallContext(oPtr, NULL, CONSTRUCTOR",
+          "first": 1990,
+          "last": 2001,
+          "text": "\n    if (objc != TCL_INDEX_NONE) {\n\tCallContext *contextPtr =\n\t\tTclOOGetCallContext(oPtr, NULL, CONSTRUCTOR, NULL, NULL, NULL);\n\n\tif (contextPtr != NULL) {\n\t    int isRoot, result;\n\t    Tcl_InterpState state;\n\n\t    state = Tcl_SaveInterpState(interp, TCL_OK);\n\t    contextPtr->callPtr->flags |= CONSTRUCTOR;\n\t    contextPtr->skip = skip;\n"
+        }
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+      "sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "windows": [
+        {
+          "first": 1555,
+          "last": 1570,
+          "text": "\tTcl_SetObjResult(interp, TclOOObjectName(interp, clsPtr->thisPtr));\n\treturn TCL_OK;\n    }\n    case SELF_METHOD:\n\tif (contextPtr->callPtr->flags & CONSTRUCTOR) {\n\t    Tcl_SetObjResult(interp, contextPtr->oPtr->fPtr->constructorName);\n\t} else if (contextPtr->callPtr->flags & DESTRUCTOR) {\n\t    Tcl_SetObjResult(interp, contextPtr->oPtr->fPtr->destructorName);\n\t} else {\n\t    Tcl_SetObjResult(interp,\n\t\t    CurrentlyInvoked(contextPtr).mPtr->namePtr);\n\t}\n\treturn TCL_OK;\n    case SELF_FILTER:\n\tif (!CurrentlyInvoked(contextPtr).isFilter) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n"
+        }
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c",
+      "sha256": "f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd",
+      "windows": [
+        {
+          "anchor": "TclNewLiteralStringObj(fPtr->constructorName",
+          "first": 426,
+          "last": 437,
+          "text": "    fPtr->tsdPtr = tsdPtr;\n\n    TclNewLiteralStringObj(fPtr->unknownMethodNameObj, \"unknown\");\n    TclNewLiteralStringObj(fPtr->constructorName, \"<constructor>\");\n    TclNewLiteralStringObj(fPtr->destructorName, \"<destructor>\");\n    TclNewLiteralStringObj(fPtr->clonedName, \"<cloned>\");\n    TclNewLiteralStringObj(fPtr->defineName, \"::oo::define\");\n    TclNewLiteralStringObj(fPtr->myName, \"my\");\n    TclNewLiteralStringObj(fPtr->slotGetName, \"Get\");\n    TclNewLiteralStringObj(fPtr->slotSetName, \"Set\");\n    TclNewLiteralStringObj(fPtr->slotResolveName, \"Resolve\");\n    TclNewLiteralStringObj(fPtr->slotDefOpName, \"--default-operation\");\n"
+        },
+        {
+          "anchor": "Tcl_IncrRefCount(fPtr->constructorName",
+          "first": 436,
+          "last": 447,
+          "text": "    TclNewLiteralStringObj(fPtr->slotResolveName, \"Resolve\");\n    TclNewLiteralStringObj(fPtr->slotDefOpName, \"--default-operation\");\n    Tcl_IncrRefCount(fPtr->unknownMethodNameObj);\n    Tcl_IncrRefCount(fPtr->constructorName);\n    Tcl_IncrRefCount(fPtr->destructorName);\n    Tcl_IncrRefCount(fPtr->clonedName);\n    Tcl_IncrRefCount(fPtr->defineName);\n    Tcl_IncrRefCount(fPtr->myName);\n    Tcl_IncrRefCount(fPtr->slotGetName);\n    Tcl_IncrRefCount(fPtr->slotSetName);\n    Tcl_IncrRefCount(fPtr->slotResolveName);\n    Tcl_IncrRefCount(fPtr->slotDefOpName);\n"
+        },
+        {
+          "anchor": "TclDecrRefCount(fPtr->constructorName",
+          "first": 806,
+          "last": 817,
+          "text": "    Foundation *fPtr = GetFoundation(interp);\n\n    TclDecrRefCount(fPtr->unknownMethodNameObj);\n    TclDecrRefCount(fPtr->constructorName);\n    TclDecrRefCount(fPtr->destructorName);\n    TclDecrRefCount(fPtr->clonedName);\n    TclDecrRefCount(fPtr->defineName);\n    TclDecrRefCount(fPtr->myName);\n    TclDecrRefCount(fPtr->slotGetName);\n    TclDecrRefCount(fPtr->slotSetName);\n    TclDecrRefCount(fPtr->slotResolveName);\n    TclDecrRefCount(fPtr->slotDefOpName);\n"
+        },
+        {
+          "anchor": "TclOOGetCallContext(oPtr, NULL, DESTRUCTOR",
+          "first": 1432,
+          "last": 1443,
+          "text": "\n    if (!Tcl_InterpDeleted(interp) && !(oPtr->flags & DESTRUCTOR_CALLED)) {\n\tCallContext *contextPtr =\n\t\tTclOOGetCallContext(oPtr, NULL, DESTRUCTOR, NULL, NULL, NULL);\n\n\toPtr->flags |= DESTRUCTOR_CALLED;\n\tif (contextPtr != NULL) {\n\t    int result;\n\t    Tcl_InterpState state;\n\n\t    contextPtr->callPtr->flags |= DESTRUCTOR;\n\t    contextPtr->skip = 0;\n"
+        },
+        {
+          "anchor": "TclOOGetCallContext(oPtr, NULL, CONSTRUCTOR",
+          "first": 1970,
+          "last": 1981,
+          "text": "\n    if (objc != TCL_INDEX_NONE) {\n\tCallContext *contextPtr =\n\t\tTclOOGetCallContext(oPtr, NULL, CONSTRUCTOR, NULL, NULL, NULL);\n\n\tif (contextPtr != NULL) {\n\t    int isRoot, result;\n\t    Tcl_InterpState state;\n\n\t    state = Tcl_SaveInterpState(interp, TCL_OK);\n\t    contextPtr->callPtr->flags |= CONSTRUCTOR;\n\t    contextPtr->skip = skip;\n"
+        }
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+      "sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "windows": [
+        {
+          "first": 1510,
+          "last": 1527,
+          "text": " * ----------------------------------------------------------------------\n */\nstatic inline Tcl_Obj *\nMethodName(\n    Foundation *fPtr,\n    CallContext *contextPtr,\n    Method *mPtr)\n{\n    switch (contextPtr->callPtr->flags & (CONSTRUCTOR | DESTRUCTOR)) {\n    case CONSTRUCTOR:\n\treturn fPtr->constructorName;\n    case DESTRUCTOR:\n\treturn fPtr->destructorName;\n    default:\n\treturn mPtr->namePtr;\n    }\n}\n\f\n"
+        },
+        {
+          "first": 1625,
+          "last": 1634,
+          "text": "\tTcl_SetObjResult(interp, TclOOObjectName(interp, clsPtr->thisPtr));\n\treturn TCL_OK;\n    }\n    case SELF_METHOD:\n\tTcl_SetObjResult(interp, MethodName(fPtr, contextPtr,\n\t\tCurrentlyInvoked(contextPtr).mPtr));\n\treturn TCL_OK;\n    case SELF_FILTER:\n\tif (!CurrentlyInvoked(contextPtr).isFilter) {\n\t    Tcl_SetObjResult(interp, Tcl_NewStringObj(\n"
+        }
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c",
+      "sha256": "1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98",
+      "windows": [
+        {
+          "anchor": "TclOONextObjCmd(",
+          "first": 791,
+          "last": 824,
+          "text": "TclOONextObjCmd(\n    ClientData clientData,\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    Interp *iPtr = (Interp *) interp;\n    CallFrame *framePtr = iPtr->varFramePtr;\n    Tcl_ObjectContext context;\n\n    /*\n     * Start with sanity checks on the calling context to make sure that we\n     * are invoked from a suitable method context. If so, we can safely\n     * retrieve the handle to the object call context.\n     */\n\n    if (framePtr == NULL || !(framePtr->isProcCallFrame & FRAME_IS_METHOD)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"%s may only be called from inside a method\",\n\t\tTclGetString(objv[0])));\n\tTcl_SetErrorCode(interp, \"TCL\", \"OO\", \"CONTEXT_REQUIRED\", (char *)NULL);\n\treturn TCL_ERROR;\n    }\n    context = framePtr->clientData;\n\n    /*\n     * Invoke the (advanced) method call context in the caller context. Note\n     * that this is like [uplevel 1] and not [eval].\n     */\n\n    TclNRAddCallback(interp, NextRestoreFrame, framePtr, NULL,NULL,NULL);\n    iPtr->varFramePtr = framePtr->callerVarPtr;\n    return TclNRObjectContextInvokeNext(interp, context, objc, objv, 1);\n}\n"
+        }
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c",
+      "sha256": "5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68",
+      "windows": [
+        {
+          "anchor": "TclOONextObjCmd(",
+          "first": 1317,
+          "last": 1350,
+          "text": "TclOONextObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    int objc,\n    Tcl_Obj *const *objv)\n{\n    Interp *iPtr = (Interp *) interp;\n    CallFrame *framePtr = iPtr->varFramePtr;\n    Tcl_ObjectContext context;\n\n    /*\n     * Start with sanity checks on the calling context to make sure that we\n     * are invoked from a suitable method context. If so, we can safely\n     * retrieve the handle to the object call context.\n     */\n\n    if (framePtr == NULL || !(framePtr->isProcCallFrame & FRAME_IS_METHOD)) {\n\tTcl_SetObjResult(interp, Tcl_ObjPrintf(\n\t\t\"%s may only be called from inside a method\",\n\t\tTclGetString(objv[0])));\n\tOO_ERROR(interp, CONTEXT_REQUIRED);\n\treturn TCL_ERROR;\n    }\n    context = (Tcl_ObjectContext) framePtr->clientData;\n\n    /*\n     * Invoke the (advanced) method call context in the caller context. Note\n     * that this is like [uplevel 1] and not [eval].\n     */\n\n    TclNRAddCallback(interp, NextRestoreFrame, framePtr, NULL,NULL,NULL);\n    iPtr->varFramePtr = framePtr->callerVarPtr;\n    return TclNRObjectContextInvokeNext(interp, context, objc, objv, 1);\n}\n"
+        }
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c",
+      "sha256": "d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158",
+      "windows": [
+        {
+          "anchor": "TclOONextObjCmd(",
+          "first": 1371,
+          "last": 1400,
+          "text": "TclOONextObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Interp *iPtr = (Interp *) interp;\n    CallFrame *framePtr = iPtr->varFramePtr;\n    Tcl_ObjectContext context = (Tcl_ObjectContext)\n\t    TclOOGetContextFromCurrentStackFrame(interp, TclGetString(objv[0]));\n\n    /*\n     * Start with sanity checks on the calling context to make sure that we\n     * are invoked from a suitable method context. If so, we can safely\n     * retrieve the handle to the object call context.\n     */\n\n    if (!context) {\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Invoke the (advanced) method call context in the caller context. Note\n     * that this is like [uplevel 1] and not [eval].\n     */\n\n    TclNRAddCallback(interp, NextRestoreFrame, framePtr, NULL,NULL,NULL);\n    iPtr->varFramePtr = framePtr->callerVarPtr;\n    return TclNRObjectContextInvokeNext(interp, context, objc, objv, 1);\n}\n"
+        }
+      ]
+    }
+  ],
+  "line_definition": "Physical newline-separated source lines; form-feed remains within a physical source line."
+}

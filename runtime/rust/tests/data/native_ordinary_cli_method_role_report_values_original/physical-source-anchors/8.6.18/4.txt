@@ -1,0 +1,12 @@
+
+    if (objc >= 0) {
+	CallContext *contextPtr =
+		TclOOGetCallContext(oPtr, NULL, CONSTRUCTOR, NULL);
+
+	if (contextPtr != NULL) {
+	    int isRoot, result;
+	    Tcl_InterpState state;
+
+	    state = Tcl_SaveInterpState(interp, TCL_OK);
+	    contextPtr->callPtr->flags |= CONSTRUCTOR;
+	    contextPtr->skip = skip;

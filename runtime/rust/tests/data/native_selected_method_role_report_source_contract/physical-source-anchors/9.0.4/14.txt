@@ -1,0 +1,16 @@
+	Tcl_SetObjResult(interp, TclOOObjectName(interp, clsPtr->thisPtr));
+	return TCL_OK;
+    }
+    case SELF_METHOD:
+	if (contextPtr->callPtr->flags & CONSTRUCTOR) {
+	    Tcl_SetObjResult(interp, contextPtr->oPtr->fPtr->constructorName);
+	} else if (contextPtr->callPtr->flags & DESTRUCTOR) {
+	    Tcl_SetObjResult(interp, contextPtr->oPtr->fPtr->destructorName);
+	} else {
+	    Tcl_SetObjResult(interp,
+		    CurrentlyInvoked(contextPtr).mPtr->namePtr);
+	}
+	return TCL_OK;
+    case SELF_FILTER:
+	if (!CurrentlyInvoked(contextPtr).isFilter) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(

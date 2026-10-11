@@ -1,0 +1,121 @@
+int
+Tcl_UnsetVar2(
+    Tcl_Interp *interp,		/* Command interpreter in which varName is to
+				 * be looked up. */
+    const char *part1,		/* Name of variable or array. */
+    const char *part2,		/* Name of element within array or NULL. */
+    int flags)			/* OR-ed combination of any of
+				 * TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    int result;
+    Tcl_Obj *part2Ptr = NULL, *part1Ptr = Tcl_NewStringObj(part1, -1);
+
+    if (part2) {
+	part2Ptr = Tcl_NewStringObj(part2, -1);
+    }
+
+    /*
+     * Filter to pass through only the flags this interface supports.
+     */
+
+    flags &= (TCL_GLOBAL_ONLY|TCL_NAMESPACE_ONLY|TCL_LEAVE_ERR_MSG);
+    result = TclObjUnsetVar2(interp, part1Ptr, part2Ptr, flags);
+
+    Tcl_DecrRefCount(part1Ptr);
+    if (part2Ptr) {
+	Tcl_DecrRefCount(part2Ptr);
+    }
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclObjUnsetVar2 --
+ *
+ *	Delete a variable, given a 2-object name.
+ *
+ * Results:
+ *	Returns TCL_OK if the variable was successfully deleted, TCL_ERROR if
+ *	the variable can't be unset. In the event of an error, if the
+ *	TCL_LEAVE_ERR_MSG flag is set then an error message is left in the
+ *	interp's result.
+ *
+ * Side effects:
+ *	If part1ptr and part2Ptr indicate a local or global variable in
+ *	interp, it is deleted. If part1Ptr is an array name and part2Ptr is
+ *	NULL, then the whole array is deleted.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclObjUnsetVar2(
+    Tcl_Interp *interp,		/* Command interpreter in which varName is to
+				 * be looked up. */
+    Tcl_Obj *part1Ptr,		/* Name of variable or array. */
+    Tcl_Obj *part2Ptr,		/* Name of element within array or NULL. */
+    int flags)			/* OR-ed combination of any of
+				 * TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    Var *varPtr, *arrayPtr;
+
+    varPtr = TclObjLookupVarEx(interp, part1Ptr, part2Ptr, flags, "unset",
+	    /*createPart1*/ 0, /*createPart2*/ 0, &arrayPtr);
+    if (varPtr == NULL) {
+	return TCL_ERROR;
+    }
+
+    return TclPtrUnsetVarIdx(interp, varPtr, arrayPtr, part1Ptr, part2Ptr,
+	    flags, -1);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclPtrUnsetVar --
+ *
+ *	Delete a variable, given the pointers to the variable's (and possibly
+ *	containing array's) VAR structure.
+ *
+ * Results:
+ *	Returns TCL_OK if the variable was successfully deleted, TCL_ERROR if
+ *	the variable can't be unset. In the event of an error, if the
+ *	TCL_LEAVE_ERR_MSG flag is set then an error message is left in the
+ *	interp's result.
+ *
+ * Side effects:
+ *	If varPtr and arrayPtr indicate a local or global variable in interp,
+ *	it is deleted. If varPtr is an array reference and part2Ptr is NULL,
+ *	then the whole array is deleted.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclPtrUnsetVar(
+    Tcl_Interp *interp,		/* Command interpreter in which varName is to
+				 * be looked up. */
+    Tcl_Var varPtr,		/* The variable to be unset. */
+    Tcl_Var arrayPtr,		/* NULL for scalar variables, pointer to the
+				 * containing array otherwise. */
+    Tcl_Obj *part1Ptr,		/* Name of an array (if part2 is non-NULL) or
+				 * the name of a variable. */
+    Tcl_Obj *part2Ptr,		/* If non-NULL, gives the name of an element
+				 * in the array part1. */
+    int flags)			/* OR-ed combination of any of
+				 * TCL_GLOBAL_ONLY, TCL_NAMESPACE_ONLY,
+				 * TCL_LEAVE_ERR_MSG. */
+{
+    if (varPtr == NULL) {
+	Tcl_Panic("varPtr must not be NULL");
+    }
+    if (part1Ptr == NULL) {
+	Tcl_Panic("part1Ptr must not be NULL");
+    }
+    return TclPtrUnsetVarIdx(interp, (Var *) varPtr, (Var *) arrayPtr,
+	    part1Ptr, part2Ptr, flags, -1);
+}
+

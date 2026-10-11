@@ -1,0 +1,35 @@
+{
+  "state": "read-only-closed-capture-interpretation",
+  "question_id": "naming.invocation.original-constant-captured-cell-after-write-trace",
+  "original_manifest_sha256": "3f1472e4af79e7ad8dabe1fb02c0078770e6e24bf3960ff3138f5afa8694d6a1",
+  "original_request_sha256": "54fbf8b631f1dd107b0504c2954edf604617f3b019461eadc6c4292ec6caef2e",
+  "original_closure_sha256": "1d9c939d1b205c18c94f3eb444ea2f3d31e971164710c7f60d5d1caa1a448551",
+  "provider_cases": 48,
+  "case_success_with_markers": 46,
+  "case_signal11": 2,
+  "source_windows_verified": 66,
+  "source_associations_verified": 92,
+  "files": [
+    {
+      "path": "/tmp/runtime-constant-interpretation511b/cases.json",
+      "sha256": "8f422818ceb61f0b65d6e0d78cbba2cfe5abdf2c387215ec8c82cb4ead64ee48"
+    },
+    {
+      "path": "/tmp/runtime-constant-interpretation511b/interpretation.md",
+      "sha256": "ff864ada1226511fe72835c8525293a0d23d8f8a8cf3fcd8553f9448e72e9d78"
+    },
+    {
+      "path": "/tmp/runtime-constant-interpretation511b/providers.json",
+      "sha256": "90155b0b3a65bbc72d688d06ab52f67633eab6fed070016e8eb0c282abf492f4"
+    },
+    {
+      "path": "/tmp/runtime-constant-interpretation511b/receipt-inputs.json",
+      "sha256": "67cd0b3fb477048b2ef2de015bd071ae3a3c934c7b9d6ee0a61d444404f878f2"
+    },
+    {
+      "path": "/tmp/runtime-constant-interpretation511b/source-windows.json",
+      "sha256": "63f681efdf5a8b43afe3ed28566e030436fde0cd4dccfddb7076871d979e86d6"
+    }
+  ],
+  "scope": "Reached raw source/worker/public phases only; no post-fatal state, Native equivalence or Rust outcome."
+}

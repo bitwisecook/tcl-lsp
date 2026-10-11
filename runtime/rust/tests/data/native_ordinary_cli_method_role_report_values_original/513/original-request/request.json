@@ -1,0 +1,70 @@
+{
+  "question_id": "naming.tcloo.original-selected-method-role-report",
+  "status": "Prepared fixed ordinary CLI request; not launched.",
+  "capture_owner": "Root only",
+  "purpose": "Measure reported self-method values for genuine inherited constructor/destructor next, a named literal <constructor>, and active named rename. Header identity/refcount and Method506 lifetime are outside this request.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "entry": "Actual original provider CLI, a fresh process for dependency closure, version, initialized TclOO availability and supported value script. No package loading or reconstructed interpreter.",
+  "supported_value_providers": [
+    "8.6.18",
+    "9.0.4",
+    "9.1.0"
+  ],
+  "value_rows": [
+    {
+      "tag": "ctor-derived",
+      "role": "real constructor before next"
+    },
+    {
+      "tag": "ctor-base",
+      "role": "inherited real constructor via next"
+    },
+    {
+      "tag": "named-literal",
+      "role": "ordinary named method, name text <constructor>"
+    },
+    {
+      "tag": "active-renamed",
+      "role": "ordinary active method after same-record rename"
+    },
+    {
+      "tag": "dtor-derived",
+      "role": "real destructor before next"
+    },
+    {
+      "tag": "dtor-base",
+      "role": "inherited real destructor via next"
+    }
+  ],
+  "encoding": "VALUE tag counted ASCII string length and binary scan H* hex. No binary encode dependency.",
+  "absence": "C84/C85/Jim have fresh availability/version/ELF closure receipts only. The availability query does not claim optional packages cannot supply TclOO.",
+  "process_plan": {
+    "dependencies": 6,
+    "version": 6,
+    "availability": 6,
+    "values": 3,
+    "maximum_total": 21
+  },
+  "source_sha256": {
+    "c-version.tcl": "b0d529bfc48a01ac7c363eb0cdc2b2ac2d6c035264754ec6f61f79b5a354aaa4",
+    "jim-version.tcl": "118605c132e6ba1883056716869773b7be82715b7a21616236a5962d1be254fe",
+    "availability.tcl": "77af6fc579c311aeea98c82cc33cd212ca03635658d7d77584af2247449c75a7",
+    "values.tcl": "551780f59e60d5452b6ed108ec95ee4a66809cffe0eaf90fe5822804f102a899",
+    "source-windows.json": "9c2c3b22169be4aed8eb7da8800ad227c1efcbda05e7e208238a8f3e8996434e"
+  },
+  "dependencies": "Actual ldd results must resolve only to input-prepinned library/loader files. Declared provider native source/header/static library/build inputs remain before/after pinned provenance; no C compilation runs.",
+  "limits": [
+    "No header/refcount/Method record/clientData observation.",
+    "No Native compiler, frame, method cache or entry grant.",
+    "No Rust or VM test result.",
+    "Public ordinary CLI values are separate from inspected source/API roles.",
+    "Every child return/status/signal is retained; outer Python exit alone is not aggregate success."
+  ]
+}

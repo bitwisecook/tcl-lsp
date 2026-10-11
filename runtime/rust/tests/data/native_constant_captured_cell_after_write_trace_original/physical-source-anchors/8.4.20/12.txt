@@ -1,0 +1,131 @@
+static void
+CleanupVar(varPtr, arrayPtr)
+    Var *varPtr;		/* Pointer to variable that may be a
+				 * candidate for being expunged. */
+    Var *arrayPtr;		/* Array that contains the variable, or
+				 * NULL if this variable isn't an array
+				 * element. */
+{
+    if (TclIsVarUndefined(varPtr) && (varPtr->refCount == 0)
+	    && (varPtr->tracePtr == NULL)
+	    && (varPtr->flags & VAR_IN_HASHTABLE)) {
+	if (varPtr->hPtr != NULL) {
+	    Tcl_DeleteHashEntry(varPtr->hPtr);
+	}
+	ckfree((char *) varPtr);
+    }
+    if (arrayPtr != NULL) {
+	if (TclIsVarUndefined(arrayPtr) && (arrayPtr->refCount == 0)
+		&& (arrayPtr->tracePtr == NULL)
+	        && (arrayPtr->flags & VAR_IN_HASHTABLE)) {
+	    if (arrayPtr->hPtr != NULL) {
+		Tcl_DeleteHashEntry(arrayPtr->hPtr);
+	    }
+	    ckfree((char *) arrayPtr);
+	}
+    }
+}
+/*
+ *----------------------------------------------------------------------
+ *
+ * VarErrMsg --
+ *
+ *      Generate a reasonable error message describing why a variable
+ *      operation failed.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      The interp's result is set to hold a message identifying the
+ *      variable given by part1 and part2 and describing why the
+ *      variable operation failed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+VarErrMsg(interp, part1, part2, operation, reason)
+    Tcl_Interp *interp;         /* Interpreter in which to record message. */
+    CONST char *part1;
+    CONST char *part2;		/* Variable's two-part name. */
+    CONST char *operation;      /* String describing operation that failed,
+                                 * e.g. "read", "set", or "unset". */
+    CONST char *reason;         /* String describing why operation failed. */
+{
+    Tcl_ResetResult(interp);
+    Tcl_AppendResult(interp, "can't ", operation, " \"", part1,
+	    (char *) NULL);
+    if (part2 != NULL) {
+        Tcl_AppendResult(interp, "(", part2, ")", (char *) NULL);
+    }
+    Tcl_AppendResult(interp, "\": ", reason, (char *) NULL);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclTraceVarExists --
+ *
+ *	This is called from info exists.  We need to trigger read
+ *	and/or array traces because they may end up creating a
+ *	variable that doesn't currently exist.
+ *
+ * Results:
+ *	A pointer to the Var structure, or NULL.
+ *
+ * Side effects:
+ *	May fill in error messages in the interp.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Var *
+TclVarTraceExists(interp, varName)
+    Tcl_Interp *interp;		/* The interpreter */
+    CONST char *varName;	/* The variable name */
+{
+    Var *varPtr;
+    Var *arrayPtr;
+
+    /*
+     * The choice of "create" flag values is delicate here, and
+     * matches the semantics of GetVar.  Things are still not perfect,
+     * however, because if you do "info exists x" you get a varPtr
+     * and therefore trigger traces.  However, if you do 
+     * "info exists x(i)", then you only get a varPtr if x is already
+     * known to be an array.  Otherwise you get NULL, and no trace
+     * is triggered.  This matches Tcl 7.6 semantics.
+     */
+
+    varPtr = TclLookupVar(interp, varName, (char *) NULL,
+            0, "access", /*createPart1*/ 0, /*createPart2*/ 1, &arrayPtr);
+
+    if (varPtr == NULL) {
+	return NULL;
+    }
+
+    if ((varPtr->tracePtr != NULL)
+	    || ((arrayPtr != NULL) && (arrayPtr->tracePtr != NULL))) {
+	CallVarTraces((Interp *)interp, arrayPtr, varPtr, varName, NULL,
+		TCL_TRACE_READS, /* leaveErrMsg */ 0);
+    }
+
+    /*
+     * If the variable doesn't exist anymore and no-one's using
+     * it, then free up the relevant structures and hash table entries.
+     */
+
+    if (TclIsVarUndefined(varPtr)) {
+	CleanupVar(varPtr, arrayPtr);
+	return NULL;
+    }
+
+    return varPtr;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Internal functions for variable name object types --
+ *

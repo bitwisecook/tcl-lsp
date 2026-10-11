@@ -1,0 +1,81 @@
+{
+  "packet": "ReceiverFoundationReport513",
+  "status": "READY exact private packet; bounded static peer review accepted; not LIVE; no test execution or Native equivalence claim",
+  "purpose": "Existing selected pure TclOO report protocol and genuine Named/Constructor/Destructor chain roles, with actual bootstrap-owned Runtime/VM special report headers and inherited next",
+  "limits": [
+    "Source/API header and role controls only; CLI513 values are independent.",
+    "Runtime physical counts and VM Value identity remain separate.",
+    "No Method record/cache/clientData observation donation.",
+    "Unsupported or missing Foundation owner terminal, no sentinel-name inference."
+  ],
+  "auxiliary_inputs": {
+    "source-windows.json": "9c2c3b22169be4aed8eb7da8800ad227c1efcbda05e7e208238a8f3e8996434e",
+    "selectors.json": "c19cbe2fb24d8c675258a44df632bef9aa4c83c30539ca38ded59496f859e05c",
+    "preservation.json": "5c648f12642713840f261ed29d9c0c1183b93d16549d39f48ef18bb673ad342f"
+  },
+  "files": [
+    {
+      "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+      "new_file": false,
+      "base_sha256": "2e544349340fe8302098da68e67d159aa490ea1c95dc2b52bc2b830e8057bf83",
+      "candidate_sha256": "d92ab39f8b3841195e152b6081486f7977c8edb54db0d1ef85d2e0a7a5ac55ff",
+      "live_matches_base": true
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "new_file": false,
+      "base_sha256": "a82e3f6e46cf51d7d47ff07d1878b0f7e309d88576244da39fc10cadcb9c38ae",
+      "candidate_sha256": "6c46df99463be42ab700ce1b64bfbdba4b55552ae3819647691fa26dd5e38b80",
+      "live_matches_base": true
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/native_method_cache.rs",
+      "new_file": false,
+      "base_sha256": "72084f03ae68fa0255c93e30a394a6f94bc53a58edb8ab80650d60385bc4e469",
+      "candidate_sha256": "b82e13a37611ca4b7c98c9b2131797e6abd484da96947c846144fc9d8ba7280f",
+      "live_matches_base": true
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo/native_method_report_tests.rs",
+      "new_file": true,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "6942dee74aca222994b4be4f30f133dcd4ff42f6706a17b752c13a9aa3cc0d98",
+      "live_matches_base": true
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo.rs",
+      "new_file": false,
+      "base_sha256": "063c7e422204b7ceb174372e32af4aa0daa0b7d840d58c2f0e15366ab6759ef9",
+      "candidate_sha256": "45ced789d22567f87a1a65585c65344ef27a68945a4843ef004f097918bee4b5",
+      "live_matches_base": true
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo/native_method_cache.rs",
+      "new_file": false,
+      "base_sha256": "e444991bad867048a4837d5874929469d243b7778607a10eb8f6be198866ca77",
+      "candidate_sha256": "b899ccb958b30992cf69d551d49dac5c2964ccbe19fc060634f47f22c541b13b",
+      "live_matches_base": true
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo/native_method_report_tests.rs",
+      "new_file": true,
+      "base_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "candidate_sha256": "7ffd3146137a4cdc0355258b869f0e76dc81c462d62f0b238728fc32fec23211",
+      "live_matches_base": true
+    },
+    {
+      "path": "docs/design/contracts/tcloo-implementation.md",
+      "new_file": false,
+      "base_sha256": "51d8e0e8b95c27a67db62081f2fedde76bc50ff1736e6f4bca27f98f329ab24a",
+      "candidate_sha256": "ab6ce42222c61cdbc8e1cf5f6c80adac95a4aac4907f8c3ee700d894951bbc8a",
+      "live_matches_base": true
+    }
+  ],
+  "patch_sha256": "cbfa7629bb6aeedc411d47512f7b5330a4afb3da187d4dd75d003f4da094249e",
+  "peer_review": {
+    "manifest_sha256": "33c343b6078f259272daee238f0f5fb1b4fbd00f44ada22c87a79a1fc5ad29d0",
+    "patch_sha256": "cbfa7629bb6aeedc411d47512f7b5330a4afb3da187d4dd75d003f4da094249e",
+    "reviewer": "Runtime consumer audit",
+    "scope": "Genuine role/header ownership and final typed Host/next-role delta; static only"
+  }
+}

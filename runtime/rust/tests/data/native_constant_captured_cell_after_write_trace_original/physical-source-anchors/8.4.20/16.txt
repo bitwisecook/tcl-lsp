@@ -1,0 +1,111 @@
+int
+Tcl_EvalObjv(interp, objc, objv, flags)
+    Tcl_Interp *interp;		/* Interpreter in which to evaluate the
+				 * command.  Also used for error
+				 * reporting. */
+    int objc;			/* Number of words in command. */
+    Tcl_Obj *CONST objv[];	/* An array of pointers to objects that are
+				 * the words that make up the command. */
+    int flags;			/* Collection of OR-ed bits that control
+				 * the evaluation of the script.  Only
+				 * TCL_EVAL_GLOBAL and TCL_EVAL_INVOKE
+				 * are  currently supported. */
+{
+    Interp *iPtr = (Interp *)interp;
+    Trace *tracePtr;
+    Tcl_DString cmdBuf;
+    char *cmdString = "";	/* A command string is only necessary for
+				 * command traces or error logs; it will be
+				 * generated to replace this default value if
+				 * necessary. */
+    int cmdLen = 0;		/* a non-zero value indicates that a command
+				 * string was generated. */
+    int code = TCL_OK;
+    int i;
+    int allowExceptions = (iPtr->evalFlags & TCL_ALLOW_EXCEPTIONS);
+
+    for (tracePtr = iPtr->tracePtr; tracePtr; tracePtr = tracePtr->nextPtr) {
+	if ((tracePtr->level == 0) || (iPtr->numLevels <= tracePtr->level)) {
+	    /*
+	     * The command may be needed for an execution trace.  Generate a
+	     * command string.
+	     */
+	    
+	    Tcl_DStringInit(&cmdBuf);
+	    for (i = 0; i < objc; i++) {
+		Tcl_DStringAppendElement(&cmdBuf, Tcl_GetString(objv[i]));
+	    }
+	    cmdString = Tcl_DStringValue(&cmdBuf);
+	    cmdLen = Tcl_DStringLength(&cmdBuf);
+	    break;
+	}
+    }
+
+    iPtr->numLevels++;
+    code = TclEvalObjvInternal(interp, objc, objv, cmdString, cmdLen, flags);
+    iPtr->numLevels--;
+
+    /*
+     * If we are again at the top level, process any unusual 
+     * return code returned by the evaluated code. 
+     */
+	
+    if (iPtr->numLevels == 0) {
+	if (code == TCL_RETURN) {
+	    code = TclUpdateReturnInfo(iPtr);
+	}
+	if ((code != TCL_OK) && (code != TCL_ERROR) 
+	    && !allowExceptions) {
+	    ProcessUnexpectedResult(interp, code);
+	    code = TCL_ERROR;
+	}
+    }
+	    
+    if ((code == TCL_ERROR) && !(flags & TCL_EVAL_INVOKE)) {
+
+	/* 
+	 * If there was an error, a command string will be needed for the 
+	 * error log: generate it now if it was not done previously.
+	 */
+
+	if (cmdLen == 0) {
+	    Tcl_DStringInit(&cmdBuf);
+	    for (i = 0; i < objc; i++) {
+		Tcl_DStringAppendElement(&cmdBuf, Tcl_GetString(objv[i]));
+	    }
+	    cmdString = Tcl_DStringValue(&cmdBuf);
+	    cmdLen = Tcl_DStringLength(&cmdBuf);
+	}
+	Tcl_LogCommandInfo(interp, cmdString, cmdString, cmdLen);
+    }
+
+    if (cmdLen != 0) {
+	Tcl_DStringFree(&cmdBuf);
+    }
+    return code;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_LogCommandInfo --
+ *
+ *	This procedure is invoked after an error occurs in an interpreter.
+ *	It adds information to the "errorInfo" variable to describe the
+ *	command that was being executed when the error occurred.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Information about the command is added to errorInfo and the
+ *	line number stored internally in the interpreter is set.  If this
+ *	is the first call to this procedure or Tcl_AddObjErrorInfo since
+ *	an error occurred, then old information in errorInfo is
+ *	deleted.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+Tcl_LogCommandInfo(interp, script, command, length)

@@ -1,0 +1,221 @@
+static int
+ArraySetCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+    Tcl_Obj *arrayNameObj;
+    Tcl_Obj *arrayElemObj;
+    Var *varPtr, *arrayPtr;
+    int result;
+
+    if (objc != 3) {
+	Tcl_WrongNumArgs(interp, 1, objv, "arrayName list");
+	return TCL_ERROR;
+    }
+
+    if (TCL_ERROR == LocateArray(interp, objv[1], NULL, NULL)) {
+	return TCL_ERROR;
+    }
+
+    arrayNameObj = objv[1];
+    varPtr = TclObjLookupVarEx(interp, arrayNameObj, NULL,
+	    /*flags*/ TCL_LEAVE_ERR_MSG, /*msg*/ "set", /*createPart1*/ 1,
+	    /*createPart2*/ 1, &arrayPtr);
+    if (varPtr == NULL) {
+	return TCL_ERROR;
+    }
+    if (arrayPtr) {
+	CleanupVar(varPtr, arrayPtr);
+	TclObjVarErrMsg(interp, arrayNameObj, NULL, "set", NEEDARRAY, -1);
+	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "VARNAME",
+		TclGetString(arrayNameObj), (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    /*
+     * Install the contents of the dictionary or list into the array.
+     */
+
+    arrayElemObj = objv[2];
+    if (TclHasInternalRep(arrayElemObj, &tclDictType) && arrayElemObj->bytes == NULL) {
+	Tcl_Obj *keyPtr, *valuePtr;
+	Tcl_DictSearch search;
+	int done;
+	Tcl_Size size;
+
+	if (Tcl_DictObjSize(interp, arrayElemObj, &size) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+	if (size == 0) {
+	    /*
+	     * Empty, so we'll just force the array to be properly existing
+	     * instead.
+	     */
+
+	    goto ensureArray;
+	}
+
+	/*
+	 * Don't need to look at result of Tcl_DictObjFirst as we've just
+	 * successfully used a dictionary operation on the same object.
+	 */
+
+	for (Tcl_DictObjFirst(interp, arrayElemObj, &search,
+		&keyPtr, &valuePtr, &done) ; !done ;
+		Tcl_DictObjNext(&search, &keyPtr, &valuePtr, &done)) {
+	    /*
+	     * At this point, it would be nice if the key was directly usable
+	     * by the array. This isn't the case though.
+	     */
+
+	    Var *elemVarPtr = TclLookupArrayElement(interp, arrayNameObj,
+		    keyPtr, TCL_LEAVE_ERR_MSG, "set", 1, 1, varPtr, -1);
+
+	    if ((elemVarPtr == NULL) ||
+		    (TclPtrSetVarIdx(interp, elemVarPtr, varPtr, arrayNameObj,
+		    keyPtr, valuePtr, TCL_LEAVE_ERR_MSG, -1) == NULL)) {
+		Tcl_DictObjDone(&search);
+		return TCL_ERROR;
+	    }
+	}
+	return TCL_OK;
+    } else {
+	/*
+	 * Not a dictionary, so assume (and convert to, for backward-
+	 * -compatibility reasons) a list.
+	 */
+
+	Tcl_Size elemLen;
+	Tcl_Obj **elemPtrs, *copyListObj;
+	Tcl_Size i;
+
+	result = TclListObjLength(interp, arrayElemObj, &elemLen);
+	if (result != TCL_OK) {
+	    return result;
+	}
+	if (elemLen & 1) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    "list must have an even number of elements", -1));
+	    Tcl_SetErrorCode(interp, "TCL", "ARGUMENT", "FORMAT", (char *)NULL);
+	    return TCL_ERROR;
+	}
+	if (elemLen == 0) {
+	    goto ensureArray;
+	}
+	result = TclListObjGetElements(interp, arrayElemObj,
+		&elemLen, &elemPtrs);
+	if (result != TCL_OK) {
+	    return result;
+	}
+
+	/*
+	 * We needn't worry about traces invalidating arrayPtr: should that be
+	 * the case, TclPtrSetVarIdx will return NULL so that we break out of
+	 * the loop and return an error.
+	 */
+
+	copyListObj = TclListObjCopy(NULL, arrayElemObj);
+	if (!copyListObj) {
+	    return TCL_ERROR;
+	}
+	for (i=0 ; i<elemLen ; i+=2) {
+	    Var *elemVarPtr = TclLookupArrayElement(interp, arrayNameObj,
+		    elemPtrs[i], TCL_LEAVE_ERR_MSG, "set", 1, 1, varPtr, -1);
+
+	    if ((elemVarPtr == NULL) ||
+		    (TclPtrSetVarIdx(interp, elemVarPtr, varPtr, arrayNameObj,
+			    elemPtrs[i], elemPtrs[i+1], TCL_LEAVE_ERR_MSG,
+			    -1) == NULL)) {
+		result = TCL_ERROR;
+		break;
+	    }
+	}
+	Tcl_DecrRefCount(copyListObj);
+	return result;
+    }
+
+    /*
+     * The list is empty make sure we have an array, or create one if
+     * necessary.
+     */
+
+  ensureArray:
+    if (varPtr != NULL) {
+	if (TclIsVarArray(varPtr)) {
+	    /*
+	     * Already an array, done.
+	     */
+
+	    return TCL_OK;
+	}
+	if (TclIsVarArrayElement(varPtr) || !TclIsVarUndefined(varPtr)) {
+	    /*
+	     * Either an array element, or a scalar: lose!
+	     */
+
+	    TclObjVarErrMsg(interp, arrayNameObj, NULL, "array set",
+		    NEEDARRAY, -1);
+	    Tcl_SetErrorCode(interp, "TCL", "WRITE", "ARRAY", (char *)NULL);
+	    return TCL_ERROR;
+	}
+    }
+    TclInitArrayVar(varPtr);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * ArraySizeCmd --
+ *
+ *	This object-based function is invoked to process the "array size" Tcl
+ *	command. See the user documentation for details on what it does.
+ *
+ * Results:
+ *	A standard Tcl result object.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+ArraySizeCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+    Var *varPtr;
+    Tcl_HashSearch search;
+    Var *varPtr2;
+    int isArray, size = 0;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "arrayName");
+	return TCL_ERROR;
+    }
+
+    if (TCL_ERROR == LocateArray(interp, objv[1], &varPtr, &isArray)) {
+	return TCL_ERROR;
+    }
+
+    /* We can only iterate over the array if it exists... */
+
+    if (isArray) {
+	/*
+	 * Must iterate in order to get chance to check for present but
+	 * "undefined" entries.
+	 */
+
+	for (varPtr2=VarHashFirstVar(varPtr->value.tablePtr, &search);
+		varPtr2!=NULL ; varPtr2=VarHashNextVar(&search)) {
+	    if (!TclIsVarUndefined(varPtr2)) {
+		size++;
+	    }
+	}
+    }
+

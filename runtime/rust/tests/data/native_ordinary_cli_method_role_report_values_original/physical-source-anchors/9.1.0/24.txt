@@ -1,0 +1,30 @@
+TclOONextObjCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    Interp *iPtr = (Interp *) interp;
+    CallFrame *framePtr = iPtr->varFramePtr;
+    Tcl_ObjectContext context = (Tcl_ObjectContext)
+	    TclOOGetContextFromCurrentStackFrame(interp, TclGetString(objv[0]));
+
+    /*
+     * Start with sanity checks on the calling context to make sure that we
+     * are invoked from a suitable method context. If so, we can safely
+     * retrieve the handle to the object call context.
+     */
+
+    if (!context) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Invoke the (advanced) method call context in the caller context. Note
+     * that this is like [uplevel 1] and not [eval].
+     */
+
+    TclNRAddCallback(interp, NextRestoreFrame, framePtr, NULL,NULL,NULL);
+    iPtr->varFramePtr = framePtr->callerVarPtr;
+    return TclNRObjectContextInvokeNext(interp, context, objc, objv, 1);
+}

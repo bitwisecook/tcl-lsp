@@ -671,10 +671,21 @@ pub(crate) fn list_elements_native_with_currency(
     protocol: NativeStringProtocol,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
-    list_stage_current(value, currency)?;
+    list_elements_native_with_stage_check(value, protocol, currency, None)
+}
+
+/// The same List worker with an independent captured-storage check. This adds
+/// no List, variable, object sharing or interpreter-purpose authority.
+pub(crate) fn list_elements_native_with_stage_check(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+    list_stage_current_checked(value, currency, stage_check)?;
     if crate::native_arithseries::is_series(value) {
         let result = crate::native_arithseries::elements(value, protocol);
-        list_stage_current(value, currency)?;
+        list_stage_current_checked(value, currency, stage_check)?;
         return result;
     }
     seal_string_protocol(value, protocol)?;
@@ -683,10 +694,10 @@ pub(crate) fn list_elements_native_with_currency(
         || (obj::obj_type_ptr(value) == &crate::dict::TCL_DICT_TYPE && !obj::has_string_rep(value));
     let source = if protocol.is_jim084() && !direct {
         let context = crate::native_source::context(value);
-        list_stage_current(value, currency)?;
+        list_stage_current_checked(value, currency, stage_check)?;
         let context = context?;
         let info = crate::native_source::pin_source_info(value, &context);
-        list_stage_current(value, currency)?;
+        list_stage_current_checked(value, currency, stage_check)?;
         Some((context, info?))
     } else {
         None
@@ -695,7 +706,7 @@ pub(crate) fn list_elements_native_with_currency(
         Vec::new()
     } else {
         let result = crate::dict::native_object_bytes(value, protocol);
-        list_stage_current(value, currency)?;
+        list_stage_current_checked(value, currency, stage_check)?;
         result?
     };
     let result = list_elements_using(
@@ -709,9 +720,9 @@ pub(crate) fn list_elements_native_with_currency(
             source: original.clone(),
             protocol,
         },
-        |backing| install_list_backing(value, backing, currency),
+        |backing| install_list_backing(value, backing, currency, stage_check),
     );
-    list_stage_current(value, currency)?;
+    list_stage_current_checked(value, currency, stage_check)?;
     result
 }
 
@@ -729,12 +740,25 @@ fn list_stage_current(
     obj::check_native_liveness(value)
 }
 
+fn list_stage_current_checked(
+    value: *mut TclObj,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    list_stage_current(value, currency)?;
+    if let Some(check) = stage_check {
+        check()?;
+    }
+    Ok(())
+}
+
 fn install_list_backing(
     value: *mut TclObj,
     backing: Box<TclList>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
-    list_stage_current(value, currency)?;
+    list_stage_current_checked(value, currency, stage_check)?;
     if currency.is_some() && !obj::obj_type_ptr(value).is_null() {
         if obj::has_string_rep(value) {
             obj::discard_native_internal_representation(value)?;
@@ -744,14 +768,14 @@ fn install_list_backing(
             // while releasing the original backing through the type owner.
             obj::change_type(value, core::ptr::null(), 0);
         }
-        list_stage_current(value, currency)?;
+        list_stage_current_checked(value, currency, stage_check)?;
     }
     obj::change_type(
         value,
         &TCL_LIST_TYPE,
         Box::into_raw(backing) as usize as u64,
     );
-    list_stage_current(value, currency)
+    list_stage_current_checked(value, currency, stage_check)
 }
 
 /// Borrow the selected ordinary or abstract GetElements window without adding

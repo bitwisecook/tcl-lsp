@@ -147,3 +147,31 @@ impl VarTable {
         self.store_dictionary_root(name, root.as_ptr()).is_ok()
     }
 }
+
+/// Ownership removed from a published root. Retirement happens after the caller
+/// releases every cell, frame and namespace borrow.
+pub(super) struct RetiredRootContents {
+    previous: Option<Var>,
+    _member_keys: super::native_element_entry::NativeElementEntries,
+}
+impl Drop for RetiredRootContents {
+    fn drop(&mut self) {
+        if let Some(previous) = self.previous.take() {
+            previous.release();
+        }
+    }
+}
+impl super::CellContents {
+    pub(super) fn publish_dictionary_root(&mut self, value: *mut TclObj) -> RetiredRootContents {
+        // SAFETY: publication takes the actual owning cell's reference first.
+        unsafe { obj::incr_ref_count(value) };
+        self.binding_id.get_or_insert_with(fresh_var_id);
+        let previous = self.var.replace(Var::Scalar(value));
+        self.element_ids.clear();
+        self.element_operation_refs.clear();
+        RetiredRootContents {
+            previous,
+            _member_keys: std::mem::take(&mut self.native_member_keys),
+        }
+    }
+}

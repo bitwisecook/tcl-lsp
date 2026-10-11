@@ -214395,6 +214395,51 @@
       "question_ids": [],
       "sealed_images": {},
       "limits": "The own Compiler327 library-test no-run producer closes exit101 with one cfg(test) E0308 type mismatch at optimiser/helpers/tokens.rs:204. No executable creation event, own Compiler image, inventory or assertion is admitted. The complete original37109-leaf immutable source/head and actual naming-current-validation323 compile root retain their exact receipt associations. This failed producer has no executable or assertion result; independent producers and external Native observations do not establish an outcome for this run."
+    },
+    {
+      "id": "rust.frozen328.integration-compiler-own-test-build328",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen328/integration-compiler-own-test-build328/receipt.json.gz",
+        "sha256": "b81e901c7e26c6c1386c687005538d5f8b0d05a6154bb7d84b36ca2864358387",
+        "compression": "gzip",
+        "uncompressed_sha256": "f48126259c10daad00c533332566426a3a81f97db3a4ebbe07f11821b35b2a93"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen328/integration-compiler-own-test-build328/tests.log",
+        "sha256": "0535864505a311761930e2f08653f45b6c3a901cab2353936ec568699597a573"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 151.63929428200936,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen328/integration-compiler-own-test-build328/source-snapshot.json.gz",
+        "sha256": "ca0a55ae9dc2ef0343d2ea5adf93b90607b502a8eb036101f78489768febed8a",
+        "compression": "gzip",
+        "uncompressed_sha256": "316286b6f9c1cab7d967f8e8d5dd992c107267e6760e814c21d7ee4fc5ec2c1b",
+        "json_pointer": "/source",
+        "authority": "Complete original37116-leaf immutable Source328 independently verified by every whole-file SHA and exactly equal to the failed own receipt source. The actual compile root and original error-source body retain recorded associations; no source, artifact or operation substitution."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_images": {},
+      "limits": "The own Compiler328 library-test no-run producer closes exit101 with three VM library errors: unresolved NativeValueAccessRefusal import at interp/native_operation_currency.rs:16 and two conflicting mutable/immutable borrows at expr/native_boolean_truth.rs:158/160. No executable creation event, own Compiler image, inventory or assertion is admitted. The complete original37116-leaf immutable source/head and actual naming-current-validation323 compile root retain their exact receipt associations. This failed producer has no executable or assertion result; independent producers and external Native observations do not establish an outcome for this run."
     }
   ]
 }

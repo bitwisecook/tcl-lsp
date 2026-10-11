@@ -1,0 +1,12 @@
+    Foundation *fPtr = GetFoundation(interp);
+
+    TclDecrRefCount(fPtr->unknownMethodNameObj);
+    TclDecrRefCount(fPtr->constructorName);
+    TclDecrRefCount(fPtr->destructorName);
+    TclDecrRefCount(fPtr->clonedName);
+    TclDecrRefCount(fPtr->defineName);
+    TclDecrRefCount(fPtr->myName);
+    TclDecrRefCount(fPtr->slotGetName);
+    TclDecrRefCount(fPtr->slotSetName);
+    TclDecrRefCount(fPtr->slotResolveName);
+    TclDecrRefCount(fPtr->slotDefOpName);

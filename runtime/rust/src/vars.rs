@@ -2878,12 +2878,13 @@ pub(crate) fn read_jim_cached_link(
         None => selected.load_scalar(&place.name),
     }
 }
-pub(crate) fn store_jim_cached_link(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
+/// Capture the existing physical compatibility target once. This supplies no
+/// original Jim recursive-name or dictionary COW purpose.
+pub(crate) fn capture_jim_cached_link(
+    frames: &FrameStack,
+    ns: &Namespaces,
     link: &Link,
-    value: *mut TclObj,
-) -> Result<(), VarError> {
+) -> Result<crate::frame::CapturedJimLinkRoot, VarError> {
     let place = follow_links(
         frames,
         ns,
@@ -2895,9 +2896,10 @@ pub(crate) fn store_jim_cached_link(
             scalar_entry: link.native_scalar_entry.clone(),
         },
     )?;
-    let selected = table_mut(frames, ns, place.home);
-    match place.elem {
-        Some(key) => selected.store_elem(&place.name, &key, value),
-        None => selected.store_scalar(&place.name, value),
+    if place.array_cell.is_some() || place.scalar_entry.is_some() {
+        return Err(VarError::NameProtocolUnavailable);
     }
+    table(frames, ns, place.home)
+        .ok_or(VarError::NameProtocolUnavailable)?
+        .capture_jim_link_root(&place.name, place.elem)
 }

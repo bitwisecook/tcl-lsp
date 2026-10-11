@@ -375,7 +375,15 @@ pub(crate) fn ensure_dict_native_with_currency(
     protocol: NativeStringProtocol,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> Result<(), ValueError> {
-    dictionary_stage_current(value, currency)?;
+    ensure_dict_native_with_stage_check(value, protocol, currency, None)
+}
+fn ensure_dict_native_with_stage_check(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
+) -> Result<(), ValueError> {
+    dictionary_stage_current_checked(value, currency, stage_check)?;
     seal_string_protocol(value, protocol)?;
     if obj::obj_type_ptr(value) == &TCL_DICT_TYPE {
         return Ok(());
@@ -383,7 +391,7 @@ pub(crate) fn ensure_dict_native_with_currency(
     let cached_list = obj::obj_type_ptr(value) == &crate::list::TCL_LIST_TYPE;
     if protocol.is_jim084() && cached_list && obj::is_shared(value) {
         let reached = native_object_bytes(value, protocol);
-        dictionary_stage_current(value, currency)?;
+        dictionary_stage_current_checked(value, currency, stage_check)?;
         reached?;
     }
     let members: Vec<obj::Owned> = if cached_list || protocol.is_jim084() {
@@ -391,16 +399,16 @@ pub(crate) fn ensure_dict_native_with_currency(
         // existing List but does not install one on its string-parse path.
         if !cached_list {
             let reached = native_object_bytes(value, protocol);
-            dictionary_stage_current(value, currency)?;
+            dictionary_stage_current_checked(value, currency, stage_check)?;
             reached?;
         }
-        crate::list::list_elements_native_with_currency(value, protocol, currency)?
+        crate::list::list_elements_native_with_stage_check(value, protocol, currency, stage_check)?
             .into_iter()
             .map(obj::Owned::retain)
             .collect()
     } else {
         let reached = native_object_bytes(value, protocol);
-        dictionary_stage_current(value, currency)?;
+        dictionary_stage_current_checked(value, currency, stage_check)?;
         let bytes = reached?;
         match tcl_syntax::list::split_native_list_bytes(&bytes, protocol) {
             Ok(members) => members
@@ -424,14 +432,14 @@ pub(crate) fn ensure_dict_native_with_currency(
     let mut keys = Vec::with_capacity(members.len() / 2);
     for pair in members.chunks_exact(2) {
         let reached = native_object_bytes(pair[0].as_ptr(), protocol);
-        dictionary_stage_current(value, currency)?;
+        dictionary_stage_current_checked(value, currency, stage_check)?;
         obj::check_native_liveness(pair[0].as_ptr())?;
         keys.push(reached?);
     }
     let duplicate_keys = keys.iter().collect::<HashSet<_>>().len() != keys.len();
     if cached_list && !protocol.is_jim084() && duplicate_keys {
         let reached = native_object_bytes(value, protocol);
-        dictionary_stage_current(value, currency)?;
+        dictionary_stage_current_checked(value, currency, stage_check)?;
         reached?;
     }
     for (pair, key) in members.chunks_exact(2).zip(keys) {
@@ -458,21 +466,21 @@ pub(crate) fn ensure_dict_native_with_currency(
         hash_order,
         string_protocol: Cell::new(Some(protocol)),
     })));
-    dictionary_stage_current(value, currency)?;
+    dictionary_stage_current_checked(value, currency, stage_check)?;
     if currency.is_some() && !obj::obj_type_ptr(value).is_null() {
         if obj::has_string_rep(value) {
             obj::discard_native_internal_representation(value)?;
         } else {
             obj::change_type(value, core::ptr::null(), 0);
         }
-        dictionary_stage_current(value, currency)?;
+        dictionary_stage_current_checked(value, currency, stage_check)?;
     }
     obj::change_type(
         value,
         &TCL_DICT_TYPE,
         Box::into_raw(backing.0.take().expect("prepared Dictionary backing")) as usize as u64,
     );
-    dictionary_stage_current(value, currency)
+    dictionary_stage_current_checked(value, currency, stage_check)
 }
 
 /// Retire prepared member holds if the reached original retirement refuses
@@ -500,6 +508,20 @@ fn dictionary_stage_current(
         })?;
     }
     obj::check_native_liveness(value)
+}
+
+/// Independent captured storage identity, checked at actual object stages.
+pub(crate) type NativeDictionaryStageCheck = std::rc::Rc<dyn Fn() -> Result<(), ValueError>>;
+fn dictionary_stage_current_checked(
+    value: *mut TclObj,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
+) -> Result<(), ValueError> {
+    dictionary_stage_current(value, currency)?;
+    if let Some(check) = stage_check {
+        check()?;
+    }
+    Ok(())
 }
 
 /// Prepared native dictionary owner, retaining its original COW decision.
@@ -586,6 +608,7 @@ pub(crate) struct EnteredNativeDictionary {
     fresh: bool,
     protocol: NativeStringProtocol,
     currency: crate::interp::native_operation_currency::NativeOperationCurrency,
+    stage_check: Option<NativeDictionaryStageCheck>,
 }
 impl EnteredNativeDictionary {
     pub(crate) fn after_conversion(
@@ -593,9 +616,50 @@ impl EnteredNativeDictionary {
         protocol: NativeStringProtocol,
         currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
     ) -> Result<Self, ValueError> {
-        ensure_dict_native_with_currency(original, protocol, Some(currency))?;
-        // The source worker observes native sharing after DictSize conversion.
-        let (selected, fresh) = if obj::is_shared(original) {
+        Self::prepare_after_conversion(original, protocol, currency, false, None)
+    }
+    /// Existing Link(None) compatibility storage copies every dictionary root.
+    /// This schedule is not an original Jim sharing/recursive-name receipt.
+    pub(crate) fn compatibility_copy_after_conversion(
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+        stage_check: NativeDictionaryStageCheck,
+    ) -> Result<Self, ValueError> {
+        Self::prepare_after_conversion(original, protocol, currency, true, Some(stage_check))
+    }
+    pub(crate) fn empty(
+        protocol: NativeStringProtocol,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+        stage_check: NativeDictionaryStageCheck,
+    ) -> Result<Self, ValueError> {
+        let value = new_dict_obj_native(&[], None, protocol)?;
+        let owner = Self {
+            original: obj::NativeObjectLifetime::retain(value),
+            fresh: true,
+            protocol,
+            currency: currency.clone(),
+            stage_check: Some(stage_check),
+        };
+        dictionary_stage_current_checked(value, Some(currency), owner.stage_check.as_deref())?;
+        Ok(owner)
+    }
+    fn prepare_after_conversion(
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+        compatibility_copy: bool,
+        stage_check: Option<NativeDictionaryStageCheck>,
+    ) -> Result<Self, ValueError> {
+        ensure_dict_native_with_stage_check(
+            original,
+            protocol,
+            Some(currency),
+            stage_check.as_deref(),
+        )?;
+        // ArraySet observes sharing after DictSize. Compatibility copying is a
+        // separately identified existing storage policy, not that native fact.
+        let (selected, fresh) = if compatibility_copy || obj::is_shared(original) {
             (obj::duplicate(original), true)
         } else {
             (original, false)
@@ -605,8 +669,13 @@ impl EnteredNativeDictionary {
             fresh,
             protocol,
             currency: currency.clone(),
+            stage_check,
         };
-        dictionary_stage_current(owner.as_ptr(), Some(currency))?;
+        dictionary_stage_current_checked(
+            owner.as_ptr(),
+            Some(currency),
+            owner.stage_check.as_deref(),
+        )?;
         Ok(owner)
     }
     pub(crate) fn as_ptr(&self) -> *mut TclObj {
@@ -617,13 +686,27 @@ impl EnteredNativeDictionary {
         key: *mut TclObj,
         value: *mut TclObj,
     ) -> Result<(), ValueError> {
-        dictionary_stage_current(self.as_ptr(), Some(&self.currency))?;
+        dictionary_stage_current_checked(
+            self.as_ptr(),
+            Some(&self.currency),
+            self.stage_check.as_deref(),
+        )?;
         let reached = native_object_bytes(key, self.protocol);
-        dictionary_stage_current(self.as_ptr(), Some(&self.currency))?;
+        dictionary_stage_current_checked(
+            self.as_ptr(),
+            Some(&self.currency),
+            self.stage_check.as_deref(),
+        )?;
         obj::check_native_liveness(key)?;
         obj::check_native_liveness(value)?;
         reached?;
-        dict_set_prepared(self.as_ptr(), key, value, Some(&self.currency))
+        dict_set_prepared(
+            self.as_ptr(),
+            key,
+            value,
+            Some(&self.currency),
+            self.stage_check.as_deref(),
+        )
     }
 }
 impl Drop for EnteredNativeDictionary {
@@ -828,9 +911,10 @@ fn dict_set_prepared(
     key_obj: *mut TclObj,
     value: *mut TclObj,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
 ) -> Result<(), ValueError> {
     dict_set_using(obj, key_obj, value, || {
-        dictionary_stage_current(obj, currency)
+        dictionary_stage_current_checked(obj, currency, stage_check)
     })
 }
 fn dict_set_using<E>(

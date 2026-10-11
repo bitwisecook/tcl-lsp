@@ -334,18 +334,7 @@ impl Interp {
                     if let Some(result) = linked {
                         return result;
                     }
-                    let linked = crate::vars::store_jim_cached_link(
-                        &mut self.frames.borrow_mut(),
-                        &mut self.namespaces.borrow_mut(),
-                        &link,
-                        value,
-                    );
-                    arguments
-                        .original(1)
-                        .map_err(|error| self.report_cmd_error(error))?;
-                    if linked.is_ok() {
-                        return Ok(());
-                    }
+                    return self.store_captured_compatibility_jim_link(&link, value, arguments);
                 }
                 Err(_) => {}
             }
@@ -382,6 +371,7 @@ impl Interp {
                     if let Some(result) = linked {
                         return result;
                     }
+                    return self.store_captured_compatibility_jim_link(&link, value, arguments);
                 }
                 Err(_) => {}
             }
@@ -429,6 +419,42 @@ impl Interp {
             .map_err(|error| self.report_cmd_error(error))?;
         installed.map_err(|error| self.report_cmd_error(error.into()))?;
         Ok(())
+    }
+    fn store_captured_compatibility_jim_link(
+        &mut self,
+        link: &crate::frame::Link,
+        value: *mut TclObj,
+        arguments: &OriginalArguments,
+    ) -> Result<(), Code> {
+        let captured = crate::vars::capture_jim_cached_link(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            link,
+        );
+        let mut captured = captured.map_err(|_| {
+            self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable(
+                    "captured compatibility linked-variable root",
+                )
+                .into(),
+            )
+        })?;
+        let reached = captured.store(value, arguments.currency());
+        arguments
+            .check()
+            .map_err(|error| self.report_cmd_error(error))?;
+        match reached {
+            Ok(()) => Ok(()),
+            Err(crate::frame::JimLinkStoreError::Command(error)) => {
+                Err(self.report_cmd_error(error))
+            }
+            Err(crate::frame::JimLinkStoreError::Variable(error)) => {
+                let name = arguments
+                    .bytes(0)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                Err(crate::builtins::var_error(self, &name, error))
+            }
+        }
     }
 }
 

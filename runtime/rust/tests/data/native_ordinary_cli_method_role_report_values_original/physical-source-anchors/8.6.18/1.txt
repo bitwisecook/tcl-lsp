@@ -1,0 +1,12 @@
+    TclNewLiteralStringObj(fPtr->clonedName, "<cloned>");
+    TclNewLiteralStringObj(fPtr->defineName, "::oo::define");
+    Tcl_IncrRefCount(fPtr->unknownMethodNameObj);
+    Tcl_IncrRefCount(fPtr->constructorName);
+    Tcl_IncrRefCount(fPtr->destructorName);
+    Tcl_IncrRefCount(fPtr->clonedName);
+    Tcl_IncrRefCount(fPtr->defineName);
+    Tcl_CreateObjCommand(interp, "::oo::UnknownDefinition",
+	    TclOOUnknownDefinition, NULL, NULL);
+    TclNewLiteralStringObj(namePtr, "::oo::UnknownDefinition");
+    Tcl_SetNamespaceUnknownHandler(interp, fPtr->defineNs, namePtr);
+    Tcl_SetNamespaceUnknownHandler(interp, fPtr->objdefNs, namePtr);

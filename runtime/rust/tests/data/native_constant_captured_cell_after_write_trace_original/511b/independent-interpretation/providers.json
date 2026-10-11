@@ -1,0 +1,62 @@
+{
+  "8.4.20": {
+    "worker_availability": "",
+    "versions": [
+      "8.4.20"
+    ],
+    "cases": 8,
+    "complete": 8,
+    "fatal": 0,
+    "rows": 80
+  },
+  "8.5.19": {
+    "worker_availability": "",
+    "versions": [
+      "8.5.19"
+    ],
+    "cases": 8,
+    "complete": 8,
+    "fatal": 0,
+    "rows": 80
+  },
+  "8.6.18": {
+    "worker_availability": "",
+    "versions": [
+      "8.6.18"
+    ],
+    "cases": 8,
+    "complete": 8,
+    "fatal": 0,
+    "rows": 80
+  },
+  "9.0.4": {
+    "worker_availability": "const",
+    "versions": [
+      "9.0.4"
+    ],
+    "cases": 8,
+    "complete": 7,
+    "fatal": 1,
+    "rows": 75
+  },
+  "9.1.0": {
+    "worker_availability": "const",
+    "versions": [
+      "9.1.0"
+    ],
+    "cases": 8,
+    "complete": 7,
+    "fatal": 1,
+    "rows": 75
+  },
+  "jim": {
+    "worker_availability": "",
+    "versions": [
+      "0.84-9-g5bac7c9"
+    ],
+    "cases": 8,
+    "complete": 8,
+    "fatal": 0,
+    "rows": 80
+  }
+}

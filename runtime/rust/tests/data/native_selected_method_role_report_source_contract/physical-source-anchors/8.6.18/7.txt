@@ -1,0 +1,12 @@
+TclOOGetCallContext(
+    Object *oPtr,		/* The object to get the context for. */
+    Tcl_Obj *methodNameObj,	/* The name of the method to get the context
+				 * for. NULL when getting a constructor or
+				 * destructor chain. */
+    int flags,			/* What sort of context are we looking for.
+				 * Only the bits PUBLIC_METHOD, CONSTRUCTOR,
+				 * PRIVATE_METHOD, DESTRUCTOR and
+				 * FILTER_HANDLING are useful. */
+    Tcl_Obj *cacheInThisObj)	/* What object to cache in, or NULL if it is
+				 * to be in the same object as the
+				 * methodNameObj. */

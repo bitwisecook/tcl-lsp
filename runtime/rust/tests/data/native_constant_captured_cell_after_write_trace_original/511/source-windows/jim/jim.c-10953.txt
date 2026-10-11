@@ -1,0 +1,56 @@
+/* [incr] */
+static int Jim_IncrCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    jim_wide wideValue, increment = 1;
+    Jim_Obj *intObjPtr;
+
+    if (argc == 3) {
+        if (Jim_GetWideExpr(interp, argv[2], &increment) != JIM_OK)
+            return JIM_ERR;
+    }
+    intObjPtr = Jim_GetVariable(interp, argv[1], JIM_UNSHARED);
+    if (!intObjPtr) {
+        /* Set missing variable to 0 */
+        wideValue = 0;
+    }
+    else if (Jim_GetWide(interp, intObjPtr, &wideValue) != JIM_OK) {
+        return JIM_ERR;
+    }
+    if (!intObjPtr || Jim_IsShared(intObjPtr)) {
+        intObjPtr = Jim_NewIntObj(interp, wideValue + increment);
+        if (Jim_SetVariable(interp, argv[1], intObjPtr) != JIM_OK) {
+            return JIM_ERR;
+        }
+    }
+    else {
+        /* Can do it the quick way */
+        Jim_InvalidateStringRep(intObjPtr);
+        JimWideValue(intObjPtr) = wideValue + increment;
+
+        /* The following step is required in order to invalidate the
+         * string repr of "FOO" if the var name is on the form of "FOO(IDX)" */
+        if (argv[1]->typePtr != &variableObjType) {
+            /* Note that this can't fail since GetVariable already succeeded */
+            Jim_SetVariable(interp, argv[1], intObjPtr);
+        }
+    }
+    Jim_SetResult(interp, intObjPtr);
+    return JIM_OK;
+}
+
+
+/* -----------------------------------------------------------------------------
+ * Eval
+ * ---------------------------------------------------------------------------*/
+#define JIM_EVAL_SARGV_LEN 8    /* static arguments vector length */
+#define JIM_EVAL_SINTV_LEN 8    /* static interpolation vector length */
+
+static int JimTraceCallback(Jim_Interp *interp, const char *type, int argc, Jim_Obj *const *argv)
+{
+    JimPanic((interp->traceCmdObj == NULL, "xtrace invoked with no object"));
+
+    int ret;
+    Jim_Obj *nargv[7];
+    Jim_Obj *traceCmdObj = interp->traceCmdObj;
+    Jim_Obj *resultObj = Jim_GetResult(interp);
+    ScriptObj *script = NULL;

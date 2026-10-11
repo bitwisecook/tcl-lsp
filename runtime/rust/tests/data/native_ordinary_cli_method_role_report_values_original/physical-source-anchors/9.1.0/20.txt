@@ -1,0 +1,18 @@
+ * ----------------------------------------------------------------------
+ */
+static inline Tcl_Obj *
+MethodName(
+    Foundation *fPtr,
+    CallContext *contextPtr,
+    Method *mPtr)
+{
+    switch (contextPtr->callPtr->flags & (CONSTRUCTOR | DESTRUCTOR)) {
+    case CONSTRUCTOR:
+	return fPtr->constructorName;
+    case DESTRUCTOR:
+	return fPtr->destructorName;
+    default:
+	return mPtr->namePtr;
+    }
+}
+
