@@ -90,7 +90,15 @@ impl AnalysisFormattingLayout {
         &self,
         head: u32,
         original: &[NativeWord],
-    ) -> Result<Option<Vec<usize>>, crate::source_structure::SourceSyntaxMemberUnavailable> {
+    ) -> Result<
+        Option<
+            Vec<(
+                usize,
+                tcl_registry::definer::SourceDefinitionMemberBodyPresentation,
+            )>,
+        >,
+        crate::source_structure::SourceSyntaxMemberUnavailable,
+    > {
         use crate::source_structure::SourceSyntaxMemberUnavailable::WordCorrespondence;
         let head = self.original_offset(head).ok_or(WordCorrespondence)?;
         let Some(member) = self.syntax.definition_member_at(head)? else {
@@ -110,7 +118,7 @@ impl AnalysisFormattingLayout {
                 {
                     return Err(WordCorrespondence);
                 }
-                Ok(written)
+                Ok((written, body.presentation()))
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Some(bodies))

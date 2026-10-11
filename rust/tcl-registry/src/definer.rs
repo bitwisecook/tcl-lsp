@@ -1364,16 +1364,35 @@ impl MemberSpec {
         self.arg_roles
             .iter()
             .filter(move |(_, declared)| *declared == role)
-            .map(move |(index, _)| {
-                let index = usize::from(*index);
-                index
-                    + usize::from(
-                        option.is_some_and(|_| {
-                            option_position.is_some_and(|position| index >= position)
-                        }),
-                    )
-            })
+            .map(move |(index, _)| self.selected_argument_index(usize::from(*index), option))
             .chain(option_index)
+    }
+
+    fn selected_argument_index(&self, index: usize, option: Option<MemberOptionValue>) -> usize {
+        index
+            + usize::from(
+                option.is_some()
+                    && self
+                        .optional_argument
+                        .is_some_and(|optional| index >= usize::from(optional.position)),
+            )
+    }
+
+    fn source_body_presentation(
+        &self,
+        argument: usize,
+        option: Option<MemberOptionValue>,
+    ) -> SourceDefinitionMemberBodyPresentation {
+        if let MemberEffect::Callable {
+            body_slot: Some(slot),
+            ..
+        } = self.effect
+            && self.selected_argument_index(usize::from(slot), option) == argument
+        {
+            SourceDefinitionMemberBodyPresentation::CallableBlock
+        } else {
+            SourceDefinitionMemberBodyPresentation::OrdinaryBlock
+        }
     }
 
     /// Like [`Self::indices_for_call`], but selects optional words only when
@@ -2175,18 +2194,35 @@ pub struct MemberBodyCommand {
     pub binds_handle: Option<crate::handle_binding::HandleBindingSpec>,
 }
 
+/// Presentation of a script operand selected by an original definition member.
+/// This describes authored source layout, without member installation, execution
+/// traits, frame ownership or successful construction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceDefinitionMemberBodyPresentation {
+    /// Ordinary script presentation may keep a short single-command body inline.
+    OrdinaryBlock,
+    /// The selected callable's actual body slot has expanded declaration layout.
+    CallableBlock,
+}
+
 /// One selected source script operand within a definition-member call.
 /// The ordinal owns no runtime member, installation or entered body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SourceDefinitionMemberScriptArgument {
     argument: usize,
     definition_body: bool,
+    presentation: SourceDefinitionMemberBodyPresentation,
 }
 impl SourceDefinitionMemberScriptArgument {
     /// Effective post-keyword operand ordinal after real wrapper/option words.
     #[must_use]
     pub const fn argument(self) -> usize {
         self.argument
+    }
+    /// Presentation of this actual selected operand, independent of execution.
+    #[must_use]
+    pub const fn presentation(self) -> SourceDefinitionMemberBodyPresentation {
+        self.presentation
     }
     /// This wrapper block retains the selected parent definition vocabulary.
     /// Ordinary method/lifecycle/accessor scripts do not retain that vocabulary.
@@ -3397,7 +3433,7 @@ impl DefinitionBodyGrammar {
         )
         .unwrap_or_default()
         .into_iter()
-        .map(|(index, _)| index)
+        .map(SourceDefinitionMemberScriptArgument::argument)
         .collect()
     }
 
@@ -3431,21 +3467,11 @@ impl DefinitionBodyGrammar {
         args: crate::InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
-        Some(
-            self.source_member_indices_where(
-                std::str::from_utf8(keyword).ok()?,
-                args,
-                dialect,
-                &ArgRole::carries_script,
-            )?
-            .into_iter()
-            .map(
-                |(argument, definition_body)| SourceDefinitionMemberScriptArgument {
-                    argument,
-                    definition_body,
-                },
-            )
-            .collect(),
+        self.source_member_indices_where(
+            std::str::from_utf8(keyword).ok()?,
+            args,
+            dialect,
+            &ArgRole::carries_script,
         )
     }
 
@@ -3455,7 +3481,7 @@ impl DefinitionBodyGrammar {
         args: crate::InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
         admit: &dyn Fn(ArgRole) -> bool,
-    ) -> Option<Vec<(usize, bool)>> {
+    ) -> Option<Vec<SourceDefinitionMemberScriptArgument>> {
         let count = args.exact_argv_len()?;
         let Some(member) = self.source_member_in(keyword.as_bytes(), dialect) else {
             return Some(Vec::new());
@@ -3483,6 +3509,11 @@ impl DefinitionBodyGrammar {
             None
         };
         let selected = || member.selected_indices_where(option, count, admit);
+        let script_argument = |argument| SourceDefinitionMemberScriptArgument {
+            argument,
+            definition_body: false,
+            presentation: member.source_body_presentation(argument, option),
+        };
         let indices = match member.kind {
             MemberKind::Flat if member.all_args_var && admit(ArgRole::VarWrite) => {
                 let start = if member.slot.is_some() && count != 0 {
@@ -3499,9 +3530,9 @@ impl DefinitionBodyGrammar {
                 indices.extend(start..count);
                 indices.sort_unstable();
                 indices.dedup();
-                indices.into_iter().map(|index| (index, false)).collect()
+                indices.into_iter().map(script_argument).collect()
             }
-            MemberKind::Flat => selected().into_iter().map(|index| (index, false)).collect(),
+            MemberKind::Flat => selected().into_iter().map(script_argument).collect(),
             MemberKind::Wrapper => {
                 if count == 0 {
                     return Some(Vec::new());
@@ -3512,10 +3543,20 @@ impl DefinitionBodyGrammar {
                 {
                     self.source_member_indices_where(inner, args.slice_from(1), dialect, admit)?
                         .into_iter()
-                        .map(|(index, definition)| (index + 1, definition))
+                        .map(|mut argument| {
+                            argument.argument += 1;
+                            argument
+                        })
                         .collect()
                 } else if member.wrapper_block_body {
-                    selected().into_iter().map(|index| (index, true)).collect()
+                    selected()
+                        .into_iter()
+                        .map(|argument| SourceDefinitionMemberScriptArgument {
+                            argument,
+                            definition_body: true,
+                            presentation: SourceDefinitionMemberBodyPresentation::OrdinaryBlock,
+                        })
+                        .collect()
                 } else {
                     Vec::new()
                 }
@@ -3524,7 +3565,7 @@ impl DefinitionBodyGrammar {
                 .source_property_declarations_where(count, &word_at, dialect)?
                 .into_iter()
                 .flat_map(|declaration| declaration.selected_indices_where(admit))
-                .map(|index| (index, false))
+                .map(script_argument)
                 .collect(),
         };
         Some(indices)
@@ -6832,5 +6873,81 @@ mod original_forward_tests {
         let fields = line.split('|').collect::<Vec<_>>();
         assert_eq!(fields.len(), 4);
         (fields[1], fields[3])
+    }
+}
+
+#[cfg(test)]
+mod original_member_presentation_tests {
+    use super::{SourceDefinitionMemberBodyPresentation, TCLOO_GRAMMAR};
+    use crate::{InvocationArguments, InvocationWord};
+    use tcl_dialect::Family;
+    use tcl_dialect::model::SurfaceQuery;
+
+    #[test]
+    fn original_member_presentation_follows_callable_body_slot_and_selected_layout() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        let query = Some(SurfaceQuery::core(Family::Tcl, "9.0"));
+        for (keyword, arguments, ordinal) in [
+            ("method", vec!["m", "", "puts α"], 2),
+            ("method", vec!["m", "-private", "", "puts α"], 3),
+            ("private", vec!["method", "m", "", "puts α"], 3),
+            ("constructor", vec!["", "puts α"], 1),
+            ("destructor", vec!["puts α"], 0),
+        ] {
+            let bodies = TCLOO_GRAMMAR
+                .source_member_script_arguments_in(
+                    keyword.as_bytes(),
+                    InvocationArguments::literals(&arguments),
+                    query,
+                )
+                .unwrap();
+            assert_eq!(bodies.len(), 1, "{keyword} {arguments:?}");
+            assert_eq!(bodies[0].argument(), ordinal);
+            assert_eq!(
+                bodies[0].presentation(),
+                SourceDefinitionMemberBodyPresentation::CallableBlock
+            );
+            assert!(!bodies[0].retains_definition_grammar());
+        }
+        let wrapper = TCLOO_GRAMMAR
+            .source_member_script_arguments_in(
+                b"private",
+                InvocationArguments::literals(&["method m {} {puts α}"]),
+                query,
+            )
+            .unwrap();
+        assert_eq!(
+            wrapper[0].presentation(),
+            SourceDefinitionMemberBodyPresentation::OrdinaryBlock
+        );
+        assert!(wrapper[0].retains_definition_grammar());
+        let unknown = [
+            InvocationWord::Literal("m"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal(""),
+            InvocationWord::Literal("puts α"),
+        ];
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_script_arguments_in(
+                    b"method",
+                    InvocationArguments::structured(&unknown),
+                    query,
+                )
+                .is_none(),
+            "unknown optional selector cannot choose a body presentation"
+        );
+        assert!(
+            TCLOO_GRAMMAR
+                .source_member_script_arguments_in(
+                    b"method",
+                    InvocationArguments::literals(&["m", "-private", "", "puts α"]),
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+                )
+                .unwrap()
+                .is_empty(),
+            "unavailable option cannot shift the selected body"
+        );
     }
 }

@@ -1980,6 +1980,65 @@ pub(crate) fn original_registry_words_for_tokens(
     (words.head_source()?.word() == native.first()).then_some(words)
 }
 
+/// Original source schema for a supplied compiler consumer. The retained
+/// realm, full input and exact recorded invocation must agree; a report name
+/// or an equal-text parse cannot replace a missing original vector or site.
+/// This delegates the same selected/conditional builders used by editor
+/// source structure. Source applicability never grants entered dispatch,
+/// physical frames, Native arguments, normal results or parameter seeds.
+pub(crate) fn original_registry_words_for_supplied_tokens(
+    realm: &crate::realm::CommandBindingRealm,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalRegistryWords> {
+    let registry = input.borrowed_context_registry().commands();
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let site = binding.invocation_site()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let image = site.source.source_image();
+    if config != input.lexer_config()
+        || !realm.matches_resolved_analysis_input(input)
+        || !realm.matches_original_source_image(image, config)
+    {
+        return None;
+    }
+    let (segment, recorded) = binding.original_recorded_command()?;
+    if recorded.words() != tokens.words() || segment.argv.first()?.span.start() != site.offset {
+        return None;
+    }
+    let retained = realm.invocation_at_source("", site.offset);
+    if retained.invocation_site() != Some(site)
+        || retained.original_recorded_command_tokens()?.words() != tokens.words()
+    {
+        return None;
+    }
+    let native = super::original_native_compiler_words(image, tokens.words(), site.offset, config)?;
+    let source = image.try_text().ok()?;
+    let context = input.context_registry();
+    if realm.original_source_registry_barrier(&context, tokens) {
+        return None;
+    }
+    let selected = if input.has_logical_source_name_context() {
+        logical_source_registry_words(source, realm, input, &segment)
+    } else {
+        selected_registry_words_with_context(source, config, realm, &segment, &context).or_else(
+            || native_source_registry_words(source, config, realm, &context, &segment, None),
+        )
+    }?;
+    if selected.head_source()?.word() != native.first() {
+        return None;
+    }
+    for (argument, origin) in selected.origins().iter().enumerate().skip(1) {
+        if let super::InvocationWordOrigin::Written(written) = origin
+            && selected.operands().get(argument - 1)?.as_ref()?.word() != native.get(*written)
+        {
+            return None;
+        }
+    }
+    Some(selected)
+}
+
 /// Authored declaration roles at the unchanged complete invocation, with
 /// their original declaration owner and no inherited Registry implementation.
 pub(crate) fn original_declared_words_for_tokens(

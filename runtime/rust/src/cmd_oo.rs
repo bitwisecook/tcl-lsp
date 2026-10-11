@@ -57,9 +57,9 @@ use tcl_registry::commands::tcl::{
     InfoOoPropertiesOption, TclOoPropertyOption,
 };
 
-use crate::interp::{
-    obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
-};
+#[cfg(test)]
+use crate::interp::obj_bytes;
+use crate::interp::{CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame};
 use crate::list;
 use crate::namespace::{NsId, GLOBAL};
 use crate::obj::{self, TclObj};
@@ -99,6 +99,15 @@ macro_rules! oo_original_bytes {
         match $originals.bytes($index) {
             Ok(bytes) => bytes.to_vec(),
             Err(error) => return $interp.report_cmd_error(error),
+        }
+    };
+}
+
+macro_rules! oo_checked {
+    ($interp:expr, $result:expr) => {
+        match $result {
+            Ok(value) => value,
+            Err(error) => return $interp.report_cmd_error(error.into()),
         }
     };
 }
@@ -420,14 +429,6 @@ impl MethodInvocation {
             original_argv: None,
         }
     }
-
-    fn with_original(external: bool, words: Vec<Vec<u8>>, argv: &[*mut TclObj]) -> Self {
-        Self {
-            external,
-            level_words: Some(words),
-            original_argv: Some(argv.to_vec()),
-        }
-    }
 }
 
 fn method_invocation(
@@ -438,14 +439,15 @@ fn method_invocation(
     args: &[*mut TclObj],
     external: bool,
     original_argv: Option<&[*mut TclObj]>,
-) -> MethodInvocation {
+) -> Result<MethodInvocation, tcl_cmd_core::CmdError> {
     if let Some(argv) = original_argv {
-        return MethodInvocation {
+        return Ok(MethodInvocation {
             external,
             level_words: None,
             original_argv: Some(argv.to_vec()),
-        };
+        });
     }
+    // Generated reporting heads are authored bytes, not original argv headers.
     let mut words = Vec::with_capacity(args.len() + 2);
     words.push(if external {
         invoked
@@ -455,11 +457,8 @@ fn method_invocation(
         b"my".to_vec()
     });
     words.push(method.to_vec());
-    words.extend(args.iter().map(|&arg| obj_bytes(arg)));
-    match original_argv {
-        Some(argv) => MethodInvocation::with_original(external, words, argv),
-        None => MethodInvocation::with_words(external, words),
-    }
+    words.extend(native_context::original_word_bytes(interp, args)?);
+    Ok(MethodInvocation::with_words(external, words))
 }
 
 /// The TclOO *execution* state (the per-flow stacks, not the shared class/object
@@ -818,10 +817,25 @@ fn prop_define_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `-get`/`-set` supply custom bodies. Registers `-name` in the readable /
 /// writable property set per `-kind` (readable / readwrite [default] / writable).
 fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) -> Code {
+    native_context::with_original_arguments(interp, argv, |interp, originals| {
+        prop_define_original(interp, argv, use_instance, originals)
+    })
+}
+
+fn prop_define_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    use_instance: bool,
+    originals: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
     let target = match def_target(interp) {
         Ok(t) => t,
         Err(code) => return code,
     };
+    let target_owner = oo_checked!(
+        interp,
+        native_context::OriginalOoTarget::for_definition(interp, &target)
+    );
     let Some(recipe) = interp
         .native_invocation_dialect()
         .native_property_name_protocol()
@@ -836,22 +850,23 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
     let mut i = 1;
     while i < argv.len() {
         let original_property = argv[i];
-        let prop = match interp.native_object_string_bytes(original_property) {
-            Ok(bytes) => bytes.to_vec(),
-            Err(error) => return interp.report_cmd_error(error.into()),
-        };
+        let prop = oo_original_bytes!(interp, originals, i);
+        oo_checked!(interp, target_owner.check(interp));
         i += 1;
         // Parse the property's options.
         let (mut kind_ro, mut kind_wo) = (false, false);
         let mut getter: Option<Vec<u8>> = None;
         let mut setter: Option<Vec<u8>> = None;
-        while i < argv.len() && obj_bytes(argv[i]).first() == Some(&b'-') {
-            let option = match interp.native_index_operand(
-                argv[i],
-                &recipe.definition_options(),
-                false,
-                "option",
-            ) {
+        while i < argv.len() {
+            if oo_original_bytes!(interp, originals, i).first() != Some(&b'-') {
+                break;
+            }
+            oo_checked!(interp, target_owner.check(interp));
+            let option =
+                interp.native_index_operand(argv[i], &recipe.definition_options(), false, "option");
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
+            let option = match option {
                 Ok(0) => TclOoPropertyOption::Get,
                 Ok(1) => TclOoPropertyOption::Kind,
                 Ok(2) => TclOoPropertyOption::Set,
@@ -874,15 +889,22 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
             let original_value = argv[i + 1];
             i += 2;
             match option {
-                TclOoPropertyOption::Get => getter = Some(obj_bytes(original_value)),
-                TclOoPropertyOption::Set => setter = Some(obj_bytes(original_value)),
+                TclOoPropertyOption::Get => {
+                    getter = Some(oo_original_bytes!(interp, originals, i - 1))
+                }
+                TclOoPropertyOption::Set => {
+                    setter = Some(oo_original_bytes!(interp, originals, i - 1))
+                }
                 TclOoPropertyOption::Kind => {
-                    match interp.native_index_operand(
+                    let kind = interp.native_index_operand(
                         original_value,
                         &recipe.definition_kinds(),
                         false,
                         "kind",
-                    ) {
+                    );
+                    oo_original_check!(interp, originals);
+                    oo_checked!(interp, target_owner.check(interp));
+                    match kind {
                         Ok(0) => {
                             kind_ro = true;
                             kind_wo = false;
@@ -900,8 +922,10 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                     }
                 }
             }
+            oo_checked!(interp, target_owner.check(interp));
         }
 
+        oo_checked!(interp, target_owner.check(interp));
         if let Err(message) = recipe.validate_declaration(&prop) {
             return interp.report_cmd_error(
                 tcl_cmd_core::CmdError::with_error_code_bytes(
@@ -933,6 +957,8 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                 let body = getter.clone().expect("selected custom property getter");
                 install_property_method(interp, &mname, &[], &body)
             };
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
             if code != Code::Ok {
                 return code;
             }
@@ -953,10 +979,13 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                 let body = setter.clone().expect("selected custom property setter");
                 install_property_method(interp, &mname, b"value", &body)
             };
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
             if code != Code::Ok {
                 return code;
             }
         }
+        oo_checked!(interp, target_owner.check(interp));
         // Register `-name`: add to (or remove from) each set per the kind, so a
         // later declaration with a different `-kind` replaces the membership
         // (C's TclOORegisterProperty add/remove; ooProp-3.16).
@@ -1622,13 +1651,28 @@ fn slot_inst_get(interp: &mut Interp, slot: OoId, _args: &[*mut TclObj]) -> Code
 /// A built-in slot's `Set` method: stores the (single list) argument into the
 /// active definition target.
 fn slot_inst_set(interp: &mut Interp, slot: OoId, args: &[*mut TclObj]) -> Code {
+    native_context::with_original_arguments(interp, args, |interp, originals| {
+        slot_inst_set_original(interp, slot, args, originals)
+    })
+}
+
+fn slot_inst_set_original(
+    interp: &mut Interp,
+    slot: OoId,
+    args: &[*mut TclObj],
+    originals: &crate::interp::native_arguments::OriginalArguments,
+) -> Code {
     let Some(target) = interp.active_def_target() else {
         return err(
             interp,
             b"this command may only be called from within the context of an \
-              ::oo::define or ::oo::objdefine command",
+          ::oo::define or ::oo::objdefine command",
         );
     };
+    let target_owner = oo_checked!(
+        interp,
+        native_context::OriginalOoTarget::for_definition(interp, &target)
+    );
     let slot_name = interp.oo_name(slot);
     if let Some((object, writable)) = slot_property_kind(&slot_name) {
         if interp
@@ -1643,9 +1687,11 @@ fn slot_inst_set(interp: &mut Interp, slot: OoId, args: &[*mut TclObj]) -> Code 
                 DefTarget::Class(id) => (id, !object),
                 DefTarget::Object(id) => (id, false),
             };
-            if let Err(error) =
-                native_properties::set_property_slot(interp, id, class, writable, *original)
-            {
+            let result =
+                native_properties::set_property_slot(interp, id, class, writable, *original);
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
+            if let Err(error) = result {
                 return interp.report_cmd_error(error.into());
             }
             interp.set_result_bytes(b"");
@@ -1656,14 +1702,19 @@ fn slot_inst_set(interp: &mut Interp, slot: OoId, args: &[*mut TclObj]) -> Code 
         if args.len() != 1 {
             return wrong_args(interp, b"Set filterList");
         }
-        let members = match interp.list_elements(&args[0]) {
+        let members = native_context::original_list_members(interp, args[0], originals);
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
+        let members = match members {
             Ok(members) => members,
-            Err(error) => return interp.report_cmd_error(error.into()),
+            Err(error) => return interp.report_cmd_error(error),
         };
         let values = match prepare_declared_variables(interp, &members) {
             Ok(values) => values,
             Err(code) => return code,
         };
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         if let Err(code) = validate_declared_variables(interp, &values) {
             return code;
         }
@@ -1676,10 +1727,20 @@ fn slot_inst_set(interp: &mut Interp, slot: OoId, args: &[*mut TclObj]) -> Code 
         let private = interp.oo.borrow().private_depth > 0;
         write_declared_variables(interp, &target, private, values);
     } else {
-        let list = args
-            .first()
-            .map(|&a| parse_list(&obj_bytes(a)))
-            .unwrap_or_default();
+        let list = if let Some(original) = args.first() {
+            let members = native_context::original_list_members(interp, *original, originals);
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
+            let members = oo_checked!(interp, members);
+            oo_checked!(
+                interp,
+                native_context::original_word_bytes(interp, &members)
+            )
+        } else {
+            Vec::new()
+        };
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         if let Err(code) = validate_slot_class_references(interp, &slot_name, &list) {
             return code;
         }
@@ -2520,14 +2581,26 @@ fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some(layout) = selected.layout(argv.len().saturating_sub(1)) else {
             return wrong_args(interp, selected.usage().as_bytes());
         };
+        let target = match def_target(interp) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::for_definition(interp, &target)
+        );
         let name = oo_original_bytes!(interp, originals, layout.name + 1);
+        oo_checked!(interp, target_owner.check(interp));
         let flag_vis = if let Some(index) = layout.option {
-            let index = match interp.native_static_string_option_index(
+            let index = interp.native_static_string_option_index(
                 argv[index + 1],
                 selected.export_modes().unwrap(),
                 false,
                 "export flag",
-            ) {
+            );
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
+            let index = match index {
                 Ok(index) => index,
                 Err(error) => return interp.report_cmd_error(error),
             };
@@ -2543,12 +2616,14 @@ fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
         let chosen = interp.choose_original_procedure_body(argv[layout.body + 1]);
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         let chosen = match chosen {
             Ok(chosen) => chosen,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
         let params = crate::cmd_proc::parse_params_object(interp, argv[layout.parameters + 1], b"");
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         let params = match params {
             Ok(p) => p,
             Err(error) => return interp.report_cmd_error(error),
@@ -2577,9 +2652,19 @@ fn def_forward(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if argv.len() < 3 {
             return wrong_args(interp, b"forward name cmdName ?arg ...?");
         }
+        let target = match def_target(interp) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::for_definition(interp, &target)
+        );
         let name = oo_original_bytes!(interp, originals, 1);
+        oo_checked!(interp, target_owner.check(interp));
         let prefix = obj::Owned::fresh(interp.new_list_object(&argv[2..]));
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         install_method(interp, name, Method::Forward { prefix })
     })
 }
@@ -2594,7 +2679,12 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(DefTarget::Object(_)) => return err(interp, b"constructors are only for classes"),
             Err(code) => return code,
         };
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::capture(interp, class, true)
+        );
         if oo_original_bytes!(interp, originals, 2).is_empty() {
+            oo_checked!(interp, target_owner.check(interp));
             let retired = interp
                 .oo
                 .borrow_mut()
@@ -2608,17 +2698,20 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             drop(retired);
             oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
         let chosen = interp.choose_original_procedure_body(argv[2]);
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         let chosen = match chosen {
             Ok(chosen) => chosen,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
         let params = crate::cmd_proc::parse_params_object(interp, argv[1], b"");
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         let params = match params {
             Ok(p) => p,
             Err(error) => return interp.report_cmd_error(error),
@@ -2635,6 +2728,7 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .install(method);
         drop(retired);
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         interp.native_property_method_created(class, true);
         interp.native_property_structure_changed(class, true);
         interp.set_result_bytes(b"");
@@ -2652,7 +2746,12 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(DefTarget::Object(_)) => return err(interp, b"destructors are only for classes"),
             Err(code) => return code,
         };
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::capture(interp, class, true)
+        );
         if oo_original_bytes!(interp, originals, 1).is_empty() {
+            oo_checked!(interp, target_owner.check(interp));
             let retired = interp
                 .oo
                 .borrow_mut()
@@ -2666,12 +2765,14 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             drop(retired);
             oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
         let src = method_body_src(interp, 1);
         let chosen = interp.choose_original_procedure_body(argv[1]);
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         let chosen = match chosen {
             Ok(chosen) => chosen,
             Err(error) => return interp.report_cmd_error(error.into()),
@@ -2687,6 +2788,7 @@ fn def_destructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .install(method);
         drop(retired);
         oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         interp.native_property_method_created(class, true);
         interp.native_property_structure_changed(class, true);
         interp.set_result_bytes(b"");
@@ -2726,25 +2828,16 @@ fn slot_call(
     }
 }
 
-/// Parse a Tcl list string into its elements.
-fn parse_list(s: &[u8]) -> Vec<Vec<u8>> {
-    let o = obj::new_string_bytes(s);
-    unsafe { obj::incr_ref_count(o) };
-    let out = match list::list_elements(o) {
-        Ok(elems) => elems.iter().map(|&e| obj_bytes(e)).collect(),
-        Err(_) => Vec::new(),
-    };
-    unsafe { obj::decr_ref_count(o) };
-    out
-}
-
-/// Build a Tcl list string from elements.
-fn build_list(interp: &Interp, elems: &[Vec<u8>]) -> Vec<u8> {
+/// Build an authored reporting List and reach its checked String once.
+fn build_list(interp: &Interp, elems: &[Vec<u8>]) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+    let originals = crate::interp::native_arguments::OriginalArguments::enter(interp, &[])?;
     let objs: Vec<*mut TclObj> = elems.iter().map(|e| obj::new_string_bytes(e)).collect();
-    let l = interp.new_list_object(&objs);
-    let s = obj_bytes(l);
-    crate::interp::drop_fresh(l);
-    s
+    let list = obj::Owned::fresh(interp.new_list_object(&objs));
+    let result = interp.native_object_string_bytes(list.as_ptr());
+    originals.check()?;
+    drop(list);
+    originals.check()?;
+    result.map(|bytes| bytes.to_vec()).map_err(Into::into)
 }
 
 /// Run a slot operation: `Resolve` each arg, `Get` the current list (except for
@@ -3087,7 +3180,7 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `self call` — `{chain index}`: the full call chain (each step a
             // `{callType method declarer methodType}` element) and the current index.
             Some(b"call") => {
-                let elems: Vec<Vec<u8>> = chain
+                let elems: Result<Vec<Vec<u8>>, tcl_cmd_core::CmdError> = chain
                     .iter()
                     .map(|s| {
                         let is_object = s.provider == object;
@@ -3112,7 +3205,8 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                             interp, call_type, display, &s.method, s.provider, is_object,
                         )
                     })
-                    .collect();
+                    .collect::<Result<_, _>>();
+                let elems = oo_checked!(interp, elems);
                 let inner_objs: Vec<*mut TclObj> =
                     elems.iter().map(|e| obj::new_string_bytes(e)).collect();
                 let inner = interp.new_list_object(&inner_objs);
@@ -3998,7 +4092,7 @@ fn info_call(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -
             return err(interp, &m);
         }
         let method = oo_original_bytes!(interp, originals, 4);
-        let elems = build_call_chain(interp, id, &method, class);
+        let elems = oo_checked!(interp, build_call_chain(interp, id, &method, class));
         set_list(interp, &elems);
         Code::Ok
     })
@@ -4008,7 +4102,12 @@ fn info_call(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -
 /// step) for `info object/class call`: filter steps (one per provider that
 /// implements an active filter, in precedence order), then either the method's
 /// own steps or — if the method is undefined — the `unknown`-handler chain.
-fn build_call_chain(interp: &Interp, id: OoId, method: &[u8], class: bool) -> Vec<Vec<u8>> {
+fn build_call_chain(
+    interp: &Interp,
+    id: OoId,
+    method: &[u8],
+    class: bool,
+) -> Result<Vec<Vec<u8>>, tcl_cmd_core::CmdError> {
     let providers = if class {
         interp.class_precedence(id)
     } else {
@@ -4048,7 +4147,7 @@ fn build_call_chain(interp: &Interp, id: OoId, method: &[u8], class: bool) -> Ve
                     fname,
                     *p,
                     is_obj(*p),
-                ));
+                )?);
             }
         }
     }
@@ -4078,7 +4177,7 @@ fn build_call_chain(interp: &Interp, id: OoId, method: &[u8], class: bool) -> Ve
                         method,
                         object_root,
                         false,
-                    ));
+                    )?);
                 }
             }
         } else {
@@ -4091,7 +4190,7 @@ fn build_call_chain(interp: &Interp, id: OoId, method: &[u8], class: bool) -> Ve
                         b"unknown",
                         *p,
                         is_obj(*p),
-                    ));
+                    )?);
                 }
             }
         }
@@ -4102,10 +4201,10 @@ fn build_call_chain(interp: &Interp, id: OoId, method: &[u8], class: bool) -> Ve
             } else {
                 b"method"
             };
-            elems.push(call_chain_elem(interp, ct, method, method, *p, is_obj(*p)));
+            elems.push(call_chain_elem(interp, ct, method, method, *p, is_obj(*p))?);
         }
     }
-    elems
+    Ok(elems)
 }
 
 /// One `info call` / `self call` chain element: a 4-element list `{callType
@@ -4120,7 +4219,7 @@ fn call_chain_elem(
     type_key: &[u8],
     provider: OoId,
     is_object: bool,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
     let mtype = method_type_name(interp, provider, type_key, is_object);
     let declarer: Vec<u8> = if is_object {
         b"object".to_vec()
@@ -4871,73 +4970,101 @@ impl Interp {
         // `createWithNamespace` is unexported by default; an external call needs
         // it `self export`ed, an internal call reaches it regardless.
         let cwn_ok = !block_unexported || cwn_exp;
-        let invocation = || {
-            if let Some(argv) = original_argv {
-                return MethodInvocation {
-                    external: false,
-                    level_words: None,
-                    original_argv: Some(argv.to_vec()),
-                };
-            }
-            let mut words = vec![cmd.to_vec(), method.to_vec()];
-            words.extend(args.iter().map(|&arg| obj_bytes(arg)));
-            match original_argv {
-                Some(argv) => MethodInvocation::with_original(false, words, argv),
-                None => MethodInvocation::with_words(false, words),
-            }
+        let applicable = match method {
+            b"new" => !is_meta && new_ok,
+            b"create" => cre_ok,
+            b"createWithNamespace" => cwn_ok,
+            _ => false,
         };
-        match method {
-            b"new" if !is_meta && new_ok => Some(self.oo_new(class, None, args, invocation())),
-            b"createWithNamespace" if cwn_ok => {
-                if args.len() < 2 {
-                    let mut u = cmd.to_vec();
-                    u.extend_from_slice(b" createWithNamespace objectName namespaceName ?arg ...?");
-                    return Some(wrong_args(self, &u));
-                }
-                let raw = obj_bytes(args[0]);
-                if raw.is_empty() {
-                    return Some(self.error(b"object name must not be empty"));
-                }
-                let publication = match self.oo_publication(&raw) {
-                    Ok(publication) => publication,
-                    Err(code) => return Some(code),
-                };
-                let ns_raw = obj_bytes(args[1]);
-                // The namespace is *created*; an existing one is an error.
-                if self
-                    .resolve_namespace_name(tcl_core_types::c_string_extent(&ns_raw))
-                    .is_some()
-                {
-                    let mut m = b"can't create namespace \"".to_vec();
-                    m.extend_from_slice(&ns_raw);
-                    m.extend_from_slice(b"\": already exists");
-                    return Some(self.error(&m));
-                }
-                let ns = self.ensure_namespace(tcl_core_types::c_string_extent(&ns_raw));
-                Some(self.oo_new_ns(class, Some(publication), Some(ns), &args[2..], invocation()))
-            }
-            b"create" if cre_ok => {
-                if args.is_empty() {
-                    let mut u = cmd.to_vec();
-                    u.extend_from_slice(b" create objectName ?arg ...?");
-                    return Some(wrong_args(self, &u));
-                }
-                let raw = obj_bytes(args[0]);
-                if raw.is_empty() {
-                    return Some(self.error(b"object name must not be empty"));
-                }
-                let publication = match self.oo_publication(&raw) {
-                    Ok(publication) => publication,
-                    Err(code) => return Some(code),
-                };
-                Some(if is_meta {
-                    self.oo_make_class(publication, args.get(1).copied())
-                } else {
-                    self.oo_new(class, Some(publication), &args[1..], invocation())
-                })
-            }
-            _ => None,
+        if !applicable {
+            return None;
         }
+        Some(native_context::with_original_arguments(
+            self,
+            args,
+            |interp, originals| {
+                let class_owner = oo_checked!(
+                    interp,
+                    native_context::OriginalOoTarget::capture(interp, class, true)
+                );
+                let invocation = |interp: &Interp| {
+                    method_invocation(interp, class, Some(cmd), method, args, false, original_argv)
+                };
+                match method {
+                    b"new" => {
+                        let invocation = oo_checked!(interp, invocation(interp));
+                        oo_checked!(interp, class_owner.check(interp));
+                        interp.oo_new(class, None, args, invocation)
+                    }
+                    b"createWithNamespace" => {
+                        if args.len() < 2 {
+                            let mut usage = cmd.to_vec();
+                            usage.extend_from_slice(
+                                b" createWithNamespace objectName namespaceName ?arg ...?",
+                            );
+                            return wrong_args(interp, &usage);
+                        }
+                        let raw = oo_original_bytes!(interp, originals, 0);
+                        oo_checked!(interp, class_owner.check(interp));
+                        if raw.is_empty() {
+                            return interp.error(b"object name must not be empty");
+                        }
+                        let publication = match interp.oo_publication(&raw) {
+                            Ok(publication) => publication,
+                            Err(code) => return code,
+                        };
+                        let namespace = oo_original_bytes!(interp, originals, 1);
+                        oo_checked!(interp, class_owner.check(interp));
+                        if interp
+                            .resolve_namespace_name(tcl_core_types::c_string_extent(&namespace))
+                            .is_some()
+                        {
+                            let mut message = b"can't create namespace \"".to_vec();
+                            message.extend_from_slice(&namespace);
+                            message.extend_from_slice(b"\": already exists");
+                            return interp.error(&message);
+                        }
+                        let invocation = oo_checked!(interp, invocation(interp));
+                        oo_checked!(interp, class_owner.check(interp));
+                        let namespace =
+                            interp.ensure_namespace(tcl_core_types::c_string_extent(&namespace));
+                        oo_original_check!(interp, originals);
+                        oo_checked!(interp, class_owner.check(interp));
+                        interp.oo_new_ns(
+                            class,
+                            Some(publication),
+                            Some(namespace),
+                            &args[2..],
+                            invocation,
+                        )
+                    }
+                    b"create" => {
+                        if args.is_empty() {
+                            let mut usage = cmd.to_vec();
+                            usage.extend_from_slice(b" create objectName ?arg ...?");
+                            return wrong_args(interp, &usage);
+                        }
+                        let raw = oo_original_bytes!(interp, originals, 0);
+                        oo_checked!(interp, class_owner.check(interp));
+                        if raw.is_empty() {
+                            return interp.error(b"object name must not be empty");
+                        }
+                        let publication = match interp.oo_publication(&raw) {
+                            Ok(publication) => publication,
+                            Err(code) => return code,
+                        };
+                        if is_meta {
+                            interp.oo_make_class(publication, args.get(1).copied())
+                        } else {
+                            let invocation = oo_checked!(interp, invocation(interp));
+                            oo_checked!(interp, class_owner.check(interp));
+                            interp.oo_new(class, Some(publication), &args[1..], invocation)
+                        }
+                    }
+                    _ => unreachable!("selected class factory"),
+                }
+            },
+        ))
     }
 
     /// Whether `obj` has any active filter (its own object filters, or a class
@@ -5274,6 +5401,35 @@ impl Interp {
             code.extend_from_slice(method);
             return self.error_with_code(&m, &code);
         }
+        let mut original_objects = original_argv.unwrap_or_default().to_vec();
+        original_objects.extend_from_slice(args);
+        native_context::with_original_arguments(self, &original_objects, |interp, originals| {
+            interp.oo_invoke_original_entered(
+                obj,
+                method,
+                args,
+                external,
+                invoked,
+                original_argv,
+                originals,
+            )
+        })
+    }
+
+    fn oo_invoke_original_entered(
+        &mut self,
+        obj: OoId,
+        method: &[u8],
+        args: &[*mut TclObj],
+        external: bool,
+        invoked: Option<&[u8]>,
+        original_argv: Option<&[*mut TclObj]>,
+        originals: &crate::interp::native_arguments::OriginalArguments,
+    ) -> Code {
+        let target_owner = oo_checked!(
+            self,
+            native_context::OriginalOoTarget::capture(self, obj, false)
+        );
         // True-private scope is independent of public visibility. An external
         // same-object call still cannot select a merely unexported method.
         let caller_context = {
@@ -5293,11 +5449,17 @@ impl Interp {
         };
         let caller_is_self = caller_context.is_some_and(|(caller, _, _)| caller == obj);
         let enforce = external;
-        let providers = self.method_chain_faceted(obj);
         // Native class hierarchies containing true-private methods never stash a chain.
-        let cache_original = original_argv
-            .and_then(|words| words.get(1).copied())
-            .filter(|&word| obj_bytes(word) == method)
+        let selected_original =
+            if let Some(original) = original_argv.and_then(|words| words.get(1).copied()) {
+                let bytes = oo_original_bytes!(self, originals, 1);
+                oo_checked!(self, target_owner.check(self));
+                (bytes == method).then_some(original)
+            } else {
+                None
+            };
+        let providers = self.method_chain_faceted(obj);
+        let cache_original = selected_original
             .filter(|_| !self.oo.borrow().filter_handling)
             .filter(|_| {
                 let state = self.oo.borrow();
@@ -5316,9 +5478,15 @@ impl Interp {
                     })
             });
         if let Some(original) = cache_original {
-            if let Some(chain) = self.lookup_native_method_chain(obj, method, original, external) {
-                let invocation =
-                    method_invocation(self, obj, invoked, method, args, external, original_argv);
+            let cached = self.lookup_native_method_chain(obj, method, original, external);
+            oo_original_check!(self, originals);
+            oo_checked!(self, target_owner.check(self));
+            if let Some(chain) = cached {
+                let invocation = oo_checked!(
+                    self,
+                    method_invocation(self, obj, invoked, method, args, external, original_argv)
+                );
+                oo_checked!(self, target_owner.check(self));
                 return self.oo_run(obj, chain, 0, method, args, invocation);
             }
         }
@@ -5384,15 +5552,19 @@ impl Interp {
                 if destroy_ok || objbuiltin_ok {
                     let filters = self.active_filters(obj, &providers);
                     if !filters.is_empty() {
-                        let invocation = method_invocation(
+                        let invocation = oo_checked!(
                             self,
-                            obj,
-                            invoked,
-                            method,
-                            args,
-                            external,
-                            original_argv,
+                            method_invocation(
+                                self,
+                                obj,
+                                invoked,
+                                method,
+                                args,
+                                external,
+                                original_argv,
+                            )
                         );
+                        oo_checked!(self, target_owner.check(self));
                         return self.oo_run(obj, filters, 0, method, args, invocation);
                     }
                 }
@@ -5452,13 +5624,10 @@ impl Interp {
             {
                 // The missed selector is an original value, including slot
                 // data whose String bytes are not its object identity.
-                let head = original_argv
-                    .and_then(|words| words.get(1).copied())
-                    .filter(|&word| obj_bytes(word) == method)
-                    .map_or_else(
-                        || obj::Owned::fresh(obj::new_string_bytes(method)),
-                        obj::Owned::retain,
-                    );
+                let head = selected_original.map_or_else(
+                    || obj::Owned::fresh(obj::new_string_bytes(method)),
+                    obj::Owned::retain,
+                );
                 let mut uargs: Vec<*mut TclObj> = vec![head.as_ptr()];
                 for &a in args {
                     unsafe { obj::incr_ref_count(a) };
@@ -5498,39 +5667,55 @@ impl Interp {
                 let mut chain: Vec<CallStep> =
                     native_method_cache::retain_owners(&self.oo.borrow(), filters);
                 chain.append(&mut steps);
-                let invocation =
-                    method_invocation(self, obj, invoked, method, args, external, original_argv);
+                let invocation = oo_checked!(
+                    self,
+                    method_invocation(self, obj, invoked, method, args, external, original_argv)
+                );
                 let chain = match cache_original {
-                    Some(original) => match self.remember_native_method_chain(
-                        obj,
-                        method,
-                        original,
-                        external,
-                        Rc::new(chain),
-                    ) {
-                        Ok(chain) => chain,
-                        Err(error) => return self.report_cmd_error(error.into()),
-                    },
+                    Some(original) => {
+                        let result = self.remember_native_method_chain(
+                            obj,
+                            method,
+                            original,
+                            external,
+                            Rc::new(chain),
+                        );
+                        oo_original_check!(self, originals);
+                        oo_checked!(self, target_owner.check(self));
+                        match result {
+                            Ok(chain) => chain,
+                            Err(error) => return self.report_cmd_error(error.into()),
+                        }
+                    }
                     None => native_method_cache::ReachedMethodChain::from(chain),
                 };
+                oo_checked!(self, target_owner.check(self));
                 return self.oo_run(obj, chain, 0, method, args, invocation);
             }
         }
         let steps = match cache_original {
-            Some(original) => match self.remember_native_method_chain(
-                obj,
-                method,
-                original,
-                external,
-                Rc::new(steps),
-            ) {
-                Ok(chain) => chain,
-                Err(error) => return self.report_cmd_error(error.into()),
-            },
+            Some(original) => {
+                let result = self.remember_native_method_chain(
+                    obj,
+                    method,
+                    original,
+                    external,
+                    Rc::new(steps),
+                );
+                oo_original_check!(self, originals);
+                oo_checked!(self, target_owner.check(self));
+                match result {
+                    Ok(chain) => chain,
+                    Err(error) => return self.report_cmd_error(error.into()),
+                }
+            }
             None => native_method_cache::ReachedMethodChain::from(steps),
         };
-        let invocation =
-            method_invocation(self, obj, invoked, method, args, external, original_argv);
+        let invocation = oo_checked!(
+            self,
+            method_invocation(self, obj, invoked, method, args, external, original_argv)
+        );
+        oo_checked!(self, target_owner.check(self));
         self.oo_run(obj, steps, 0, method, args, invocation)
     }
 
@@ -6287,12 +6472,23 @@ impl Interp {
         // runs the (optional) definition-script argument on the new class. C's
         // `oo::class` constructor is `{{definitionScript ""}}`.
         if method.is_empty() && Some(prov) == self.oo.borrow().class_root {
-            let body = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
-            if body.is_empty() {
-                self.set_result_bytes(b"");
-                return Code::Ok;
-            }
-            return self.oo_define_body(DefTarget::Class(obj), args[0], None);
+            return native_context::with_original_arguments(self, args, |interp, originals| {
+                let owner = oo_checked!(
+                    interp,
+                    native_context::OriginalOoTarget::capture(interp, obj, true)
+                );
+                let body = if args.is_empty() {
+                    Vec::new()
+                } else {
+                    oo_original_bytes!(interp, originals, 0)
+                };
+                oo_checked!(interp, owner.check(interp));
+                if body.is_empty() {
+                    interp.set_result_bytes(b"");
+                    return Code::Ok;
+                }
+                interp.oo_define_body(DefTarget::Class(obj), args[0], None)
+            });
         }
         let m = if let Some(owner) = &chain[index].method_owner {
             Some(owner.borrow().clone())
@@ -6629,7 +6825,7 @@ impl Interp {
             if interp.oo_destroy(obj) == Code::Error {
                 let msg = interp.result_bytes();
                 let ec = interp.error_code();
-                let options = build_list(
+                let options = match build_list(
                     interp,
                     &[
                         b"-code".to_vec(),
@@ -6641,7 +6837,13 @@ impl Interp {
                         b"-errorinfo".to_vec(),
                         msg.clone(),
                     ],
-                );
+                ) {
+                    Ok(options) => options,
+                    Err(error) => {
+                        interp.report_cmd_error(error);
+                        return;
+                    }
+                };
                 interp.report_bg_error(&msg, &options);
             }
         });

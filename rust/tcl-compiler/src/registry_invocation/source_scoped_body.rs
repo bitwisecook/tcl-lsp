@@ -422,6 +422,30 @@ impl OriginalSourceScriptBody {
             && self.container.config() == config
     }
 
+    /// Complete lexical command vectors inside this sealed original body.
+    /// The full container image, channel, configuration and selected context
+    /// stay retained. A fatal tail withdraws the whole inventory. These words
+    /// grant no child lookup point, runtime body entry, frame or Normal result;
+    /// supplied consumers must independently join their current request owner
+    /// and each child must retain its own original source sidecar.
+    pub(crate) fn original_commands(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<Vec<tcl_lexer::NativeScriptCommandWords>> {
+        if !self.matches_context(context)
+            || !self.matches_source(self.container.image(), self.container.config())
+        {
+            return None;
+        }
+        let plan = tcl_lexer::native_script_words_in(
+            self.container.image().clone(),
+            self.content,
+            self.container.config(),
+        )
+        .ok()?;
+        plan.fatal_tail.is_none().then_some(plan.commands)
+    }
+
     /// Actual full availability context and Registry semantic generation.
     #[must_use]
     pub fn matches_context(&self, context: &ContextRegistry) -> bool {
@@ -487,6 +511,7 @@ pub struct OriginalSourceDefinitionMemberScriptBody {
     container: NativeWord,
     content: Span,
     retains_definition_grammar: bool,
+    presentation: tcl_registry::definer::SourceDefinitionMemberBodyPresentation,
 }
 impl OriginalSourceDefinitionMemberScriptBody {
     /// Complete original member argv, including its genuine source keyword.
@@ -503,6 +528,14 @@ impl OriginalSourceDefinitionMemberScriptBody {
     #[must_use]
     pub const fn argument(&self) -> usize {
         self.argument
+    }
+    /// Presentation selected by the genuine member effect and body slot.
+    /// This describes source layout, without entered member or runtime authority.
+    #[must_use]
+    pub const fn presentation(
+        &self,
+    ) -> tcl_registry::definer::SourceDefinitionMemberBodyPresentation {
+        self.presentation
     }
     /// Exact original script bytes, excluding word delimiters.
     #[must_use]
@@ -740,6 +773,7 @@ impl OriginalSourceDefinitionMemberRegion {
                         container: geometry.container,
                         content: geometry.content,
                         retains_definition_grammar: selected.retains_definition_grammar(),
+                        presentation: selected.presentation(),
                     })
                 })
                 .collect(),
@@ -1944,3 +1978,7 @@ mod script_purpose_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "source_scoped_body/class_source_join_tests.rs"]
+mod class_source_join_tests;

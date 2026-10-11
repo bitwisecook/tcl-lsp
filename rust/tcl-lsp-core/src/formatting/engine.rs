@@ -109,6 +109,8 @@ struct CommandArg {
     /// element is never fed here, only normalised at reconstruction time
     /// (`render_lambda_literal_arg`).
     formatted_body: Option<String>,
+    /// Source-only layout of this genuine selected definition-member body.
+    member_body_presentation: Option<tcl_registry::definer::SourceDefinitionMemberBodyPresentation>,
     original_word: Option<tcl_lexer::NativeWord>,
     original_input: Option<tcl_compiler::signature_scan::scope::SignatureSourceNameInput>,
 }
@@ -522,6 +524,7 @@ fn parse_commands(
                 is_braced: tok.kind == TokenType::Str,
                 is_quoted: detected_quoted,
                 formatted_body: None,
+                member_body_presentation: None,
                 original_word: None,
                 original_input: None,
             });
@@ -724,17 +727,18 @@ fn identify_body_args(
                 for (arg, word) in cmd.args.iter_mut().zip(words) {
                     arg.original_word = Some(word.clone());
                 }
-                for &written in &bodies {
+                for &(written, presentation) in &bodies {
                     if let Some(arg) = cmd.args.get_mut(written)
                         && arg.is_braced
                     {
                         arg.kind = ArgKind::Body;
+                        arg.member_body_presentation = Some(presentation);
                     }
                 }
                 cmd.source_roles = Some(
                     bodies
                         .into_iter()
-                        .map(|written| (written, ArgRole::Body))
+                        .map(|(written, _)| (written, ArgRole::Body))
                         .collect(),
                 );
                 return;
@@ -1755,7 +1759,9 @@ fn reconstruct_command(
                     config,
                     indent,
                     current_line_len,
-                    never_inline,
+                    never_inline || arg.member_body_presentation == Some(
+                        tcl_registry::definer::SourceDefinitionMemberBodyPresentation::CallableBlock,
+                    ),
                 );
                 in_brace_chain = true;
             }

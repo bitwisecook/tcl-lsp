@@ -2423,6 +2423,7 @@ fn resolve_unit_scope(
         &ir_module.future_call_sites,
         crate::unit_scope::CallSiteSourceContext {
             registry,
+            module: ir_module,
             declared: options.declared_commands,
             dialect: options
                 .dialect
