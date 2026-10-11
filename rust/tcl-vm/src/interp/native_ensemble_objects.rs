@@ -84,7 +84,7 @@ impl Vm {
                 default_target,
             } = selected;
 
-            let dialect = self.native_invocation_dialect();
+            let dialect = self.actual_native_invocation_dialect();
             let Some(dispatch) = dialect.native_ensemble_dispatch_protocol() else {
                 return (
                     self.refuse_host_command("native ensemble forwarding protocol".into()),
@@ -208,7 +208,7 @@ impl Vm {
     }
     pub(crate) fn prepare_original_ensemble_configuration(&self, def: &mut EnsembleDef) {
         let Some(recipe) = self
-            .native_invocation_dialect()
+            .actual_native_invocation_dialect()
             .native_string_materialization(None)
         else {
             return;
@@ -258,6 +258,7 @@ impl Vm {
 
     pub(super) fn native_original_ensemble_table_plan(
         &self,
+        configuration: tcl_registry::native_ensemble::NativeEnsembleConfigurationProtocol,
         def: &EnsembleDef,
         exports: &[NameBytes],
     ) -> tcl_registry::native_ensemble::NativeEnsembleTablePlan {
@@ -275,10 +276,7 @@ impl Vm {
         };
         let map = identity(&def.originals.map);
         let same = map.is_some() && map == identity(&def.originals.subcommands);
-        self.native_invocation_dialect()
-            .native_ensemble_configuration_protocol()
-            .expect("selected ensemble configuration protocol")
-            .table_plan(explicit.as_deref(), &keys, &exports, same)
+        configuration.table_plan(explicit.as_deref(), &keys, &exports, same)
     }
 
     pub(crate) fn build_original_ensemble_table(
@@ -286,6 +284,17 @@ impl Vm {
         def: &EnsembleDef,
         names: &[NameBytes],
     ) -> Result<(), ValueError> {
+        // Physical ensemble objects use their actual engine, independently of source grammar.
+        let dialect = self.actual_native_invocation_dialect();
+        let configuration = dialect.native_ensemble_configuration_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("ensemble original configuration table"),
+        )?;
+        let protocol = dialect
+            .native_string_materialization(None)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "ensemble original prefix table",
+            ))?
+            .protocol();
         let epoch = self
             .compilation_epochs
             .native_ensemble_namespace_epochs
@@ -296,13 +305,6 @@ impl Vm {
         if !def.originals.table.needs_build(epoch) {
             return Ok(());
         }
-        let protocol = self
-            .native_invocation_dialect()
-            .native_string_materialization(None)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "ensemble original prefix table",
-            ))?
-            .protocol();
         if let Some(map) = &def.originals.map {
             drop(
                 map.inspect(|root| root.inspect(|root| root.native_object_dict_pairs(protocol)))
@@ -310,7 +312,7 @@ impl Vm {
                     .transpose()?,
             );
         }
-        let plan = self.native_original_ensemble_table_plan(def, names);
+        let plan = self.native_original_ensemble_table_plan(configuration, def, names);
         let lookup = |index: usize| {
             def.originals.map.as_ref().and_then(|role| {
                 role.inspect(|root| {
@@ -360,5 +362,91 @@ impl Vm {
         }
         def.originals.table.replace(entries, epoch);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod physical_ensemble_owner_tests {
+    use super::*;
+
+    fn answer(_vm: &mut Vm, _args: &[Value]) -> tcl_core_types::Completion<Value> {
+        crate::interp::ok(Value::new_native_string_bytes(b"ANSWER".as_slice()))
+    }
+
+    #[test]
+    fn original_physical_ensemble_table_and_prefix_keep_source_policy_independent() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Actual software core and original table/prefix; no external C object measurement.
+        let actual = crate::environment::profile_for_dialect("tcl9.0");
+        let source = crate::environment::profile_for_dialect("tcl8.4");
+        let mut vm = crate::native_fixture::core(actual);
+        vm.set_dialect_profile(source);
+        let original_config = vm.lexer_config();
+        vm.register_stock_namespace_ensemble(
+            "physical538",
+            "::Physical538",
+            &[("answer", answer)],
+            &["answer"],
+        );
+        let completion = vm
+            .try_invoke_command("physical538", &[Value::string("ans")])
+            .unwrap();
+        assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
+        assert_eq!(
+            completion.result.resident_string_bytes().unwrap().as_ref(),
+            b"ANSWER"
+        );
+        assert_eq!(vm.lexer_config(), original_config);
+        assert_eq!(vm.source_profile().cache_key(), source.cache_key());
+        assert_eq!(
+            vm.actual_native_execution_profile().cache_key(),
+            actual.cache_key()
+        );
+        assert_eq!(vm.source_is_complete("set x ${a{}"), Ok(true));
+        let completion = vm
+            .try_invoke_command(
+                "info",
+                &[Value::string("complete"), Value::string("set x ${a{}")],
+            )
+            .unwrap();
+        assert_eq!(
+            completion.result.resident_string_bytes().unwrap().as_ref(),
+            b"0"
+        );
+    }
+
+    #[test]
+    fn original_ensemble_table_refuses_source_profile_as_physical_configuration_owner() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+        vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
+        let def = EnsembleDef {
+            originals: Default::default(),
+            native: None,
+            namespace: tcl_core_types::ROOT_NS,
+            map: Vec::new(),
+            subcommands: Some(vec![NameBytes::from("answer")]),
+            prefixes: true,
+            parameters: Vec::new(),
+            unknown: None,
+        };
+        assert!(
+            vm.native_invocation_dialect()
+                .native_ensemble_configuration_protocol()
+                .is_some()
+        );
+        assert!(
+            vm.actual_native_invocation_dialect()
+                .native_ensemble_configuration_protocol()
+                .is_none()
+        );
+        assert!(matches!(
+            vm.build_original_ensemble_table(&def, &[]),
+            Err(ValueError::CommandProtocolUnavailable(
+                "ensemble original configuration table"
+            ))
+        ));
     }
 }

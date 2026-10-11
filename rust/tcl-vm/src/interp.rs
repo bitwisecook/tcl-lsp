@@ -8418,7 +8418,7 @@ impl Vm {
         parameters: &[NameBytes],
     ) -> Completion<Value> {
         let Some(configuration) = self
-            .native_invocation_dialect()
+            .actual_native_invocation_dialect()
             .native_ensemble_configuration_protocol()
         else {
             return self.refuse_host_command("ensemble argument usage".into());
@@ -8440,7 +8440,7 @@ impl Vm {
             Ok(bytes) => bytes,
             Err(error) => return self.refuse_host_command(error.to_string()),
         };
-        let Some(protocol) = self.native_invocation_dialect().usage_protocol(None) else {
+        let Some(protocol) = self.actual_native_invocation_dialect().usage_protocol(None) else {
             return self.refuse_host_command(
                 "native ensemble argument usage protocol is unavailable".into(),
             );
@@ -8478,7 +8478,7 @@ impl Vm {
             return self.refuse_host_command("ensemble selected original prefix".into());
         };
         let prefix_len = match self
-            .native_invocation_dialect()
+            .actual_native_invocation_dialect()
             .native_string_materialization(None)
         {
             Some(recipe) => match prefix.native_object_list_elements(recipe.protocol()) {
@@ -8490,7 +8490,11 @@ impl Vm {
             }
         };
         let mut usage = Self::borrow_native_argument_usage(&self.native_invocation.usage_rewrites);
-        if self.native_invocation_dialect().argument_usage_rewriting() == Some(true) {
+        if self
+            .actual_native_invocation_dialect()
+            .argument_usage_rewriting()
+            == Some(true)
+        {
             let head = self
                 .invoked_name_value()
                 .unwrap_or_else(|| Value::string(ens_name));
@@ -8553,21 +8557,22 @@ impl Vm {
                 return self.ensemble_wrong_args(ens_name, &e.parameters);
             };
             let Some(configuration) = self
-                .native_invocation_dialect()
+                .actual_native_invocation_dialect()
                 .native_ensemble_configuration_protocol()
             else {
                 return self.refuse_host_command("ensemble member names".into());
             };
-            let original_sub = match self.native_name_operand_bytes(&argv[layout.subcommand]) {
-                Ok(bytes) => bytes,
-                Err(error) => return self.refuse_host_command(error.to_string()),
-            };
+            let original_sub =
+                match self.native_name_operand_bytes_checked(&argv[layout.subcommand]) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(self, error),
+                };
             let sub = configuration.member_name(&original_sub);
             let exports = match self.exported_command_tails(e.namespace) {
                 Ok(names) => names,
                 Err(error) => return self.refuse_host_command(error.to_string()),
             };
-            let plan = self.native_original_ensemble_table_plan(e, &exports);
+            let plan = self.native_original_ensemble_table_plan(configuration, e, &exports);
             let subs: Vec<_> = plan
                 .entries
                 .into_iter()
@@ -8638,7 +8643,7 @@ impl Vm {
         argv: &[Value],
     ) -> Result<Option<Value>, Completion<Value>> {
         let protocol = self
-            .native_invocation_dialect()
+            .actual_native_invocation_dialect()
             .native_string_materialization(None)
             .ok_or_else(|| {
                 self.refuse_host_command("ensemble unknown original List protocol".into())
