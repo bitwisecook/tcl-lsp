@@ -42,8 +42,8 @@ mod collections;
 pub use collections::probe_list_elements;
 mod scalar;
 pub(crate) use scalar::publish_access_error as scalar_publish_access_error;
-pub(crate) use scalar::{read_scalar_for_interpreter, ScalarReadError};
 pub use scalar::{bind_scalar_getter_context, probe_scalar_getter, NativeScalarObjectAccessError};
+pub(crate) use scalar::{read_scalar_for_interpreter, ScalarReadError};
 use tcl_syntax::scalar_getter::{
     NativeScalarGetterKind as ScalarKind, NativeScalarGetterValue as ScalarValue,
 };
@@ -580,7 +580,10 @@ pub unsafe extern "C" fn TclHost_SetResultString(interp: *mut Interp, result: *c
 #[no_mangle]
 pub unsafe extern "C" fn TclHost_AppendResultString(interp: *mut Interp, piece: *const c_char) {
     // SAFETY: caller guarantees a live interpreter and a terminated string.
-    unsafe { (*interp).append_result_bytes(&c_bytes(piece)) }
+    let interpreter = unsafe { &mut *interp };
+    if let Err(error) = interpreter.append_result_bytes_checked(&unsafe { c_bytes(piece) }) {
+        interpreter.report_cmd_error(error);
+    }
 }
 
 // packages

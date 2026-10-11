@@ -22,6 +22,19 @@ impl ChildInterpreterCommand {
         }
     }
 
+    pub(super) fn name(&self) -> &[u8] {
+        &self.name
+    }
+
+    pub(super) fn is_current_for(&self, parent: &Interp) -> bool {
+        !self.deleted.get()
+            && parent
+                .children
+                .borrow()
+                .get(&self.name)
+                .is_some_and(|child| Weak::ptr_eq(&Rc::downgrade(&child.0), &self.interpreter))
+    }
+
     pub(crate) fn same_allocation(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.deleted, &other.deleted)
     }
@@ -62,15 +75,25 @@ impl Interp {
         command: &ChildInterpreterCommand,
         argv: &[*mut TclObj],
     ) -> Code {
-        let current = self
-            .children
-            .borrow()
-            .get(&command.name)
-            .is_some_and(|child| Weak::ptr_eq(&Rc::downgrade(&child.0), &command.interpreter));
-        if command.deleted.get() || !current {
-            return self.error(b"interpreter has been deleted");
+        self.dispatch_child(command, argv)
+    }
+
+    pub(super) fn check_original_child_command(
+        &self,
+        command: &ChildInterpreterCommand,
+        arguments: &super::native_arguments::OriginalArguments,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        arguments.check_for(self)?;
+        if !command.is_current_for(self) {
+            return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "changed original child command allocation",
+                    ),
+                ),
+            ));
         }
-        self.dispatch_child(&command.name, argv)
+        Ok(())
     }
 
     pub(super) fn retire_pending_children(&mut self) {
@@ -315,7 +338,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interp::{Command, default_host};
+    use crate::interp::{default_host, Command};
     use crate::namespace::GLOBAL;
 
     fn parent(engine: &str) -> Interp {

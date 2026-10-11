@@ -10752,15 +10752,36 @@ impl Interp {
 
     /// `Tcl_AppendResult`'s one piece: the result grows by `piece`, in place when
     /// it is a plain string nothing else holds.
-    pub(crate) fn append_result_bytes(&mut self, piece: &[u8]) {
+    pub(crate) fn append_result_bytes_checked(
+        &mut self,
+        piece: &[u8],
+    ) -> Result<(), tcl_cmd_core::CmdError> {
         let current = self.result.get();
+        let arguments = native_arguments::OriginalArguments::enter(self, &[current])?;
+        arguments.check_original_for(self, 0, current)?;
         if obj::is_plain_string(current) && !obj::is_shared(current) {
             obj::string_append_inplace(current, piece);
-            return;
+            arguments.check_original_for(self, 0, current)?;
+            return Ok(());
         }
-        let mut bytes = obj_bytes(current);
+        let bytes = arguments.bytes(0)?;
+        arguments.check_for(self)?;
+        if self.result.get() != current {
+            return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "changed original appended result slot",
+                    ),
+                ),
+            ));
+        }
+        arguments.check_original_for(self, 0, current)?;
+        let mut bytes = bytes.to_vec();
         bytes.extend_from_slice(piece);
         self.set_result_bytes(&bytes);
+        // A successful replacement can retire the old header; its allocation
+        // lease adds no native role. Only the original operation continues.
+        arguments.check_for(self)
     }
 
     /// The current result's string bytes (copied).
@@ -14756,12 +14777,40 @@ impl Interp {
     /// `kid hidd extra` is `"kid hidden"`, not `"kid hidd"` (tclsh
     /// 8.6.16 / 9.0.4-pinned). Written word for the command, canonical word
     /// for the subcommand.
-    fn child_wrong_args(&mut self, argv: &[*mut TclObj], tail: &[u8]) -> Code {
+    fn child_wrong_args(
+        &mut self,
+        command: &ChildInterpreterCommand,
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
+        tail: &[u8],
+    ) -> Code {
+        let head = match self.invoked_word_checked(argv, arguments) {
+            Ok(head) => head,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        if let Err(error) = self.check_original_child_command(command, arguments) {
+            return self.report_cmd_error(error);
+        }
         let mut message = b"wrong # args: should be \"".to_vec();
-        message.extend_from_slice(&invoked_word(argv));
+        message.extend_from_slice(&head);
         message.extend_from_slice(tail);
         message.push(b'"');
         self.wrong_arguments_message(&message)
+    }
+
+    fn invoked_word_checked(
+        &self,
+        argv: &[*mut TclObj],
+        arguments: &native_arguments::OriginalArguments,
+    ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+        arguments.check_for(self)?;
+        let Some(&word) = argv.first() else {
+            return Ok(Vec::new());
+        };
+        arguments.check_original_for(self, 0, word)?;
+        let bytes = arguments.bytes(0)?;
+        arguments.check_original_for(self, 0, word)?;
+        Ok(bytes.to_vec())
     }
 
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
@@ -14773,23 +14822,30 @@ impl Interp {
     /// `NRChildCmd` and `NRInterpCmd` share `ChildHide` / `ChildExpose` /
     /// `ChildInvokeHidden` the same way. Only the arity check and its noun
     /// differ between the two entry points.
-    fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
+    fn dispatch_child(&mut self, command: &ChildInterpreterCommand, argv: &[*mut TclObj]) -> Code {
         let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
             Ok(arguments) => arguments,
             Err(error) => return self.report_cmd_error(error),
         };
-        let code = self.dispatch_child_original(name, argv, &arguments);
+        if let Err(error) = arguments.check_for(self) {
+            return self.report_cmd_error(error);
+        }
+        if !command.is_current_for(self) {
+            return self.error(b"interpreter has been deleted");
+        }
+        let code = self.dispatch_child_original(command, argv, &arguments);
         arguments.finish(code)
     }
 
     fn dispatch_child_original(
         &mut self,
-        name: &[u8],
+        command: &ChildInterpreterCommand,
         argv: &[*mut TclObj],
         arguments: &native_arguments::OriginalArguments,
     ) -> Code {
+        let name = command.name();
         if argv.len() < 2 {
-            return self.child_wrong_args(argv, b" cmd ?arg ...?");
+            return self.child_wrong_args(command, argv, arguments, b" cmd ?arg ...?");
         }
         if self
             .native_invocation_dialect()
@@ -14801,6 +14857,9 @@ impl Interp {
                 Ok(word) => word,
                 Err(error) => return self.report_cmd_error(error),
             };
+            if let Err(error) = self.check_original_child_command(command, arguments) {
+                return self.report_cmd_error(error);
+            }
             let sub = match crate::cmd_alias::resolve_interp_option(CHOICES, CHOICES, &word) {
                 Ok(sub) => sub,
                 Err(message) => return self.error(&message),
@@ -14809,17 +14868,26 @@ impl Interp {
                 b"eval" if argv.len() >= 3 => self.child_eval_original(name, &argv[2..]),
                 b"delete" if argv.len() == 2 => {
                     self.delete_child(name);
+                    if let Err(error) = arguments.check_for(self) {
+                        return self.report_cmd_error(error);
+                    }
                     self.set_result_bytes(b"");
                     Code::Ok
                 }
                 b"alias" if argv.len() >= 4 => {
                     crate::cmd_alias::child_alias_handle_original(self, name, argv, arguments)
                 }
-                _ => self.child_wrong_args(argv, b" subcommand ?arg ...?"),
+                _ => self.child_wrong_args(command, argv, arguments, b" subcommand ?arg ...?"),
             };
         }
+        if let Err(error) = arguments.check_original_for(self, 1, argv[1]) {
+            return self.report_cmd_error(error);
+        }
         let selected = self.native_interpreter_option_from_original(argv[1], true);
-        if let Err(error) = arguments.check() {
+        if let Err(error) = arguments.check_original_for(self, 1, argv[1]) {
+            return self.report_cmd_error(error);
+        }
+        if let Err(error) = self.check_original_child_command(command, arguments) {
             return self.report_cmd_error(error);
         }
         let sub = match selected {
@@ -14829,13 +14897,13 @@ impl Interp {
         match sub {
             b"eval" => {
                 if argv.len() < 3 {
-                    return self.child_wrong_args(argv, b" eval arg ?arg ...?");
+                    return self.child_wrong_args(command, argv, arguments, b" eval arg ?arg ...?");
                 }
                 self.child_eval_original(name, &argv[2..])
             }
             b"issafe" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(argv, b" issafe");
+                    return self.child_wrong_args(command, argv, arguments, b" issafe");
                 }
                 let safe = self.with_child(name, |c| c.is_safe()).unwrap_or(false);
                 self.set_result_bytes(if safe { b"1" } else { b"0" });
@@ -14843,6 +14911,9 @@ impl Interp {
             }
             b"delete" => {
                 self.delete_child(name);
+                if let Err(error) = arguments.check_for(self) {
+                    return self.report_cmd_error(error);
+                }
                 self.set_result_bytes(b"");
                 Code::Ok
             }
@@ -14861,7 +14932,9 @@ impl Interp {
                 };
                 if argv.len() != 3 && argv.len() != 4 {
                     return self.child_wrong_args(
+                        command,
                         argv,
+                        arguments,
                         if hide {
                             b" hide cmdName ?hiddenCmdName?"
                         } else {
@@ -14881,7 +14954,13 @@ impl Interp {
                 crate::cmd_alias::hidectl_in(self, &[name.to_vec()], op, &argv[2..])
             }
             b"invokehidden" => {
-                let mut usage = invoked_word(argv);
+                let mut usage = match self.invoked_word_checked(argv, arguments) {
+                    Ok(usage) => usage,
+                    Err(error) => return self.report_cmd_error(error),
+                };
+                if let Err(error) = self.check_original_child_command(command, arguments) {
+                    return self.report_cmd_error(error);
+                }
                 usage.extend_from_slice(
                     b" invokehidden ?-namespace ns? ?-global? ?--? cmd ?arg ..?",
                 );
@@ -14889,7 +14968,7 @@ impl Interp {
             }
             b"hidden" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(argv, b" hidden");
+                    return self.child_wrong_args(command, argv, arguments, b" hidden");
                 }
                 let names = self
                     .with_child(name, |c| c.hidden_names())
@@ -14901,7 +14980,7 @@ impl Interp {
             }
             b"aliases" => {
                 if argv.len() != 2 {
-                    return self.child_wrong_args(argv, b" aliases");
+                    return self.child_wrong_args(command, argv, arguments, b" aliases");
                 }
                 let names = self
                     .with_child(name, |c| c.alias_names())
@@ -14918,9 +14997,25 @@ impl Interp {
             // `$child recursionlimit ?newlimit?` — the path-less child form.
             b"recursionlimit" => {
                 if argv.len() > 3 {
-                    return self.child_wrong_args(argv, b" recursionlimit ?newlimit?");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" recursionlimit ?newlimit?",
+                    );
                 }
-                let newlimit = argv.get(2).map(|&a| obj_bytes(a));
+                let newlimit = if argv.len() == 3 {
+                    let value = match arguments.bytes(2) {
+                        Ok(value) => value,
+                        Err(error) => return self.report_cmd_error(error),
+                    };
+                    if let Err(error) = self.check_original_child_command(command, arguments) {
+                        return self.report_cmd_error(error);
+                    }
+                    Some(value)
+                } else {
+                    None
+                };
                 match self.with_child(name, |c| c.recursion_limit_apply(newlimit.as_deref())) {
                     Some(Ok(n)) => {
                         self.set_result_bytes(n.to_string().as_bytes());
@@ -14934,7 +15029,12 @@ impl Interp {
             // handler.
             b"bgerror" => {
                 if argv.len() > 3 {
-                    return self.child_wrong_args(argv, b" bgerror ?cmdPrefix?");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" bgerror ?cmdPrefix?",
+                    );
                 }
                 let prefix = argv.get(2).copied();
                 match self.with_child(name, |c| c.bgerror_apply(prefix)) {
@@ -14961,7 +15061,12 @@ impl Interp {
             // `$child debug ?-frame ?bool??` — the per-interp frame-debug switch.
             b"debug" => {
                 if argv.len() > 4 {
-                    return self.child_wrong_args(argv, b" debug ?-frame ?bool??");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" debug ?-frame ?bool??",
+                    );
                 }
                 let opts: Vec<*mut TclObj> = argv[2..].to_vec();
                 match self.with_child(name, |c| c.debug_apply(&opts)) {
@@ -14977,9 +15082,20 @@ impl Interp {
             // child's commands/time limit.
             b"limit" => {
                 if argv.len() < 3 {
-                    return self.child_wrong_args(argv, b" limit limitType ?-option value ...?");
+                    return self.child_wrong_args(
+                        command,
+                        argv,
+                        arguments,
+                        b" limit limitType ?-option value ...?",
+                    );
                 }
-                let ltype = obj_bytes(argv[2]);
+                let ltype = match arguments.bytes(2) {
+                    Ok(value) => value,
+                    Err(error) => return self.report_cmd_error(error),
+                };
+                if let Err(error) = self.check_original_child_command(command, arguments) {
+                    return self.report_cmd_error(error);
+                }
                 let opts: Vec<*mut TclObj> = argv[3..].to_vec();
                 match self.with_child(name, |c| c.limit_apply(&ltype, &opts)) {
                     Some(Ok(o)) => {
@@ -17688,11 +17804,45 @@ impl Interp {
     }
 
     fn word_expression_bytes(&mut self, source: &[u8]) -> Result<Vec<u8>, Code> {
-        let value = self.eval_word_expression(source)?;
-        let bytes = obj_bytes(value);
-        // SAFETY: expression evaluation transfers one owning reference.
+        let arguments = match native_arguments::OriginalArguments::enter(self, &[]) {
+            Ok(arguments) => arguments,
+            Err(error) => return Err(self.report_cmd_error(error)),
+        };
+        let evaluated = self.eval_word_expression(source);
+        match evaluated {
+            Ok(value) => self
+                .word_expression_result_bytes_checked(value, &arguments)
+                .map_err(|error| self.report_cmd_error(error)),
+            Err(code) => match arguments.check_for(self) {
+                Ok(()) => Err(code),
+                Err(error) => Err(self.report_cmd_error(error)),
+            },
+        }
+    }
+
+    /// Consume the expression evaluator's actual owning reference on every
+    /// outcome; allocation-only argument leases do not add a working hold.
+    fn word_expression_result_bytes_checked(
+        &mut self,
+        value: *mut TclObj,
+        arguments: &native_arguments::OriginalArguments,
+    ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+        let reached: Result<Vec<u8>, tcl_cmd_core::CmdError> = (|| {
+            arguments.check_for(self)?;
+            let original = native_arguments::OriginalArguments::enter(self, &[value])?;
+            let bytes = original.bytes(0)?;
+            original.check_original_for(self, 0, value)?;
+            Ok(bytes.to_vec())
+        })();
+        if let Err(ref error) = reached {
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
+            }
+        }
+        // SAFETY: the genuine expression result transfers one owning reference.
         unsafe { obj::decr_ref_count(value) };
-        Ok(bytes)
+        arguments.check_for(self)?;
+        reached
     }
 
     /// Substitute one word's body into an **owned** (`+1`) object.
@@ -18359,16 +18509,6 @@ fn proc_usage<O: obj::ObjectPointer>(
 ) -> Vec<u8> {
     let header = protocol.render_procedure_name(called, quote_name);
     protocol.render_procedure_message(&header, &formal_usage(params, grammar))
-}
-
-/// The word a call was written with — `argv[0]`, C's `objv[0]`.
-///
-/// This is what `Tcl_WrongNumArgs` prints, and it is deliberately *not* the
-/// name a command is filed under: the two differ after a `rename`, under a
-/// qualified spelling, and through an alias. Empty for an argv with no words,
-/// which no dispatch path produces.
-fn invoked_word(argv: &[*mut TclObj]) -> Vec<u8> {
-    argv.first().map_or_else(Vec::new, |&word| obj_bytes(word))
 }
 
 /// Discard a freshly created (`rc 0`) object that is not going to be stored
@@ -23043,3 +23183,7 @@ mod native_trace_result;
 
 #[cfg(test)]
 mod native_child_alias_publication_tests;
+
+#[cfg(test)]
+#[path = "interp/native_result_boundaries_tests.rs"]
+mod native_result_boundaries_tests;
