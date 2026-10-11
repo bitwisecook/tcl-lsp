@@ -919,6 +919,10 @@ pub enum RegexpExecutionError<E> {
     Assignment(E),
 }
 
+fn regex_execution_error<E>(error: impl Into<CmdError>) -> RegexpExecutionError<E> {
+    RegexpExecutionError::Regex(RegexError::from(error.into()))
+}
+
 /// Resolve original options and assign each original target inside the match
 /// loop. Unmatched, inline and about paths never materialise target objects.
 pub fn regexp_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
@@ -1213,7 +1217,6 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     version: TclVersion,
     mut assign: impl FnMut(&mut O, &O::Value, O::Value) -> Result<(), Err>,
 ) -> Result<RegexpResult<O::Value>, RegexpExecutionError<Err>> {
-    let host = |error| RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(error)));
     let selected = jim_options(ops, args, version, false).map_err(RegexpExecutionError::Regex)?;
     let original = &args[selected.offset..];
     if original.len() < 2 {
@@ -1222,12 +1225,16 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     let prepared = prepare_pattern_original::<O, E>(ops, &original[0], selected.flags, version)
         .map_err(RegexpExecutionError::Regex)?;
     let PreparedOriginalRegex::Jim { artifact, .. } = prepared else {
-        return Err(host(ValueError::CommandProtocolUnavailable(
-            "Jim regexp prepared artifact",
-        )));
+        return Err(regex_execution_error(
+            ValueError::CommandProtocolUnavailable("Jim regexp prepared artifact"),
+        ));
     };
-    let pattern = ops.native_string_bytes(&original[0]).map_err(host)?;
-    let subject = ops.native_string_bytes(&original[1]).map_err(host)?;
+    let pattern = ops
+        .native_string_bytes(&original[0])
+        .map_err(regex_execution_error)?;
+    let subject = ops
+        .native_string_bytes(&original[1])
+        .map_err(regex_execution_error)?;
     let vars = original.len() - 2;
     if selected.inline == JimResultDelivery::Inline && vars != 0 {
         return Err(RegexpExecutionError::Regex(RegexError::new(
@@ -1235,15 +1242,17 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
         )));
     }
     let count = if selected.inline == JimResultDelivery::Inline {
-        artifact.with_program(|re| E::nsub(re) + 1).map_err(host)?
+        artifact
+            .with_program(|re| E::nsub(re) + 1)
+            .map_err(regex_execution_error)?
     } else {
         vars
     };
-    let mut offset = jim_byte_offset(&subject, selected.start).map_err(host)?;
+    let mut offset = jim_byte_offset(&subject, selected.start).map_err(regex_execution_error)?;
     let mut character_offset = if selected.start < 0 {
         i64::from(selected.start)
             + i64::try_from(subject.len()).map_err(|_| {
-                host(ValueError::CommandProtocolUnavailable(
+                regex_execution_error(ValueError::CommandProtocolUnavailable(
                     "Jim regexp source length",
                 ))
             })?
@@ -1257,12 +1266,15 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     loop {
         let matches = artifact
             .with_program(|re| E::exec_jim(re, &subject[offset..], count + 1, notbol))
-            .map_err(host)?
-            .map_err(|reason| host(ValueError::CommandProtocolUnavailable(reason)))?;
+            .map_err(regex_execution_error)?
+            .map_err(|reason| {
+                regex_execution_error(ValueError::CommandProtocolUnavailable(reason))
+            })?;
         let Some(matches) = matches else {
             break;
         };
-        let whole = jim_whole_match(&matches, subject.len() - offset).map_err(host)?;
+        let whole =
+            jim_whole_match(&matches, subject.len() - offset).map_err(regex_execution_error)?;
         matches_count += 1;
         for index in 0..count {
             let span = matches.get(index).copied().unwrap_or(RegMatch {
@@ -1277,9 +1289,12 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
                 character_offset,
                 selected.indices,
             )
-            .map_err(host)?;
+            .map_err(regex_execution_error)?;
             if selected.inline == JimResultDelivery::Inline {
-                output.push(ops.index_created_key(value).map_err(host)?);
+                output.push(
+                    ops.index_created_key(value)
+                        .map_err(regex_execution_error)?,
+                );
             } else {
                 assign(ops, &original[index + 2], value)
                     .map_err(RegexpExecutionError::Assignment)?;
@@ -1291,7 +1306,8 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
         {
             break;
         }
-        advance_jim_regexp(&subject, whole, &mut offset, &mut character_offset).map_err(host)?;
+        advance_jim_regexp(&subject, whole, &mut offset, &mut character_offset)
+            .map_err(regex_execution_error)?;
         if subject.get(offset).is_none_or(|&byte| byte == 0) {
             break;
         }
@@ -1302,7 +1318,7 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
             .iter()
             .map(|owner| ops.index_key_argument(owner))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(host)?;
+            .map_err(regex_execution_error)?;
         Ok(RegexpResult::Inline(ops.new_list(values)))
     } else {
         Ok(RegexpResult::Count {
@@ -2431,7 +2447,6 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     options: RegexpOptions,
     mut assign: impl FnMut(&mut O, usize, O::Value) -> Result<(), Err>,
 ) -> Result<RegexpResult<O::Value>, RegexpExecutionError<Err>> {
-    let host = |error| RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(error)));
     let RegexpOptions {
         version,
         common,
@@ -2442,7 +2457,9 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     let (length, mut offset) = if about {
         (0, 0)
     } else {
-        let length = ops.index_character_count(&originals[1]).map_err(host)?;
+        let length = ops
+            .index_character_count(&originals[1])
+            .map_err(regex_execution_error)?;
         let offset = common
             .start
             .as_ref()
@@ -2466,9 +2483,11 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     let mut count = 0_i64;
     let mut items = Vec::new();
     loop {
-        let units = ops.index_c_unicode_units(&originals[1]).map_err(host)?;
-        let characters =
-            native_regex_characters(&units, "native regexp character width").map_err(host)?;
+        let units = ops
+            .index_c_unicode_units(&originals[1])
+            .map_err(regex_execution_error)?;
+        let characters = native_regex_characters(&units, "native regexp character width")
+            .map_err(regex_execution_error)?;
         let matches = E::exec(
             &mut compiled.borrow_mut(),
             &characters,
@@ -2485,7 +2504,7 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
             units.len(),
             "native regexp whole-match geometry",
         )
-        .map_err(host)?;
+        .map_err(regex_execution_error)?;
         let total = if inline {
             nsubs + 1
         } else {
@@ -2497,9 +2516,12 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
                 .flatten();
             let value =
                 native_capture_value::<O, E>(ops, &originals[1], &units, span, recipe, indices)
-                    .map_err(host)?;
+                    .map_err(regex_execution_error)?;
             if inline {
-                items.push(ops.index_created_key(value).map_err(host)?);
+                items.push(
+                    ops.index_created_key(value)
+                        .map_err(regex_execution_error)?,
+                );
             } else {
                 assign(ops, index, value).map_err(RegexpExecutionError::Assignment)?;
             }
@@ -2521,7 +2543,7 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
             .iter()
             .map(|owner| ops.index_key_argument(owner))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(host)?;
+            .map_err(regex_execution_error)?;
         Ok(RegexpResult::Inline(ops.new_list(values)))
     } else {
         Ok(RegexpResult::Count {
@@ -2590,15 +2612,15 @@ fn jim_regsub_callback<O: NativeRegsubObjects>(
         }
         arguments.push(
             ops.regex_jim_bytes(&subject[offset + span.so..offset + span.eo], false)
-                .map_err(host)?,
+                .map_err(regex_execution_error)?,
         );
     }
     let call = ops
         .regex_duplicate(ops.regex_object(prefix))
-        .map_err(host)?;
+        .map_err(regex_execution_error)?;
     ops.regex_eval(ops.regex_object(&call), &arguments)
         .map_err(RegsubError::Eval)?;
-    let current = ops.regex_result_bytes().map_err(host)?;
+    let current = ops.regex_result_bytes().map_err(regex_execution_error)?;
     output.extend_from_slice(tcl_core_types::c_string_extent(&current));
     Ok(())
 }
