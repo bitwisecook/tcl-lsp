@@ -53,6 +53,7 @@ mod native_bootstrap;
 pub(crate) mod native_context;
 pub(crate) mod native_method_cache;
 pub(crate) mod native_variables;
+mod original_name_operands;
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 
 use tcl_core_types::NameBytes;
@@ -126,6 +127,8 @@ struct DeclaredVariable {
 /// The class facet of an entity: what its *instances* inherit.
 #[derive(Clone, Default)]
 struct Class {
+    /// Identity of this actual class facet; observational clones retain it.
+    birth: Rc<()>,
     /// Superclass FQNs (canonical). Empty means `::oo::object`.
     supers: Vec<OoId>,
     methods: native_method_cache::MethodTable,
@@ -408,31 +411,30 @@ fn object_message(vm: &Vm, id: OoId, before: &[u8], after: &[u8]) -> Vec<u8> {
 }
 
 fn native_method_key(vm: &mut Vm, original: &Value) -> Result<String, Completion<Value>> {
-    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(vm)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-    let reached = vm.native_name_operand_bytes(original);
-    scope
-        .check(vm)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-    let bytes = reached.map_err(|error| {
-        crate::command::completion_from_cmd_error(
-            vm,
-            tcl_syntax::value::ValueError::from(
-                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-            )
-            .into(),
-        )
-    })?;
-    let policy = vm.name_policy_protocol().ok_or_else(|| {
-        vm.refuse_host_command("native TclOO method protocol unavailable".to_owned())
-    })?;
-    let projected = policy
-        .recipe()
-        .oo_method_input(&bytes)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    Ok(vm
-        .oo
-        .intern_method_key(tcl_core_types::NameBytes::from(projected.selected())))
+    let target = active_target(vm)
+        .or_else(|| native_context::current_method(vm).map(|frame| (false, frame.object)));
+    native_method_key_for_target(vm, original, target)
+}
+fn native_method_key_for_target(
+    vm: &mut Vm,
+    original: &Value,
+    target: Option<(bool, OoId)>,
+) -> Result<String, Completion<Value>> {
+    original_name_operands::run_result(vm, target, |vm, original_names| {
+        let bytes = original_names
+            .read(vm, original)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let policy = vm.name_policy_protocol().ok_or_else(|| {
+            vm.refuse_host_command("native TclOO method protocol unavailable".to_owned())
+        })?;
+        let projected = policy
+            .recipe()
+            .oo_method_input(&bytes)
+            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        Ok(vm
+            .oo
+            .intern_method_key(tcl_core_types::NameBytes::from(projected.selected())))
+    })
 }
 
 fn method_report_bytes(vm: &Vm, key: &str) -> Vec<u8> {
@@ -530,30 +532,34 @@ fn property_slot_operation<'a>(
     args: &'a [Value],
     version: tcl_dialect::TclVersion,
 ) -> Result<(tcl_registry::definer::SlotOp, &'a [Value]), Completion<Value>> {
-    Ok(if let Some((first, rest)) = args.split_first() {
-        let bytes = match vm.native_name_operand_bytes(first) {
-            Ok(bytes) => bytes,
-            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
-        };
-        if bytes.first() == Some(&b'-') {
-            let selected =
-                match tcl_syntax::naming::NativeNameProtocol::C(version).oo_method_input(&bytes) {
+    let target = active_target(vm);
+    original_name_operands::run_result(vm, target, |vm, original_names| {
+        Ok(if let Some((first, rest)) = args.split_first() {
+            let bytes = match original_names.read(vm, first) {
+                Ok(bytes) => bytes,
+                Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
+            };
+            if bytes.first() == Some(&b'-') {
+                let selected = match tcl_syntax::naming::NativeNameProtocol::C(version)
+                    .oo_method_input(&bytes)
+                {
                     Ok(selected) => selected,
                     Err(error) => return Err(vm.refuse_host_command(error.to_string())),
                 };
-            let operation = match tcl_registry::definer::SlotOp::resolve_runtime(
-                selected.selected(),
-                version,
-            ) {
-                Ok(operation) => operation,
-                Err(message) => return Err(err(message)),
-            };
-            (operation, rest)
+                let operation = match tcl_registry::definer::SlotOp::resolve_runtime(
+                    selected.selected(),
+                    version,
+                ) {
+                    Ok(operation) => operation,
+                    Err(message) => return Err(err(message)),
+                };
+                (operation, rest)
+            } else {
+                (tcl_registry::definer::SlotOp::Set, args)
+            }
         } else {
             (tcl_registry::definer::SlotOp::Set, args)
-        }
-    } else {
-        (tcl_registry::definer::SlotOp::Set, args)
+        })
     })
 }
 
@@ -564,89 +570,96 @@ fn property_slot_operation<'a>(
 /// are `-set` (replace, also the default for bare names), `-append`, `-remove`,
 /// and `-clear`; every op keeps the set sorted and duplicate-free.
 fn property_slot(vm: &mut Vm, args: &[Value], obj: bool, writable: bool) -> Completion<Value> {
-    let Some((is_class, target)) = active_target(vm) else {
-        return err_code(
-            "this command may only be called from within the context of an ::oo::define or ::oo::objdefine command",
-            &["TCL", "OO", "MONKEY_BUSINESS"],
-        );
-    };
-    let Some(tcl_syntax::naming::NativeNameProtocol::C(version)) =
-        vm.actual_native_invocation_dialect().native_name_protocol()
-    else {
-        return vm.refuse_host_command("native property slot naming unavailable".to_owned());
-    };
-    let (operation, names) = match property_slot_operation(vm, args, version) {
-        Ok(selected) => selected,
-        Err(completion) => return completion,
-    };
-    if matches!(
-        operation,
-        tcl_registry::definer::SlotOp::AppendIfNew | tcl_registry::definer::SlotOp::Prepend
-    ) {
-        return vm.refuse_host_command("native property slot operation is unmodelled".to_owned());
-    }
-    if vm
-        .actual_native_invocation_dialect()
-        .native_property_lookup_protocol()
-        .is_some()
-    {
-        let class = is_class && !obj;
-        let names = match native_properties::set_property_slot(
-            vm, target, class, writable, operation, names,
+    let target = active_target(vm);
+    original_name_operands::run(vm, target, |vm, original_names| {
+        let Some((is_class, target)) = active_target(vm) else {
+            return err_code(
+                "this command may only be called from within the context of an ::oo::define or ::oo::objdefine command",
+                &["TCL", "OO", "MONKEY_BUSINESS"],
+            );
+        };
+        let Some(tcl_syntax::naming::NativeNameProtocol::C(version)) =
+            vm.actual_native_invocation_dialect().native_name_protocol()
+        else {
+            return vm.refuse_host_command("native property slot naming unavailable".to_owned());
+        };
+        let (operation, names) = match property_slot_operation(vm, args, version) {
+            Ok(selected) => selected,
+            Err(completion) => return completion,
+        };
+        if matches!(
+            operation,
+            tcl_registry::definer::SlotOp::AppendIfNew | tcl_registry::definer::SlotOp::Prepend
         ) {
-            Ok(names) => names,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-        };
-        if class {
-            if let Some(entry) = vm.oo.classes.get_mut(&target) {
-                *slot_of_class(entry, writable) = names;
-            }
-        } else if let Some(entry) = vm.oo.objects.get_mut(&target) {
-            *slot_of_obj(entry, writable) = names;
+            return vm
+                .refuse_host_command("native property slot operation is unmodelled".to_owned());
         }
-        return ok(Value::empty());
-    }
-    let mut new_names = Vec::new();
-    for original in names {
-        let bytes = match vm.native_name_operand_bytes(original) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        new_names.push(
-            vm.oo
-                .intern_method_key(tcl_core_types::NameBytes::from(bytes.as_ref())),
-        );
-    }
+        if vm
+            .actual_native_invocation_dialect()
+            .native_property_lookup_protocol()
+            .is_some()
+        {
+            let class = is_class && !obj;
+            let names = match native_properties::set_property_slot(
+                vm, target, class, writable, operation, names,
+            ) {
+                Ok(names) => names,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            };
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            if class {
+                if let Some(entry) = vm.oo.classes.get_mut(&target) {
+                    *slot_of_class(entry, writable) = names;
+                }
+            } else if let Some(entry) = vm.oo.objects.get_mut(&target) {
+                *slot_of_obj(entry, writable) = names;
+            }
+            return ok(Value::empty());
+        }
+        let mut new_names = Vec::new();
+        for original in names {
+            let bytes = match original_names.read(vm, original) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            new_names.push(
+                vm.oo
+                    .intern_method_key(tcl_core_types::NameBytes::from(bytes.as_ref())),
+            );
+        }
 
-    // Resolve the target set: the per-object slot writes the object facet, the
-    // class slot writes the class facet (a class is also an object).
-    let set = if obj || !is_class {
-        vm.oo
-            .objects
-            .get_mut(&target)
-            .map(|o| slot_of_obj(o, writable))
-    } else {
-        vm.oo
-            .classes
-            .get_mut(&target)
-            .map(|c| slot_of_class(c, writable))
-    };
-    let Some(set) = set else {
-        return err(object_message(
-            vm,
-            target,
-            b"",
-            b" does not refer to an object",
-        ));
-    };
-    let mut values: Vec<_> = set.iter().cloned().collect();
-    tcl_registry::definer::SlotSpec {
-        default_op: tcl_registry::definer::SlotOp::Set,
-        dedup: true,
-    }
-    .apply_values(&mut values, operation, &new_names);
-    *set = values.into_iter().collect();
-    ok(Value::empty())
+        // Resolve the target set: the per-object slot writes the object facet, the
+        // class slot writes the class facet (a class is also an object).
+        let set = if obj || !is_class {
+            vm.oo
+                .objects
+                .get_mut(&target)
+                .map(|o| slot_of_obj(o, writable))
+        } else {
+            vm.oo
+                .classes
+                .get_mut(&target)
+                .map(|c| slot_of_class(c, writable))
+        };
+        let Some(set) = set else {
+            return err(object_message(
+                vm,
+                target,
+                b"",
+                b" does not refer to an object",
+            ));
+        };
+        let mut values: Vec<_> = set.iter().cloned().collect();
+        tcl_registry::definer::SlotSpec {
+            default_op: tcl_registry::definer::SlotOp::Set,
+            dedup: true,
+        }
+        .apply_values(&mut values, operation, &new_names);
+        *set = values.into_iter().collect();
+        ok(Value::empty())
+    })
 }
 
 fn slot_of_class(c: &mut Class, writable: bool) -> &mut BTreeSet<String> {
@@ -951,48 +964,50 @@ fn gate_property(
     _table: &mut Option<Value>,
     _retain_table: bool,
 ) -> Result<String, Completion<Value>> {
-    let recipe = vm
-        .actual_native_invocation_dialect()
-        .native_property_name_protocol()
-        .ok_or_else(|| {
-            vm.refuse_host_command("native property name protocol unavailable".to_owned())
-        })?;
-    let bytes = vm
-        .native_name_operand_bytes(original)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    let wanted = configure_props(vm, obj_key, for_write);
-    let names: Vec<_> = wanted
-        .iter()
-        .map(|key| vm.oo.method_name_bytes(key))
-        .collect();
-    let miss = match recipe.lookup(&bytes, &names) {
-        Ok(index) => return Ok(wanted[index].clone()),
-        Err(message) => message,
-    };
-    let other = configure_props(vm, obj_key, !for_write);
-    let names: Vec<_> = other
-        .iter()
-        .map(|key| vm.oo.method_name_bytes(key))
-        .collect();
-    let mut message = miss;
-    if let Ok(index) = recipe.lookup(&bytes, &names) {
-        message = b"property \"".to_vec();
-        message.extend_from_slice(tcl_core_types::c_string_extent(names[index]));
-        message.extend_from_slice(if for_write {
-            b"\" is read only"
-        } else {
-            b"\" is write only"
-        });
-    }
-    Err(crate::command::completion_from_cmd_error(
-        vm,
-        tcl_cmd_core::CmdError::lookup_index_bytes(
-            message,
-            b"property",
-            tcl_core_types::c_string_extent(&bytes),
-        )
-        .with_native_string_result(recipe.strings()),
-    ))
+    original_name_operands::run_result(vm, Some((false, obj_key)), |vm, original_names| {
+        let recipe = vm
+            .actual_native_invocation_dialect()
+            .native_property_name_protocol()
+            .ok_or_else(|| {
+                vm.refuse_host_command("native property name protocol unavailable".to_owned())
+            })?;
+        let bytes = original_names
+            .read(vm, original)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let wanted = configure_props(vm, obj_key, for_write);
+        let names: Vec<_> = wanted
+            .iter()
+            .map(|key| vm.oo.method_name_bytes(key))
+            .collect();
+        let miss = match recipe.lookup(&bytes, &names) {
+            Ok(index) => return Ok(wanted[index].clone()),
+            Err(message) => message,
+        };
+        let other = configure_props(vm, obj_key, !for_write);
+        let names: Vec<_> = other
+            .iter()
+            .map(|key| vm.oo.method_name_bytes(key))
+            .collect();
+        let mut message = miss;
+        if let Ok(index) = recipe.lookup(&bytes, &names) {
+            message = b"property \"".to_vec();
+            message.extend_from_slice(tcl_core_types::c_string_extent(names[index]));
+            message.extend_from_slice(if for_write {
+                b"\" is read only"
+            } else {
+                b"\" is write only"
+            });
+        }
+        Err(crate::command::completion_from_cmd_error(
+            vm,
+            tcl_cmd_core::CmdError::lookup_index_bytes(
+                message,
+                b"property",
+                tcl_core_types::c_string_extent(&bytes),
+            )
+            .with_native_string_result(recipe.strings()),
+        ))
+    })
 }
 
 /// Derive the selected accessor key from the retained counted property name.
@@ -1203,7 +1218,7 @@ fn oo_dispatch_entered(
         usage.extend_from_slice(b" method ?arg ...?");
         return crate::command::native_wrong_args_bytes(vm, &usage);
     }
-    let method = match native_method_key(vm, &argv[0]) {
+    let method = match native_method_key_for_target(vm, &argv[0], Some((false, key))) {
         Ok(key) => key,
         Err(completion) => return completion,
     };
@@ -1224,96 +1239,99 @@ fn factory(
     anon: bool,
     args: &[Value],
 ) -> Completion<Value> {
-    // Instantiating a metaclass (a class whose MRO includes `::oo::class`)
-    // builds a *class*, and its trailing arg is a definition script, not
-    // constructor arguments.
-    let is_meta = vm
-        .oo
-        .class_linear_of(class_key)
-        .iter()
-        .any(|s| Some(s.provider) == vm.oo.class_root);
-    if is_meta {
-        let (name, body) = if anon {
-            (fresh_obj_name(vm).into_bytes(), args.first())
+    original_name_operands::run(vm, Some((true, class_key)), |vm, original_names| {
+        // Instantiating a metaclass (a class whose MRO includes `::oo::class`)
+        // builds a *class*, and its trailing arg is a definition script, not
+        // constructor arguments.
+        let is_meta = vm
+            .oo
+            .class_linear_of(class_key)
+            .iter()
+            .any(|s| Some(s.provider) == vm.oo.class_root);
+        if is_meta {
+            let (name, body) = if anon {
+                (fresh_obj_name(vm).into_bytes(), args.first())
+            } else {
+                let Some((n, rest)) = args.split_first() else {
+                    let mut usage = match vm
+                        .native_argument_usage_header(std::slice::from_ref(class_invoked))
+                    {
+                        Ok(header) => header,
+                        Err(completion) => return completion,
+                    };
+                    usage.extend_from_slice(b" create className ?definitionScript?");
+                    return crate::command::native_wrong_args_bytes(vm, &usage);
+                };
+                let n = match original_names.read(vm, n) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                if n.is_empty() {
+                    return err("object name must not be empty");
+                }
+                (n.to_vec(), rest.first())
+            };
+            return make_class_bytes(vm, &name, body, class_key);
+        }
+
+        let (obj_key, obj_ns, ctor_args, ctor_usage, ctor_identity) = if anon {
+            // An anonymous object's command *is* its instance namespace (`oo::ObjN`).
+            let n = fresh_obj_name(vm);
+            let identity =
+                original_call_words([class_invoked, original_factory].into_iter().chain(args));
+            (
+                n.as_bytes().to_vec(),
+                n,
+                args,
+                vec![class_invoked.clone(), original_factory.clone()],
+                identity,
+            )
         } else {
-            let Some((n, rest)) = args.split_first() else {
+            let Some((name, rest)) = args.split_first() else {
                 let mut usage =
                     match vm.native_argument_usage_header(std::slice::from_ref(class_invoked)) {
                         Ok(header) => header,
                         Err(completion) => return completion,
                     };
-                usage.extend_from_slice(b" create className ?definitionScript?");
+                usage.extend_from_slice(b" create objectName ?arg ...?");
                 return crate::command::native_wrong_args_bytes(vm, &usage);
             };
-            let n = match vm.native_name_operand_bytes(n) {
+            let name_bytes = match original_names.read(vm, name) {
                 Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
             };
-            if n.is_empty() {
+            if name_bytes.is_empty() {
                 return err("object name must not be empty");
             }
-            (n.to_vec(), rest.first())
+            // A named object's instance namespace is still a fresh `oo::ObjN`,
+            // decoupled from its command name (C's `oo::Obj` counter).
+            let identity = original_call_words(
+                [class_invoked, original_factory, name]
+                    .into_iter()
+                    .chain(rest),
+            );
+            (
+                name_bytes.to_vec(),
+                fresh_obj_name(vm),
+                rest,
+                vec![
+                    class_invoked.clone(),
+                    original_factory.clone(),
+                    name.clone(),
+                ],
+                identity,
+            )
         };
-        return make_class_bytes(vm, &name, body, class_key);
-    }
-
-    let (obj_key, obj_ns, ctor_args, ctor_usage, ctor_identity) = if anon {
-        // An anonymous object's command *is* its instance namespace (`oo::ObjN`).
-        let n = fresh_obj_name(vm);
-        let identity =
-            original_call_words([class_invoked, original_factory].into_iter().chain(args));
-        (
-            n.as_bytes().to_vec(),
-            n,
-            args,
-            vec![class_invoked.clone(), original_factory.clone()],
-            identity,
+        oo_new(
+            vm,
+            class_key,
+            &obj_key,
+            &obj_ns,
+            ctor_args,
+            &ctor_usage,
+            ctor_identity,
         )
-    } else {
-        let Some((name, rest)) = args.split_first() else {
-            let mut usage =
-                match vm.native_argument_usage_header(std::slice::from_ref(class_invoked)) {
-                    Ok(header) => header,
-                    Err(completion) => return completion,
-                };
-            usage.extend_from_slice(b" create objectName ?arg ...?");
-            return crate::command::native_wrong_args_bytes(vm, &usage);
-        };
-        let name_bytes = match vm.native_name_operand_bytes(name) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        if name_bytes.is_empty() {
-            return err("object name must not be empty");
-        }
-        // A named object's instance namespace is still a fresh `oo::ObjN`,
-        // decoupled from its command name (C's `oo::Obj` counter).
-        let identity = original_call_words(
-            [class_invoked, original_factory, name]
-                .into_iter()
-                .chain(rest),
-        );
-        (
-            name_bytes.to_vec(),
-            fresh_obj_name(vm),
-            rest,
-            vec![
-                class_invoked.clone(),
-                original_factory.clone(),
-                name.clone(),
-            ],
-            identity,
-        )
-    };
-    oo_new(
-        vm,
-        class_key,
-        &obj_key,
-        &obj_ns,
-        ctor_args,
-        &ctor_usage,
-        ctor_identity,
-    )
+    })
 }
 
 /// A fresh `oo::ObjN` name (canonical) for an anonymous object.
@@ -2165,141 +2183,154 @@ fn builtin_method(
     original_method: &Value,
     external: bool,
 ) -> Completion<Value> {
-    let ns = match vm.oo.objects.get(&obj_key) {
-        Some(o) => o.ns.clone(),
-        None => {
-            return err(object_message(
-                vm,
-                obj_key,
-                b"invalid command name \"",
-                b"\"",
-            ));
-        }
-    };
-    match method {
-        "variable" => builtin_variable(vm, obj_key, args),
-        "varname" => {
-            if args.len() != 1 {
-                return crate::command::native_wrong_args(vm, "my varname varName");
+    original_name_operands::run(vm, Some((false, obj_key)), |vm, original_names| {
+        let ns = match vm.oo.objects.get(&obj_key) {
+            Some(o) => o.ns.clone(),
+            None => {
+                return err(object_message(
+                    vm,
+                    obj_key,
+                    b"invalid command name \"",
+                    b"\"",
+                ));
             }
-            let Some(namespace) = vm
-                .oo
-                .objects
-                .get(&obj_key)
-                .and_then(|object| object.namespace_token)
-            else {
-                return vm
-                    .refuse_host_command("actual TclOO variable namespace unavailable".into());
-            };
-            let bytes = match vm.native_name_operand_bytes(&args[0]) {
+        };
+        match method {
+            "variable" => builtin_variable(vm, obj_key, args),
+            "varname" => {
+                if args.len() != 1 {
+                    return crate::command::native_wrong_args(vm, "my varname varName");
+                }
+                if let Err(error) = original_names.select_declaring_provider(vm) {
+                    return crate::command::completion_from_cmd_error(vm, error);
+                }
+                let Some(namespace) = vm
+                    .oo
+                    .objects
+                    .get(&obj_key)
+                    .and_then(|object| object.namespace_token)
+                else {
+                    return vm
+                        .refuse_host_command("actual TclOO variable namespace unavailable".into());
+                };
+                let bytes = match original_names.read(vm, &args[0]) {
+                    Ok(bytes) => bytes,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                let storage = frame_private_storage_name(
+                    vm,
+                    &bytes,
+                    tcl_syntax::naming::NativeOoPrivateVariablePurpose::Varname,
+                );
+                match vm.original_c_oo_varname(
+                    &args[0],
+                    namespace,
+                    storage.as_ref().map_or(bytes.as_ref(), NameBytes::as_bytes),
+                ) {
+                    Ok(result) => ok(result),
+                    Err(error) => error,
+                }
+            }
+            "eval" => {
+                if args.is_empty() {
+                    return crate::command::native_wrong_args(vm, "my eval arg ?arg ...?");
+                }
+                let script = if let [original] = args {
+                    original.clone()
+                } else {
+                    match tcl_cmd_core::list::concat_selected(vm, args) {
+                        Ok(script) => script,
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    }
+                };
+                let namespace = vm.definition_namespace_token(&ns);
+                let invocation =
+                    original_call_words([invoked, original_method].into_iter().chain(args.iter()));
+                vm.push_ns_eval_token_frame(namespace, invocation);
+                let frame = OoFrame {
+                    name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
+                    activation: Some(vm.native_oo_variable_activation()),
+                    object: obj_key,
+                    chain: native_method_cache::ReachedMethodChain::from(vec![Step {
+                        method_owner: None,
+                        provider: vm.oo.object_root.expect("native object eval provider"),
+                        is_object: false,
+                    }]),
+                    index: 0,
+                    method: "eval".into(),
+                    external,
+                    invoked: invoked.clone(),
+                    usage_prefix: original_call_words([invoked, original_method]),
+                };
+                vm.oo.call_stack.push(frame);
+                let res = match vm.eval_original_script_value(
+                    &script,
+                    tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+                    args.first()
+                        .filter(|_| args.len() == 1)
+                        .and_then(Value::source_location),
+                ) {
+                    Ok(c) => c,
+                    Err(e) => crate::command::completion_from_tcl_error(vm, e),
+                };
+                vm.oo.call_stack.pop();
+                vm.pop_call_frame();
+                vm.pop_ns();
+                res
+            }
+            _ => unreachable!("builtin_method called with {method}"),
+        }
+    })
+}
+
+fn builtin_variable(vm: &mut Vm, obj_key: OoId, args: &[Value]) -> Completion<Value> {
+    original_name_operands::run(vm, Some((false, obj_key)), |vm, original_names| {
+        if let Err(error) = original_names.select_declaring_provider(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let Some(namespace) = vm
+            .oo
+            .objects
+            .get(&obj_key)
+            .and_then(|object| object.namespace_token)
+        else {
+            return vm.refuse_host_command("actual TclOO variable namespace unavailable".into());
+        };
+        let Some(policy) = vm.name_policy_protocol() else {
+            return vm
+                .refuse_host_command("actual TclOO variable name protocol unavailable".into());
+        };
+        for original in args {
+            let bytes = match original_names.read(vm, original) {
                 Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            let local = match tcl_syntax::naming::native_oo_explicit_variable_local_name(
+                policy.recipe(),
+                &bytes,
+            ) {
+                Ok(Ok(local)) => local.to_vec(),
+                Ok(Err(error)) => return declared_variable_error(error),
+                Err(error) => return vm.refuse_host_command(format!("{error:?}")),
             };
             let storage = frame_private_storage_name(
                 vm,
                 &bytes,
-                tcl_syntax::naming::NativeOoPrivateVariablePurpose::Varname,
+                tcl_syntax::naming::NativeOoPrivateVariablePurpose::ExplicitLink,
             );
-            match vm.original_c_oo_varname(
-                &args[0],
+            let mapped = storage
+                .as_ref()
+                .map(|storage| Value::new_native_string_bytes(storage.as_bytes()));
+            if let Err(error) = vm.link_original_c_oo_variable(
+                mapped.as_ref().unwrap_or(original),
                 namespace,
-                storage.as_ref().map_or(bytes.as_ref(), NameBytes::as_bytes),
+                &local,
             ) {
-                Ok(result) => ok(result),
-                Err(error) => error,
+                return error;
             }
         }
-        "eval" => {
-            if args.is_empty() {
-                return crate::command::native_wrong_args(vm, "my eval arg ?arg ...?");
-            }
-            let script = if let [original] = args {
-                original.clone()
-            } else {
-                match tcl_cmd_core::list::concat_selected(vm, args) {
-                    Ok(script) => script,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                }
-            };
-            let namespace = vm.definition_namespace_token(&ns);
-            let invocation =
-                original_call_words([invoked, original_method].into_iter().chain(args.iter()));
-            vm.push_ns_eval_token_frame(namespace, invocation);
-            let frame = OoFrame {
-                name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
-                activation: Some(vm.native_oo_variable_activation()),
-                object: obj_key,
-                chain: native_method_cache::ReachedMethodChain::from(vec![Step {
-                    method_owner: None,
-                    provider: vm.oo.object_root.expect("native object eval provider"),
-                    is_object: false,
-                }]),
-                index: 0,
-                method: "eval".into(),
-                external,
-                invoked: invoked.clone(),
-                usage_prefix: original_call_words([invoked, original_method]),
-            };
-            vm.oo.call_stack.push(frame);
-            let res = match vm.eval_original_script_value(
-                &script,
-                tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
-                args.first()
-                    .filter(|_| args.len() == 1)
-                    .and_then(Value::source_location),
-            ) {
-                Ok(c) => c,
-                Err(e) => crate::command::completion_from_tcl_error(vm, e),
-            };
-            vm.oo.call_stack.pop();
-            vm.pop_call_frame();
-            vm.pop_ns();
-            res
-        }
-        _ => unreachable!("builtin_method called with {method}"),
-    }
-}
-
-fn builtin_variable(vm: &mut Vm, obj_key: OoId, args: &[Value]) -> Completion<Value> {
-    let Some(namespace) = vm
-        .oo
-        .objects
-        .get(&obj_key)
-        .and_then(|object| object.namespace_token)
-    else {
-        return vm.refuse_host_command("actual TclOO variable namespace unavailable".into());
-    };
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm.refuse_host_command("actual TclOO variable name protocol unavailable".into());
-    };
-    for original in args {
-        let bytes = match vm.native_name_operand_bytes(original) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let local = match tcl_syntax::naming::native_oo_explicit_variable_local_name(
-            policy.recipe(),
-            &bytes,
-        ) {
-            Ok(Ok(local)) => local.to_vec(),
-            Ok(Err(error)) => return declared_variable_error(error),
-            Err(error) => return vm.refuse_host_command(format!("{error:?}")),
-        };
-        let storage = frame_private_storage_name(
-            vm,
-            &bytes,
-            tcl_syntax::naming::NativeOoPrivateVariablePurpose::ExplicitLink,
-        );
-        let mapped = storage
-            .as_ref()
-            .map(|storage| Value::new_native_string_bytes(storage.as_bytes()));
-        if let Err(error) =
-            vm.link_original_c_oo_variable(mapped.as_ref().unwrap_or(original), namespace, &local)
-        {
-            return error;
-        }
-    }
-    ok(Value::empty())
+        ok(Value::empty())
+    })
 }
 
 // self / my / next / nextto
@@ -2737,76 +2768,82 @@ fn cmd_oo_objdefine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `oo::define target …` / `oo::objdefine target …` — both the script form
 /// (`target {body}`) and the single-command form (`target sub args…`).
 fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> {
-    let verb = if is_class {
-        "oo::define"
-    } else {
-        "oo::objdefine"
-    };
-    if args.len() < 2 {
-        return err(format!(
-            "wrong # args: should be \"{verb} target ?arg ...?\""
-        ));
-    }
-    let target = match object_key(vm, &args[0]) {
-        Ok(target) => target,
-        Err(completion) => return completion,
-    };
-    if is_class && !vm.oo.classes.contains_key(&target) {
-        return err(object_message(
-            vm,
-            target,
-            b"",
-            b" does not refer to a class",
-        ));
-    }
-    let dt = if is_class {
-        DefTarget::Class(target)
-    } else {
-        DefTarget::Object(target)
-    };
-    let caller = vm.current_ns_id();
-    let caller_activation = vm.native_oo_variable_activation();
-    let mut invocation = vec![
-        vm.invoked_name_value()
-            .unwrap_or_else(|| Value::string(verb)),
-    ];
-    invocation.extend_from_slice(args);
-    let usage = (args.len() > 2).then(|| invocation[..3].to_vec());
-    if let Err(completion) = native_context::enter_definition(vm, is_class, target, invocation) {
-        return completion;
-    }
-    let previous_usage = std::mem::replace(&mut vm.oo.definition_usage, usage);
-    let activation = vm.native_oo_variable_activation();
-    vm.oo
-        .def_stack
-        .push((dt, activation, caller, caller_activation));
-    let result = (|| {
-        if args.len() == 2 {
-            // Script form: evaluate the body with the def target active. An error
-            // unwinding out of it gains the `(in definition script for …)` frame.
-            let source = match vm.native_name_operand_bytes(&args[1]) {
-                Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            match vm.eval_source_image_at_internal(&source, args[1].source_location()) {
-                Ok(c) if c.code == Code::Return => ok(c.result),
-                Ok(c) if c.code == Code::Error => {
-                    append_define_frame(vm, is_class, target, &c.result.string_bytes());
-                    c
-                }
-                Ok(c) => c,
-                Err(e) => definition_error(vm, is_class, target, e),
-            }
+    original_name_operands::run(vm, None, |vm, original_names| {
+        let verb = if is_class {
+            "oo::define"
         } else {
-            // Single-command form: dispatch `sub args…` as one definition directive
-            // (no definition-script frame — the directive is the command itself).
-            native_context::magic_definition_invoke(vm, &args[1], &args[2..])
+            "oo::objdefine"
+        };
+        if args.len() < 2 {
+            return err(format!(
+                "wrong # args: should be \"{verb} target ?arg ...?\""
+            ));
         }
-    })();
-    vm.oo.def_stack.pop();
-    native_context::leave_definition(vm);
-    vm.oo.definition_usage = previous_usage;
-    result
+        let target = match object_key(vm, &args[0]) {
+            Ok(target) => target,
+            Err(completion) => return completion,
+        };
+        if is_class && !vm.oo.classes.contains_key(&target) {
+            return err(object_message(
+                vm,
+                target,
+                b"",
+                b" does not refer to a class",
+            ));
+        }
+        let dt = if is_class {
+            DefTarget::Class(target)
+        } else {
+            DefTarget::Object(target)
+        };
+        if let Err(error) = original_names.select_target(vm, is_class, target) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        let caller = vm.current_ns_id();
+        let caller_activation = vm.native_oo_variable_activation();
+        let mut invocation = vec![
+            vm.invoked_name_value()
+                .unwrap_or_else(|| Value::string(verb)),
+        ];
+        invocation.extend_from_slice(args);
+        let usage = (args.len() > 2).then(|| invocation[..3].to_vec());
+        if let Err(completion) = native_context::enter_definition(vm, is_class, target, invocation)
+        {
+            return completion;
+        }
+        let previous_usage = std::mem::replace(&mut vm.oo.definition_usage, usage);
+        let activation = vm.native_oo_variable_activation();
+        vm.oo
+            .def_stack
+            .push((dt, activation, caller, caller_activation));
+        let result = original_names.in_current_frame(vm, |vm, original_names| {
+            if args.len() == 2 {
+                // Script form: evaluate the body with the def target active. An error
+                // unwinding out of it gains the `(in definition script for …)` frame.
+                let source = match original_names.read(vm, &args[1]) {
+                    Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                match vm.eval_source_image_at_internal(&source, args[1].source_location()) {
+                    Ok(c) if c.code == Code::Return => ok(c.result),
+                    Ok(c) if c.code == Code::Error => {
+                        append_define_frame(vm, is_class, target, &c.result.string_bytes());
+                        c
+                    }
+                    Ok(c) => c,
+                    Err(e) => definition_error(vm, is_class, target, e),
+                }
+            } else {
+                // Single-command form: dispatch `sub args…` as one definition directive
+                // (no definition-script frame — the directive is the command itself).
+                native_context::magic_definition_invoke(vm, &args[1], &args[2..])
+            }
+        });
+        vm.oo.def_stack.pop();
+        native_context::leave_definition(vm);
+        vm.oo.definition_usage = previous_usage;
+        result
+    })
 }
 
 /// A definition worker's static synopsis follows its actual original directive
@@ -2866,91 +2903,98 @@ fn active_target(vm: &Vm) -> Option<(bool, OoId)> {
 
 /// Write one `variable` declaration into the target's public or private slot.
 fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Value> {
-    use tcl_syntax::naming::{
-        NativeOoVariableSlotOperation, native_oo_variable_slot, validate_native_oo_variable,
-    };
-    let Some((is_class, target)) = active_target(vm) else {
-        return err_code(
-            "this command may only be called from within the context of an ::oo::define or ::oo::objdefine command",
-            &["TCL", "OO", "MONKEY_BUSINESS"],
-        );
-    };
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm
-            .refuse_host_command("TclOO variable declaration protocol is unavailable".to_owned());
-    };
-    let mut incoming = Vec::new();
-    for original in args {
-        let bytes = match vm.native_name_operand_bytes(original) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+    let target = active_target(vm);
+    original_name_operands::run(vm, target, |vm, original_names| {
+        use tcl_syntax::naming::{
+            NativeOoVariableSlotOperation, native_oo_variable_slot, validate_native_oo_variable,
         };
-        incoming.push(DeclaredVariable {
-            original: original.clone(),
-            name: NameBytes::from(bytes.as_ref()),
-        });
-    }
-    let selection = match native_oo_variable_slot(
-        policy.recipe(),
-        incoming.first().map(|entry| entry.name.as_bytes()),
-    ) {
-        Ok(Ok(selection)) => selection,
-        Ok(Err(error)) => return declared_variable_error(error),
-        Err(error) => return vm.refuse_host_command(format!("{error:?}")),
-    };
-    if selection.consumes_first {
-        incoming.remove(0);
-    }
-    if selection.operation == NativeOoVariableSlotOperation::Clear && !incoming.is_empty() {
-        let words = if private {
-            vec![
-                Value::string("private"),
-                Value::string("variable"),
-                args[0].clone(),
-            ]
-        } else {
-            vec![Value::string("variable"), args[0].clone()]
+        let Some((is_class, target)) = active_target(vm) else {
+            return err_code(
+                "this command may only be called from within the context of an ::oo::define or ::oo::objdefine command",
+                &["TCL", "OO", "MONKEY_BUSINESS"],
+            );
         };
-        let usage = match vm.native_argument_usage_header(&words) {
-            Ok(usage) => usage,
-            Err(completion) => return completion,
+        let Some(policy) = vm.name_policy_protocol() else {
+            return vm.refuse_host_command(
+                "TclOO variable declaration protocol is unavailable".to_owned(),
+            );
         };
-        return crate::command::native_wrong_args_bytes(vm, &usage);
-    }
-    if incoming.is_empty()
-        && !matches!(
-            selection.operation,
-            NativeOoVariableSlotOperation::Set | NativeOoVariableSlotOperation::Clear
-        )
-    {
-        return ok(Value::empty());
-    }
-    let existing = declared_variable_snapshot(vm, is_class, target, private);
-    let Some(mut existing) = existing else {
-        return ok(Value::empty());
-    };
-    for entry in &mut existing {
-        let bytes = match vm.native_name_operand_bytes(&entry.original) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        entry.name = NameBytes::from(bytes.as_ref());
-    }
-    let updated = tcl_syntax::naming::apply_native_oo_variable_slot(
-        existing,
-        incoming,
-        selection.operation,
-        |entry| entry.name.as_bytes(),
-    );
-    for entry in &updated {
-        match validate_native_oo_variable(policy.recipe(), entry.name.as_bytes()) {
-            Ok(None) => {}
-            Ok(Some(error)) => return declared_variable_error(error),
-            Err(error) => return vm.refuse_host_command(format!("{error:?}")),
+        let mut incoming = Vec::new();
+        for original in args {
+            let bytes = match original_names.read(vm, original) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            incoming.push(DeclaredVariable {
+                original: original.clone(),
+                name: NameBytes::from(bytes.as_ref()),
+            });
         }
-    }
-    publish_declared_variables(vm, is_class, target, private, updated);
-    ok(Value::empty())
+        let selection = match native_oo_variable_slot(
+            policy.recipe(),
+            incoming.first().map(|entry| entry.name.as_bytes()),
+        ) {
+            Ok(Ok(selection)) => selection,
+            Ok(Err(error)) => return declared_variable_error(error),
+            Err(error) => return vm.refuse_host_command(format!("{error:?}")),
+        };
+        if selection.consumes_first {
+            incoming.remove(0);
+        }
+        if selection.operation == NativeOoVariableSlotOperation::Clear && !incoming.is_empty() {
+            let words = if private {
+                vec![
+                    Value::string("private"),
+                    Value::string("variable"),
+                    args[0].clone(),
+                ]
+            } else {
+                vec![Value::string("variable"), args[0].clone()]
+            };
+            let usage = match vm.native_argument_usage_header(&words) {
+                Ok(usage) => usage,
+                Err(completion) => return completion,
+            };
+            return crate::command::native_wrong_args_bytes(vm, &usage);
+        }
+        if incoming.is_empty()
+            && !matches!(
+                selection.operation,
+                NativeOoVariableSlotOperation::Set | NativeOoVariableSlotOperation::Clear
+            )
+        {
+            return ok(Value::empty());
+        }
+        let existing = declared_variable_snapshot(vm, is_class, target, private);
+        let Some(mut existing) = existing else {
+            return ok(Value::empty());
+        };
+        for entry in &mut existing {
+            let bytes = match original_names.read(vm, &entry.original) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            entry.name = NameBytes::from(bytes.as_ref());
+        }
+        let updated = tcl_syntax::naming::apply_native_oo_variable_slot(
+            existing,
+            incoming,
+            selection.operation,
+            |entry| entry.name.as_bytes(),
+        );
+        for entry in &updated {
+            match validate_native_oo_variable(policy.recipe(), entry.name.as_bytes()) {
+                Ok(None) => {}
+                Ok(Some(error)) => return declared_variable_error(error),
+                Err(error) => return vm.refuse_host_command(format!("{error:?}")),
+            }
+        }
+        publish_declared_variables(vm, is_class, target, private, updated);
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        ok(Value::empty())
+    })
 }
 
 fn publish_declared_variables(
@@ -3109,123 +3153,140 @@ fn build_method(
 }
 
 fn def_method(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
-    use tcl_registry::native_tcloo_method_definition::{
-        NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
-    };
-    let Some(protocol) =
-        NativeTclooMethodDefinitionProtocol::select(vm.actual_native_invocation_dialect())
-    else {
-        return vm.refuse_host_command("native method declaration policy is unavailable".into());
-    };
-    let Some(layout) = protocol.layout(args.len()) else {
-        return definition_wrong_args(vm, protocol.usage());
-    };
-    let explicit = if let Some(index) = layout.option {
-        let selected = match vm.native_static_option_index(
-            &args[index],
-            protocol.export_modes().unwrap(),
-            false,
-            "export flag",
-        ) {
-            Ok(selected) => selected,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
+        use tcl_registry::native_tcloo_method_definition::{
+            NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
         };
-        protocol.option_visibility(selected)
-    } else {
-        None
-    };
-    let name = match native_method_key(vm, &args[layout.name]) {
-        Ok(name) => name,
-        Err(completion) => return completion,
-    };
-    let visibility = explicit.unwrap_or_else(|| {
-        protocol.default_visibility(vm.oo.method_name_bytes(&name), vm.oo.private_depth > 0)
-    });
-    let mut method = match build_method(
-        vm,
-        &args[layout.parameters],
-        &args[layout.body],
-        visibility == NativeTclooMethodVisibility::Public,
-    ) {
-        Ok(m) => m,
-        Err(e) => return e,
-    };
-    method.private = visibility == NativeTclooMethodVisibility::Private;
-    if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            c.methods.insert(name, method);
+        let Some(protocol) =
+            NativeTclooMethodDefinitionProtocol::select(vm.actual_native_invocation_dialect())
+        else {
+            return vm
+                .refuse_host_command("native method declaration policy is unavailable".into());
+        };
+        let Some(layout) = protocol.layout(args.len()) else {
+            return definition_wrong_args(vm, protocol.usage());
+        };
+        let explicit = if let Some(index) = layout.option {
+            let selected = match vm.native_static_option_index(
+                &args[index],
+                protocol.export_modes().unwrap(),
+                false,
+                "export flag",
+            ) {
+                Ok(selected) => selected,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            protocol.option_visibility(selected)
+        } else {
+            None
+        };
+        let name =
+            match native_method_key_for_target(vm, &args[layout.name], Some((is_class, target))) {
+                Ok(name) => name,
+                Err(completion) => return completion,
+            };
+        let visibility = explicit.unwrap_or_else(|| {
+            protocol.default_visibility(vm.oo.method_name_bytes(&name), vm.oo.private_depth > 0)
+        });
+        let mut method = match build_method(
+            vm,
+            &args[layout.parameters],
+            &args[layout.body],
+            visibility == NativeTclooMethodVisibility::Public,
+        ) {
+            Ok(m) => m,
+            Err(e) => return e,
+        };
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-        o.methods.insert(name, method);
-    }
-    vm.native_property_method_created(target, is_class);
-    ok(Value::empty())
+        method.private = visibility == NativeTclooMethodVisibility::Private;
+        if is_class {
+            if let Some(c) = vm.oo.classes.get_mut(&target) {
+                c.methods.insert(name, method);
+            }
+        } else if let Some(o) = vm.oo.objects.get_mut(&target) {
+            o.methods.insert(name, method);
+        }
+        vm.native_property_method_created(target, is_class);
+        ok(Value::empty())
+    })
 }
 
 fn def_constructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
-    if !is_class {
-        return err("constructors are only for classes");
-    }
-    let [params, body] = args else {
-        return definition_wrong_args(vm, "constructor arguments body");
-    };
-    // An empty counted body installs *no* constructor — C TclOO's
-    // optimisation, so `C new <extra args>` is then silently accepted.
-    let body_bytes = match vm.native_name_operand_bytes(body) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    if body_bytes.is_empty() {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            let changed = c.constructor.take().is_some();
-            if changed {
-                vm.native_property_structure_changed(target, true);
-            }
+    original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
+        if !is_class {
+            return err("constructors are only for classes");
         }
-        return ok(Value::empty());
-    }
-    let method = match build_method(vm, params, body, true) {
-        Ok(m) => m,
-        Err(e) => return e,
-    };
-    if let Some(c) = vm.oo.classes.get_mut(&target) {
-        c.constructor.install(method);
-    }
-    vm.native_property_method_created(target, true);
-    vm.native_property_structure_changed(target, true);
-    ok(Value::empty())
+        let [params, body] = args else {
+            return definition_wrong_args(vm, "constructor arguments body");
+        };
+        // An empty counted body installs *no* constructor — C TclOO's
+        // optimisation, so `C new <extra args>` is then silently accepted.
+        let body_bytes = match original_names.read(vm, body) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        if body_bytes.is_empty() {
+            if let Some(c) = vm.oo.classes.get_mut(&target) {
+                let changed = c.constructor.take().is_some();
+                if changed {
+                    vm.native_property_structure_changed(target, true);
+                }
+            }
+            return ok(Value::empty());
+        }
+        let method = match build_method(vm, params, body, true) {
+            Ok(m) => m,
+            Err(e) => return e,
+        };
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
+            c.constructor.install(method);
+        }
+        vm.native_property_method_created(target, true);
+        vm.native_property_structure_changed(target, true);
+        ok(Value::empty())
+    })
 }
 
 fn def_destructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
-    if !is_class {
-        return err("destructors are only for classes");
-    }
-    let [body] = args else {
-        return definition_wrong_args(vm, "destructor body");
-    };
-    let body_bytes = match vm.native_name_operand_bytes(body) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    if body_bytes.is_empty() {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            let changed = c.destructor.take().is_some();
-            if changed {
-                vm.native_property_structure_changed(target, true);
-            }
+    original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
+        if !is_class {
+            return err("destructors are only for classes");
         }
-        return ok(Value::empty());
-    }
-    let method = match build_method(vm, &Value::empty(), body, true) {
-        Ok(m) => m,
-        Err(e) => return e,
-    };
-    if let Some(c) = vm.oo.classes.get_mut(&target) {
-        c.destructor.install(method);
-    }
-    vm.native_property_method_created(target, true);
-    vm.native_property_structure_changed(target, true);
-    ok(Value::empty())
+        let [body] = args else {
+            return definition_wrong_args(vm, "destructor body");
+        };
+        let body_bytes = match original_names.read(vm, body) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        if body_bytes.is_empty() {
+            if let Some(c) = vm.oo.classes.get_mut(&target) {
+                let changed = c.destructor.take().is_some();
+                if changed {
+                    vm.native_property_structure_changed(target, true);
+                }
+            }
+            return ok(Value::empty());
+        }
+        let method = match build_method(vm, &Value::empty(), body, true) {
+            Ok(m) => m,
+            Err(e) => return e,
+        };
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
+            c.destructor.install(method);
+        }
+        vm.native_property_method_created(target, true);
+        vm.native_property_structure_changed(target, true);
+        ok(Value::empty())
+    })
 }
 
 fn def_superclass(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
@@ -3259,48 +3320,53 @@ fn def_export(
     args: &[Value],
     export: bool,
 ) -> Completion<Value> {
-    let mut changed = false;
-    if !is_class && !args.is_empty() {
-        vm.oo.native_methods.instance_table_created(target);
-    }
-    for a in args {
-        let name = match native_method_key(vm, a) {
-            Ok(name) => name,
-            Err(completion) => return completion,
-        };
-        if is_class {
-            if let Some(c) = vm.oo.classes.get_mut(&target) {
-                if let Some(method) = c.methods.owner(&name) {
+    original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
+        let mut changed = false;
+        if !is_class && !args.is_empty() {
+            vm.oo.native_methods.instance_table_created(target);
+        }
+        for a in args {
+            let name = match native_method_key_for_target(vm, a, Some((is_class, target))) {
+                Ok(name) => name,
+                Err(completion) => return completion,
+            };
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            if is_class {
+                if let Some(c) = vm.oo.classes.get_mut(&target) {
+                    if let Some(method) = c.methods.owner(&name) {
+                        changed |= method.borrow().private;
+                        method.borrow_mut().private = false;
+                    }
+                    if export {
+                        changed |= c.unexported.remove(&name);
+                        changed |= c.exported.insert(name);
+                    } else {
+                        changed |= c.exported.remove(&name);
+                        changed |= c.unexported.insert(name);
+                    }
+                }
+            } else if let Some(o) = vm.oo.objects.get_mut(&target) {
+                o.methods.mark_allocated();
+                if let Some(method) = o.methods.owner(&name) {
                     changed |= method.borrow().private;
                     method.borrow_mut().private = false;
                 }
                 if export {
-                    changed |= c.unexported.remove(&name);
-                    changed |= c.exported.insert(name);
+                    changed |= o.unexported.remove(&name);
+                    changed |= o.exported.insert(name);
                 } else {
-                    changed |= c.exported.remove(&name);
-                    changed |= c.unexported.insert(name);
+                    changed |= o.exported.remove(&name);
+                    changed |= o.unexported.insert(name);
                 }
             }
-        } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-            o.methods.mark_allocated();
-            if let Some(method) = o.methods.owner(&name) {
-                changed |= method.borrow().private;
-                method.borrow_mut().private = false;
-            }
-            if export {
-                changed |= o.unexported.remove(&name);
-                changed |= o.exported.insert(name);
-            } else {
-                changed |= o.exported.remove(&name);
-                changed |= o.unexported.insert(name);
-            }
         }
-    }
-    if changed {
-        vm.native_property_structure_changed(target, is_class);
-    }
-    ok(Value::empty())
+        if changed {
+            vm.native_property_structure_changed(target, is_class);
+        }
+        ok(Value::empty())
+    })
 }
 
 fn def_mixin(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
@@ -3329,46 +3395,53 @@ fn def_mixin(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Compl
 }
 
 fn def_forward(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
-    use tcl_registry::native_tcloo_method_definition::{
-        NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
-    };
-    let Some((name, prefix)) = args.split_first().filter(|(_, prefix)| !prefix.is_empty()) else {
-        return definition_wrong_args(vm, "forward name cmdName ?arg ...?");
-    };
-    let name = match native_method_key(vm, name) {
-        Ok(name) => name,
-        Err(completion) => return completion,
-    };
-    let Some(protocol) =
-        NativeTclooMethodDefinitionProtocol::select(vm.actual_native_invocation_dialect())
-    else {
-        return vm.refuse_host_command("native forward declaration policy is unavailable".into());
-    };
-    let visibility =
-        protocol.default_visibility(vm.oo.method_name_bytes(&name), vm.oo.private_depth > 0);
-    let method = Method {
-        parameters: MethodParameters {
-            values: Vec::new(),
-            has_args: true,
-        },
-        compiled_body: None,
-        body_src: Value::empty(),
-        forward: Some(prefix.to_vec()),
-        property: None,
-        intrinsic: None,
-        visibility_only: false,
-        exported: visibility == NativeTclooMethodVisibility::Public,
-        private: visibility == NativeTclooMethodVisibility::Private,
-    };
-    if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            c.methods.insert(name, method);
+    original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
+        use tcl_registry::native_tcloo_method_definition::{
+            NativeTclooMethodDefinitionProtocol, NativeTclooMethodVisibility,
+        };
+        let Some((name, prefix)) = args.split_first().filter(|(_, prefix)| !prefix.is_empty())
+        else {
+            return definition_wrong_args(vm, "forward name cmdName ?arg ...?");
+        };
+        let name = match native_method_key_for_target(vm, name, Some((is_class, target))) {
+            Ok(name) => name,
+            Err(completion) => return completion,
+        };
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-        o.methods.insert(name, method);
-    }
-    vm.native_property_method_created(target, is_class);
-    ok(Value::empty())
+        let Some(protocol) =
+            NativeTclooMethodDefinitionProtocol::select(vm.actual_native_invocation_dialect())
+        else {
+            return vm
+                .refuse_host_command("native forward declaration policy is unavailable".into());
+        };
+        let visibility =
+            protocol.default_visibility(vm.oo.method_name_bytes(&name), vm.oo.private_depth > 0);
+        let method = Method {
+            parameters: MethodParameters {
+                values: Vec::new(),
+                has_args: true,
+            },
+            compiled_body: None,
+            body_src: Value::empty(),
+            forward: Some(prefix.to_vec()),
+            property: None,
+            intrinsic: None,
+            visibility_only: false,
+            exported: visibility == NativeTclooMethodVisibility::Public,
+            private: visibility == NativeTclooMethodVisibility::Private,
+        };
+        if is_class {
+            if let Some(c) = vm.oo.classes.get_mut(&target) {
+                c.methods.insert(name, method);
+            }
+        } else if let Some(o) = vm.oo.objects.get_mut(&target) {
+            o.methods.insert(name, method);
+        }
+        vm.native_property_method_created(target, is_class);
+        ok(Value::empty())
+    })
 }
 
 // oo::class create — the metaclass factory, handled specially so the new
@@ -3443,39 +3516,43 @@ fn object_lookup_failure(
     vm: &mut Vm,
     name: &Value,
 ) -> Result<Completion<Value>, Completion<Value>> {
-    let original = vm
-        .native_name_operand_bytes(name)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    let original = tcl_core_types::c_string_extent(&original);
-    let dialect = vm.actual_native_invocation_dialect();
-    let protocol = dialect
-        .native_string_protocol()
-        .filter(|protocol| protocol.tcl_version().is_some())
-        .ok_or_else(|| vm.refuse_host_command("native TclOO object error producer".to_owned()))?;
-    let materialization = dialect.native_string_materialization(None).ok_or_else(|| {
-        vm.refuse_host_command("native TclOO object error String producer".to_owned())
-    })?;
-    let mut message = original.to_vec();
-    message.extend_from_slice(b" does not refer to an object");
-    let message = Value::new_native_string_bytes(message);
-    message
-        .retain_native_string_representation(materialization)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    vm.adopt_native_interp_result(message.clone())
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    let code = Value::native_list_constructor(
-        [b"TCL".as_slice(), b"LOOKUP", b"OBJECT", original]
-            .into_iter()
-            .map(Value::new_native_string_bytes)
-            .collect(),
-        protocol,
-    );
-    vm.retain_return_error_code(Some(&code), false);
-    Ok(Completion::new_error_metadata(
-        Code::Error,
-        message,
-        crate::command::options_dict(Code::Error, 0, &[("-errorcode", code)]),
-    ))
+    original_name_operands::run_result(vm, None, |vm, original_names| {
+        let original = original_names
+            .read(vm, name)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let original = tcl_core_types::c_string_extent(&original);
+        let dialect = vm.actual_native_invocation_dialect();
+        let protocol = dialect
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or_else(|| {
+                vm.refuse_host_command("native TclOO object error producer".to_owned())
+            })?;
+        let materialization = dialect.native_string_materialization(None).ok_or_else(|| {
+            vm.refuse_host_command("native TclOO object error String producer".to_owned())
+        })?;
+        let mut message = original.to_vec();
+        message.extend_from_slice(b" does not refer to an object");
+        let message = Value::new_native_string_bytes(message);
+        message
+            .retain_native_string_representation(materialization)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        vm.adopt_native_interp_result(message.clone())
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        let code = Value::native_list_constructor(
+            [b"TCL".as_slice(), b"LOOKUP", b"OBJECT", original]
+                .into_iter()
+                .map(Value::new_native_string_bytes)
+                .collect(),
+            protocol,
+        );
+        vm.retain_return_error_code(Some(&code), false);
+        Ok(Completion::new_error_metadata(
+            Code::Error,
+            message,
+            crate::command::options_dict(Code::Error, 0, &[("-errorcode", code)]),
+        ))
+    })
 }
 
 /// The class command name of the object `key` (`info object class`, the
@@ -3516,146 +3593,162 @@ fn variable_info_options(
     kind: InfoOoEnsembleKind,
     rest: &[Value],
 ) -> Result<bool, Completion<Value>> {
-    let selected = tcl_registry::native_tcloo_info::NativeTclooVariableInfoProtocol::select(
-        vm.actual_native_invocation_dialect(),
-    )
-    .ok_or_else(|| {
-        vm.refuse_host_command("TclOO variable info protocol is unavailable".to_owned())
-    })?;
-    if !selected.accepts_count(rest.len()) {
-        return Err(crate::command::native_wrong_args(vm, selected.usage(kind)));
-    }
-    let Some(option) = rest.get(1) else {
-        return Ok(false);
-    };
-    let original = vm
-        .native_name_operand_bytes(option)
-        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-    selected
-        .private_option(&original)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    original_name_operands::run_result(vm, None, |vm, original_names| {
+        let selected = tcl_registry::native_tcloo_info::NativeTclooVariableInfoProtocol::select(
+            vm.actual_native_invocation_dialect(),
+        )
+        .ok_or_else(|| {
+            vm.refuse_host_command("TclOO variable info protocol is unavailable".to_owned())
+        })?;
+        if !selected.accepts_count(rest.len()) {
+            return Err(crate::command::native_wrong_args(vm, selected.usage(kind)));
+        }
+        let Some(option) = rest.get(1) else {
+            return Ok(false);
+        };
+        let original = original_names
+            .read(vm, option)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        selected
+            .private_option(&original)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    })
 }
 
 /// `info object subcommand object ?arg…?`.
 pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((sub, rest)) = args.split_first() else {
-        return crate::command::native_wrong_args(vm, "info object subcommand object ?arg ...?");
-    };
-    let sub = match vm.native_name_operand_bytes(sub) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let sub = tcl_core_types::c_string_extent(&sub);
-    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Object, vm.runtime_version());
-    let sub = match subcommands.resolve(sub) {
-        Ok(sub) => sub,
-        Err(message) => return err(message),
-    };
-    // `isa` is the odd one out: `info object isa category object ?arg?` — the
-    // object comes *after* the category.
-    if sub == "isa" {
-        return info_object_isa(vm, rest);
-    }
-    let private_variables = if sub == "variables" {
-        match variable_info_options(vm, InfoOoEnsembleKind::Object, rest) {
-            Ok(private) => private,
-            Err(completion) => return completion,
-        }
-    } else {
-        false
-    };
-    let Some(obj_arg) = rest.first() else {
-        if sub == "methods" {
+    original_name_operands::run(vm, None, |vm, original_names| {
+        let Some((sub, rest)) = args.split_first() else {
             return crate::command::native_wrong_args(
                 vm,
-                tcl_registry::native_tcloo_info::NativeTclooMethodInfoProtocol::usage(
-                    InfoOoEnsembleKind::Object,
-                ),
+                "info object subcommand object ?arg ...?",
             );
+        };
+        let sub = match original_names.read(vm, sub) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let sub = tcl_core_types::c_string_extent(&sub);
+        let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Object, vm.runtime_version());
+        let sub = match subcommands.resolve(sub) {
+            Ok(sub) => sub,
+            Err(message) => return err(message),
+        };
+        // `isa` is the odd one out: `info object isa category object ?arg?` — the
+        // object comes *after* the category.
+        if sub == "isa" {
+            return info_object_isa(vm, rest);
         }
-        return err(format!(
-            "wrong # args: should be \"info object {sub} object ?arg ...?\""
-        ));
-    };
-    let obj = match object_key(vm, obj_arg) {
-        Ok(k) => k,
-        Err(c) => return c,
-    };
-    let extra = &rest[1..];
-    match sub {
-        "class" => {
-            if let Some(cls) = extra.first() {
-                let class = match resolve_class_value(vm, cls) {
-                    Ok(class) => class,
-                    Err(completion) => return completion,
-                };
-                let is_a = class.is_some_and(|class| vm.oo.is_a(obj, class));
-                ok(Value::int(i64::from(is_a)))
-            } else {
-                ok(object_class_name(vm, obj))
+        let private_variables = if sub == "variables" {
+            match variable_info_options(vm, InfoOoEnsembleKind::Object, rest) {
+                Ok(private) => private,
+                Err(completion) => return completion,
             }
+        } else {
+            false
+        };
+        let Some(obj_arg) = rest.first() else {
+            if sub == "methods" {
+                return crate::command::native_wrong_args(
+                    vm,
+                    tcl_registry::native_tcloo_info::NativeTclooMethodInfoProtocol::usage(
+                        InfoOoEnsembleKind::Object,
+                    ),
+                );
+            }
+            return err(format!(
+                "wrong # args: should be \"info object {sub} object ?arg ...?\""
+            ));
+        };
+        let obj = match object_key(vm, obj_arg) {
+            Ok(k) => k,
+            Err(c) => return c,
+        };
+        if let Err(error) = original_names.select_target(vm, false, obj) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        "namespace" => object_namespace_name(vm, obj).map_or_else(|completion| completion, ok),
-        "creationid" => object_creation_id(vm, obj).map_or_else(|completion| completion, ok),
-        "mixins" => ok(Value::list(
-            vm.oo.objects[&obj]
-                .mixins
-                .iter()
-                .map(|m| Value::from_native_string_bytes(display_oo_bytes(vm, *m)))
-                .collect(),
-        )),
-        "variables" => {
-            let o = &vm.oo.objects[&obj];
-            let names = if private_variables {
-                &o.private_variables
-            } else {
-                &o.variables
-            };
-            ok(Value::list(
-                names.iter().map(|entry| entry.original.clone()).collect(),
-            ))
+        let extra = &rest[1..];
+        match sub {
+            "class" => {
+                if let Some(cls) = extra.first() {
+                    let class = match resolve_class_value(vm, cls) {
+                        Ok(class) => class,
+                        Err(completion) => return completion,
+                    };
+                    if let Err(error) = original_names.check_target(vm) {
+                        return crate::command::completion_from_cmd_error(vm, error);
+                    }
+                    let is_a = class.is_some_and(|class| vm.oo.is_a(obj, class));
+                    ok(Value::int(i64::from(is_a)))
+                } else {
+                    ok(object_class_name(vm, obj))
+                }
+            }
+            "namespace" => object_namespace_name(vm, obj).map_or_else(|completion| completion, ok),
+            "creationid" => object_creation_id(vm, obj).map_or_else(|completion| completion, ok),
+            "mixins" => ok(Value::list(
+                vm.oo.objects[&obj]
+                    .mixins
+                    .iter()
+                    .map(|m| Value::from_native_string_bytes(display_oo_bytes(vm, *m)))
+                    .collect(),
+            )),
+            "variables" => {
+                let o = &vm.oo.objects[&obj];
+                let names = if private_variables {
+                    &o.private_variables
+                } else {
+                    &o.variables
+                };
+                ok(Value::list(
+                    names.iter().map(|entry| entry.original.clone()).collect(),
+                ))
+            }
+            "vars" => info_object_variable_names(vm, obj, extra),
+            "methods" => info_object_methods(vm, obj, extra),
+            "properties" => info_object_properties(vm, obj, extra),
+            _ => err(format!("unsupported info object subcommand \"{sub}\"")),
         }
-        "vars" => info_object_variable_names(vm, obj, extra),
-        "methods" => info_object_methods(vm, obj, extra),
-        "properties" => info_object_properties(vm, obj, extra),
-        _ => err(format!("unsupported info object subcommand \"{sub}\"")),
-    }
+    })
 }
 
 fn info_object_variable_names(vm: &mut Vm, obj: OoId, extra: &[Value]) -> Completion<Value> {
-    let namespace = vm.definition_namespace_token(&vm.oo.objects[&obj].ns.clone());
-    let pattern = match extra
-        .first()
-        .map(|value| vm.native_name_operand_bytes(value))
-        .transpose()
-    {
-        Ok(pattern) => pattern,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm
-            .refuse_host_command("TclOO variable enumeration protocol is unavailable".to_owned());
-    };
-    let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
-    let mut names = Vec::new();
-    for name in tcl_runtime_api::Namespaces::vars_in_bytes(vm, namespace) {
-        if !vm.tcloo_storage_variable_is_defined(namespace, &name) {
-            continue;
-        }
-        if let Some(pattern) = pattern.as_ref() {
-            match matcher.match_name_pattern(
-                tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
-                pattern,
-                &name,
-            ) {
-                Ok(true) => {}
-                Ok(false) => continue,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
+    original_name_operands::run(vm, Some((false, obj)), |vm, original_names| {
+        let namespace = vm.definition_namespace_token(&vm.oo.objects[&obj].ns.clone());
+        let pattern = match extra
+            .first()
+            .map(|value| original_names.read(vm, value))
+            .transpose()
+        {
+            Ok(pattern) => pattern,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let Some(policy) = vm.name_policy_protocol() else {
+            return vm.refuse_host_command(
+                "TclOO variable enumeration protocol is unavailable".to_owned(),
+            );
+        };
+        let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
+        let mut names = Vec::new();
+        for name in tcl_runtime_api::Namespaces::vars_in_bytes(vm, namespace) {
+            if !vm.tcloo_storage_variable_is_defined(namespace, &name) {
+                continue;
             }
+            if let Some(pattern) = pattern.as_ref() {
+                match matcher.match_name_pattern(
+                    tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
+                    pattern,
+                    &name,
+                ) {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    Err(error) => return vm.refuse_host_command(error.to_string()),
+                }
+            }
+            names.push(Value::from_native_string_bytes(name));
         }
-        names.push(Value::from_native_string_bytes(name));
-    }
-    ok(Value::list(names))
+        ok(Value::list(names))
+    })
 }
 
 /// `info object properties object ?-all? ?-readable|-writable?` (TIP 558).
@@ -3795,81 +3888,90 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 /// `info class subcommand class ?arg…?`.
 pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((sub, rest)) = args.split_first() else {
-        return crate::command::native_wrong_args(vm, "info class subcommand class ?arg ...?");
-    };
-    let sub = match vm.native_name_operand_bytes(sub) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let sub = tcl_core_types::c_string_extent(&sub);
-    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Class, vm.runtime_version());
-    let sub = match subcommands.resolve(sub) {
-        Ok(sub) => sub,
-        Err(message) => return err(message),
-    };
-    let private_variables = if sub == "variables" {
-        match variable_info_options(vm, InfoOoEnsembleKind::Class, rest) {
-            Ok(private) => private,
+    original_name_operands::run(vm, None, |vm, original_names| {
+        let Some((sub, rest)) = args.split_first() else {
+            return crate::command::native_wrong_args(vm, "info class subcommand class ?arg ...?");
+        };
+        let sub = match original_names.read(vm, sub) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let sub = tcl_core_types::c_string_extent(&sub);
+        let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Class, vm.runtime_version());
+        let sub = match subcommands.resolve(sub) {
+            Ok(sub) => sub,
+            Err(message) => return err(message),
+        };
+        let private_variables = if sub == "variables" {
+            match variable_info_options(vm, InfoOoEnsembleKind::Class, rest) {
+                Ok(private) => private,
+                Err(completion) => return completion,
+            }
+        } else {
+            false
+        };
+        let Some(cls_arg) = rest.first() else {
+            if sub == "methods" {
+                return crate::command::native_wrong_args(
+                    vm,
+                    tcl_registry::native_tcloo_info::NativeTclooMethodInfoProtocol::usage(
+                        InfoOoEnsembleKind::Class,
+                    ),
+                );
+            }
+            return err(format!(
+                "wrong # args: should be \"info class {sub} class ?arg ...?\""
+            ));
+        };
+        let cls = match object_key(vm, cls_arg) {
+            Ok(cls) => cls,
             Err(completion) => return completion,
+        };
+        if !vm.oo.classes.contains_key(&cls) {
+            return err(object_message(vm, cls, b"\"", b"\" is not a class"));
         }
-    } else {
-        false
-    };
-    let Some(cls_arg) = rest.first() else {
-        if sub == "methods" {
-            return crate::command::native_wrong_args(
-                vm,
-                tcl_registry::native_tcloo_info::NativeTclooMethodInfoProtocol::usage(
-                    InfoOoEnsembleKind::Class,
-                ),
-            );
+        if let Err(error) = original_names.select_target(vm, true, cls) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        return err(format!(
-            "wrong # args: should be \"info class {sub} class ?arg ...?\""
-        ));
-    };
-    let cls = match object_key(vm, cls_arg) {
-        Ok(cls) => cls,
-        Err(completion) => return completion,
-    };
-    if !vm.oo.classes.contains_key(&cls) {
-        return err(object_message(vm, cls, b"\"", b"\" is not a class"));
-    }
-    let extra = &rest[1..];
-    match sub {
-        "superclasses" => ok(Value::list(
-            vm.oo.classes[&cls]
-                .supers
-                .iter()
-                .map(|s| Value::from_native_string_bytes(display_oo_bytes(vm, *s)))
-                .collect(),
-        )),
-        "mixins" => ok(Value::list(
-            vm.oo.classes[&cls]
-                .mixins
-                .iter()
-                .map(|m| Value::from_native_string_bytes(display_oo_bytes(vm, *m)))
-                .collect(),
-        )),
-        "subclasses" | "instances" => info_class_related_names(vm, cls, extra, sub),
-        "methods" => info_class_methods(vm, cls, extra),
-        "constructor" => lifecycle_definition(vm.oo.classes[&cls].constructor.get().as_ref(), true),
-        "destructor" => lifecycle_definition(vm.oo.classes[&cls].destructor.get().as_ref(), false),
-        "variables" => {
-            let c = &vm.oo.classes[&cls];
-            let names = if private_variables {
-                &c.private_variables
-            } else {
-                &c.variables
-            };
-            ok(Value::list(
-                names.iter().map(|entry| entry.original.clone()).collect(),
-            ))
+        let extra = &rest[1..];
+        match sub {
+            "superclasses" => ok(Value::list(
+                vm.oo.classes[&cls]
+                    .supers
+                    .iter()
+                    .map(|s| Value::from_native_string_bytes(display_oo_bytes(vm, *s)))
+                    .collect(),
+            )),
+            "mixins" => ok(Value::list(
+                vm.oo.classes[&cls]
+                    .mixins
+                    .iter()
+                    .map(|m| Value::from_native_string_bytes(display_oo_bytes(vm, *m)))
+                    .collect(),
+            )),
+            "subclasses" | "instances" => info_class_related_names(vm, cls, extra, sub),
+            "methods" => info_class_methods(vm, cls, extra),
+            "constructor" => {
+                lifecycle_definition(vm.oo.classes[&cls].constructor.get().as_ref(), true)
+            }
+            "destructor" => {
+                lifecycle_definition(vm.oo.classes[&cls].destructor.get().as_ref(), false)
+            }
+            "variables" => {
+                let c = &vm.oo.classes[&cls];
+                let names = if private_variables {
+                    &c.private_variables
+                } else {
+                    &c.variables
+                };
+                ok(Value::list(
+                    names.iter().map(|entry| entry.original.clone()).collect(),
+                ))
+            }
+            "properties" => info_class_properties(vm, cls, extra),
+            _ => err(format!("unsupported info class subcommand \"{sub}\"")),
         }
-        "properties" => info_class_properties(vm, cls, extra),
-        _ => err(format!("unsupported info class subcommand \"{sub}\"")),
-    }
+    })
 }
 
 fn lifecycle_definition(method: Option<&Method>, parameters: bool) -> Completion<Value> {
@@ -3900,55 +4002,58 @@ fn info_class_related_names(
     extra: &[Value],
     sub: &str,
 ) -> Completion<Value> {
-    let pattern = match extra.first() {
-        Some(original) => match vm.native_name_operand_bytes(original) {
-            Ok(bytes) => Some(bytes),
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        },
-        None => None,
-    };
-    let tokens: Vec<_> = if sub == "subclasses" {
-        vm.oo
-            .classes
-            .iter()
-            .filter(|(key, class)| **key != cls && class.supers.contains(&cls))
-            .map(|(key, _)| *key)
-            .collect()
-    } else {
-        vm.oo
-            .objects
-            .iter()
-            .filter(|(key, object)| object.class == cls && !vm.oo.classes.contains_key(*key))
-            .map(|(key, _)| *key)
-            .collect()
-    };
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm.refuse_host_command("native TclOO enumeration protocol unavailable".to_owned());
-    };
-    let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
-    let mut names = Vec::new();
-    for token in tokens {
-        let name = display_oo_bytes(vm, token);
-        if let Some(pattern) = pattern.as_ref() {
-            match matcher.match_name_pattern(
-                tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
-                pattern,
-                &name,
-            ) {
-                Ok(true) => {}
-                Ok(false) => continue,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
+    original_name_operands::run(vm, Some((true, cls)), |vm, original_names| {
+        let pattern = match extra.first() {
+            Some(original) => match original_names.read(vm, original) {
+                Ok(bytes) => Some(bytes),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            },
+            None => None,
+        };
+        let tokens: Vec<_> = if sub == "subclasses" {
+            vm.oo
+                .classes
+                .iter()
+                .filter(|(key, class)| **key != cls && class.supers.contains(&cls))
+                .map(|(key, _)| *key)
+                .collect()
+        } else {
+            vm.oo
+                .objects
+                .iter()
+                .filter(|(key, object)| object.class == cls && !vm.oo.classes.contains_key(*key))
+                .map(|(key, _)| *key)
+                .collect()
+        };
+        let Some(policy) = vm.name_policy_protocol() else {
+            return vm
+                .refuse_host_command("native TclOO enumeration protocol unavailable".to_owned());
+        };
+        let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
+        let mut names = Vec::new();
+        for token in tokens {
+            let name = display_oo_bytes(vm, token);
+            if let Some(pattern) = pattern.as_ref() {
+                match matcher.match_name_pattern(
+                    tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
+                    pattern,
+                    &name,
+                ) {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    Err(error) => return vm.refuse_host_command(error.to_string()),
+                }
             }
+            names.push(name);
         }
-        names.push(name);
-    }
-    names.sort();
-    ok(Value::list(
-        names
-            .into_iter()
-            .map(Value::from_native_string_bytes)
-            .collect(),
-    ))
+        names.sort();
+        ok(Value::list(
+            names
+                .into_iter()
+                .map(Value::from_native_string_bytes)
+                .collect(),
+        ))
+    })
 }
 
 /// `info class properties class ?-all? ?-readable|-writable?` (TIP 558).
@@ -4211,47 +4316,49 @@ fn make_class_bytes(
 }
 
 fn evaluate_class_definition(vm: &mut Vm, class_id: OoId, body: &Value) -> Completion<Value> {
-    let caller = vm.current_ns_id();
-    let caller_activation = vm.native_oo_variable_activation();
-    let argv = vec![
-        vm.oo
-            .define_name
-            .as_ref()
-            .expect("native OO Foundation define head")
-            .clone(),
-        native_context::object_name(vm, class_id),
-        body.clone(),
-    ];
-    if let Err(completion) = native_context::enter_definition(vm, true, class_id, argv) {
-        return completion;
-    }
-    let activation = vm.native_oo_variable_activation();
-    vm.oo.def_stack.push((
-        DefTarget::Class(class_id),
-        activation,
-        caller,
-        caller_activation,
-    ));
-    let source = match vm.native_name_operand_bytes(body) {
-        Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
-        Err(error) => {
-            vm.oo.def_stack.pop();
-            native_context::leave_definition(vm);
-            return vm.refuse_host_command(error.to_string());
+    original_name_operands::run(vm, Some((true, class_id)), |vm, original_names| {
+        let caller = vm.current_ns_id();
+        let caller_activation = vm.native_oo_variable_activation();
+        let argv = vec![
+            vm.oo
+                .define_name
+                .as_ref()
+                .expect("native OO Foundation define head")
+                .clone(),
+            native_context::object_name(vm, class_id),
+            body.clone(),
+        ];
+        if let Err(completion) = native_context::enter_definition(vm, true, class_id, argv) {
+            return completion;
         }
-    };
-    let res = match vm.eval_source_image_at_internal(&source, body.source_location()) {
-        Ok(c) if c.code == Code::Return => ok(c.result),
-        Ok(c) if c.code == Code::Error => {
-            append_define_frame(vm, true, class_id, &c.result.string_bytes());
-            c
-        }
-        Ok(c) => c,
-        Err(e) => definition_error(vm, true, class_id, e),
-    };
-    vm.oo.def_stack.pop();
-    native_context::leave_definition(vm);
-    res
+        let activation = vm.native_oo_variable_activation();
+        vm.oo.def_stack.push((
+            DefTarget::Class(class_id),
+            activation,
+            caller,
+            caller_activation,
+        ));
+        let res = original_names.in_current_frame(vm, |vm, original_names| {
+            let source = match original_names.read(vm, body) {
+                Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
+                Err(error) => {
+                    return crate::command::completion_from_cmd_error(vm, error);
+                }
+            };
+            match vm.eval_source_image_at_internal(&source, body.source_location()) {
+                Ok(c) if c.code == Code::Return => ok(c.result),
+                Ok(c) if c.code == Code::Error => {
+                    append_define_frame(vm, true, class_id, &c.result.string_bytes());
+                    c
+                }
+                Ok(c) => c,
+                Err(e) => definition_error(vm, true, class_id, e),
+            }
+        });
+        vm.oo.def_stack.pop();
+        native_context::leave_definition(vm);
+        res
+    })
 }
 
 #[cfg(test)]

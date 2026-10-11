@@ -153,32 +153,35 @@ pub(super) fn leave_definition(vm: &mut Vm) {
 }
 
 pub(super) fn unknown_definition(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if active_target(vm).is_none() {
-        return err_code(
-            "this command may only be called from within the context of an ::oo::define or ::oo::objdefine command",
-            &["TCL", "OO", "MONKEY_BUSINESS"],
-        );
-    }
-    let Some((requested, operands)) = args.split_first() else {
-        return err("bad call of unknown handler");
-    };
-    let bytes = match vm.native_name_operand_bytes(requested) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let Some(head) = definition_head(vm, bytes.as_ref()) else {
-        let mut message = b"invalid command name \"".to_vec();
-        message.extend_from_slice(bytes.as_ref());
-        message.push(b'"');
-        return err(message);
-    };
-    vm.invoke_command_value_at(
-        vm.current_ns_id(),
-        &head,
-        operands,
-        &[],
-        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-    )
+    let target = active_target(vm);
+    super::original_name_operands::run(vm, target, |vm, original_names| {
+        if active_target(vm).is_none() {
+            return err_code(
+                "this command may only be called from within the context of an ::oo::define or ::oo::objdefine command",
+                &["TCL", "OO", "MONKEY_BUSINESS"],
+            );
+        }
+        let Some((requested, operands)) = args.split_first() else {
+            return err("bad call of unknown handler");
+        };
+        let bytes = match original_names.read(vm, requested) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let Some(head) = definition_head(vm, bytes.as_ref()) else {
+            let mut message = b"invalid command name \"".to_vec();
+            message.extend_from_slice(bytes.as_ref());
+            message.push(b'"');
+            return err(message);
+        };
+        vm.invoke_command_value_at(
+            vm.current_ns_id(),
+            &head,
+            operands,
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        )
+    })
 }
 
 fn definition_head(vm: &Vm, requested: &[u8]) -> Option<Value> {
@@ -212,18 +215,21 @@ pub(super) fn magic_definition_invoke(
     requested: &Value,
     operands: &[Value],
 ) -> Completion<Value> {
-    let bytes = match vm.native_name_operand_bytes(requested) {
-        Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    };
-    let head = definition_head(vm, bytes.as_ref()).unwrap_or_else(|| requested.clone());
-    vm.invoke_command_value_at(
-        vm.current_ns_id(),
-        &head,
-        operands,
-        &[],
-        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-    )
+    let target = active_target(vm);
+    super::original_name_operands::run(vm, target, |vm, original_names| {
+        let bytes = match original_names.read(vm, requested) {
+            Ok(bytes) => bytes,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let head = definition_head(vm, bytes.as_ref()).unwrap_or_else(|| requested.clone());
+        vm.invoke_command_value_at(
+            vm.current_ns_id(),
+            &head,
+            operands,
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        )
+    })
 }
 
 const DEFINITION_WORKERS: &[(&str, crate::command::BuiltinFn, crate::command::BuiltinFn)] = &[

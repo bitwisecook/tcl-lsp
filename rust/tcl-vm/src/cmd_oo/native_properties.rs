@@ -3,8 +3,8 @@
 use super::{
     BTreeMap, BTreeSet, Code, Completion, Method, MethodParameters, OoId, OoState, Rc,
     TclOoPropertyKind, Value, Vm, apply_property_bytes, display_oo_bytes, native_context,
-    native_method_key, ok, oo_invoke_value_with_head, private_storage_name_bytes, slot_ref_class,
-    slot_ref_obj,
+    native_method_key_for_target, ok, oo_invoke_value_with_head, private_storage_name_bytes,
+    slot_ref_class, slot_ref_obj,
 };
 use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
@@ -850,7 +850,7 @@ fn invoke_original_accessor_entered(
             ValueError::CommandProtocolUnavailable("Foundation original my name").into(),
         ));
     };
-    let method = native_method_key(vm, &accessor)?;
+    let method = native_method_key_for_target(vm, &accessor, Some((false, target)))?;
     let bytes = property
         .native_string_bytes(recipe.strings())
         .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
@@ -913,102 +913,111 @@ pub(super) fn define_original_properties(
     target: OoId,
     args: &[Value],
 ) -> Completion<Value> {
-    let recipe = vm
-        .actual_native_invocation_dialect()
-        .native_property_name_protocol()
-        .expect("selected original property definition");
-    let options = recipe.definition_options();
-    let kinds = recipe.definition_kinds();
-    let mut cursor = 0;
-    while cursor < args.len() {
-        let original = &args[cursor];
-        let name = match vm.native_name_operand_bytes(original) {
-            Ok(name) => name,
-            Err(error) => {
-                return crate::command::completion_from_cmd_error(
-                    vm,
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-                );
-            }
-        };
-        cursor += 1;
-        let mut kind = TclOoPropertyKind::ReadWrite;
-        let mut getter = None;
-        let mut setter = None;
+    super::original_name_operands::run(vm, Some((class, target)), |vm, original_names| {
+        let recipe = vm
+            .actual_native_invocation_dialect()
+            .native_property_name_protocol()
+            .expect("selected original property definition");
+        let options = recipe.definition_options();
+        let kinds = recipe.definition_kinds();
+        let mut cursor = 0;
         while cursor < args.len() {
-            let bytes = match vm.native_name_operand_bytes(&args[cursor]) {
-                Ok(bytes) => bytes,
+            let original = &args[cursor];
+            let name = match original_names.read(vm, original) {
+                Ok(name) => name,
                 Err(error) => {
-                    return crate::command::completion_from_cmd_error(
-                        vm,
-                        tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-                    );
+                    return crate::command::completion_from_cmd_error(vm, error);
                 }
             };
-            if bytes.first() != Some(&b'-') {
-                break;
-            }
-            let option = match vm.native_index_operand(&args[cursor], &options, false, "option") {
-                Ok(option) => option,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
             cursor += 1;
-            let Some(value) = args.get(cursor) else {
-                let message = if option == 1 {
-                    b"missing kind value to go with -kind option".as_slice()
-                } else if option == 0 {
-                    b"missing body to go with -get option".as_slice()
-                } else {
-                    b"missing body to go with -set option".as_slice()
+            let mut kind = TclOoPropertyKind::ReadWrite;
+            let mut getter = None;
+            let mut setter = None;
+            while cursor < args.len() {
+                let bytes = match original_names.read(vm, &args[cursor]) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return crate::command::completion_from_cmd_error(vm, error);
+                    }
                 };
+                if bytes.first() != Some(&b'-') {
+                    break;
+                }
+                let reached = vm.native_index_operand(&args[cursor], &options, false, "option");
+                if let Err(error) = original_names.check_target(vm) {
+                    return crate::command::completion_from_cmd_error(vm, error);
+                }
+                let option = match reached {
+                    Ok(option) => option,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                cursor += 1;
+                let Some(value) = args.get(cursor) else {
+                    let message = if option == 1 {
+                        b"missing kind value to go with -kind option".as_slice()
+                    } else if option == 0 {
+                        b"missing body to go with -get option".as_slice()
+                    } else {
+                        b"missing body to go with -set option".as_slice()
+                    };
+                    return crate::command::completion_from_cmd_error(
+                        vm,
+                        tcl_cmd_core::CmdError::with_error_code_bytes(
+                            message.to_vec(),
+                            b"TCL WRONGARGS".to_vec(),
+                        )
+                        .with_native_string_result(recipe.strings()),
+                    );
+                };
+                match option {
+                    0 => getter = Some(value.clone()),
+                    2 => setter = Some(value.clone()),
+                    1 => {
+                        let reached = vm.native_index_operand(value, &kinds, false, "kind");
+                        if let Err(error) = original_names.check_target(vm) {
+                            return crate::command::completion_from_cmd_error(vm, error);
+                        }
+                        kind = match reached {
+                            Ok(0) => TclOoPropertyKind::Readable,
+                            Ok(1) => TclOoPropertyKind::ReadWrite,
+                            Ok(2) => TclOoPropertyKind::Writable,
+                            Ok(_) => unreachable!("closed native kind roster"),
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error);
+                            }
+                        };
+                    }
+                    _ => unreachable!("closed native property option roster"),
+                }
+                cursor += 1;
+            }
+            if let Err(message) = recipe.validate_declaration(&name) {
                 return crate::command::completion_from_cmd_error(
                     vm,
                     tcl_cmd_core::CmdError::with_error_code_bytes(
-                        message.to_vec(),
-                        b"TCL WRONGARGS".to_vec(),
+                        message,
+                        b"TCL OO PROPERTY_FORMAT".to_vec(),
                     )
                     .with_native_string_result(recipe.strings()),
                 );
-            };
-            match option {
-                0 => getter = Some(value.clone()),
-                2 => setter = Some(value.clone()),
-                1 => {
-                    kind = match vm.native_index_operand(value, &kinds, false, "kind") {
-                        Ok(0) => TclOoPropertyKind::Readable,
-                        Ok(1) => TclOoPropertyKind::ReadWrite,
-                        Ok(2) => TclOoPropertyKind::Writable,
-                        Ok(_) => unreachable!("closed native kind roster"),
-                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                    };
-                }
-                _ => unreachable!("closed native property option roster"),
             }
-            cursor += 1;
-        }
-        if let Err(message) = recipe.validate_declaration(&name) {
-            return crate::command::completion_from_cmd_error(
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            if let Err(error) = apply_property_bytes(
                 vm,
-                tcl_cmd_core::CmdError::with_error_code_bytes(
-                    message,
-                    b"TCL OO PROPERTY_FORMAT".to_vec(),
-                )
-                .with_native_string_result(recipe.strings()),
-            );
+                class,
+                target,
+                (&name, Some(original)),
+                kind,
+                getter,
+                setter,
+            ) {
+                return error;
+            }
         }
-        if let Err(error) = apply_property_bytes(
-            vm,
-            class,
-            target,
-            (&name, Some(original)),
-            kind,
-            getter,
-            setter,
-        ) {
-            return error;
-        }
-    }
-    ok(Value::empty())
+        ok(Value::empty())
+    })
 }
 
 #[cfg(test)]

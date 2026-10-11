@@ -2,7 +2,7 @@
 //! Original `TclOO` method records retained by table and reached call-chain owners.
 use super::{
     BTreeMap, Code, Completion, Method, OoId, OoState, Rc, RefCell, Step, Value, Vm, err,
-    method_report_bytes, native_method_key, ok,
+    method_report_bytes, native_method_key_for_target, ok, original_name_operands,
 };
 use std::ops::Deref;
 use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
@@ -643,38 +643,46 @@ pub(super) fn delete_method(
     target: OoId,
     args: &[Value],
 ) -> Completion<Value> {
-    if args.is_empty() {
-        return crate::command::native_wrong_args(vm, "deletemethod name ?name ...?");
-    }
-    for original in args {
-        let key = match native_method_key(vm, original) {
-            Ok(key) => key,
-            Err(error) => return error,
-        };
-        let owner = table_mut(&mut vm.oo, target, class).and_then(|table| table.remove(&key));
-        let Some(owner) = owner else {
-            let mut message = b"method ".to_vec();
-            message.extend_from_slice(&method_report_bytes(vm, &key));
-            message.extend_from_slice(b" does not exist");
-            return Completion::new(
-                Code::Error,
-                Value::from_native_string_bytes(message),
-                Value::empty(),
-            );
-        };
-        if class {
-            if let Some(class) = vm.oo.classes.get_mut(&target) {
-                class.exported.remove(&key);
-                class.unexported.remove(&key);
-            }
-        } else if let Some(object) = vm.oo.objects.get_mut(&target) {
-            object.exported.remove(&key);
-            object.unexported.remove(&key);
+    original_name_operands::run(vm, Some((class, target)), |vm, original_names| {
+        if args.is_empty() {
+            return crate::command::native_wrong_args(vm, "deletemethod name ?name ...?");
         }
-        vm.native_property_structure_changed(target, class);
-        drop(owner);
-    }
-    ok(Value::empty())
+        for original in args {
+            let key = match native_method_key_for_target(vm, original, Some((class, target))) {
+                Ok(key) => key,
+                Err(error) => return error,
+            };
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let owner = table_mut(&mut vm.oo, target, class).and_then(|table| table.remove(&key));
+            let Some(owner) = owner else {
+                let mut message = b"method ".to_vec();
+                message.extend_from_slice(&method_report_bytes(vm, &key));
+                message.extend_from_slice(b" does not exist");
+                return Completion::new(
+                    Code::Error,
+                    Value::from_native_string_bytes(message),
+                    Value::empty(),
+                );
+            };
+            if class {
+                if let Some(class) = vm.oo.classes.get_mut(&target) {
+                    class.exported.remove(&key);
+                    class.unexported.remove(&key);
+                }
+            } else if let Some(object) = vm.oo.objects.get_mut(&target) {
+                object.exported.remove(&key);
+                object.unexported.remove(&key);
+            }
+            vm.native_property_structure_changed(target, class);
+            drop(owner);
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+        }
+        ok(Value::empty())
+    })
 }
 pub(super) fn rename_method(
     vm: &mut Vm,
@@ -682,45 +690,50 @@ pub(super) fn rename_method(
     target: OoId,
     args: &[Value],
 ) -> Completion<Value> {
-    let [from, to] = args else {
-        return crate::command::native_wrong_args(vm, "renamemethod oldName newName");
-    };
-    let from = match native_method_key(vm, from) {
-        Ok(key) => key,
-        Err(error) => return error,
-    };
-    let to = match native_method_key(vm, to) {
-        Ok(key) => key,
-        Err(error) => return error,
-    };
-    if from == to {
-        return err("cannot rename method to itself");
-    }
-    let Some(table) = table_mut(&mut vm.oo, target, class) else {
-        return err("attempt to misuse API");
-    };
-    if table.contains_key(&to) {
-        return err("method already exists");
-    }
-    let Some(owner) = table.remove(&from) else {
-        return err("method does not exist");
-    };
-    table.insert_owner(to.clone(), owner);
-    let (exported, unexported) = if class {
-        let class = vm.oo.classes.get_mut(&target).expect("retained class");
-        (&mut class.exported, &mut class.unexported)
-    } else {
-        let object = vm.oo.objects.get_mut(&target).expect("retained object");
-        (&mut object.exported, &mut object.unexported)
-    };
-    if exported.remove(&from) {
-        exported.insert(to.clone());
-    }
-    if unexported.remove(&from) {
-        unexported.insert(to);
-    }
-    vm.native_property_structure_changed(target, class);
-    ok(Value::empty())
+    original_name_operands::run(vm, Some((class, target)), |vm, original_names| {
+        let [from, to] = args else {
+            return crate::command::native_wrong_args(vm, "renamemethod oldName newName");
+        };
+        let from = match native_method_key_for_target(vm, from, Some((class, target))) {
+            Ok(key) => key,
+            Err(error) => return error,
+        };
+        let to = match native_method_key_for_target(vm, to, Some((class, target))) {
+            Ok(key) => key,
+            Err(error) => return error,
+        };
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if from == to {
+            return err("cannot rename method to itself");
+        }
+        let Some(table) = table_mut(&mut vm.oo, target, class) else {
+            return err("attempt to misuse API");
+        };
+        if table.contains_key(&to) {
+            return err("method already exists");
+        }
+        let Some(owner) = table.remove(&from) else {
+            return err("method does not exist");
+        };
+        table.insert_owner(to.clone(), owner);
+        let (exported, unexported) = if class {
+            let class = vm.oo.classes.get_mut(&target).expect("retained class");
+            (&mut class.exported, &mut class.unexported)
+        } else {
+            let object = vm.oo.objects.get_mut(&target).expect("retained object");
+            (&mut object.exported, &mut object.unexported)
+        };
+        if exported.remove(&from) {
+            exported.insert(to.clone());
+        }
+        if unexported.remove(&from) {
+            unexported.insert(to);
+        }
+        vm.native_property_structure_changed(target, class);
+        ok(Value::empty())
+    })
 }
 
 #[cfg(test)]

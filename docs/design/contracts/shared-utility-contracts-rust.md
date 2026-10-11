@@ -2734,6 +2734,23 @@ namespace failure reporting receives the actual operation, release and current
 namespace name; dictionary missing-key reporting receives the reached get or
 intermediate-unset operation and does not alter counted dictionary equality.
 
+The VM's `cmd_oo::original_name_operands` owner retains the entered
+`OriginalNameConsumerScope` through checked Name getters and owned cleanup.
+Object selection captures the actual object name-owner allocation, creation ID
+and namespace token; class selection also captures the actual facet birth.
+These weak observations add no native references or callable owners. A changed
+object or class facet cannot supply the continuation of an earlier selection.
+Private-variable lookup additionally checks the declaring provider selected by
+the genuine entered method-chain step. Ordinary method and declaration changes
+remain permitted when those original owners remain current. Definition workers
+enter their real frame with the same operation currency, then restore the caller
+frame before final settlement. Target checks guard subsequent Name, metadata and
+publication stages; executing an ordinary constructor, method or definition body
+does not require the object to survive its own legitimate lifecycle effects.
+Checked String/header currency supplies no object lookup, class, cache, alias or
+variable-storage purpose, and these software guards do not certify native class
+pointer lifetime or physical method-retirement chronology.
+
 ### TclOO variable declaration objects
 
 Select the native declaration operation with `native_oo_variable_slot` using
