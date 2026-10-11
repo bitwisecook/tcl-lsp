@@ -564,11 +564,16 @@ fn original_return_command(
     }
     let binding = tokens.source_binding.as_ref()?;
     let site = binding.invocation_site()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let image = site.source.source_image();
+    if config != ctx.lexer_config() || image.bytes() != ctx.source.as_bytes() {
+        return None;
+    }
     let words = crate::registry_invocation::original_native_compiler_words(
-        site.source.source_image(),
+        image,
         tokens.words(),
         site.offset,
-        ctx.lexer_config(),
+        config,
     )?;
     let word = words.get(1)?;
     let arena = word.executable_parts();
@@ -578,19 +583,20 @@ fn original_return_command(
     let tcl_lexer::ExecutablePart::Command { body } = part.part else {
         return None;
     };
-    let bytes = arena.bytes(body)?;
-    let image = tcl_lexer::SourceImage::from_bytes(bytes, arena.image().channel());
-    let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
-        &image,
-        body.start(),
-        tcl_lexer::SourceSegmentationPurpose::NestedScript.config(ctx.lexer_config()),
-    )?;
-    let [command] = commands.as_slice() else {
-        return None;
-    };
-    if command.is_partial {
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        arena.image().clone(),
+        body,
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    if plan.fatal_tail.is_some() {
         return None;
     }
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    let bytes = image.bytes().get(command.span.as_range())?;
     Some((command.span, std::str::from_utf8(bytes).ok()?.to_owned()))
 }
 
@@ -1432,5 +1438,130 @@ mod original_tail_parser_purpose_tests {
         missing.source_binding = None;
         assert!(original_return_command(&ctx, &missing).is_none());
         assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
+    }
+
+    fn original_tail_parser_tokens(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<crate::ir::CommandTokens> {
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").ok()?;
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl9.1");
+        let bindings = analysis.retained_command_realm()?.source_bindings_ref();
+        let offset = u32::try_from(source.find("return")?).ok()?;
+        let binding = bindings.invocation_at_source("return", offset);
+        let mut tokens = binding.original_recorded_command_tokens()?;
+        bindings.stamp_original_tokens(&mut tokens);
+        Some(tokens)
+    }
+
+    #[test]
+    fn original_tail_command_extent_keeps_each_written_closer_and_selected_trivia() {
+        // naming.optimiser.original-tail-call-inventory
+        // docs/design/analysis/name-resolution-proofs/original-tail-call-inventory.md
+        // Actual retained lexical extents only, independently of tail-call rewrites or native entry.
+        let profile = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .unit_profile();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        for (body, expected) in [
+            ("f ${a{b}", "f ${a{b}"),
+            ("f ${}", "f ${}"),
+            ("f \"café\"", "f \"café\""),
+            ("f \"\"", "f \"\""),
+            ("f {a\\}}", "f {a\\}}"),
+            ("\u{feff}f VALUE", "\u{feff}f VALUE"),
+            ("  f VALUE \t", "f VALUE"),
+            ("f VALUE; ", "f VALUE"),
+        ] {
+            let source = format!("\u{feff}return [{body}]");
+            let tokens = original_tail_parser_tokens(&source, config).unwrap();
+            let mut ctx = PassContext::with_dialect(
+                &source,
+                crate::interprocedural::InterproceduralAnalysis::default(),
+                Some(profile),
+            );
+            ctx.source_lexer_config = Some(config);
+            let (span, written) = original_return_command(&ctx, &tokens).unwrap();
+            assert_eq!(written, expected, "{body}");
+            assert_eq!(source.get(span.as_range()), Some(expected), "{body}");
+            assert_eq!(
+                span.start(),
+                u32::try_from(source.find(expected).unwrap()).unwrap()
+            );
+            assert_eq!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_lexer_config_for_tokens(&tokens),
+                Some(config)
+            );
+        }
+    }
+
+    #[test]
+    fn original_tail_command_extent_refuses_changed_source_config_vector_and_multiple_commands() {
+        // naming.optimiser.original-tail-call-inventory
+        // docs/design/analysis/name-resolution-proofs/original-tail-call-inventory.md
+        let profile = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .unit_profile();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let source = "\u{feff}return [f ${a{b}]";
+        let tokens = original_tail_parser_tokens(source, config).unwrap();
+        let mut ctx = PassContext::with_dialect(
+            source,
+            crate::interprocedural::InterproceduralAnalysis::default(),
+            Some(profile),
+        );
+        ctx.source_lexer_config = Some(config);
+        assert!(original_return_command(&ctx, &tokens).is_some());
+        ctx.source_lexer_config = Some(tcl_lexer::LexerConfig {
+            strict_quoting: !config.strict_quoting,
+            ..config
+        });
+        assert!(original_return_command(&ctx, &tokens).is_none());
+        ctx.source_lexer_config = Some(config);
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "[fabricated]".to_owned();
+        assert!(original_return_command(&ctx, &changed).is_none());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(original_return_command(&ctx, &missing).is_none());
+        let mut foreign = PassContext::with_dialect(
+            "\u{feff}return [foreign]",
+            crate::interprocedural::InterproceduralAnalysis::default(),
+            Some(profile),
+        );
+        foreign.source_lexer_config = Some(config);
+        assert!(original_return_command(&foreign, &tokens).is_none());
+        for source in ["\u{feff}return [f; other]", "\u{feff}return [f][other]"] {
+            let tokens = original_tail_parser_tokens(source, config).unwrap();
+            let mut ctx = PassContext::with_dialect(
+                source,
+                crate::interprocedural::InterproceduralAnalysis::default(),
+                Some(profile),
+            );
+            ctx.source_lexer_config = Some(config);
+            assert!(original_return_command(&ctx, &tokens).is_none());
+        }
     }
 }
