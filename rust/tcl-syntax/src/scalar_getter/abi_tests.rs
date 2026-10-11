@@ -1,5 +1,3 @@
-/tmp/grammar-wasi-numeric-adapter444/candidate/rust/tcl-syntax/src/scalar_getter/abi_tests.rs:
-
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use super::*;
 

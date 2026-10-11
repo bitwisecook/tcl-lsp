@@ -42,7 +42,7 @@ mod collections;
 pub use collections::probe_list_elements;
 mod scalar;
 pub(crate) use scalar::publish_access_error as scalar_publish_access_error;
-pub(crate) use scalar::read_scalar_for_interpreter;
+pub(crate) use scalar::{read_scalar_for_interpreter, ScalarReadError};
 pub use scalar::{bind_scalar_getter_context, probe_scalar_getter, NativeScalarObjectAccessError};
 use tcl_syntax::scalar_getter::{
     NativeScalarGetterKind as ScalarKind, NativeScalarGetterValue as ScalarValue,

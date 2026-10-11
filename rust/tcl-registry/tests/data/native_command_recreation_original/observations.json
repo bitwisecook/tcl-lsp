@@ -1,0 +1,2033 @@
+{
+  "scope": "Complete derived review of all60 original callback-stage rows; whole original streams/receipts remain authoritative. No Rust outcome or application retirement equivalence.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "version": "8.4.20",
+      "cli_version_bytes_hex": "",
+      "native_version_result_hex": "382e342e323020382e34",
+      "build": "BUILD\tHEADER=8.4.20\tGetVersion=8.4.20/2",
+      "abi": "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8",
+      "rows": [
+        {
+          "case": "0",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        }
+      ],
+      "events": [
+        {
+          "case": "0",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "0",
+          "sequence": "2",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        },
+        {
+          "case": "1",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "1",
+          "sequence": "2",
+          "status": "0",
+          "middle_token": "558f66da0a10"
+        },
+        {
+          "case": "1",
+          "sequence": "3",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        }
+      ],
+      "results": [
+        {
+          "case": "0",
+          "status": "0",
+          "hex": "46494e414c"
+        },
+        {
+          "case": "1",
+          "status": "0",
+          "hex": "46494e414c"
+        }
+      ],
+      "diagnostic_tokens": [
+        {
+          "case": "0",
+          "old": "558f66da0650",
+          "middle": "0",
+          "final": "558f66da0650"
+        },
+        {
+          "case": "1",
+          "old": "558f66d9dc50",
+          "middle": "558f66da0a10",
+          "final": "558f66da0a10"
+        }
+      ],
+      "receipt_sha256": "bd4b83c07f0287a9b670a042cd18cc2ec2e7cb77d4d72fd0f844bf3c9726e4aa",
+      "executable_sha256": "a043d3e7242b34286c2e723c9387d422442d69cc5d91aac7c0beaf99d90efbd3",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+      },
+      "link_input_associations": {
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libpthread.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+        "/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+        "/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+        "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+        "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      }
+    },
+    {
+      "provider": "8.5.19",
+      "version": "8.5.19",
+      "cli_version_bytes_hex": "",
+      "native_version_result_hex": "382e352e313920382e35",
+      "build": "BUILD\tHEADER=8.5.19\tGetVersion=8.5.19/2",
+      "abi": "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8",
+      "rows": [
+        {
+          "case": "0",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        }
+      ],
+      "events": [
+        {
+          "case": "0",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "0",
+          "sequence": "2",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        },
+        {
+          "case": "1",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "1",
+          "sequence": "2",
+          "status": "0",
+          "middle_token": "55ed123da7a0"
+        },
+        {
+          "case": "1",
+          "sequence": "3",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        }
+      ],
+      "results": [
+        {
+          "case": "0",
+          "status": "0",
+          "hex": "46494e414c"
+        },
+        {
+          "case": "1",
+          "status": "0",
+          "hex": "46494e414c"
+        }
+      ],
+      "diagnostic_tokens": [
+        {
+          "case": "0",
+          "old": "55ed1242adb0",
+          "middle": "0",
+          "final": "55ed1242adb0"
+        },
+        {
+          "case": "1",
+          "old": "55ed123fa7d0",
+          "middle": "55ed123da7a0",
+          "final": "55ed123da7a0"
+        }
+      ],
+      "receipt_sha256": "6a2eb37a447418007424cc675c8628f26cac405291ec11523907093574f1eabe",
+      "executable_sha256": "5fadebe19187738e0212ea2d1e96951482ffb259f219eb8347313035e3ffbd55",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+      },
+      "link_input_associations": {
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libpthread.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+        "/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+        "/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+        "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+        "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      }
+    },
+    {
+      "provider": "8.6.18",
+      "version": "8.6.18",
+      "cli_version_bytes_hex": "",
+      "native_version_result_hex": "382e362e313820382e36",
+      "build": "BUILD\tHEADER=8.6.18\tGetVersion=8.6.18/2",
+      "abi": "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8",
+      "rows": [
+        {
+          "case": "0",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        }
+      ],
+      "events": [
+        {
+          "case": "0",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "0",
+          "sequence": "2",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        },
+        {
+          "case": "1",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "1",
+          "sequence": "2",
+          "status": "0",
+          "middle_token": "5559d3d46180"
+        },
+        {
+          "case": "1",
+          "sequence": "3",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        }
+      ],
+      "results": [
+        {
+          "case": "0",
+          "status": "0",
+          "hex": "46494e414c"
+        },
+        {
+          "case": "1",
+          "status": "0",
+          "hex": "46494e414c"
+        }
+      ],
+      "diagnostic_tokens": [
+        {
+          "case": "0",
+          "old": "5559d3d4fa30",
+          "middle": "0",
+          "final": "5559d3d4fa30"
+        },
+        {
+          "case": "1",
+          "old": "5559d3d2c230",
+          "middle": "5559d3d46180",
+          "final": "5559d3d46180"
+        }
+      ],
+      "receipt_sha256": "c0e2e1923dffdefa72cc1b5e11f4ea7c5b89a9299de9e169330159f847f1d87f",
+      "executable_sha256": "ea8a71aedb8a565967452f3e2771851afea9c3b5d5db06981dadb40ac91b257b",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+      },
+      "link_input_associations": {
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libz.so": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libpthread.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+        "/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+        "/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+        "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+        "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      }
+    },
+    {
+      "provider": "9.0.4",
+      "version": "9.0.4",
+      "cli_version_bytes_hex": "",
+      "native_version_result_hex": "392e302e3420392e30",
+      "build": "BUILD\tHEADER=9.0.4\tGetVersion=9.0.4/2",
+      "abi": "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8",
+      "rows": [
+        {
+          "case": "0",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        }
+      ],
+      "events": [
+        {
+          "case": "0",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "0",
+          "sequence": "2",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        },
+        {
+          "case": "1",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "1",
+          "sequence": "2",
+          "status": "0",
+          "middle_token": "55aef56bb430"
+        },
+        {
+          "case": "1",
+          "sequence": "3",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        }
+      ],
+      "results": [
+        {
+          "case": "0",
+          "status": "0",
+          "hex": "46494e414c"
+        },
+        {
+          "case": "1",
+          "status": "0",
+          "hex": "46494e414c"
+        }
+      ],
+      "diagnostic_tokens": [
+        {
+          "case": "0",
+          "old": "55aef569e0c0",
+          "middle": "0",
+          "final": "55aef569e0c0"
+        },
+        {
+          "case": "1",
+          "old": "55aef56c3e50",
+          "middle": "55aef56bb430",
+          "final": "55aef56bb430"
+        }
+      ],
+      "receipt_sha256": "fc30f1c5fdf5caf35582a9d0cc719bfefc16085dec63ca4127064c4905c913d7",
+      "executable_sha256": "db00e43a58142635a18d66e32376c092226899adb02c25d76287520d3900fcf0",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+      },
+      "link_input_associations": {
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libz.so": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libpthread.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+        "/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+        "/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+        "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+        "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      }
+    },
+    {
+      "provider": "9.1.0",
+      "version": "9.1.0",
+      "cli_version_bytes_hex": "",
+      "native_version_result_hex": "392e312e3020392e31",
+      "build": "BUILD\tHEADER=9.1.0\tGetVersion=9.1.0/2",
+      "abi": "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8",
+      "rows": [
+        {
+          "case": "0",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        }
+      ],
+      "events": [
+        {
+          "case": "0",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "0",
+          "sequence": "2",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        },
+        {
+          "case": "1",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "1",
+          "sequence": "2",
+          "status": "0",
+          "middle_token": "5622a1f36ab0"
+        },
+        {
+          "case": "1",
+          "sequence": "3",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        }
+      ],
+      "results": [
+        {
+          "case": "0",
+          "status": "0",
+          "hex": "46494e414c"
+        },
+        {
+          "case": "1",
+          "status": "0",
+          "hex": "46494e414c"
+        }
+      ],
+      "diagnostic_tokens": [
+        {
+          "case": "0",
+          "old": "5622a1f369b0",
+          "middle": "0",
+          "final": "5622a1f369b0"
+        },
+        {
+          "case": "1",
+          "old": "5622a1f369b0",
+          "middle": "5622a1f36ab0",
+          "final": "5622a1f36ab0"
+        }
+      ],
+      "receipt_sha256": "6e30ec79d108c2e7b4ecc71f266a9f17bcbbbb06435ba9220f980f59aa46474d",
+      "executable_sha256": "9abb53a2296749f9541f581da41002474e6d27cf63bc08859cb6b7a5163176a7",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+      },
+      "link_input_associations": {
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libz.so": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/librt.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libpthread.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+        "/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+        "/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+        "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+        "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      }
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "cli_version_bytes_hex": "",
+      "native_version_result_hex": "302e38342d392d673562616337633920302e3834",
+      "build": "BUILD\tJIM_GITVERSION=0.84-9-g5bac7c9\tJIM_VERSION=84\tJIM_ABI_VERSION=102\tJIM_UTF8=1",
+      "abi": "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8",
+      "rows": [
+        {
+          "case": "0",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "0",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "original-created",
+          "status": "0",
+          "old_delete": "0",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "0"
+        },
+        {
+          "case": "1",
+          "stage": "replacement-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "0",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "invocation-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "0",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "public-delete-returned",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        },
+        {
+          "case": "1",
+          "stage": "interpreter-destroyed",
+          "status": "0",
+          "old_delete": "1",
+          "middle_delete": "0",
+          "final_delete": "1",
+          "old_call": "0",
+          "middle_call": "0",
+          "final_call": "1",
+          "recreated": "1"
+        }
+      ],
+      "events": [
+        {
+          "case": "0",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "0",
+          "sequence": "2",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        },
+        {
+          "case": "1",
+          "sequence": "1",
+          "delete": "0",
+          "old": "1",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "1",
+          "sequence": "2",
+          "status": "0",
+          "middle_token": "0"
+        },
+        {
+          "case": "1",
+          "sequence": "3",
+          "delete": "2",
+          "old": "1",
+          "middle": "0",
+          "final": "1"
+        }
+      ],
+      "results": [
+        {
+          "case": "0",
+          "status": "0",
+          "hex": "46494e414c"
+        },
+        {
+          "case": "1",
+          "status": "0",
+          "hex": "46494e414c"
+        }
+      ],
+      "diagnostic_tokens": [
+        {
+          "case": "0",
+          "old": "0",
+          "middle": "0",
+          "final": "0"
+        },
+        {
+          "case": "1",
+          "old": "0",
+          "middle": "0",
+          "final": "0"
+        }
+      ],
+      "receipt_sha256": "2098e71cdf12e6d06661cd8609f52812ed70adf2810a6186ed81f994d6841b72",
+      "executable_sha256": "5ffd66512f1f3ad1e631d6594acf3f37f2c63c9764940775c036868f712e9202",
+      "selected_environment": {},
+      "link_input_associations": {
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+        "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+        "/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+        "/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libssl.so": "4b34859318555bf96d518131bed5fc4d5e35fefa4e1729f49eaa26bd05263850",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libcrypto.so": "8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libz.so": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+        "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+        "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      }
+    }
+  ],
+  "compiler_version_process": {
+    "command": [
+      "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "--version"
+    ],
+    "cwd": "/workspace/.proofs/native-command-recreation486",
+    "exit": 0,
+    "timeout": false,
+    "seconds": 0.37446745901252143,
+    "stdout_file": "compiler-version.stdout",
+    "stderr_file": "compiler-version.stderr",
+    "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs_before": {
+      "/tmp/receiver-command-recreation-request486/request.json": "92b04144813782cd29fad5aca8b53ba06990d637cca02dafdc1866ad51d35e95",
+      "/tmp/receiver-command-recreation-request486/jim-version.tcl": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770",
+      "/tmp/receiver-command-recreation-request486/c-version.tcl": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd",
+      "/tmp/receiver-command-recreation-request486/invoke.tcl": "0d388a2db494a883a2c4bd79317f1bf2f7c4aed988ec5973126fd1bc92d90cee",
+      "/tmp/receiver-command-recreation-request486/probe.c": "dd26f86bae7adc7ae0e9f62e00b7dd94b17412b1dc580ae1e9b30cb48b17422d",
+      "/tmp/receiver-command-recreation-request486/source-inspection/jim/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "/tmp/receiver-command-recreation-request486/source-inspection/jim/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "/tmp/receiver-command-recreation-request486/source-inspection/9.1.0/tclBasic.c": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "/tmp/receiver-command-recreation-request486/source-inspection/9.0.4/tclBasic.c": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "/tmp/receiver-command-recreation-request486/source-inspection/8.6.18/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "/tmp/receiver-command-recreation-request486/source-inspection/8.5.19/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "/tmp/receiver-command-recreation-request486/source-inspection/8.4.20/tclBasic.c": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "/usr/bin/x86_64-linux-gnu-gcc-14": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "/usr/bin/x86_64-linux-gnu-as": "07dd8551ea0aa065975e4dddb8e1bb7dc308d12d54eca22c3858db79467c7cb9",
+      "/usr/bin/x86_64-linux-gnu-ld": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+      "/usr/bin/x86_64-linux-gnu-ld.bfd": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1": "02675980109a4a5496cddf67d5286de57942759edc830deaa525e36f9a2a0291",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1plus": "3064a74d411cc6a72fa3d8d2ce47d72925a42807d89d60618d8467b0eb10c948",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2": "ea31a4cebd9df1b6428c463428d461ccecfe66c897936409d5b2cde0b3af9e27",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/g++-mapper-server": "9ff6f0550dd673d785f87bd7e0b27d7c0e92cc617af72eacc9b770cc8c11d8e8",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/liblto_plugin.so": "1160335db754d964f3560d403aa58e21380b2284439fe75317ffe5652e8bd839",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/lto-wrapper": "290775a27c6dac1f5cc9bb9e7f0265fd955e0c4f7b29aaa04811393144b6f528",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/lto1": "fddef07456561fa15cef021079d99c0585449b91ca95b28e1bc5ecec17c34130",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o": "df8f8079c3724e8cd011f77df3ce9046183354bccaa6d0029a2860f4fcbcab4d",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginT.o": "d4c928492dd7f652f72fa706bd59b0e77eb3d842863d2287a9059e37b4bf5ba2",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtend.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtfastmath.o": "4a4b5da5fd229544100dd71fac0b42153b835d89c353f304912c617178567b9b",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadbegin.o": "2a84f51fb496357bca648daeb80840e318ee30841ef947f8dd97b0fd706e8aab",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadend.o": "ce4ac342e6c582d6739cce337baf1fe009b68143eb104dd2a97a0e10116f0cbf",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadtable.o": "87fdafc169b42d7289ea36e95d2bb39b53b59ac4c464312c7302f3cca767cbd2",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadtableS.o": "378304a7c1096d1b8076b834990f10670555b7a8edb23140d14d067c201d982f",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtprec32.o": "4b204df042a300c808e09cc5e280db511cf92acb4ec43f7d31de8e64f6244d87",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtprec64.o": "4a377c45adde6ea546915b53f0fc3c7182b5110807a373a8fe71c0d67c92320a",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtprec80.o": "64ef8c0809a2a9f57f8881578c8a56545ad2023831e99e5d9c89f8294bc11fe0",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libasan.a": "89f0ef9dc1c5ab572eca99991f8ee4b623e50ab2d3fe5fcccb369a2c791dcdbd",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libasan.so": "f5c57422d80671ced6cffe350f92c8ab9bec23fda9b155658aac630d2bc2a240",
+      "/usr/lib/x86_64-linux-gnu/libasan.so.8.0.0": "f5c57422d80671ced6cffe350f92c8ab9bec23fda9b155658aac630d2bc2a240",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libasan_preinit.o": "dc6c53e3748bf5598a6438df0df714408d31c1d04b2d96d10d090ca16b28235b",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libatomic.a": "958fc9b76940194104ddba207e6567f136278ea38f7ea12bdfe7546ab38ac480",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libatomic.so": "9558489f171274c220104894258f483055853ed8a23d4ff754c850ce55765aa2",
+      "/usr/lib/x86_64-linux-gnu/libatomic.so.1.2.0": "9558489f171274c220104894258f483055853ed8a23d4ff754c850ce55765aa2",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libbacktrace.a": "972057773df2212a027d416bebd42d49dff10d4fceb64e05a79c98de9e206135",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libcc1.so": "edf5852aa1a1b1e7b0f9f7c72d6461fd64f8f47998a3543ca89716411bb898c0",
+      "/usr/lib/x86_64-linux-gnu/libcc1.so.0.0.0": "edf5852aa1a1b1e7b0f9f7c72d6461fd64f8f47998a3543ca89716411bb898c0",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_eh.a": "4622efa3af50eaea4fbb4bc520ada4c88008c5343e0ad306633821fd2432102d",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcov.a": "4d2dd24d0bcbc295bf30b0e07e5e85e70472fe61fb094f0884f59bfef3c92982",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgomp.a": "154cc0e6ed92b6bbeb5d5f77e00e6ef04379e24b35c892c5bfa5b83e963d98cc",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgomp.so": "6456b504ac347bd50c419667440b691f6966ad8aff5309d2f06c977fe2f9debe",
+      "/usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0": "6456b504ac347bd50c419667440b691f6966ad8aff5309d2f06c977fe2f9debe",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libhwasan.a": "2eb0ca4f57f30fdcdf413f06d63b4820a7cec06512d474606df9d2d62e0fe7ed",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libhwasan.so": "59a4d5b1e863a197d28d586853d5d5ea10eaa4b712387e41f1177465ff0a9afc",
+      "/usr/lib/x86_64-linux-gnu/libhwasan.so.0.0.0": "59a4d5b1e863a197d28d586853d5d5ea10eaa4b712387e41f1177465ff0a9afc",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libhwasan_preinit.o": "357460a4f5140f99fadf245a886376f7bdbbb1093005b3e6750749727571a536",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libitm.a": "32f70f6d7a935db36f9c98d4503d12ae66df055a4b8f9b7adfacc4cc87dbd52e",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libitm.so": "ff40d595da72bbf33d836998dbebc4f40d50eb9e50384ba5cf20c28ef98668b3",
+      "/usr/lib/x86_64-linux-gnu/libitm.so.1.0.0": "ff40d595da72bbf33d836998dbebc4f40d50eb9e50384ba5cf20c28ef98668b3",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblsan.a": "2e0dd38f396ed0a372e7d00a27aa2ba305c872a8057977732c4ccba4b9e359f1",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblsan.so": "4b47dc76d8010de7b239ad516f7533e2185f5995e843715b9b0de626ae46c0de",
+      "/usr/lib/x86_64-linux-gnu/liblsan.so.0.0.0": "4b47dc76d8010de7b239ad516f7533e2185f5995e843715b9b0de626ae46c0de",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblsan_preinit.o": "561dbd0c9ddacc679866dbf131f077c5d775841bb2dbdab3a0fda038a619ecd1",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so": "1160335db754d964f3560d403aa58e21380b2284439fe75317ffe5652e8bd839",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libquadmath.a": "688bf41661de1f19afe9ba8838266f9fa05a4130b1a9b6eeaa4712488c6b86a6",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libquadmath.so": "da70fb5c2cbdc1a3fbe984f44dd06a3b19454c75ca40bd92684328cc7a4d275a",
+      "/usr/lib/x86_64-linux-gnu/libquadmath.so.0.0.0": "da70fb5c2cbdc1a3fbe984f44dd06a3b19454c75ca40bd92684328cc7a4d275a",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libssp_nonshared.a": "c70892e8fec2524db2b9b2c362a2c8c8d5338786b32160004c70e062eaff676b",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.a": "3a7def7eb48c699651c0a301d1f5eb1263bbfd2ec186b152bfbc5debb60ad3d7",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so": "972bb2a18b71140dab0240f8a1f68ab3fb1d56bcd4c4f824a91b70888faf5a00",
+      "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33": "972bb2a18b71140dab0240f8a1f68ab3fb1d56bcd4c4f824a91b70888faf5a00",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++exp.a": "ff2d5d76345552e3438474de81fac6cec440bb667d07fd714f08251ace1b1312",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++fs.a": "7c25ff60fa05dda6b1eb179b65f2f32215e63793e35e0f55bf3804784e1665a5",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libsupc++.a": "145f678cb8d5df4c6637ff4f3281fb337cd518e3a56ffb9c01aaba9b0f345c46",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libtsan.a": "9ae67d6228f8cd6b42b8e592ce84347d85e9909d0ca12b8a917b72b77422ed9a",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libtsan.so": "d4d8d0b7b10a25c6a129e8049cff0228fa53d16d7f6f86560ad9d215402530d4",
+      "/usr/lib/x86_64-linux-gnu/libtsan.so.2.0.0": "d4d8d0b7b10a25c6a129e8049cff0228fa53d16d7f6f86560ad9d215402530d4",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libtsan_preinit.o": "ed8c1e15a105656e860fc03db60e66fd74fac1853ed7d2f7a4d2f0b9a0edf407",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libubsan.a": "b84dcb4b1f202b6d9a7490fd533425ef3e8caa47f584d59a748d868c732f3ba0",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libubsan.so": "c3912c88d4d1d3772d44c2a77fcda85ebf2790e6efc3602f9489a4e23f4899e2",
+      "/usr/lib/x86_64-linux-gnu/libubsan.so.1.0.0": "c3912c88d4d1d3772d44c2a77fcda85ebf2790e6efc3602f9489a4e23f4899e2",
+      "/usr/lib/x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+      "/usr/lib/x86_64-linux-gnu/crt1.o": "8cd1a50edd44a4ded5856bf2254dc106401b37c285dcc55a594475438cd6ec1a",
+      "/usr/lib/x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+      "/usr/lib/x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101",
+      "/usr/lib/x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+      "/usr/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+      "/usr/lib/x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+      "/usr/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "/usr/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+      "/usr/lib/x86_64-linux-gnu/libpthread.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "/usr/lib/x86_64-linux-gnu/libpthread.so.0": "85e21f7dba0394411d00959176fd18b470e575b0b05f1f4f41e5636802ce0500",
+      "/usr/lib/x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "/usr/lib/x86_64-linux-gnu/libdl.so.2": "295fa521a03cd2faa99974f378c9e23dd622021ec7d32bcad4f8ea61aec8a872",
+      "/usr/lib/x86_64-linux-gnu/librt.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "/usr/lib/x86_64-linux-gnu/librt.so.1": "7b7b84d1aedda0e0b2bdfc68844362782132180b8f02be1300e21e77572e514b",
+      "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+      "/usr/lib/x86_64-linux-gnu/libz.so": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "/usr/lib/x86_64-linux-gnu/libz.so.1": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "/usr/lib/x86_64-linux-gnu/libssl.so": "4b34859318555bf96d518131bed5fc4d5e35fefa4e1729f49eaa26bd05263850",
+      "/usr/lib/x86_64-linux-gnu/libssl.so.3": "4b34859318555bf96d518131bed5fc4d5e35fefa4e1729f49eaa26bd05263850",
+      "/usr/lib/x86_64-linux-gnu/libcrypto.so": "8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d",
+      "/usr/lib/x86_64-linux-gnu/libcrypto.so.3": "8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d",
+      "/usr/lib/x86_64-linux-gnu/libresolv.so.2": "d41dd4adacf5a35df426461dd8a92d7bdd5ba29bb61a1c3531bec0ada386f8dd",
+      "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "/tmp/receiver-command-recreation-request486/launch-plan.json": "bc5f3a8920b93bead01bad4b4c9eb0b69b240636c8f6fea6ff6e5da8401c1dbc",
+      "/tmp/receiver-command-recreation-request486/capture.py": "9b6d71b3f8596e7c6a87f85202e78e67fe5f1133e18431539a57511470fff108"
+    },
+    "inputs_after": {
+      "/tmp/receiver-command-recreation-request486/request.json": "92b04144813782cd29fad5aca8b53ba06990d637cca02dafdc1866ad51d35e95",
+      "/tmp/receiver-command-recreation-request486/jim-version.tcl": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770",
+      "/tmp/receiver-command-recreation-request486/c-version.tcl": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd",
+      "/tmp/receiver-command-recreation-request486/invoke.tcl": "0d388a2db494a883a2c4bd79317f1bf2f7c4aed988ec5973126fd1bc92d90cee",
+      "/tmp/receiver-command-recreation-request486/probe.c": "dd26f86bae7adc7ae0e9f62e00b7dd94b17412b1dc580ae1e9b30cb48b17422d",
+      "/tmp/receiver-command-recreation-request486/source-inspection/jim/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "/tmp/receiver-command-recreation-request486/source-inspection/jim/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "/tmp/receiver-command-recreation-request486/source-inspection/9.1.0/tclBasic.c": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "/tmp/receiver-command-recreation-request486/source-inspection/9.0.4/tclBasic.c": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "/tmp/receiver-command-recreation-request486/source-inspection/8.6.18/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "/tmp/receiver-command-recreation-request486/source-inspection/8.5.19/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "/tmp/receiver-command-recreation-request486/source-inspection/8.4.20/tclBasic.c": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "/usr/bin/x86_64-linux-gnu-gcc-14": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "/usr/bin/x86_64-linux-gnu-as": "07dd8551ea0aa065975e4dddb8e1bb7dc308d12d54eca22c3858db79467c7cb9",
+      "/usr/bin/x86_64-linux-gnu-ld": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+      "/usr/bin/x86_64-linux-gnu-ld.bfd": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1": "02675980109a4a5496cddf67d5286de57942759edc830deaa525e36f9a2a0291",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1plus": "3064a74d411cc6a72fa3d8d2ce47d72925a42807d89d60618d8467b0eb10c948",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2": "ea31a4cebd9df1b6428c463428d461ccecfe66c897936409d5b2cde0b3af9e27",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/g++-mapper-server": "9ff6f0550dd673d785f87bd7e0b27d7c0e92cc617af72eacc9b770cc8c11d8e8",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/liblto_plugin.so": "1160335db754d964f3560d403aa58e21380b2284439fe75317ffe5652e8bd839",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/lto-wrapper": "290775a27c6dac1f5cc9bb9e7f0265fd955e0c4f7b29aaa04811393144b6f528",
+      "/usr/libexec/gcc/x86_64-linux-gnu/14/lto1": "fddef07456561fa15cef021079d99c0585449b91ca95b28e1bc5ecec17c34130",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o": "df8f8079c3724e8cd011f77df3ce9046183354bccaa6d0029a2860f4fcbcab4d",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginT.o": "d4c928492dd7f652f72fa706bd59b0e77eb3d842863d2287a9059e37b4bf5ba2",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtend.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtfastmath.o": "4a4b5da5fd229544100dd71fac0b42153b835d89c353f304912c617178567b9b",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadbegin.o": "2a84f51fb496357bca648daeb80840e318ee30841ef947f8dd97b0fd706e8aab",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadend.o": "ce4ac342e6c582d6739cce337baf1fe009b68143eb104dd2a97a0e10116f0cbf",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadtable.o": "87fdafc169b42d7289ea36e95d2bb39b53b59ac4c464312c7302f3cca767cbd2",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtoffloadtableS.o": "378304a7c1096d1b8076b834990f10670555b7a8edb23140d14d067c201d982f",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtprec32.o": "4b204df042a300c808e09cc5e280db511cf92acb4ec43f7d31de8e64f6244d87",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtprec64.o": "4a377c45adde6ea546915b53f0fc3c7182b5110807a373a8fe71c0d67c92320a",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/crtprec80.o": "64ef8c0809a2a9f57f8881578c8a56545ad2023831e99e5d9c89f8294bc11fe0",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libasan.a": "89f0ef9dc1c5ab572eca99991f8ee4b623e50ab2d3fe5fcccb369a2c791dcdbd",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libasan.so": "f5c57422d80671ced6cffe350f92c8ab9bec23fda9b155658aac630d2bc2a240",
+      "/usr/lib/x86_64-linux-gnu/libasan.so.8.0.0": "f5c57422d80671ced6cffe350f92c8ab9bec23fda9b155658aac630d2bc2a240",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libasan_preinit.o": "dc6c53e3748bf5598a6438df0df714408d31c1d04b2d96d10d090ca16b28235b",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libatomic.a": "958fc9b76940194104ddba207e6567f136278ea38f7ea12bdfe7546ab38ac480",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libatomic.so": "9558489f171274c220104894258f483055853ed8a23d4ff754c850ce55765aa2",
+      "/usr/lib/x86_64-linux-gnu/libatomic.so.1.2.0": "9558489f171274c220104894258f483055853ed8a23d4ff754c850ce55765aa2",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libbacktrace.a": "972057773df2212a027d416bebd42d49dff10d4fceb64e05a79c98de9e206135",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libcc1.so": "edf5852aa1a1b1e7b0f9f7c72d6461fd64f8f47998a3543ca89716411bb898c0",
+      "/usr/lib/x86_64-linux-gnu/libcc1.so.0.0.0": "edf5852aa1a1b1e7b0f9f7c72d6461fd64f8f47998a3543ca89716411bb898c0",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_eh.a": "4622efa3af50eaea4fbb4bc520ada4c88008c5343e0ad306633821fd2432102d",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgcov.a": "4d2dd24d0bcbc295bf30b0e07e5e85e70472fe61fb094f0884f59bfef3c92982",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgomp.a": "154cc0e6ed92b6bbeb5d5f77e00e6ef04379e24b35c892c5bfa5b83e963d98cc",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libgomp.so": "6456b504ac347bd50c419667440b691f6966ad8aff5309d2f06c977fe2f9debe",
+      "/usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0": "6456b504ac347bd50c419667440b691f6966ad8aff5309d2f06c977fe2f9debe",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libhwasan.a": "2eb0ca4f57f30fdcdf413f06d63b4820a7cec06512d474606df9d2d62e0fe7ed",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libhwasan.so": "59a4d5b1e863a197d28d586853d5d5ea10eaa4b712387e41f1177465ff0a9afc",
+      "/usr/lib/x86_64-linux-gnu/libhwasan.so.0.0.0": "59a4d5b1e863a197d28d586853d5d5ea10eaa4b712387e41f1177465ff0a9afc",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libhwasan_preinit.o": "357460a4f5140f99fadf245a886376f7bdbbb1093005b3e6750749727571a536",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libitm.a": "32f70f6d7a935db36f9c98d4503d12ae66df055a4b8f9b7adfacc4cc87dbd52e",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libitm.so": "ff40d595da72bbf33d836998dbebc4f40d50eb9e50384ba5cf20c28ef98668b3",
+      "/usr/lib/x86_64-linux-gnu/libitm.so.1.0.0": "ff40d595da72bbf33d836998dbebc4f40d50eb9e50384ba5cf20c28ef98668b3",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblsan.a": "2e0dd38f396ed0a372e7d00a27aa2ba305c872a8057977732c4ccba4b9e359f1",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblsan.so": "4b47dc76d8010de7b239ad516f7533e2185f5995e843715b9b0de626ae46c0de",
+      "/usr/lib/x86_64-linux-gnu/liblsan.so.0.0.0": "4b47dc76d8010de7b239ad516f7533e2185f5995e843715b9b0de626ae46c0de",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblsan_preinit.o": "561dbd0c9ddacc679866dbf131f077c5d775841bb2dbdab3a0fda038a619ecd1",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so": "1160335db754d964f3560d403aa58e21380b2284439fe75317ffe5652e8bd839",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libquadmath.a": "688bf41661de1f19afe9ba8838266f9fa05a4130b1a9b6eeaa4712488c6b86a6",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libquadmath.so": "da70fb5c2cbdc1a3fbe984f44dd06a3b19454c75ca40bd92684328cc7a4d275a",
+      "/usr/lib/x86_64-linux-gnu/libquadmath.so.0.0.0": "da70fb5c2cbdc1a3fbe984f44dd06a3b19454c75ca40bd92684328cc7a4d275a",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libssp_nonshared.a": "c70892e8fec2524db2b9b2c362a2c8c8d5338786b32160004c70e062eaff676b",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.a": "3a7def7eb48c699651c0a301d1f5eb1263bbfd2ec186b152bfbc5debb60ad3d7",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so": "972bb2a18b71140dab0240f8a1f68ab3fb1d56bcd4c4f824a91b70888faf5a00",
+      "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33": "972bb2a18b71140dab0240f8a1f68ab3fb1d56bcd4c4f824a91b70888faf5a00",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++exp.a": "ff2d5d76345552e3438474de81fac6cec440bb667d07fd714f08251ace1b1312",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++fs.a": "7c25ff60fa05dda6b1eb179b65f2f32215e63793e35e0f55bf3804784e1665a5",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libsupc++.a": "145f678cb8d5df4c6637ff4f3281fb337cd518e3a56ffb9c01aaba9b0f345c46",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libtsan.a": "9ae67d6228f8cd6b42b8e592ce84347d85e9909d0ca12b8a917b72b77422ed9a",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libtsan.so": "d4d8d0b7b10a25c6a129e8049cff0228fa53d16d7f6f86560ad9d215402530d4",
+      "/usr/lib/x86_64-linux-gnu/libtsan.so.2.0.0": "d4d8d0b7b10a25c6a129e8049cff0228fa53d16d7f6f86560ad9d215402530d4",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libtsan_preinit.o": "ed8c1e15a105656e860fc03db60e66fd74fac1853ed7d2f7a4d2f0b9a0edf407",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libubsan.a": "b84dcb4b1f202b6d9a7490fd533425ef3e8caa47f584d59a748d868c732f3ba0",
+      "/usr/lib/gcc/x86_64-linux-gnu/14/libubsan.so": "c3912c88d4d1d3772d44c2a77fcda85ebf2790e6efc3602f9489a4e23f4899e2",
+      "/usr/lib/x86_64-linux-gnu/libubsan.so.1.0.0": "c3912c88d4d1d3772d44c2a77fcda85ebf2790e6efc3602f9489a4e23f4899e2",
+      "/usr/lib/x86_64-linux-gnu/Scrt1.o": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+      "/usr/lib/x86_64-linux-gnu/crt1.o": "8cd1a50edd44a4ded5856bf2254dc106401b37c285dcc55a594475438cd6ec1a",
+      "/usr/lib/x86_64-linux-gnu/crti.o": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+      "/usr/lib/x86_64-linux-gnu/crtn.o": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101",
+      "/usr/lib/x86_64-linux-gnu/libc.so": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+      "/usr/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "/usr/lib/x86_64-linux-gnu/libc_nonshared.a": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+      "/usr/lib/x86_64-linux-gnu/libm.so": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+      "/usr/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "/usr/lib/x86_64-linux-gnu/libmvec.so.1": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+      "/usr/lib/x86_64-linux-gnu/libpthread.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "/usr/lib/x86_64-linux-gnu/libpthread.so.0": "85e21f7dba0394411d00959176fd18b470e575b0b05f1f4f41e5636802ce0500",
+      "/usr/lib/x86_64-linux-gnu/libdl.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "/usr/lib/x86_64-linux-gnu/libdl.so.2": "295fa521a03cd2faa99974f378c9e23dd622021ec7d32bcad4f8ea61aec8a872",
+      "/usr/lib/x86_64-linux-gnu/librt.a": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "/usr/lib/x86_64-linux-gnu/librt.so.1": "7b7b84d1aedda0e0b2bdfc68844362782132180b8f02be1300e21e77572e514b",
+      "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+      "/usr/lib/x86_64-linux-gnu/libz.so": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "/usr/lib/x86_64-linux-gnu/libz.so.1": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "/usr/lib/x86_64-linux-gnu/libssl.so": "4b34859318555bf96d518131bed5fc4d5e35fefa4e1729f49eaa26bd05263850",
+      "/usr/lib/x86_64-linux-gnu/libssl.so.3": "4b34859318555bf96d518131bed5fc4d5e35fefa4e1729f49eaa26bd05263850",
+      "/usr/lib/x86_64-linux-gnu/libcrypto.so": "8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d",
+      "/usr/lib/x86_64-linux-gnu/libcrypto.so.3": "8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d",
+      "/usr/lib/x86_64-linux-gnu/libresolv.so.2": "d41dd4adacf5a35df426461dd8a92d7bdd5ba29bb61a1c3531bec0ada386f8dd",
+      "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "/tmp/receiver-command-recreation-request486/launch-plan.json": "bc5f3a8920b93bead01bad4b4c9eb0b69b240636c8f6fea6ff6e5da8401c1dbc",
+      "/tmp/receiver-command-recreation-request486/capture.py": "9b6d71b3f8596e7c6a87f85202e78e67fe5f1133e18431539a57511470fff108"
+    },
+    "inputs_unchanged": true,
+    "request_sha256": "92b04144813782cd29fad5aca8b53ba06990d637cca02dafdc1866ad51d35e95",
+    "launcher_sha256": "9b6d71b3f8596e7c6a87f85202e78e67fe5f1133e18431539a57511470fff108"
+  },
+  "process_operations": [
+    {
+      "provider": "8.4.20",
+      "purpose": "dependencies",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-M",
+        "-MF",
+        "/workspace/.proofs/native-command-recreation486/8.4.20/probe.dependencies",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.44067807801184244,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 177
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-Wl,--trace",
+        "-o",
+        "/workspace/.proofs/native-command-recreation486/8.4.20/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.5019747760088649,
+      "stdout_sha256": "e7e6ff04223ed8ebb54b4f9786ef8803c8636481915b41afc3caaf7430a30cf3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 214
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "cli-version",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/.proofs/native-command-recreation486/original-request/c-version.tcl"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.24415396401309408,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 216
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "execute",
+      "command": [
+        "/workspace/.proofs/native-command-recreation486/8.4.20/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.35949390099267475,
+      "stdout_sha256": "40a4a5168f29100b14c7c49e635cb232b4fed6c92dd3be2a4d8398352e2f903a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 216
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "dependencies",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-M",
+        "-MF",
+        "/workspace/.proofs/native-command-recreation486/8.5.19/probe.dependencies",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.3891814430244267,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 181
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-ldl",
+        "-lpthread",
+        "-lm",
+        "-Wl,--trace",
+        "-o",
+        "/workspace/.proofs/native-command-recreation486/8.5.19/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.448365260992432,
+      "stdout_sha256": "e4336c1a390e2c844816112254fec81322b89adc13fbcac305228cbe105c4d9d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 218
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "cli-version",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/.proofs/native-command-recreation486/original-request/c-version.tcl"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.22031600700574927,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 220
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "execute",
+      "command": [
+        "/workspace/.proofs/native-command-recreation486/8.5.19/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.2144455240049865,
+      "stdout_sha256": "eff9e5a1a5d5cd898c0f04569037e0adb303d96e985bde94297e7a59232301d0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 220
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "dependencies",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-M",
+        "-MF",
+        "/workspace/.proofs/native-command-recreation486/8.6.18/probe.dependencies",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.37115460098721087,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 189
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm",
+        "-Wl,--trace",
+        "-o",
+        "/workspace/.proofs/native-command-recreation486/8.6.18/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.4201399009907618,
+      "stdout_sha256": "f24700493e53fad39b0111cbed10073864f4c826ce1561f02cb630f23e62f1a9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 226
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "cli-version",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/.proofs/native-command-recreation486/original-request/c-version.tcl"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.39355604999582283,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 228
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "execute",
+      "command": [
+        "/workspace/.proofs/native-command-recreation486/8.6.18/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.28532444100710563,
+      "stdout_sha256": "e6f574f74ccafe667c826072ab19a411858cf9dba318731cd540a95720f7eec3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 228
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "dependencies",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-M",
+        "-MF",
+        "/workspace/.proofs/native-command-recreation486/9.0.4/probe.dependencies",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.4447400410135742,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 196
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-ldl",
+        "-lz",
+        "-lpthread",
+        "-lm",
+        "-Wl,--trace",
+        "-o",
+        "/workspace/.proofs/native-command-recreation486/9.0.4/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.5631448080239352,
+      "stdout_sha256": "d301150a90496482cfaa66c5b22c2006b16dde816f6681053f72d3f6ca6fc769",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 233
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "cli-version",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/.proofs/native-command-recreation486/original-request/c-version.tcl"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.2527874329825863,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 235
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "execute",
+      "command": [
+        "/workspace/.proofs/native-command-recreation486/9.0.4/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.21174020401667804,
+      "stdout_sha256": "fcb6f281290d89bfd9de8cc2d9b2908936e21d1ff6a70a3c70ad445337ba7b30",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 235
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "dependencies",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-M",
+        "-MF",
+        "/workspace/.proofs/native-command-recreation486/9.1.0/probe.dependencies",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.2533283309894614,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 197
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-Wl,--trace",
+        "-o",
+        "/workspace/.proofs/native-command-recreation486/9.1.0/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.35901082499185577,
+      "stdout_sha256": "b6243145ad7ee6025cf0767b2a395d488ae8ac66cfd98393a42c481f1d7c0814",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 234
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "cli-version",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/.proofs/native-command-recreation486/original-request/c-version.tcl"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.24022824599524029,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 236
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "execute",
+      "command": [
+        "/workspace/.proofs/native-command-recreation486/9.1.0/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.6220329079951625,
+      "stdout_sha256": "8d0a5cdbb3287a2a5ae47907015c443fdebe504f29ca22a7f5d12c003f669d65",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 236
+    },
+    {
+      "provider": "jim",
+      "purpose": "dependencies",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-DJIM_PROBE",
+        "-I/workspace/.proofs/native-providers/jimtcl",
+        "-M",
+        "-MF",
+        "/workspace/.proofs/native-command-recreation486/jim/probe.dependencies",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.24259623500984162,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 140
+    },
+    {
+      "provider": "jim",
+      "purpose": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-O0",
+        "-DJIM_PROBE",
+        "-I/workspace/.proofs/native-providers/jimtcl",
+        "/workspace/.proofs/native-command-recreation486/original-request/probe.c",
+        "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+        "-lm",
+        "-ldl",
+        "-lssl",
+        "-lcrypto",
+        "-lz",
+        "-Wl,--trace",
+        "-o",
+        "/workspace/.proofs/native-command-recreation486/jim/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.3828250670048874,
+      "stdout_sha256": "a75dacbaff334c3bdcd776a911b96e4e43f076a29a30813c7a25a01816030cad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 185
+    },
+    {
+      "provider": "jim",
+      "purpose": "cli-version",
+      "command": [
+        "/workspace/.proofs/native-providers/jimtcl/jimsh",
+        "/workspace/.proofs/native-command-recreation486/original-request/jim-version.tcl"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.2394321449974086,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 187
+    },
+    {
+      "provider": "jim",
+      "purpose": "execute",
+      "command": [
+        "/workspace/.proofs/native-command-recreation486/jim/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/native-command-recreation486",
+      "exit": 0,
+      "seconds": 0.23349071698612534,
+      "stdout_sha256": "a53c3c20cd8f52efc93f05729eb44d97a50ba6edeb34f0f77ead7eba00c4e9b3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input_associations": 187
+    }
+  ],
+  "source_interpretation": "Independently joined C object-command declaration/body excerpts show the callback-recreated discard branch. Original request excerpts are also preserved; C9 request ranges concern the separate legacy string-command function and cannot attest object-command entry. Pinned Jim command replacement source is retained independently. The measured public callback counts agree for these two idle callback cases. No private representation, generation or active retirement is observed.",
+  "limits": [
+    "Root performed all compiler/version/native processes; this verifier only read retained files.",
+    "Actual C99 legacy object-command callbacks and one idle callback recreation only; no active command, Tcl9 size-count callback, procedure compiler or namespace-recreation equivalence.",
+    "Diagnostic token addresses are not incarnation/generation authority; Jim public command addresses are unavailable.",
+    "Exact header/current-source/config/library/CLI/compiler and linker input receipts retained independently for each original provider. Historical unrecorded configure/build processes are not claimed.",
+    "External BIG-IP remains not tested.",
+    "This is original native evidence, not a Rust software assertion result."
+  ]
+}

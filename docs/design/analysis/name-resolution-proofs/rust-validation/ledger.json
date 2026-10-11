@@ -206188,6 +206188,88 @@
       "question_ids": [],
       "limits": "The independent Runtime engine library-test no-run command closes exit101 with nine compile errors: undefined dictionary dialect, three Engine Rc inference errors, four counter-width fixture errors, and the missing NativeValueAccessRefusal-to-NativeExecutionError conversion. No Runtime executable creation event, successful own producer, strict image, inventory or assertion is admitted. The workspace Compiler command is a distinct scope and does not compile the Runtime engine crate. Dependency artifacts remain unsealed; source fixes, independent later producers or Native observations cannot supply retrospective build or assertion credit.",
       "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen315.integration-compiler-own-test-build315",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/integration-compiler-own-test-build315/receipt.json.gz",
+        "sha256": "6d34d7e4e6d1826f43c59f823c87f365f2b047d12cd1ec08cddbd32e20b0f234",
+        "compression": "gzip",
+        "uncompressed_sha256": "f765a85f17c64023f6f7a132d03f94c1d47b24477eb6548e2d4cd66f81a80957"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/integration-compiler-own-test-build315/tests.log",
+        "sha256": "c216c78c3f0230efa5806f66d758b1d6faea12bea143ad305582b32f70aa6021"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 227.07369877400924,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged 33404-leaf original Source315 source/head/command/archive associations; every original source leaf independently byte-verified."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The Compiler library-test no-run command reaches linking and closes exit101. The whole compiler diagnostic records cc exit1 and collect2 reports ld terminated with signal7 [Bus error]. The command emits no test-executable creation event. Temporary link products and dependency artifacts are not admitted as a successful own producer or strict image. Root reports contemporaneous storage exhaustion separately; the original log does not contain an ENOSPC diagnostic. No inventory or assertion is inferred. Later source changes, repairs or independent successful producers give no retrospective build or Native credit.",
+      "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen315.integration-compiler-clean-test-build315",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/integration-compiler-clean-test-build315/receipt.json.gz",
+        "sha256": "43561c72beeaec5fa8223d386e785a53d933a909e27ffe226f9e86841267cccc",
+        "compression": "gzip",
+        "uncompressed_sha256": "af2cedcabd72e219b91200e32047134fc0bb5457c033e60d0e7ed26eda43d88e"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/integration-compiler-clean-test-build315/tests.log",
+        "sha256": "3fe9d610182e18e35f00cf4719f30583f082b54e11cb38d9453fd42c10847de8"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 0.3457111850148067,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged 33404-leaf original Source315 source/head/command/archive associations; every original source leaf independently byte-verified."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This separate clean Compiler library-test no-run command closes exit101 before any compiler event because Cargo cannot create the recorded target directory: Not a directory (os error20). No compilation, own producer, executable creation, strict image, inventory or assertion is admitted. The original link failure is a different command; a later rebuilt-target command requires its own original closure. Later source changes, repairs or independent successful producers give no retrospective build or Native credit.",
+      "sealed_images": {}
     }
   ]
 }

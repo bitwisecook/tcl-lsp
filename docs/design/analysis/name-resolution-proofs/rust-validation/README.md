@@ -3066,3 +3066,34 @@ The [complete original receipt](frozen314/integration-runtime-own-test-build314/
 is lossless gzip; decompression returns SHA-256 `67f45b7379b035535f55a7b83abda97d0bc6f8ff0cf0b3da03b7d7c2875ac0c8`.
 The [whole original log](frozen314/integration-runtime-own-test-build314/tests.log) retains
 SHA-256 `93ca0144bff01c2e1eb9cd52088462519c3022c088833a005e9304791744e590`. The two original314 commands remain separate.
+
+## Source315 Compiler linker failure
+
+The exact own library-test no-run command closes exit `101` after
+227.07369877400924 seconds with uniform source `true`. Its unchanged 33404-leaf
+Source315 image retains HEAD `fbdf15187c9797789ab688d914669449bbb0b962`.
+The original log preserves one linker error: collect2 reports ld terminated with signal 7 [Bus error].
+
+The Compiler library-test no-run command reaches linking and closes exit101. The whole compiler diagnostic records cc exit1 and collect2 reports ld terminated with signal7 [Bus error]. The command emits no test-executable creation event. Temporary link products and dependency artifacts are not admitted as a successful own producer or strict image. Root reports contemporaneous storage exhaustion separately; the original log does not contain an ENOSPC diagnostic. No inventory or assertion is inferred.
+
+The [complete original receipt](frozen315/integration-compiler-own-test-build315/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `f765a85f17c64023f6f7a132d03f94c1d47b24477eb6548e2d4cd66f81a80957`.
+The [whole original log](frozen315/integration-compiler-own-test-build315/tests.log) retains
+SHA-256 `c216c78c3f0230efa5806f66d758b1d6faea12bea143ad305582b32f70aa6021`. These commands remain separate from the later
+`integration-compiler-clean-rebuilt-test-build315` producer request.
+
+
+## Source315 Compiler target-directory failure
+
+The exact own library-test no-run command closes exit `101` after
+0.3457111850148067 seconds with uniform source `true`. Its unchanged 33404-leaf
+Source315 image retains HEAD `fbdf15187c9797789ab688d914669449bbb0b962`.
+The original log preserves target-directory creation failure before compilation: Not a directory (os error 20).
+
+This separate clean Compiler library-test no-run command closes exit101 before any compiler event because Cargo cannot create the recorded target directory: Not a directory (os error20). No compilation, own producer, executable creation, strict image, inventory or assertion is admitted. The original link failure is a different command; a later rebuilt-target command requires its own original closure.
+
+The [complete original receipt](frozen315/integration-compiler-clean-test-build315/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `af2cedcabd72e219b91200e32047134fc0bb5457c033e60d0e7ed26eda43d88e`.
+The [whole original log](frozen315/integration-compiler-clean-test-build315/tests.log) retains
+SHA-256 `3fe9d610182e18e35f00cf4719f30583f082b54e11cb38d9453fd42c10847de8`. These commands remain separate from the later
+`integration-compiler-clean-rebuilt-test-build315` producer request.

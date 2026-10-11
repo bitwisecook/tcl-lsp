@@ -1,0 +1,6 @@
+/* The cmd structure. */
+typedef int Jim_CmdProc(struct Jim_Interp *interp, int argc,
+    Jim_Obj *const *argv);
+typedef void Jim_DelCmdProc(struct Jim_Interp *interp, void *privData);
+
+/* The dict structure. It uses the same approach as Python OrderedDict

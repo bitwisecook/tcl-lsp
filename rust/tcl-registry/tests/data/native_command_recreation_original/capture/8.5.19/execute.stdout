@@ -1,0 +1,22 @@
+VERSION	0	382e352e313920382e35
+BUILD	HEADER=8.5.19	GetVersion=8.5.19/2
+ABI	int=4	long=8	ptr=8	CHAR_BIT=8
+ROW	case=0	stage=original-created	status=0	old_delete=0	middle_delete=0	final_delete=0	old_call=0	middle_call=0	final_call=0	recreated=0
+EVENT	case=0	sequence=1	delete=0	old=1	middle=0	final=0
+ROW	case=0	stage=replacement-returned	status=0	old_delete=1	middle_delete=0	final_delete=0	old_call=0	middle_call=0	final_call=0	recreated=0
+TOKENS	case=0	old=55ed1242adb0	middle=0	final=55ed1242adb0
+ROW	case=0	stage=invocation-returned	status=0	old_delete=1	middle_delete=0	final_delete=0	old_call=0	middle_call=0	final_call=1	recreated=0
+RESULT	case=0	status=0	hex=46494e414c
+EVENT	case=0	sequence=2	delete=2	old=1	middle=0	final=1
+ROW	case=0	stage=public-delete-returned	status=0	old_delete=1	middle_delete=0	final_delete=1	old_call=0	middle_call=0	final_call=1	recreated=0
+ROW	case=0	stage=interpreter-destroyed	status=0	old_delete=1	middle_delete=0	final_delete=1	old_call=0	middle_call=0	final_call=1	recreated=0
+ROW	case=1	stage=original-created	status=0	old_delete=0	middle_delete=0	final_delete=0	old_call=0	middle_call=0	final_call=0	recreated=0
+EVENT	case=1	sequence=1	delete=0	old=1	middle=0	final=0
+RECREATE	case=1	sequence=2	status=0	middle_token=55ed123da7a0
+ROW	case=1	stage=replacement-returned	status=0	old_delete=1	middle_delete=0	final_delete=0	old_call=0	middle_call=0	final_call=0	recreated=1
+TOKENS	case=1	old=55ed123fa7d0	middle=55ed123da7a0	final=55ed123da7a0
+ROW	case=1	stage=invocation-returned	status=0	old_delete=1	middle_delete=0	final_delete=0	old_call=0	middle_call=0	final_call=1	recreated=1
+RESULT	case=1	status=0	hex=46494e414c
+EVENT	case=1	sequence=3	delete=2	old=1	middle=0	final=1
+ROW	case=1	stage=public-delete-returned	status=0	old_delete=1	middle_delete=0	final_delete=1	old_call=0	middle_call=0	final_call=1	recreated=1
+ROW	case=1	stage=interpreter-destroyed	status=0	old_delete=1	middle_delete=0	final_delete=1	old_call=0	middle_call=0	final_call=1	recreated=1

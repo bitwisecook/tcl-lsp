@@ -1,0 +1,50 @@
+Tcl_Command
+Tcl_CreateObjCommand(
+    Tcl_Interp *interp,		/* Token for command interpreter (returned by
+				 * previous call to Tcl_CreateInterp). */
+    const char *cmdName,	/* Name of command. If it contains namespace
+				 * qualifiers, the new command is put in the
+				 * specified namespace; otherwise it is put in
+				 * the global namespace. */
+    Tcl_ObjCmdProc *proc,	/* Object-based function to associate with
+				 * name. */
+    ClientData clientData,	/* Arbitrary value to pass to object
+				 * function. */
+    Tcl_CmdDeleteProc *deleteProc)
+				/* If not NULL, gives a function to call when
+				 * this command is deleted. */
+{
+    Interp *iPtr = (Interp *) interp;
+    Namespace *nsPtr;
+    const char *tail;
+
+    if (iPtr->flags & DELETED) {
+	/*
+	 * The interpreter is being deleted. Don't create any new commands;
+	 * it's not safe to muck with the interpreter anymore.
+	 */
+	return (Tcl_Command) NULL;
+    }
+
+    /*
+     * Determine where the command should reside. If its name contains
+     * namespace qualifiers, we put it in the specified namespace;
+     * otherwise, we always put it in the global namespace.
+     */
+
+    if (strstr(cmdName, "::") != NULL) {
+	Namespace *dummy1, *dummy2;
+
+	TclGetNamespaceForQualName(interp, cmdName, NULL,
+	    TCL_CREATE_NS_IF_UNKNOWN, &nsPtr, &dummy1, &dummy2, &tail);
+	if ((nsPtr == NULL) || (tail == NULL)) {
+	    return (Tcl_Command) NULL;
+	}
+    } else {
+	nsPtr = iPtr->globalNsPtr;
+	tail = cmdName;
+    }
+
+    return TclCreateObjCommandInNs(interp, tail, (Tcl_Namespace *) nsPtr,
+	proc, clientData, deleteProc);
+}

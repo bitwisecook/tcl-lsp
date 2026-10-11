@@ -23285,6 +23285,1265 @@
       "reason": "Exact independently inspected LF-normalized source associations for the recorded native question; no new process result or source execution follows."
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/actual-header-inputs.json",
+      "sha256": "306bc95de9e6c2d72e81ab2136eb8e5a64fe81f227b4b3323509485f6012eb18",
+      "bytes": 4704,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/cli-version.receipt.json",
+      "sha256": "c4ebb798176d312512d206677c79eaad0322ffbbccb08d2d6dfd74048b25c0e5",
+      "bytes": 54112,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/compile.receipt.json",
+      "sha256": "3b54c8bfff4a584bb49691af7450e3655ba118e962bdd4c06a21114b76f91b08",
+      "bytes": 53820,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/compile.stdout",
+      "sha256": "e7e6ff04223ed8ebb54b4f9786ef8803c8636481915b41afc3caaf7430a30cf3",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/dependencies.receipt.json",
+      "sha256": "a89d7906a13952dc94518c6ad1e091603105ba14b2b835b253f53889d9da38d7",
+      "bytes": 44933,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/execute.receipt.json",
+      "sha256": "816b34a6cc0e4e312b3793d42d36fd927a89ce1b1d58bd304863b7c051fd2f98",
+      "bytes": 54039,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/execute.stdout",
+      "sha256": "40a4a5168f29100b14c7c49e635cb232b4fed6c92dd3be2a4d8398352e2f903a",
+      "bytes": 2002,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/probe.dependencies",
+      "sha256": "f5ab5a4676ba81dc687d36c09da25d4a8bb91a348b4e489e558805494ea8c614",
+      "bytes": 1895,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/probe.elf.gz",
+      "sha256": "538c134adb6b2fc675a4a1c595c6ef611a2703dc65ab1149f05466263b1e35ba",
+      "bytes": 386818,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/receipt.json",
+      "sha256": "bd4b83c07f0287a9b670a042cd18cc2ec2e7cb77d4d72fd0f844bf3c9726e4aa",
+      "bytes": 268873,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/actual-header-inputs.json",
+      "sha256": "abac8b3725b49e480ee414a8d0818857b0742f2be5b28daa9cf46d2ff9dc8cd9",
+      "bytes": 4704,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/cli-version.receipt.json",
+      "sha256": "516ea07416e6a384f674bdb63bd37f1865c7e8f1795d3a9d95727d2a5bc2ab4e",
+      "bytes": 55146,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/compile.receipt.json",
+      "sha256": "27137ae7bc0071d49bce567b0c86c83f86017d1ee2ad6cba59ac307a0b3f8ff9",
+      "bytes": 54853,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/compile.stdout",
+      "sha256": "e4336c1a390e2c844816112254fec81322b89adc13fbcac305228cbe105c4d9d",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/dependencies.receipt.json",
+      "sha256": "dc7a5f5f8319294ffd6166a15098370c382122cf996463850ec692f35d927090",
+      "bytes": 45966,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/execute.receipt.json",
+      "sha256": "94ff3203eea1fec64af9b469851c4097ac6a28d8d07e379fc587771dd6715751",
+      "bytes": 55072,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/execute.stdout",
+      "sha256": "eff9e5a1a5d5cd898c0f04569037e0adb303d96e985bde94297e7a59232301d0",
+      "bytes": 2002,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/probe.dependencies",
+      "sha256": "8bc35b09fcea500c3ebfb46a7b597cef6320644526a83b1c155792657cbcb500",
+      "bytes": 1895,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/probe.elf.gz",
+      "sha256": "62bd26df02d79d394919296839bfb7c4b5eaea04ff309777a80a030c127b87d5",
+      "bytes": 567073,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/receipt.json",
+      "sha256": "6a2eb37a447418007424cc675c8628f26cac405291ec11523907093574f1eabe",
+      "bytes": 273587,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/actual-header-inputs.json",
+      "sha256": "6e43f35aee7927b443796fad5222da666768a50b456aeedf056ca90baab09f61",
+      "bytes": 4704,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/cli-version.receipt.json",
+      "sha256": "a2c4f7447d3f8ed3585a6aa2b5185fbba04ea6152c77f461663340b4e90f0844",
+      "bytes": 57206,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/compile.receipt.json",
+      "sha256": "0009671337c67cb6b13d78b73c7b9e4aa12064f8aeb95e4a2fd27f5bf0610d22",
+      "bytes": 56925,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/compile.stdout",
+      "sha256": "f24700493e53fad39b0111cbed10073864f4c826ce1561f02cb630f23e62f1a9",
+      "bytes": 1373,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/dependencies.receipt.json",
+      "sha256": "ffe0333eff81ce1c9bdad9e09e98147398f9444d48bed211f21af33155730762",
+      "bytes": 48027,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/execute.receipt.json",
+      "sha256": "362444f96d9d1f16f7f99a0056164982ea3ede661fcccc0506aa102a148f916d",
+      "bytes": 57133,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/execute.stdout",
+      "sha256": "e6f574f74ccafe667c826072ab19a411858cf9dba318731cd540a95720f7eec3",
+      "bytes": 2002,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/probe.dependencies",
+      "sha256": "9d0bf1f1db4a0b573d5d892d6469ec90c125a50e4dc99323e61756278d0599dd",
+      "bytes": 1895,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/probe.elf.gz",
+      "sha256": "481b1e03c7d2384cbcf766f8c85f1f05241b953d0c752f235f32f6e1a8034acc",
+      "bytes": 808901,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/receipt.json",
+      "sha256": "c0e2e1923dffdefa72cc1b5e11f4ea7c5b89a9299de9e169330159f847f1d87f",
+      "bytes": 283143,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/actual-header-inputs.json",
+      "sha256": "07a5bac2cb1aef32fbb9d88d8371ae2b251532890799c0bc5e5ee16c16c15b5d",
+      "bytes": 4701,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/cli-version.receipt.json",
+      "sha256": "3d61baaf926c1158ebd178af4238de4b0efe1cf54dc05c3016fdf0cc330e216c",
+      "bytes": 58912,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/compile.receipt.json",
+      "sha256": "bd54e7db6c3a18a5b3a8aaa63cbc9259c26773ded318fe32654a4a4d94a4e2f7",
+      "bytes": 58631,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/compile.stdout",
+      "sha256": "d301150a90496482cfaa66c5b22c2006b16dde816f6681053f72d3f6ca6fc769",
+      "bytes": 1372,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/dependencies.receipt.json",
+      "sha256": "f79c3846730ba7726fc2adebdf4493bd501403365f229bbea97103594fb05eab",
+      "bytes": 49733,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/execute.receipt.json",
+      "sha256": "a7ea5b1b69c07a34fed4ab49aa8c3f35e2cd35ceba43bf7301fa093bd4505c7a",
+      "bytes": 58840,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/execute.stdout",
+      "sha256": "fcb6f281290d89bfd9de8cc2d9b2908936e21d1ff6a70a3c70ad445337ba7b30",
+      "bytes": 1998,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/probe.dependencies",
+      "sha256": "5741fbb0be6195f8cdff14e6a2b5c14ce77e01afa2d244994e37af32e08b5b7f",
+      "bytes": 1892,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/probe.elf.gz",
+      "sha256": "fd6a6fc23d2c1f9529a40ebaba964a91c00496332cc15713df58d0ab04dab184",
+      "bytes": 959347,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/receipt.json",
+      "sha256": "fc30f1c5fdf5caf35582a9d0cc719bfefc16085dec63ca4127064c4905c913d7",
+      "bytes": 290930,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/actual-header-inputs.json",
+      "sha256": "980bbc2dab27e6f84abcad717966f5d557e5cc39dcc7c5ec72fb8ae343ea007a",
+      "bytes": 4701,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/cli-version.receipt.json",
+      "sha256": "fc9e05361e7fa871a9cfc785ed39376468b1d6afe03687496586bb6b5da2ccf8",
+      "bytes": 59173,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/compile.receipt.json",
+      "sha256": "d0217d5eb76768184a89821f5cf86ae8360aae89247426b75eb3d71ea27cc198",
+      "bytes": 58904,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/compile.stdout",
+      "sha256": "b6243145ad7ee6025cf0767b2a395d488ae8ac66cfd98393a42c481f1d7c0814",
+      "bytes": 1439,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/dependencies.receipt.json",
+      "sha256": "da357357a5d73b97e4eb118867003eed1bd9c09c3bcbee30706ddda22e88953f",
+      "bytes": 49993,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/execute.receipt.json",
+      "sha256": "05c0ff2db95f2e28a7be2f9c8b265eae8ceb09a3218a72aece08d2802c3d2524",
+      "bytes": 59099,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/execute.stdout",
+      "sha256": "8d0a5cdbb3287a2a5ae47907015c443fdebe504f29ca22a7f5d12c003f669d65",
+      "bytes": 1998,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/probe.dependencies",
+      "sha256": "dde97ccc72455d3dcc1a86b6c59b35a51c5d1fbc8e7ca2e645fa97573b87c76c",
+      "bytes": 1892,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/probe.elf.gz",
+      "sha256": "77b0223c66034bb23acff6e94647ab6591c0dded55bacb8bfe4c08cd55986121",
+      "bytes": 1027515,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/receipt.json",
+      "sha256": "6e30ec79d108c2e7b4ecc71f266a9f17bcbbbb06435ba9220f980f59aa46474d",
+      "bytes": 292273,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/compiler-version.receipt.json",
+      "sha256": "e902c716db36caba95dacffdc0d1516e48a950079a6ede5284ceed293d56cd75",
+      "bytes": 27542,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/actual-header-inputs.json",
+      "sha256": "67b64218ed7cb54582a5fbb0bd5e5aea02357fd342d5891babf2c2d4f960b7bc",
+      "bytes": 5514,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/cli-version.receipt.json",
+      "sha256": "6c6b269123ee14676a52f22b7d093b1889e4195165241f3d21722108efc0de3d",
+      "bytes": 46442,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/compile.receipt.json",
+      "sha256": "cdb2cd69c352aadd892b2f1a08e4bdbce23e574f8443600c46de7b5e95a24ed2",
+      "bytes": 46142,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/compile.stdout",
+      "sha256": "a75dacbaff334c3bdcd776a911b96e4e43f076a29a30813c7a25a01816030cad",
+      "bytes": 1444,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/dependencies.receipt.json",
+      "sha256": "a9c1d96e163db55bc5c1918e57c8b29e94ae94b52c7e56533d43b29679687997",
+      "bytes": 35332,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/dependencies.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/execute.receipt.json",
+      "sha256": "c6daf5671e7919ed81c69c3b01e7cc59fb1e6a25782e592d5397a053c5f911b4",
+      "bytes": 46360,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/execute.stdout",
+      "sha256": "a53c3c20cd8f52efc93f05729eb44d97a50ba6edeb34f0f77ead7eba00c4e9b3",
+      "bytes": 1999,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/probe.dependencies",
+      "sha256": "f7bbbec206791c0e698853cdf432172536b2d18d9bacd4b30ea646d818983bb7",
+      "bytes": 2209,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/probe.elf.gz",
+      "sha256": "9c8ae9a77e0c41becbb3045e06b29b15607a4c815a44195a9279916fbd603214",
+      "bytes": 187443,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/receipt.json",
+      "sha256": "2098e71cdf12e6d06661cd8609f52812ed70adf2810a6186ed81f994d6841b72",
+      "bytes": 232132,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/capture/summary.json",
+      "sha256": "84ccb72b89019819819da73b1794db2ee2bdefa2bd93396273f6ee24e0bbe36a",
+      "bytes": 1768,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/observations.json",
+      "sha256": "9d6c1a7abe30722a8b850ce27ecac2291315290a7e5bf6ea10b80875a6c30a32",
+      "bytes": 92496,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/lib64--ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "bytes": 225672,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--features-time64.h",
+      "sha256": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+      "bytes": 1532,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--features.h",
+      "sha256": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+      "bytes": 19214,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--inttypes.h",
+      "sha256": "551dfff797d3f445de7045e134e5e7b057320febea176f9e5e0fb33ece1b8d69",
+      "bytes": 11309,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--limits.h",
+      "sha256": "59dccd0e0f84037a0be75a01efe840b7b1ebe8502cdfb49742697c49290ce18f",
+      "bytes": 5706,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--stdc-predef.h",
+      "sha256": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+      "bytes": 2462,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--stdint.h",
+      "sha256": "38751c3803361248b73bba3d8b48aa7015ccb94c2c31f247f587b157c4ee344a",
+      "bytes": 8155,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--stdio.h",
+      "sha256": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+      "bytes": 34172,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--stdlib.h",
+      "sha256": "999cb2acafbb64984f99ee410a42dfd79815de184a0312d7c136e31795a952d2",
+      "bytes": 41039,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--string.h",
+      "sha256": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+      "bytes": 19969,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--time.h",
+      "sha256": "502077dfa1b92bb9d166d69ab07ba536afbc5188ff0ed4e55308845e7ef9752a",
+      "bytes": 15115,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--floatn-common.h",
+      "sha256": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+      "bytes": 10325,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--floatn.h",
+      "sha256": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+      "bytes": 4929,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--libc-header-start.h",
+      "sha256": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+      "bytes": 4286,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--long-double.h",
+      "sha256": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+      "bytes": 970,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--stdint-intn.h",
+      "sha256": "88f639a4e588077b6edfad36b3bb045f0cc052b5f9d194f8e706ee27cd846f67",
+      "bytes": 1037,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--stdint-least.h",
+      "sha256": "f2f6cc431ef00e9182f7367cd06fb1130740c41a1f4dd1c61f146a1e761a4474",
+      "bytes": 1305,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--stdint-uintn.h",
+      "sha256": "8ce3858074e8073db1eed4d25d69b3c14d41e826fa2351c5fc5246bb546161f8",
+      "bytes": 1049,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--stdio_lim.h",
+      "sha256": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+      "bytes": 1059,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--stdlib-float.h",
+      "sha256": "fdd6c94e471e2aa2e03bae449f993392a6593044490fc82601b77d7116381201",
+      "bytes": 1115,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--time.h",
+      "sha256": "9b34f004f183bea846379580cb3d2f19588d96b4c7faafb3ebb7c9ffd9bafd59",
+      "bytes": 3331,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--time64.h",
+      "sha256": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+      "bytes": 1340,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--timesize.h",
+      "sha256": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+      "bytes": 1109,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--FILE.h",
+      "sha256": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+      "bytes": 180,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--__FILE.h",
+      "sha256": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+      "bytes": 110,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--__fpos64_t.h",
+      "sha256": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+      "bytes": 410,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--__fpos_t.h",
+      "sha256": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+      "bytes": 381,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--__mbstate_t.h",
+      "sha256": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+      "bytes": 564,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--clock_t.h",
+      "sha256": "81e60e8a8d99b28bc723c14b156d7f7fc8ff663d98a857a3f5aea90431f577e3",
+      "bytes": 143,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--struct_FILE.h",
+      "sha256": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+      "bytes": 4239,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--struct_tm.h",
+      "sha256": "e7bdda3f42eb0633850ed150fef0a0cf6193cbba8fa740e7505925424a595566",
+      "bytes": 760,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types--time_t.h",
+      "sha256": "d1cc45e24a80009117f61ee4ae9cae5d12f69f38d691e0a933f989f7a1d27bb0",
+      "bytes": 208,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--types.h",
+      "sha256": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+      "bytes": 8806,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--typesizes.h",
+      "sha256": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+      "bytes": 3737,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--wchar.h",
+      "sha256": "169453a3eb0c5e504b513fb3bad0bda7780bb84c7139c501e3deeb75ac731f35",
+      "bytes": 1906,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--bits--wordsize.h",
+      "sha256": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+      "bytes": 398,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--gnu--stubs-64.h",
+      "sha256": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+      "bytes": 481,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--gnu--stubs.h",
+      "sha256": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+      "bytes": 384,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--include--x86_64-linux-gnu--sys--cdefs.h",
+      "sha256": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+      "bytes": 34638,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--lib--gcc--x86_64-linux-gnu--14--include--limits.h",
+      "sha256": "bc572350077d8caa24f82d5439119aa2dc184e72cc4ea325b4cd0137db51580f",
+      "bytes": 6507,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--lib--gcc--x86_64-linux-gnu--14--include--stdarg.h",
+      "sha256": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+      "bytes": 4303,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--lib--gcc--x86_64-linux-gnu--14--include--stddef.h",
+      "sha256": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+      "bytes": 13735,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--lib--gcc--x86_64-linux-gnu--14--include--stdint.h",
+      "sha256": "86a7914ab7d6a18465a6fb9a7b54f945cad604fdbf3ca0d10e4e0254e0037911",
+      "bytes": 328,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/usr--lib--gcc--x86_64-linux-gnu--14--include--syslimits.h",
+      "sha256": "22dd0ab81baadd5a8d455b445855f341d419c7b0267beca235de00b7ec78e529",
+      "bytes": 330,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/original-inputs/workspace--.proofs--native-providers--jimtcl--jim-win32compat.h",
+      "sha256": "1989ec1c19765d3fdde5bec7b30b9d2c790773c7e895a90fdad6efef2b9933ab",
+      "bytes": 1605,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/recorded-path-map.json",
+      "sha256": "5f972a11fa0ca9f3733c618dc13bdb7e5123d3424468395c7ec0e91585c4f041",
+      "bytes": 313674,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/c-version.tcl",
+      "sha256": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd",
+      "bytes": 41,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/capture.py",
+      "sha256": "9b6d71b3f8596e7c6a87f85202e78e67fe5f1133e18431539a57511470fff108",
+      "bytes": 7799,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/invoke.tcl",
+      "sha256": "0d388a2db494a883a2c4bd79317f1bf2f7c4aed988ec5973126fd1bc92d90cee",
+      "bytes": 8,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/jim-version.tcl",
+      "sha256": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770",
+      "bytes": 38,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/launch-plan.json",
+      "sha256": "bc5f3a8920b93bead01bad4b4c9eb0b69b240636c8f6fea6ff6e5da8401c1dbc",
+      "bytes": 77751,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/manifest.json",
+      "sha256": "9666b3ce1d956f617a560569b6bca52a045668fe3c73f33f129aabb94284736c",
+      "bytes": 1240,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/probe.c",
+      "sha256": "dd26f86bae7adc7ae0e9f62e00b7dd94b17412b1dc580ae1e9b30cb48b17422d",
+      "bytes": 6088,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/request/request.json",
+      "sha256": "92b04144813782cd29fad5aca8b53ba06990d637cca02dafdc1866ad51d35e95",
+      "bytes": 7994,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-command-recreation-discard"
+      ],
+      "reason": "Complete original source/request/dependency/header/link/version/main callback-recreation capture or bounded derived path/row review for this canonical question. Preparation metadata, diagnostic addresses and source interpretation supply no additional process or Rust parity."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.4.20/Tcl_CreateObjCommand-1737-1869.txt",
+      "sha256": "06c2f74f070c835962465a3ee6d59af618b39293f86d2c524fe01bd5419fad14",
+      "bytes": 4286,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.4.20/tclBasic-1760-1850.txt",
+      "sha256": "abcfd2e0e42843c45f5e2c674810ca5f3e476e39676afb55135fde86be1cd460",
+      "bytes": 2768,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.5.19/Tcl_CreateObjCommand-1998-2153.txt",
+      "sha256": "362a9ec7a8f78161997c2bf69acecbea8da2a6bf3c9c73a695d3249251e764eb",
+      "bytes": 4728,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.5.19/tclBasic-1840-2130.txt",
+      "sha256": "7592df1e407f4827c3743b3020e63cac32bda0b832667c35bb39a7270fb2e46d",
+      "bytes": 9006,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.6.18/TclCreateObjCommandInNs-2334-2502.txt",
+      "sha256": "a7dc298195b4fea2ba5d1a86899e614c19ffdf84724d3ed5f78047d704e3af0b",
+      "bytes": 5096,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.6.18/Tcl_CreateObjCommand-2283-2332.txt",
+      "sha256": "ecbba53102c44a74e3282a8b517844269874573965662564e1df11bcb67a31bc",
+      "bytes": 1580,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/8.6.18/tclBasic-2340-2500.txt",
+      "sha256": "b4180dc8b9cd45c4a3b16d79fc8947dc44cc7b86c55b35e8c7c93450bd66b063",
+      "bytes": 4839,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/9.0.4/TclCreateObjCommandInNs-2924-3077.txt",
+      "sha256": "90c209d7477137874f256efb12d80183b1d152b736b736775fc87d413587622a",
+      "bytes": 4597,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/9.0.4/Tcl_CreateObjCommand-2873-2922.txt",
+      "sha256": "25cd7b62c46aa95dbdabd7de01edee5a1d71b37eec291254de17ab36e0a75d51",
+      "bytes": 1558,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/9.0.4/tclBasic-2640-2790.txt",
+      "sha256": "005e8b958a287e71667c998339d0c07e366a9b3505bcdf387372004d88aaf732",
+      "bytes": 4282,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/9.1.0/TclCreateObjCommandInNs-2879-3033.txt",
+      "sha256": "1d25ad6a287a786aec172029284a274ced9cabcdfce7af6143cfbca2adaa1873",
+      "bytes": 4618,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/9.1.0/Tcl_CreateObjCommand-2800-2825.txt",
+      "sha256": "40cceb520b28768065580a51d397ec9c6fa67be4479f28dda8db6609e86a4f30",
+      "bytes": 972,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/9.1.0/Tcl_CreateObjCommand2-2828-2877.txt",
+      "sha256": "28899e14696a7a7c0d5f9899c666c33308674696aed3a15dbf904d812aaa6401",
+      "bytes": 1560,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/9.1.0/tclBasic-2590-2740.txt",
+      "sha256": "1dc269f603159e9e5dc0640b1fdabad175c03401904bac547c189f9e5defc6c6",
+      "bytes": 4355,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/jim/jim-3887-3911.txt",
+      "sha256": "5378ba6c0da71336e00ea9370925733c6e9cc67fda4f35b2ac78ae00bdaccf28",
+      "bytes": 970,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/jim/jim-4131-4180.txt",
+      "sha256": "7999379762d8584e311558b1115894294af55320eef9e6a247cccd820fa47477",
+      "bytes": 1904,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/jim/jim-4204-4210.txt",
+      "sha256": "1a9985b4e27273cb2d1fbd4cb07cdec47bf5525b36c6b3f81bda552860f76cf9",
+      "bytes": 242,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/jim/jim-505-510.txt",
+      "sha256": "4e9c5e7a045a0af5c8893dca6b63279f6d42059fc76e1df435a99a64ce333d37",
+      "bytes": 257,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_command_recreation_original/source-windows/jim/jim-927-943.txt",
+      "sha256": "89ef6694ee46c1050a35f8aaad628ca0d4d62e925968a5d31c04a5f3e4545291",
+      "bytes": 1048,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20/receipt.json",
       "sha256": "86fab4db4de03b913e76826a2024e701ed3e0eff5bb008d4134cfe68b8bb14f8",
       "bytes": 5527,

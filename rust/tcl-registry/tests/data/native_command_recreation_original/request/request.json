@@ -1,0 +1,179 @@
+{
+  "question_id": "naming.embedding.original-command-recreation-discard",
+  "question": "What delete callbacks and reached replacement invocations occur when an original public object-command delete callback recreates that exact name once during an outer replacement, compared with a non-recreating delete callback, across each actual C Tcl provider and Jim?",
+  "status": "prepared-not-compiled-or-executed",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested",
+  "probe_file": "/tmp/receiver-command-recreation-request486/probe.c",
+  "probe_sha256": "dd26f86bae7adc7ae0e9f62e00b7dd94b17412b1dc580ae1e9b30cb48b17422d",
+  "compile": {
+    "language": "C99",
+    "C_defines": [],
+    "Jim_defines": [
+      "JIM_PROBE"
+    ],
+    "headers_and_libraries": "Actual Root-pinned provider SDK/configured full-init static library, original source unchanged for all six, genuine link dependencies explicit",
+    "C_public_api": "Tcl_CreateObjCommand with actual legacy int-count callback, including Tcl9 compatibility route; no private Command structure access"
+  },
+  "execution": {
+    "argv": "probe.elf",
+    "processes": 6,
+    "timeout_seconds": 60,
+    "fresh_each_case": "Fresh fully initialized interpreter; stack client records remain alive through actual public delete and full teardown",
+    "cases": 2,
+    "row_count_per_provider": 10,
+    "event_count": "Observe all actual callbacks in order; no expected native counts or hardcoded divergence"
+  },
+  "case_map": {
+    "0": "Original OLD object command has a delete callback that only records its reached event",
+    "1": "Original OLD delete callback records then calls the actual public create API once to publish MIDDLE under the same name"
+  },
+  "stages": [
+    "original-created",
+    "replacement-returned",
+    "invocation-returned",
+    "public-delete-returned",
+    "interpreter-destroyed"
+  ],
+  "callback_recording": "All three distinct actual client records OLD/MIDDLE/FINAL; each records callback count, invocation count and event ordinal. No allocated client record whose lifetime depends on the behaviour under test. No callback repeats recreation. No active-command/procedure equivalence claimed.",
+  "source_execution": "Exact retained script retiring evaluated via Tcl_EvalObjEx(original held source object,0) or Jim_EvalObj; no catch, no guessed target or text serialization. Result bytes observed only after invocation.",
+  "tokens": "Raw public C Tcl_Command addresses are diagnostic observations only, never generation/incarnation/equality authority. Jim public creation returns status; token fields stay zero labelled unavailable.",
+  "required_receipts": [
+    "Exact compile argv/stdout/stderr/status and compiler --version",
+    "Actual headers/config/library/source/CLI/probe/executable hashes before and after",
+    "Complete raw stdout/stderr/status/argv/time",
+    "Actual VERSION/BUILD/ABI rows",
+    "Independent original CLI version process and pins",
+    "Request/source/control and invocation file hashes"
+  ],
+  "cli_sources": {
+    "C": "/tmp/receiver-command-recreation-request486/c-version.tcl",
+    "Jim": "/tmp/receiver-command-recreation-request486/jim-version.tcl"
+  },
+  "source_files": [
+    {
+      "path": "/tmp/receiver-command-recreation-request486/invoke.tcl",
+      "sha256": "0d388a2db494a883a2c4bd79317f1bf2f7c4aed988ec5973126fd1bc92d90cee",
+      "bytes": 8
+    },
+    {
+      "path": "/tmp/receiver-command-recreation-request486/c-version.tcl",
+      "sha256": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd",
+      "bytes": 41
+    },
+    {
+      "path": "/tmp/receiver-command-recreation-request486/jim-version.tcl",
+      "sha256": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770",
+      "bytes": 38
+    }
+  ],
+  "source_anchors": [
+    {
+      "provider": "8.4.20",
+      "path": "/tmp/receiver-command-recreation-request486/source-inspection/8.4.20/tclBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "window": [
+        1760,
+        1850
+      ],
+      "purpose": "Actual public object-command replacement/deletion, not an arbitrary procedure or native address generation"
+    },
+    {
+      "provider": "8.5.19",
+      "path": "/tmp/receiver-command-recreation-request486/source-inspection/8.5.19/tclBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "window": [
+        1840,
+        2130
+      ],
+      "purpose": "Actual public object-command replacement/deletion, not an arbitrary procedure or native address generation"
+    },
+    {
+      "provider": "8.6.18",
+      "path": "/tmp/receiver-command-recreation-request486/source-inspection/8.6.18/tclBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "window": [
+        2340,
+        2500
+      ],
+      "purpose": "Actual public object-command replacement/deletion, not an arbitrary procedure or native address generation"
+    },
+    {
+      "provider": "9.0.4",
+      "path": "/tmp/receiver-command-recreation-request486/source-inspection/9.0.4/tclBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+      "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "window": [
+        2640,
+        2790
+      ],
+      "purpose": "Actual public object-command replacement/deletion, not an arbitrary procedure or native address generation"
+    },
+    {
+      "provider": "9.1.0",
+      "path": "/tmp/receiver-command-recreation-request486/source-inspection/9.1.0/tclBasic.c",
+      "source_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+      "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "window": [
+        2590,
+        2740
+      ],
+      "purpose": "Actual public object-command replacement/deletion, not an arbitrary procedure or native address generation"
+    },
+    {
+      "provider": "jim",
+      "path": "/tmp/receiver-command-recreation-request486/source-inspection/jim/jim.c",
+      "source_path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_child_alias_inventory298/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "window": [
+        3887,
+        3911
+      ],
+      "additional_windows": [
+        [
+          4131,
+          4180
+        ],
+        [
+          4204,
+          4210
+        ]
+      ],
+      "purpose": "Pinned prior original source snapshot; Root must independently capture and compare the actual linked current provider source/config/header"
+    },
+    {
+      "provider": "jim",
+      "path": "/tmp/receiver-command-recreation-request486/source-inspection/jim/jim.h",
+      "source_path": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_child_alias_inventory298/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+      "window": [
+        505,
+        510
+      ],
+      "additional_windows": [
+        [
+          927,
+          943
+        ]
+      ],
+      "purpose": "Pinned prior original source snapshot; Root must independently capture and compare the actual linked current provider source/config/header"
+    }
+  ],
+  "purpose_limits": [
+    "No native outcomes until genuine Root capture closes",
+    "Callback-recreated slot discard is distinct from ordinary ObjCommand drop and active Rc retirement",
+    "No native compiler/procedure/address/namespace-recreation grant",
+    "Public token address reuse cannot attest generation or incarnation",
+    "Each original provider is independent; prior source anchors do not establish current linked source identity"
+  ]
+}

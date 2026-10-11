@@ -35,6 +35,9 @@
 //! and run scripts through the real runtime, while the compiler's registry
 //! data separately drives static byte-array diagnostics.
 
+#[cfg(test)]
+#[path = "value_ops/native_coercion_tests.rs"]
+mod native_coercion_tests;
 #[path = "value_ops/native_concat.rs"]
 mod native_concat;
 #[cfg(test)]
@@ -134,6 +137,114 @@ impl Drop for RuntimeAppendValue {
             // SAFETY: balances the working object's original owning reference.
             unsafe { obj::decr_ref_count(self.pointer) };
         }
+    }
+}
+
+/// A ValueOps coercion retains its original interpreter and allocation without
+/// adding a native reference. Its currency grants no getter or numeric purpose.
+struct ValueCoercion {
+    original: obj::NativeObjectLifetime,
+    scope: crate::interp::native_operation_currency::NativeOperationScope,
+    interpreter: Interp,
+}
+
+impl ValueCoercion {
+    fn execution_error(
+        interpreter: &Interp,
+        first: tcl_runtime_api::NativeExecutionError,
+    ) -> ValueError {
+        let value_error = match &first {
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause) => {
+                cause.clone().into()
+            }
+            // ValueOps has a value-domain error type. The actual interpreter
+            // retains the full first execution cause for its command/ABI owner.
+            _ => ValueError::ScalarNumericInputUnavailable,
+        };
+        interpreter.clone().refuse_native_execution(first);
+        value_error
+    }
+
+    fn value_error(interpreter: &Interp, error: ValueError) -> ValueError {
+        if let Some(cause) = error.native_access_refusal() {
+            interpreter.clone().refuse_native_access(cause);
+        }
+        error
+    }
+
+    fn enter(interpreter: &Interp, original: *mut TclObj) -> Result<Self, ValueError> {
+        let interpreter = interpreter.clone();
+        let scope =
+            crate::interp::native_operation_currency::NativeOperationScope::enter(&interpreter)
+                .map_err(|first| Self::execution_error(&interpreter, first))?;
+        obj::check_native_liveness(original)
+            .map_err(|error| Self::value_error(&interpreter, error))?;
+        Ok(Self {
+            original: obj::NativeObjectLifetime::retain(original),
+            scope,
+            interpreter,
+        })
+    }
+
+    fn check(&self) -> Result<(), ValueError> {
+        self.scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| Self::execution_error(&self.interpreter, first))?;
+        obj::check_native_liveness(self.original.as_ptr())
+            .map_err(|error| Self::value_error(&self.interpreter, error))
+    }
+
+    fn after<T>(&self, result: Result<T, ValueError>) -> Result<T, ValueError> {
+        self.check()?;
+        result.map_err(|error| Self::value_error(&self.interpreter, error))
+    }
+
+    fn scalar(
+        &self,
+        kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, ValueError> {
+        self.check()?;
+        let result = crate::capi::read_scalar_for_interpreter(
+            &self.interpreter,
+            self.original.as_ptr(),
+            kind,
+        );
+        self.check()?;
+        result.map_err(|error| match error {
+            crate::capi::ScalarReadError::Guest(error) => error,
+            crate::capi::ScalarReadError::Access(
+                crate::capi::NativeScalarObjectAccessError::Value(error),
+            ) => Self::value_error(&self.interpreter, error),
+            crate::capi::ScalarReadError::Access(
+                crate::capi::NativeScalarObjectAccessError::Execution(first),
+            ) => Self::execution_error(&self.interpreter, first),
+        })
+    }
+
+    fn integer_number(&self) -> Result<Option<Number>, ValueError> {
+        self.check()?;
+        let associated = self
+            .interpreter
+            .associate_native_jim_arguments(&[self.original.as_ptr()]);
+        self.after(associated)?;
+        let result = crate::typed_value::scalar_number_with_currency(
+            self.original.as_ptr(),
+            self.interpreter.native_invocation_dialect(),
+            true,
+            Some(self.scope.currency()),
+        );
+        self.check()?;
+        result.map_err(|first| Self::execution_error(&self.interpreter, first))
+    }
+
+    fn original_string(&self) -> Result<Vec<u8>, ValueError> {
+        self.check()?;
+        self.after(
+            self.interpreter
+                .native_object_string_bytes(self.original.as_ptr()),
+        )
+        .map(|bytes| bytes.to_vec())
     }
 }
 
@@ -1224,16 +1335,13 @@ impl ValueOps for Interp {
     }
 
     fn as_int(&mut self, v: &*mut TclObj) -> Result<i64, ValueError> {
-        obj::check_native_liveness(*v)?;
-        self.associate_native_jim_arguments(&[*v])?;
-        match crate::typed_value::native_scalar_getter_with_environment(
-            *v,
-            self.native_invocation_dialect(),
-            tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
-            self.host().numeric_environment(),
-        )? {
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.scalar(tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide)? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value) => Ok(value),
-            _ => Err(ValueError::ScalarNumericInputUnavailable),
+            _ => Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            )),
         }
     }
 
@@ -1244,48 +1352,62 @@ impl ValueOps for Interp {
         radix: Radix,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<IntegerMagnitude, ValueError> {
-        obj::check_native_liveness(*v)?;
-        let _ = crate::typed_value::scalar_number(*v, self.native_invocation_dialect(), true)?;
-        let (negative, digits) = crate::bignum::integer_magnitude(*v, radix, syntax)
-            .ok_or_else(|| ValueError::NotIntegerBytes(obj_bytes(*v)))?;
-        Ok(IntegerMagnitude { negative, digits })
+        let operation = ValueCoercion::enter(self, *v)?;
+        let number = match operation.integer_number()? {
+            Some(number @ (Number::Int(_) | Number::Big { .. })) => number,
+            _ => return Err(ValueError::NotIntegerBytes(operation.original_string()?)),
+        };
+        // Render the accepted Number through the existing integer digit kernel.
+        // The original's bytes and the caller's format syntax cannot reselect
+        // input grammar or install a numeric primary onto a rejected original.
+        let integer = integer_object(number);
+        if integer.is_null() {
+            return Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            ));
+        }
+        let integer = obj::Owned::fresh(integer);
+        let magnitude = crate::bignum::integer_magnitude(integer.as_ptr(), radix, syntax);
+        drop(integer);
+        operation.check()?;
+        magnitude
+            .map(|(negative, digits)| IntegerMagnitude { negative, digits })
+            .ok_or_else(|| {
+                ValueCoercion::value_error(self, ValueError::ScalarNumericInputUnavailable)
+            })
     }
 
     fn string_compare_length(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {
-        obj::check_native_liveness(*v)?;
-        match crate::typed_value::scalar_number(*v, self.native_invocation_dialect(), true)? {
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.integer_number()? {
             Some(Number::Int(integer)) => Ok(usize::try_from(integer).ok()),
             Some(Number::Big { .. }) => Err(ValueError::IntegerOverflow),
-            _ => Err(ValueError::NotIntegerBytes(obj_bytes(*v))),
+            _ => Err(ValueError::NotIntegerBytes(operation.original_string()?)),
         }
     }
 
     fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {
-        obj::check_native_liveness(*v)?;
-        self.associate_native_jim_arguments(&[*v])?;
-        match crate::typed_value::native_scalar_getter_with_environment(
-            *v,
-            self.native_invocation_dialect(),
-            tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
-            self.host().numeric_environment(),
-        )? {
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.scalar(tcl_syntax::scalar_getter::NativeScalarGetterKind::Double)? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(value) => Ok(value),
-            _ => Err(ValueError::ScalarNumericInputUnavailable),
+            _ => Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            )),
         }
     }
 
     fn as_bool(&mut self, v: &*mut TclObj) -> Result<bool, ValueError> {
-        obj::check_native_liveness(*v)?;
-        match crate::typed_value::native_scalar_getter_with_environment(
-            *v,
-            self.native_invocation_dialect(),
-            tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
-            self.host().numeric_environment(),
-        )? {
+        let operation = ValueCoercion::enter(self, *v)?;
+        match operation.scalar(tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean)? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => {
                 Ok(value.is_true())
             }
-            _ => Err(ValueError::ScalarNumericInputUnavailable),
+            _ => Err(ValueCoercion::value_error(
+                self,
+                ValueError::ScalarNumericInputUnavailable,
+            )),
         }
     }
 
