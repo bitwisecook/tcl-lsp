@@ -80,7 +80,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `procedure_header_compilation_bytes`: Owns the selected header byte-purpose independently of formal storage and actual entered procedure execution.
-- [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `tests::byte_header_selection_matches_original_native_storage` (linked): The specific counted parameter/body controls compare NoOp/Absent header selection against actual native pointer observations, without proving allocation or call acceptance.
+- [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `native_procedure::tests::byte_header_selection_matches_original_native_storage` (linked): The specific counted parameter/body controls compare NoOp/Absent header selection against actual native pointer observations, without proving allocation or call acceptance.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `tests::physical_procedure_capture_and_header_remain_separate_from_authored_names` (linked): Checks raw-zero body header absence under actual C9 despite an authored C8.4 name policy, retained/copy body ownership separately, and missing native provider refusal.
 
 A named test is a coverage binding, not a claim that it executed.

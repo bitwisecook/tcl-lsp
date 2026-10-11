@@ -77,7 +77,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-- [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `property_temporary_lookup_and_mutation_axes_are_independent` (linked): Keep instance/foundation invalidation and failed-definition chronology independent.
+- [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `native_property_lookup::tests::property_temporary_lookup_and_mutation_axes_are_independent` (linked): Keep instance/foundation invalidation and failed-definition chronology independent.
 - [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs), `property_epochs_follow_mutations_before_definition_failure` (linked): Check class mutation is retained before definition Error.
 - [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs), `property_epochs_follow_mutations_before_definition_failure` (linked): Check the same mutation-before-Error boundary.
 

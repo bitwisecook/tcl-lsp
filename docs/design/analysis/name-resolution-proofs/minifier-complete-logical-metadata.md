@@ -64,8 +64,7 @@ This Rust Logical metadata/geometry contract has no native interpreter observati
 
 ## Exact evidence
 
-No evidence artifact is attached.
-
+- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). SHA-256 `351ea4e52dbb8c4e367956cbf3c5b7e40df9f1732daeb25dfeac3299734a72a5`. JSON pointer `/question_observations/naming.minifier.complete-logical-metadata`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
 - `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
@@ -109,7 +108,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::logical_positioned_metadata_retains_unknown_values_and_exact_owner` (linked): Unknown values stay Dynamic while metadata retains exact source/config/vector; prior mutation/shadow/deletion and compound heads decline.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::logical_barriers_use_complete_selected_form_and_unknown_coverage` (linked): Actual source traits govern barriers; compound selectors and missing command coverage block renaming.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::logical_metadata_never_supplies_native_or_hosted_keyword_permission` (linked): Native and hosted inputs cannot borrow the Logical positioned projection or enable keyword shortening.
-- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::tests::selected_option_keyword_table_retains_prefix_positions_and_values` (linked): The selected keyword vocabulary and prefix owner retain option value positions independently.
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::original_source_presentation_tests::selected_option_keyword_table_retains_prefix_positions_and_values` (linked): The selected keyword vocabulary and prefix owner retain option value positions independently.
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::tests::selected_subcommand_options_preserve_reserved_positional_values` (linked): Only actual leading string options are selected; option-like trailing positional strings retain their original ordinals.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_logical_source_schema_selects_its_positive_input_before_native_advice` (linked): Positive Logical source advice retains the complete original vector and exact context; foreign context, changed full configuration and Native issuance decline.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs), `command_binding::source_transition_advice::logical_declaration::tests::original_logical_nested_header_retains_declared_body_and_full_input` (linked): Nested Logical procedure headers retain their genuine own source-body descriptor, complete editing input and deferred applicability; known source shadow cannot borrow stock metadata.
@@ -128,25 +127,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 The exact linked Rust selectors exercise complete positioned Logical source metadata, shared script/data regions, full-context option and barrier tables, static keyword geometry and independent runtime uncertainty. No executed Rust receipt or native-provider result is supplied by this implementation contract.
-
-
-## Exact original-source Compiler software outcomes
-
-The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
-
-| Original operation | Passed | Failed | Incomplete |
-| --- | ---: | ---: | ---: |
-| `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
-
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
-
-## Exact original-source347 software outcomes
-
-These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
-
-| Original operation | Passed | Failed |
-| --- | ---: | ---: |
-| `integration-compiler-focused-consumer-tests347` | 1 | 0 |
-
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

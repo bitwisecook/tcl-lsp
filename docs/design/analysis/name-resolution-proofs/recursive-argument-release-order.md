@@ -87,7 +87,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-- [rust/tcl-compiler/src/optimiser/tail_call.rs](../../../../rust/tcl-compiler/src/optimiser/tail_call.rs), `original_changed_formal_objects_require_complete_release_evidence` (linked): Require original frame observer/argv object release and producer obligations separately from exact self allocation and formal topology.
+- [rust/tcl-compiler/src/optimiser/tail_call.rs](../../../../rust/tcl-compiler/src/optimiser/tail_call.rs), `optimiser::tail_call::tests::original_changed_formal_objects_require_complete_release_evidence` (linked): Require original frame observer/argv object release and producer obligations separately from exact self allocation and formal topology.
 
 A named test is a coverage binding, not a claim that it executed.
 

@@ -64,7 +64,7 @@ This is a Rust immutable-storage join contract; no external interpreter ran in t
 
 ## Exact evidence
 
-- `shared-noop-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `61af1e5c0d1eb74f03b5e304029d9d6bf6fc827fe25c6eb826dfcf392e4f452b`. Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit.
+- `shared-noop-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `464b20ae59b5620d00289158afc7274d661a04331fb104fa01558e5d19db7a4b`. Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit.
 - `shared-noop-lib` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). SHA-256 `00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759`. Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit.
 
 ## Source inspection

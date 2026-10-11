@@ -64,9 +64,8 @@ This original source package-action context and reviewed insertion contract supp
 
 ## Exact evidence
 
-No evidence artifact is attached.
-
 - `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+- `own-source350-core-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json). SHA-256 `4430bc0a73265f91e97b56507108488bfa9319899dd188babfff8cf17870e7c6`. JSON pointer `/by_question/naming.core.original-package-source-action-context`. Exact original source350 body/question/document joins to the owned Core image, actual inventory/admission and 14 passing selections. Other source images and external-provider answers receive no outcome.
 
 ## Source inspection
 
@@ -81,10 +80,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `head_is_unresolved`: Keep independently selected Native and positively Logical missing-head premises distinct.
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `package_require_actions_in_program`: Require genuine current source package metadata and shared insertion geometry for reviewed proposals.
 - [rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs), `Analyser::emit_missing_package_require_diagnostics`: Use the shared original root insertion owner for W120 proposals without reporting-label reconstruction.
-- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_package_insertion_uses_root_commands_split_lines_and_full_input` (linked): Root split-line/shebang and EOF command extents determine insertion; nested requirements, literal data and provide-name queries remain outside root headers, and changed source withdraws the offset.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_uses_root_commands_split_lines_and_full_input` (linked): Root split-line/shebang and EOF command extents determine insertion; nested requirements, literal data and provide-name queries remain outside root headers, and changed source withdraws the offset.
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::original_package_suggestion_tests::original_package_action_uses_genuine_provision_and_requirement_operands` (linked): Genuine version-supplying provision and escaped -exact requirement values remain selected independently of mutated requirement/provision reporting names; provide-name queries and literal data cannot create that metadata.
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input` (linked): A positively sealed no-Native-policy Jim0.79 Logical source input under independently supplied C8.6 authoring context retains the actual unresolved head and one package insertion despite changed reporting names; changed BOM input and Native-domain projection decline.
-
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry` (linked): Logical package hint keeps shared written colon geometry. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
 A named test is a coverage binding, not a claim that it executed.
@@ -92,21 +90,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Body-marked selectors bind source metadata, current input and reviewed proposal geometry. Exact Rust outcomes remain independently recorded; no native provider process, package installation or loader result is attached.
-
-
-## Exact original-source347 software outcomes
-
-These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
-
-| Original operation | Passed | Failed |
-| --- | ---: | ---: |
-| `integration-core-consumer-tests347` | 1 | 0 |
-
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
-
-
-## Exact owning Core source350 software outcomes
-
-The owning Core image executes 1 original selections paired with this question and all pass. These are bounded Rust software assertions for the exact source350 map and executable. The process selects 14 tests and all pass, with no ignored tests and 2,953 other tests filtered out. Producer and inventory operations execute no assertions.
-
-[Exact original body hashes and raw harness outcomes](rust-validation/frozen350/question-body-outcomes.json) join the full unchanged receipts, streams, source map, inventory/admission and owned executable bytes. Native provider answers and other source-image results remain independent.
