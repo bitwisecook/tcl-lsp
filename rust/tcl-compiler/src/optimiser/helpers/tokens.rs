@@ -201,7 +201,7 @@ mod original_selected_body_purpose_tests {
         let source = "\u{feff}if {1} {\u{feff}#prefix $x}";
         let image = tcl_lexer::SourceImage::document(source);
         let plan = tcl_lexer::native_script_words_in(
-            &image,
+            image.clone(),
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             config,
         )
