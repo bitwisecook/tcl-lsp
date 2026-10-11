@@ -404,8 +404,22 @@ fn original_c_legacy_search_cursor_retirement_adds_no_native_handle_role() {
             b"a",
             original.identity(),
         );
-        let result = interpreter
-            .array_search_on_original(&target, "startsearch", b"a", None, protocol)
+        // The actual array trace owner issues the captured operation receipt.
+        let mut reached = None;
+        let code = interpreter.with_array_trace_target(b"a", |interpreter, selected| {
+            assert_eq!(selected.cell_id(), target.cell_id());
+            reached = Some(interpreter.array_search_on_original(
+                selected,
+                "startsearch",
+                b"a",
+                None,
+                protocol,
+            ));
+            crate::interp::Code::Ok
+        });
+        assert_eq!(code, crate::interp::Code::Ok);
+        let result = reached
+            .expect("actual captured array operation reached the backend")
             .unwrap()
             .unwrap();
         let returned = Owned::fresh(result);
