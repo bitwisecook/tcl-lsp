@@ -22,6 +22,19 @@ pub trait NativeAppendObjects {
     fn prepare_receiver(&self, value: &Self::Value, protocol: NativeStringProtocol) -> Self::Value;
     /// Duplicate source representations into the prepared receiver, preserving its identity.
     fn duplicate_into(&self, receiver: &Self::Value, source: &Self::Value);
+    /// Checked duplication into an independently created private receiver.
+    /// Physical adapters use their canonical before-admission retirement worker.
+    /// Neutral adapters have no callback/cache admission authority of their own.
+    fn duplicate_into_checked(
+        &self,
+        receiver: &Self::Value,
+        source: &Self::Value,
+        check: &mut impl FnMut() -> Result<(), ValueError>,
+    ) -> Result<(), ValueError> {
+        check()?;
+        self.duplicate_into(receiver, source);
+        check()
+    }
     /// Reach the original object's selected string updater.
     fn string(
         &self,
@@ -34,6 +47,23 @@ pub trait NativeAppendObjects {
         value: &Self::Value,
         protocol: NativeStringProtocol,
     ) -> Result<Rc<[u32]>, ValueError>;
+    /// Decode bytes through the selected original Unicode storage producer.
+    /// Neutral adapters keep the public-unit recipe; physical adapters supply
+    /// their own independently issued plain-char promotion for legacy storage.
+    fn decode_unicode_source(
+        &self,
+        protocol: NativeStringProtocol,
+        bytes: &[u8],
+    ) -> Result<Rc<[u32]>, ValueError> {
+        let version = protocol
+            .tcl_version()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "C Unicode source units",
+            ))?;
+        Ok(Rc::from(
+            NativeTclUtf::for_version(version).decode_units(bytes),
+        ))
+    }
     /// Replace the primary String cache, retaining supplied original resident bytes and storage.
     fn set_string(
         &self,
@@ -95,6 +125,24 @@ pub fn append_object<O: NativeAppendObjects>(
         .map(|value| PreparedAppendValue { value, protocol })
 }
 
+/// Append one original operand to an independently created private receiver.
+/// Its caller retains the actual fresh-result cleanup role. Adapter handle
+/// clones must retain allocation safety only: no copy-on-write or native +1
+/// occurs around source getters or selected cache retirement.
+///
+/// # Errors
+/// Reached physical append/storage failure or the caller's original refusal.
+pub fn append_private_object_checked<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    source: &O::Value,
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    append_object_inner_checked(ops, protocol, Some(receiver), source, false, false, check)?;
+    check()
+}
+
 /// Append C Unicode units to a privately owned result receiver. This is the
 /// native Unicode append purpose: existing Unicode receives units directly;
 /// a byte-backed String receives the selected native encoding of those units.
@@ -104,6 +152,21 @@ pub fn append_unicode_units<O: NativeAppendObjects>(
     receiver: &O::Value,
     units: &[u32],
 ) -> Result<(), ValueError> {
+    append_unicode_units_checked(ops, protocol, receiver, units, &mut || Ok(()))
+}
+
+/// Checked sibling of the same native Unicode append owner.
+///
+/// # Errors
+/// Reached storage failure or the original caller's terminal refusal.
+pub fn append_unicode_units_checked<O: NativeAppendObjects>(
+    ops: &O,
+    protocol: NativeObjectAppendProtocol,
+    receiver: &O::Value,
+    units: &[u32],
+    check: &mut impl FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    check()?;
     let strings = protocol.string_protocol();
     if strings.tcl_version().is_none() {
         return Err(ValueError::CommandProtocolUnavailable("C Unicode append"));
@@ -111,7 +174,7 @@ pub fn append_unicode_units<O: NativeAppendObjects>(
     if units.is_empty() {
         return Ok(());
     }
-    let shape = ops.snapshot(receiver)?;
+    let shape = checked_append_stage(check, || ops.snapshot(receiver))?;
     if let Cache::String {
         protocol: origin,
         unicode: None,
@@ -123,7 +186,7 @@ pub fn append_unicode_units<O: NativeAppendObjects>(
                 "native Unicode append cache origin",
             ));
         }
-        let mut bytes = ops.string(receiver, strings)?.to_vec();
+        let mut bytes = checked_append_stage(check, || ops.string(receiver, strings))?.to_vec();
         bytes.extend_from_slice(
             &NativeTclUtf::for_version(strings.tcl_version().expect("C append"))
                 .encode_units(units)
@@ -131,24 +194,28 @@ pub fn append_unicode_units<O: NativeAppendObjects>(
                     "native Unicode append unit width",
                 ))?,
         );
-        return ops.set_string(
-            receiver,
-            strings,
-            Some((Rc::from(bytes), Storage::Allocated)),
-            None,
-            None,
-        );
+        return checked_append_stage(check, || {
+            ops.set_string(
+                receiver,
+                strings,
+                Some((Rc::from(bytes), Storage::Allocated)),
+                None,
+                None,
+            )
+        });
     }
-    let mut unicode = ops.unicode(receiver, strings)?.to_vec();
+    let mut unicode = checked_append_stage(check, || ops.unicode(receiver, strings))?.to_vec();
     unicode.extend_from_slice(units);
     let length = unicode.len();
-    ops.set_string(
-        receiver,
-        strings,
-        None,
-        Some(length),
-        Some(Rc::from(unicode)),
-    )
+    checked_append_stage(check, || {
+        ops.set_string(
+            receiver,
+            strings,
+            None,
+            Some(length),
+            Some(Rc::from(unicode)),
+        )
+    })
 }
 
 /// Append counted bytes through C's `Tcl_AppendToObj` String/Unicode path.
@@ -469,7 +536,7 @@ fn append_object_inner_checked<O: NativeAppendObjects>(
     match action {
         Action::PreserveReceiver => return Ok(receiver),
         Action::DuplicateSource => {
-            checked_append_stage(check, || Ok(ops.duplicate_into(&receiver, source)))?;
+            ops.duplicate_into_checked(&receiver, source, check)?;
             return Ok(receiver);
         }
         Action::AppendBinary => {
@@ -561,8 +628,6 @@ fn append_c_unicode_source<O: NativeAppendObjects>(
     old_units: &[u32],
     check: &mut impl FnMut() -> Result<(), ValueError>,
 ) -> Result<(), ValueError> {
-    let codec =
-        NativeTclUtf::for_version(string_protocol.tcl_version().expect("C append protocol"));
     let source_units = if matches!(source_shape.cache, Cache::String { .. }) {
         checked_append_stage(check, || ops.unicode(source, string_protocol))?
     } else {
@@ -570,7 +635,7 @@ fn append_c_unicode_source<O: NativeAppendObjects>(
             Some(bytes) => bytes,
             None => checked_append_stage(check, || ops.string(source, string_protocol))?,
         };
-        Rc::from(codec.decode_units(&bytes))
+        checked_append_stage(check, || ops.decode_unicode_source(string_protocol, &bytes))?
     };
     if !source_units.is_empty() {
         let mut units = old_units.to_vec();

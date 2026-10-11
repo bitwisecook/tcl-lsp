@@ -26,7 +26,7 @@
 
 use tcl_cmd_core::list as list_core;
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -71,18 +71,6 @@ pub fn install(interp: &mut Interp) {
 /// Set the result to a list built from element objects (each retained).
 fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
     interp.set_result(interp.new_list_object(elems));
-}
-
-/// Resolve a Tcl list index spec against a container of `len` elements via the
-/// shared, radix-aware [`tcl_cmd_core::index`] core — the same parser `lindex`
-/// / `lrange` / `lreplace` / `linsert` use — so a hex index like `0x1` or
-/// `end-0x1` resolves the way real Tcl's `Tcl_GetIntForIndex` does instead of
-/// being rejected by a decimal-only reader. Returns a
-/// (possibly out-of-range) signed index; callers clamp/range-check.
-pub(crate) fn index_spec(interp: &mut Interp, spec: &[u8], len: usize) -> Option<isize> {
-    let s = core::str::from_utf8(spec).ok()?;
-    let v = tcl_cmd_core::index::resolve_for_ops(interp, s, len).ok()?;
-    isize::try_from(v).ok()
 }
 
 // commands
@@ -526,11 +514,12 @@ fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let len = elems.len();
     let mut remove = vec![false; len];
     for &iv in &argv[2..] {
-        let spec = obj_bytes(iv);
-        match index_spec(interp, &spec, len) {
-            Some(i) if i >= 0 && (i as usize) < len => remove[i as usize] = true,
-            Some(_) => {} // out of range — ignored, as C's lremove does
-            None => return bad_index(interp, &spec),
+        match tcl_cmd_core::index::resolve_value(interp, &iv, len) {
+            Ok(i) if i >= 0 && usize::try_from(i).is_ok_and(|i| i < len) => {
+                remove[usize::try_from(i).expect("checked native index")] = true;
+            }
+            Ok(_) => {} // out of range is ignored by the selected command.
+            Err(error) => return interp.report_cmd_error(error),
         }
     }
     let out: Vec<*mut TclObj> = elems
@@ -732,7 +721,7 @@ fn parse_wide(b: &[u8]) -> Option<i128> {
 /// the core; `-command` is split (the core prepares, this adapter runs the merge
 /// sort over the user comparator via `lsort_cmd_compare`, then the core builds).
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
+    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let job = match prepare(interp, &argv[1..]) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);
@@ -756,7 +745,14 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return interp.report_cmd_error(e.into()),
     };
     let mut job = job;
-    if let Err(c) = sort_command(&mut job, |a, b| lsort_cmd_compare(interp, &words, *a, *b)) {
+    if let Err(c) = sort_command(&mut job, |a, b| {
+        lsort_cmd_compare(
+            interp,
+            &words,
+            *tcl_cmd_core::index::key_value::<Interp>(a),
+            *tcl_cmd_core::index::key_value::<Interp>(b),
+        )
+    }) {
         return c;
     }
     let v = build_command(interp, &job);
@@ -798,14 +794,6 @@ fn lsort_cmd_compare(
             Err(interp.set_error(&m))
         }
     }
-}
-
-fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {
-    let Some(syntax) = interp.native_invocation_dialect().index_syntax() else {
-        return interp.set_error(b"container index dialect is not selected");
-    };
-    let error = tcl_cmd_core::index::bad_index_in(spec, syntax);
-    interp.report_cmd_error(error)
 }
 
 /// Free a freshly created (`rc 0`) object not stored anywhere.

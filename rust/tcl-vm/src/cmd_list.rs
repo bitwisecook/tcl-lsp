@@ -491,7 +491,14 @@ fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(w) => w,
         Err(e) => return crate::command::completion_from_tcl_error(vm, e),
     };
-    if let Err(c) = sort_command(&mut job, |a, b| vm_compare(vm, &prefix, a, b)) {
+    if let Err(c) = sort_command(&mut job, |a, b| {
+        vm_compare(
+            vm,
+            &prefix,
+            tcl_cmd_core::index::key_value::<Vm>(a),
+            tcl_cmd_core::index::key_value::<Vm>(b),
+        )
+    }) {
         return c;
     }
     ok(build_command(vm, &job))

@@ -16,22 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `append` + the `string` ensemble:
-//! capacity-backed in-place `append` (amortised O(1)), and char-indexed `string`
-//! ops with an **ASCII fast path** (byte index == char index) falling back to a
-//! UTF-8 scan for non-ASCII.
+//! Physical append and String ensemble adapters.
 //!
-//! Implements `string length/index/range/equal/compare/cat/repeat/reverse/`
-//! `toupper/tolower/trim/trimleft/trimright/first/last`. `map`/`match`/`is`/
-//! `replace`/`insert`/`wordstart` are not implemented here, nor is Unicode
-//! case handling or a non-ASCII char-offset cache.
+//! Indexed String operations use the shared original-operand Index owner.
+//! Release-selected ensemble registration and stateful variable publication
+//! remain in this interpreter adapter.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use tcl_cmd_core::prefix::Resolution;
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
@@ -348,81 +344,27 @@ fn str_index(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"string charIndex");
     }
-    let s = obj_bytes(argv[2]);
-    let n = char_count(&s);
-    let idx = match index_spec(interp, &obj_bytes(argv[3]), n) {
-        Some(i) => i,
-        None => return bad_index(interp, &obj_bytes(argv[3])),
-    };
-    if idx < 0 || idx as usize >= n {
-        interp.set_result_bytes(b"");
-        return Code::Ok;
-    }
-    let b0 = char_to_byte(&s, idx as usize);
-    let b1 = char_to_byte(&s, idx as usize + 1);
-    interp.set_result_bytes(&s[b0..b1]);
-    Code::Ok
+    let result = tcl_cmd_core::string::index(interp, &argv[2], &argv[3]);
+    adapt_string_result(interp, result)
 }
 
 fn str_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args_for_prefix(argv, 2, b"string first last");
     }
-    let s = obj_bytes(argv[2]);
-    let n = char_count(&s);
-    let first = match index_spec(interp, &obj_bytes(argv[3]), n) {
-        Some(i) => i.max(0) as usize,
-        None => return bad_index(interp, &obj_bytes(argv[3])),
-    };
-    let last = match index_spec(interp, &obj_bytes(argv[4]), n) {
-        Some(i) => i,
-        None => return bad_index(interp, &obj_bytes(argv[4])),
-    };
-    if last < 0 || first >= n || (last as usize) < first {
-        interp.set_result_bytes(b"");
-        return Code::Ok;
-    }
-    let last = (last as usize).min(n - 1);
-    let b0 = char_to_byte(&s, first);
-    let b1 = char_to_byte(&s, last + 1);
-    interp.set_result_bytes(&s[b0..b1]);
-    Code::Ok
+    let result = tcl_cmd_core::string::range(interp, &argv[2], &argv[3], &argv[4]);
+    adapt_string_result(interp, result)
 }
 
 /// `string replace string first last ?newstring?` — replace the character range
 /// `[first,last]` with `newstring` (or delete it). Out-of-range / `first>last`
 /// returns the string unchanged (`StringRplcCmd`).
 fn str_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 5 && argv.len() != 6 {
+    if !(5..=6).contains(&argv.len()) {
         return interp.wrong_args_for_prefix(argv, 2, b"string first last ?string?");
     }
-    let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
-        .chars()
-        .collect();
-    let n = chars.len();
-    let first = match index_spec(interp, &obj_bytes(argv[3]), n) {
-        Some(i) => i,
-        None => return bad_index(interp, &obj_bytes(argv[3])),
-    };
-    let last = match index_spec(interp, &obj_bytes(argv[4]), n) {
-        Some(i) => i,
-        None => return bad_index(interp, &obj_bytes(argv[4])),
-    };
-    let lo = first.max(0) as usize;
-    let hi = last.min(n as isize - 1);
-    if first > last || first >= n as isize || last < 0 || lo > n {
-        // No replacement — return the original string unchanged.
-        interp.set_result(argv[2]);
-        return Code::Ok;
-    }
-    let hi = hi as usize; // inclusive end, guaranteed >= lo here
-    let mut out: String = chars[..lo].iter().collect();
-    if argv.len() == 6 {
-        out.push_str(&String::from_utf8_lossy(&obj_bytes(argv[5])));
-    }
-    out.extend(&chars[hi + 1..]);
-    interp.set_result_bytes(out.as_bytes());
-    Code::Ok
+    let result = tcl_cmd_core::string::replace(interp, &argv[2..]);
+    adapt_string_result(interp, result)
 }
 
 /// `string insert string index insertString` — insert before character `index`
@@ -431,20 +373,8 @@ fn str_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args_for_prefix(argv, 2, b"string index insertString");
     }
-    let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
-        .chars()
-        .collect();
-    let n = chars.len();
-    // `string insert` uses `end == length` (append), unlike most index commands.
-    let idx = match index_spec(interp, &obj_bytes(argv[3]), n + 1) {
-        Some(i) => i.max(0).min(n as isize) as usize,
-        None => return bad_index(interp, &obj_bytes(argv[3])),
-    };
-    let mut out: String = chars[..idx].iter().collect();
-    out.push_str(&String::from_utf8_lossy(&obj_bytes(argv[4])));
-    out.extend(&chars[idx..]);
-    interp.set_result_bytes(out.as_bytes());
-    Code::Ok
+    let result = tcl_cmd_core::string::insert(interp, &argv[2..]);
+    adapt_string_result(interp, result)
 }
 
 /// `tcl::prefix match|all|longest …` — prefix matching against a table
@@ -715,118 +645,33 @@ enum CaseMode {
 /// (1:1) Unicode, matching `Tcl_UniCharTo{Upper,Lower,Title}`: a character whose
 /// Unicode mapping is not a single code point (e.g. `ß`→`SS`) is left unchanged.
 fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
-    let usage: &[u8] = match mode {
-        CaseMode::Upper => b"string toupper string ?first? ?last?",
-        CaseMode::Lower => b"string tolower string ?first? ?last?",
-        CaseMode::Title => b"string totitle string ?first? ?last?",
+    let (mode, usage) = match mode {
+        CaseMode::Upper => (
+            tcl_cmd_core::string::CaseMode::Upper,
+            "string toupper string ?first? ?last?",
+        ),
+        CaseMode::Lower => (
+            tcl_cmd_core::string::CaseMode::Lower,
+            "string tolower string ?first? ?last?",
+        ),
+        CaseMode::Title => (
+            tcl_cmd_core::string::CaseMode::Title,
+            "string totitle string ?first? ?last?",
+        ),
     };
-    if argv.len() < 3 || argv.len() > 5 {
-        return interp.wrong_args_for_prefix(
-            argv,
-            2,
-            usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
-        );
-    }
-    let s = obj_bytes(argv[2]);
-
-    // No range: map the entire string.
-    if argv.len() == 3 {
-        let mapped: String = map_case(&String::from_utf8_lossy(&s), mode);
-        interp.set_result_bytes(mapped.as_bytes());
-        return Code::Ok;
-    }
-
-    let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
-    let n = chars.len();
-    // The index `end`/`end±N` resolves against `n-1` (`TclGetIntForIndexM`).
-    let first = match index_spec(interp, &obj_bytes(argv[3]), n) {
-        Some(i) => i.max(0) as usize,
-        None => return bad_index(interp, &obj_bytes(argv[3])),
-    };
-    // A lone index maps just that character (`last = first`).
-    let last = match argv.get(4) {
-        Some(&a) => match index_spec(interp, &obj_bytes(a), n) {
-            Some(i) => i,
-            None => return bad_index(interp, &obj_bytes(a)),
-        },
-        None => first as isize,
-    };
-    let last = if last >= n as isize {
-        n as isize - 1
-    } else {
-        last
-    };
-    if last < first as isize {
-        interp.set_result_bytes(&s); // empty range ⇒ unchanged
-        return Code::Ok;
-    }
-    let last = last as usize;
-
-    let mut out = String::with_capacity(s.len());
-    out.extend(&chars[..first]);
-    for (k, &c) in chars[first..=last].iter().enumerate() {
-        let cm = match mode {
-            CaseMode::Upper => simple_upper(c),
-            CaseMode::Lower => simple_lower(c),
-            // `totitle`: first char of the range title-cased, the rest lowered.
-            CaseMode::Title if k == 0 => simple_title(c),
-            CaseMode::Title => simple_lower(c),
-        };
-        out.push(cm);
-    }
-    out.extend(&chars[last + 1..]);
-    interp.set_result_bytes(out.as_bytes());
-    Code::Ok
+    let result = tcl_cmd_core::string::case_convert(interp, &argv[2..], mode, usage);
+    adapt_string_result(interp, result)
 }
 
 /// Map an entire string with the given case mode (`totitle` title-cases the very
 /// first character and lower-cases the rest, like `Tcl_UtfToTitle`).
-fn map_case(s: &str, mode: CaseMode) -> String {
-    match mode {
-        CaseMode::Upper => s.chars().map(simple_upper).collect(),
-        CaseMode::Lower => s.chars().map(simple_lower).collect(),
-        CaseMode::Title => s
-            .chars()
-            .enumerate()
-            .map(|(i, c)| {
-                if i == 0 {
-                    simple_title(c)
-                } else {
-                    simple_lower(c)
-                }
-            })
-            .collect(),
-    }
-}
 
 /// Simple (1:1) Unicode case mapping helpers, matching `Tcl_UniCharTo*`: when the
 /// full Unicode mapping is not a single code point, the character is unchanged.
-fn simple_upper(c: char) -> char {
-    let mut it = c.to_uppercase();
-    match (it.next(), it.next()) {
-        (Some(u), None) => u,
-        _ => c,
-    }
-}
-fn simple_lower(c: char) -> char {
-    let mut it = c.to_lowercase();
-    match (it.next(), it.next()) {
-        (Some(l), None) => l,
-        _ => c,
-    }
-}
+
 /// Title-case equals upper-case except for the four Latin digraphs, whose
 /// title form is the mixed-case middle code point (`Tcl_UniCharToTitle`).
 /// (`char::to_titlecase` is still unstable, so these are hard-coded.)
-fn simple_title(c: char) -> char {
-    match c {
-        '\u{01C4}' | '\u{01C5}' | '\u{01C6}' => '\u{01C5}',
-        '\u{01C7}' | '\u{01C8}' | '\u{01C9}' => '\u{01C8}',
-        '\u{01CA}' | '\u{01CB}' | '\u{01CC}' => '\u{01CB}',
-        '\u{01F1}' | '\u{01F2}' | '\u{01F3}' => '\u{01F2}',
-        _ => simple_upper(c),
-    }
-}
 
 /// `string trim|trimleft|trimright string ?chars?` — strip leading/trailing
 /// characters that appear in `chars` (Tcl's default whitespace set otherwise).
@@ -854,60 +699,19 @@ fn str_trim(interp: &mut Interp, argv: &[*mut TclObj], left: bool, right: bool) 
 }
 
 fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Code {
-    if argv.len() < 4 || argv.len() > 5 {
+    if !(4..=5).contains(&argv.len()) {
         return interp.wrong_args(if first {
             b"string first needleString haystackString ?startIndex?"
         } else {
             b"string last needleString haystackString ?lastIndex?"
         });
     }
-    let needle = obj_bytes(argv[2]);
-    let hay = obj_bytes(argv[3]);
-    let n = char_count(&hay);
-
-    // Optional bound index (char-based, `end`/`end±N` aware).
-    let bound = if argv.len() == 5 {
-        let spec = obj_bytes(argv[4]);
-        match index_spec(interp, &spec, n) {
-            Some(i) => Some(i),
-            None => return bad_index(interp, &spec),
-        }
+    let result = if first {
+        tcl_cmd_core::string::first(interp, &argv[2], &argv[3], argv.get(4))
     } else {
-        None
+        tcl_cmd_core::string::last(interp, &argv[2], &argv[3], argv.get(4))
     };
-
-    // Empty needles never match ("We don't find empty substrings" — C's
-    // TclStringFirst/TclStringLast both bail out for a zero-length needle).
-    if char_count(&needle) == 0 {
-        interp.set_result(obj::new_wide_int_obj(-1));
-        return Code::Ok;
-    }
-    let nlen = char_count(&needle);
-
-    // Byte search restricted by the bound, then convert to a char index.
-    let byte_pos = if first {
-        // `startIndex`: search at or after it (clamp negatives to 0).
-        let start_char = bound.map_or(0, |i| i.max(0) as usize).min(n);
-        let start_byte = char_to_byte(&hay, start_char);
-        find_sub(&hay[start_byte..], &needle).map(|bp| bp + start_byte)
-    } else {
-        // `lastIndex` (default `end`) caps the index of the match's *final*
-        // character: the latest start is `last + 1 - nlen`, so scan the prefix
-        // ending just past `last` for the rightmost needle.
-        let mut last: isize = bound.unwrap_or(n as isize - 1);
-        if last >= n as isize {
-            last = n as isize - 1;
-        }
-        if last + 1 < nlen as isize {
-            None
-        } else {
-            let slice_end = char_to_byte(&hay, (last + 1) as usize);
-            rfind_sub(&hay[..slice_end], &needle)
-        }
-    };
-    let result = byte_pos.map_or(-1, |bp| char_count(&hay[..bp]) as i64);
-    interp.set_result(obj::new_wide_int_obj(result));
-    Code::Ok
+    adapt_string_result(interp, result)
 }
 
 /// `string match ?-nocase? pattern string` — glob match (the shared
@@ -1131,48 +935,9 @@ fn char_count(s: &[u8]) -> usize {
     n
 }
 
-/// Byte offset of character `ci` (clamped to `s.len()` when `ci` == char count).
-/// ASCII fast path: byte offset == char index.
-fn char_to_byte(s: &[u8], ci: usize) -> usize {
-    if s.is_ascii() {
-        return ci.min(s.len());
-    }
-    let mut i = 0;
-    let mut c = 0;
-    while i < s.len() && c < ci {
-        i += utf8_len(s[i]);
-        c += 1;
-    }
-    i
-}
-
-fn find_sub(hay: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() {
-        return Some(0);
-    }
-    hay.windows(needle.len()).position(|w| w == needle)
-}
-
-fn rfind_sub(hay: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() {
-        return Some(hay.len());
-    }
-    if needle.len() > hay.len() {
-        return None;
-    }
-    (0..=hay.len() - needle.len())
-        .rev()
-        .find(|&i| &hay[i..i + needle.len()] == needle)
-}
-
 fn parse_isize(b: &[u8]) -> Option<isize> {
     core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
 }
-
-/// `int` / `end` / `end-N` / `end+N` index spec against `len` chars.
-// Index specs (`end`, `int±int`, `end±int`, …) share the full
-// `TclGetIntForIndex` grammar with the list commands — reuse one parser.
-use crate::cmd_list::index_spec;
 
 // error helpers
 /// Whether `opt` abbreviates `-nocase` (`strncmp` with `length > 1`), the sole
@@ -1198,12 +963,7 @@ fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
     m.push(b'"');
     interp.set_error(&m)
 }
-fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"bad index \"".to_vec();
-    m.extend_from_slice(spec);
-    m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-    interp.set_error(&m)
-}
+
 fn drop_fresh(obj: *mut TclObj) {
     // SAFETY: `obj` is a live rc-0 object; retain-then-release frees it cleanly.
     unsafe {
@@ -1594,3 +1354,16 @@ mod tests {
 #[cfg(test)]
 #[path = "native_append_tests.rs"]
 mod native_append_tests;
+
+fn adapt_string_result(
+    interp: &mut Interp,
+    result: Result<*mut TclObj, tcl_cmd_core::CmdError>,
+) -> Code {
+    match result {
+        Ok(value) => {
+            interp.set_result(value);
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
+    }
+}

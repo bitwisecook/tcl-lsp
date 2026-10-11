@@ -37,6 +37,7 @@ pub use native_compiled::{
 mod native_trim;
 pub use native_trim::compiled_trim;
 
+use crate::index::NativeIndexOps;
 use tcl_syntax::raw_string::RawString;
 use tcl_syntax::value::ValueOps;
 
@@ -51,61 +52,75 @@ pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdErr
 
 /// `string index str charIndex` — the one-character string at `idx`, or empty
 /// when out of range.
-pub fn index<O: ValueOps>(ops: &mut O, s: &O::Value, idx: &O::Value) -> Result<O::Value, CmdError> {
-    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
-        let raw = RawString::from_bytes(ops.as_bytes(s));
-        let len = ops.native_char_len(s)?;
-        let i = index::resolve_value(ops, idx, len)?;
-        return Ok(match usize::try_from(i) {
-            Ok(i) => ops.new_bytes(&raw.jim084_character_bytes(i, len)?),
-            Err(_) => ops.empty(),
-        });
-    }
-    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
-    let i = index::resolve_value(ops, idx, chars.len())?;
-    if i < 0 {
-        return Ok(ops.empty());
-    }
-    match usize::try_from(i).ok().and_then(|i| chars.get(i)) {
-        Some(c) => Ok(ops.new_string(c.to_string())),
-        None => Ok(ops.empty()),
-    }
+pub fn index<O: NativeIndexOps>(
+    ops: &mut O,
+    s: &O::Value,
+    idx: &O::Value,
+) -> Result<O::Value, CmdError> {
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let prepared = index::prepare_jim_indices(ops, &[idx])?;
+            let raw = RawString::from_bytes(ops.index_operand_bytes(s)?);
+            let len = ops.index_character_count(s)?;
+            let i = match prepared {
+                Some(indices) => index::resolve_jim_encoding(indices[0], len),
+                None => index::resolve_value(ops, idx, len)?,
+            };
+            return Ok(match usize::try_from(i) {
+                Ok(i) => ops.new_bytes(&raw.jim084_character_bytes(i, len)?),
+                Err(_) => ops.empty(),
+            });
+        }
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let i = index::resolve_value(ops, idx, chars.len())?;
+        if i < 0 {
+            return Ok(ops.empty());
+        }
+        match usize::try_from(i).ok().and_then(|i| chars.get(i)) {
+            Some(c) => Ok(ops.new_string(c.to_string())),
+            None => Ok(ops.empty()),
+        }
+    })
 }
 
 /// `string range str first last` — the inclusive character slice, clamped.
-pub fn range<O: ValueOps>(
+pub fn range<O: NativeIndexOps>(
     ops: &mut O,
     s: &O::Value,
     first: &O::Value,
     last: &O::Value,
 ) -> Result<O::Value, CmdError> {
-    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
-        let raw = RawString::from_bytes(ops.as_bytes(s));
-        let len = ops.native_char_len(s)?;
-        let first = index::resolve_value(ops, first, len)?.max(0);
-        let last = index::resolve_value(ops, last, len)?;
-        return Ok(match (usize::try_from(first), usize::try_from(last)) {
-            (Ok(0), Ok(last)) if last.saturating_add(1) >= len => s.clone(),
-            (Ok(first), Ok(last)) => {
-                let (bytes, count) = raw.jim084_range_bytes(first, last, len)?;
-                ops.new_jim_string(&bytes, count)
-            }
-            _ => ops.empty(),
-        });
-    }
-    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
-    let len = chars.len();
-    let lo = index::resolve_value(ops, first, len)?.max(0);
-    let hi = index::resolve_value(ops, last, len)?;
-    let Ok(lo) = usize::try_from(lo) else {
-        return Ok(ops.empty());
-    };
-    if hi < 0 || lo >= len || lo > usize::try_from(hi).unwrap_or(usize::MAX) {
-        return Ok(ops.empty());
-    }
-    let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
-    let out: String = chars[lo..=hi].iter().collect();
-    Ok(ops.new_string(out))
+    index::run_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let raw = RawString::from_bytes(ops.index_operand_bytes(s)?);
+            let len = ops.index_character_count(s)?;
+            let first = index::resolve_value(ops, first, len)?.max(0);
+            let last = index::resolve_value(ops, last, len)?;
+            return Ok(match (usize::try_from(first), usize::try_from(last)) {
+                (Ok(0), Ok(last)) if last.saturating_add(1) >= len => {
+                    index::IndexResult::Borrowed(s.clone())
+                }
+                (Ok(first), Ok(last)) => {
+                    let (bytes, count) = raw.jim084_range_bytes(first, last, len)?;
+                    index::IndexResult::Created(ops.new_jim_string(&bytes, count))
+                }
+                _ => index::IndexResult::Created(ops.empty()),
+            });
+        }
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let len = chars.len();
+        let lo = index::resolve_value(ops, first, len)?.max(0);
+        let hi = index::resolve_value(ops, last, len)?;
+        let Ok(lo) = usize::try_from(lo) else {
+            return Ok(index::IndexResult::Created(ops.empty()));
+        };
+        if hi < 0 || lo >= len || lo > usize::try_from(hi).unwrap_or(usize::MAX) {
+            return Ok(index::IndexResult::Created(ops.empty()));
+        }
+        let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
+        let out: String = chars[lo..=hi].iter().collect();
+        Ok(index::IndexResult::Created(ops.new_string(out)))
+    })
 }
 
 /// `string reverse str`.
@@ -374,67 +389,70 @@ pub enum CaseMode {
 /// `string toupper`/`tolower`/`totitle string ?first? ?last?` — convert the case
 /// of the characters in `[first, last]` (default the whole string; with only
 /// `first`, that single character), leaving the rest unchanged.
-pub fn case_convert<O: ValueOps>(
+pub fn case_convert<O: NativeIndexOps>(
     ops: &mut O,
     args: &[O::Value],
     mode: CaseMode,
     usage: &str,
 ) -> Result<O::Value, CmdError> {
-    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
-        use tcl_syntax::raw_string::JimCaseMapping;
-        let (mapping, usage) = match mode {
-            CaseMode::Upper => (JimCaseMapping::Upper, "string toupper string"),
-            CaseMode::Lower => (JimCaseMapping::Lower, "string tolower string"),
-            CaseMode::Title => (JimCaseMapping::Title, "string totitle string"),
-        };
-        let [value] = args else {
-            return Err(CmdError::wrong_args(usage));
-        };
-        let mapped = RawString::from_bytes(ops.as_bytes(value)).jim084_case_mapped(mapping);
-        return Ok(ops.new_bytes(&mapped.bytes()));
-    }
-    let (s, first_spec, last_spec) = match args {
-        [s] => (s, None, None),
-        [s, f] => (s, Some(f), None),
-        [s, f, l] => (s, Some(f), Some(l)),
-        _ => return Err(CmdError::wrong_args(usage)),
-    };
-    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
-    let len = chars.len();
-    if len == 0 {
-        return Ok(ops.empty());
-    }
-    let first = match first_spec {
-        None => 0,
-        Some(f) => index::resolve_value(ops, f, len)?.max(0),
-    };
-    let last = match last_spec {
-        Some(l) => index::resolve_value(ops, l, len)?,
-        None if first_spec.is_some() => first,
-        None => i64::try_from(len).unwrap_or(i64::MAX) - 1,
-    };
-    let mut out = String::new();
-    for (idx, &c) in chars.iter().enumerate() {
-        let i = i64::try_from(idx).unwrap_or(i64::MAX);
-        if i < first || i > last {
-            out.push(c);
-            continue;
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            use tcl_syntax::raw_string::JimCaseMapping;
+            let (mapping, usage) = match mode {
+                CaseMode::Upper => (JimCaseMapping::Upper, "string toupper string"),
+                CaseMode::Lower => (JimCaseMapping::Lower, "string tolower string"),
+                CaseMode::Title => (JimCaseMapping::Title, "string totitle string"),
+            };
+            let [value] = args else {
+                return Err(CmdError::wrong_args(usage));
+            };
+            let mapped =
+                RawString::from_bytes(ops.index_operand_bytes(value)?).jim084_case_mapped(mapping);
+            return Ok(ops.new_bytes(&mapped.bytes()));
         }
-        // Per-character *simple* mapping throughout ([`simple_upper`] &co), the
-        // way C's `Tcl_UtfTo{Upper,Lower,Title}` do it: `string toupper ß` is
-        // `ß`, not `SS`. `string totitle`'s first character uses the Unicode
-        // *titlecase* mapping (`Tcl_UniCharToTitle`), which differs from
-        // uppercase only for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7), and
-        // its remaining characters go through `Tcl_UtfToTitle`'s
-        // lowercase-with-Georgian-exception rule.
-        out.push(match mode {
-            CaseMode::Upper => simple_upper(c),
-            CaseMode::Lower => simple_lower(c),
-            CaseMode::Title if i == first => simple_title(c),
-            CaseMode::Title => simple_title_rest(c),
-        });
-    }
-    Ok(ops.new_string(out))
+        let (s, first_spec, last_spec) = match args {
+            [s] => (s, None, None),
+            [s, f] => (s, Some(f), None),
+            [s, f, l] => (s, Some(f), Some(l)),
+            _ => return Err(CmdError::wrong_args(usage)),
+        };
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let len = chars.len();
+        if len == 0 {
+            return Ok(ops.empty());
+        }
+        let first = match first_spec {
+            None => 0,
+            Some(f) => index::resolve_value(ops, f, len)?.max(0),
+        };
+        let last = match last_spec {
+            Some(l) => index::resolve_value(ops, l, len)?,
+            None if first_spec.is_some() => first,
+            None => i64::try_from(len).unwrap_or(i64::MAX) - 1,
+        };
+        let mut out = String::new();
+        for (idx, &c) in chars.iter().enumerate() {
+            let i = i64::try_from(idx).unwrap_or(i64::MAX);
+            if i < first || i > last {
+                out.push(c);
+                continue;
+            }
+            // Per-character *simple* mapping throughout ([`simple_upper`] &co), the
+            // way C's `Tcl_UtfTo{Upper,Lower,Title}` do it: `string toupper ß` is
+            // `ß`, not `SS`. `string totitle`'s first character uses the Unicode
+            // *titlecase* mapping (`Tcl_UniCharToTitle`), which differs from
+            // uppercase only for the Latin DŽ/LJ/NJ/DZ digraphs (string-17.7), and
+            // its remaining characters go through `Tcl_UtfToTitle`'s
+            // lowercase-with-Georgian-exception rule.
+            out.push(match mode {
+                CaseMode::Upper => simple_upper(c),
+                CaseMode::Lower => simple_lower(c),
+                CaseMode::Title if i == first => simple_title(c),
+                CaseMode::Title => simple_title_rest(c),
+            });
+        }
+        Ok(ops.new_string(out))
+    })
 }
 
 /// C's `Tcl_UtfTo{Upper,Lower,Title}` length guard: the mapped character
@@ -591,54 +609,318 @@ fn titlecase_digraph(c: char) -> Option<char> {
 /// `string replace string first last ?newstring?` — remove the characters in
 /// `[first, last]` (inclusive), optionally inserting `newstring`. An empty or
 /// inverted range leaves the string unchanged.
-pub fn replace<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
-    if args.len() < 3 || args.len() > 4 {
-        return Err(CmdError::wrong_args(
-            "string replace string first last ?string?",
-        ));
+pub fn replace<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    index::run_index_result(ops, |ops| {
+        if args.len() < 3 || args.len() > 4 {
+            return Err(CmdError::wrong_args(
+                "string replace string first last ?string?",
+            ));
+        }
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            // naming.string.original-counted-replacement-and-index-stages:
+            // the original count precedes both original indices, including
+            // when the subject itself is one of those Index headers.
+            let len = ops.index_character_count(&args[0])?;
+            let first = index::resolve_value(ops, &args[1], len)?.max(0);
+            let last = index::resolve_value(ops, &args[2], len)?
+                .min(i64::try_from(len).unwrap_or(i64::MAX) - 1);
+            if last < first {
+                return Ok(index::IndexResult::Borrowed(args[0].clone()));
+            }
+            let first = usize::try_from(first).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Jim replacement prefix extent",
+                )
+            })?;
+            let last = usize::try_from(last).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Jim replacement after-part extent",
+                )
+            })?;
+            let raw = RawString::from_bytes(ops.index_operand_bytes(&args[0])?);
+            let (mut bytes, after) = raw.jim084_replacement_parts(first, last, len)?;
+            let mut count = first;
+            if let Some(replacement) = args.get(3) {
+                let replacement = ops.index_operand_bytes(replacement)?;
+                count += RawString::from_bytes(std::rc::Rc::clone(&replacement))
+                    .jim084_characters()
+                    .count();
+                bytes.extend_from_slice(&replacement);
+            }
+            count += RawString::from_bytes(after.as_slice())
+                .jim084_characters()
+                .count();
+            bytes.extend_from_slice(&after);
+            return Ok(index::IndexResult::Created(
+                ops.new_jim_string(&bytes, count),
+            ));
+        }
+        if let Some(version) = ops.index_c_version() {
+            // naming.string.original-counted-replacement-and-index-stages
+            // docs/design/analysis/name-resolution-proofs/string-original-counted-replacement-and-index-stages.md
+            // C84–86 reach original Unicode first. C9 reaches CharLength first
+            // and defers Unicode until a range is actually replaced.
+            let initial_units = if version < tcl_dialect::TclVersion::V9_0 {
+                Some(ops.index_c_unicode_units(&args[0])?)
+            } else {
+                None
+            };
+            let len = match &initial_units {
+                Some(units) => units.len(),
+                None => ops.index_character_count(&args[0])?,
+            };
+            let end = i64::try_from(len).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original C replacement character width",
+                )
+            })? - 1;
+            let first = index::resolve_value(ops, &args[1], len)?;
+            let last = index::resolve_value(ops, &args[2], len)?;
+            if last < 0 || first > end || last < first {
+                return Ok(index::IndexResult::Borrowed(args[0].clone()));
+            }
+            if version >= tcl_dialect::TclVersion::V9_0 {
+                let first = usize::try_from(first.max(0)).map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original C replacement prefix extent",
+                    )
+                })?;
+                let after = usize::try_from(last.min(end).saturating_add(1)).map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original C replacement suffix extent",
+                    )
+                })?;
+                return replace_c_parsed_range_result(
+                    ops,
+                    &args[0],
+                    first,
+                    after - first,
+                    args.get(3),
+                    true,
+                );
+            }
+            let units = if version == tcl_dialect::TclVersion::V8_4 {
+                let units = initial_units.expect("reached original C84 Unicode");
+                let snapshot = ops.native_object_snapshot(&args[0])?;
+                if !matches!(snapshot.cache, tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+                    protocol: tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4),
+                    unicode: Some(ref cached), ..
+                } if std::rc::Rc::ptr_eq(cached, &units))
+                {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "retired original C84 replacement Unicode backing",
+                    )
+                    .into());
+                }
+                units
+            } else {
+                ops.index_c_unicode_units(&args[0])?
+            };
+            let first = usize::try_from(first.max(0)).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original C replacement prefix extent",
+                )
+            })?;
+            let after = usize::try_from(last.saturating_add(1))
+                .unwrap_or(usize::MAX)
+                .min(units.len());
+            let prefix = units.get(..first).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "retired original C replacement prefix extent",
+                ),
+            )?;
+            let result = ops.index_c_unicode_result(prefix.into(), version)?;
+            let reached = (|| -> Result<(), CmdError> {
+                if let Some(replacement) = args.get(3) {
+                    ops.index_c_append_object(&result, replacement)?;
+                }
+                if after < units.len() {
+                    ops.index_c_append_unicode(&result, &units[after..])?;
+                }
+                Ok(())
+            })();
+            if let Err(first) = reached {
+                ops.discard_owned_index_result(result);
+                return Err(first);
+            }
+            return Ok(index::IndexResult::Created(result));
+        }
+        let chars: Vec<char> = ops.index_unicode(&args[0])?.chars().collect();
+        let len = chars.len();
+        let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+        let first = index::resolve_value(ops, &args[1], len)?;
+        let last = index::resolve_value(ops, &args[2], len)?;
+        if last < 0 || first > end || last < first {
+            return Ok(index::IndexResult::Borrowed(args[0].clone()));
+        }
+        let first = first.max(0);
+        let last = last.min(end);
+        let lo = usize::try_from(first).unwrap_or(0);
+        let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
+        let mut out: String = chars[..lo].iter().collect();
+        if args.len() == 4 {
+            out.push_str(&ops.index_unicode(&args[3])?);
+        }
+        out.extend(chars[hi_excl..].iter());
+        Ok(index::IndexResult::Created(ops.new_string(out)))
+    })
+}
+
+/// Replace an already parsed, bounded range through the original C9 producer.
+/// The caller supplies the actual in-place flag; original native sharing decides
+/// whether equal-sized binary replacement can reuse the subject header. This
+/// entry supplies neither an index-parser result nor an entered EvalObjv role.
+///
+/// # Errors
+/// A missing actual C9 producer, invalid reached range, original storage failure,
+/// or the complete first Host refusal. Nonempty NULL-source binary allocation
+/// is unavailable because its initial native payload is unspecified.
+pub fn replace_c_parsed_range<O: NativeIndexOps>(
+    ops: &mut O,
+    subject: &O::Value,
+    first: usize,
+    count: usize,
+    replacement: Option<&O::Value>,
+    in_place: bool,
+) -> Result<O::Value, CmdError> {
+    index::run_index_result(ops, |ops| {
+        replace_c_parsed_range_result(ops, subject, first, count, replacement, in_place)
+    })
+}
+
+fn replace_c_parsed_range_result<O: NativeIndexOps>(
+    ops: &mut O,
+    subject: &O::Value,
+    first: usize,
+    count: usize,
+    replacement: Option<&O::Value>,
+    in_place: bool,
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    use tcl_syntax::value::ValueError;
+    let version = ops
+        .index_c_version()
+        .filter(|version| *version >= tcl_dialect::TclVersion::V9_0)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C9 parsed replacement producer",
+        ))?;
+    if replacement.is_none() && count == 0 {
+        if in_place {
+            return Ok(index::IndexResult::Borrowed(subject.clone()));
+        }
+        return ops
+            .index_c_duplicate_original(subject)
+            .map(index::IndexResult::Created);
     }
-    let chars: Vec<char> = ops.try_as_str(&args[0])?.chars().collect();
-    let len = chars.len();
-    let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
-    let first = index::resolve_value(ops, &args[1], len)?;
-    let last = index::resolve_value(ops, &args[2], len)?;
-    if last < 0 || first > end || last < first {
-        let unchanged: String = chars.iter().collect();
-        return Ok(ops.new_string(unchanged));
+    let after = first
+        .checked_add(count)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C replacement range width",
+        ))?;
+    if let Some(bytes) = ops.index_c_pure_binary(subject)? {
+        let prefix = bytes
+            .get(..first)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C binary prefix extent",
+            ))?;
+        let suffix = bytes
+            .get(after..)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C binary suffix extent",
+            ))?;
+        if let Some(replacement) = replacement {
+            // naming.string.original-binary-replacement-direct-helper-sharing
+            // docs/design/analysis/name-resolution-proofs/string-original-binary-replacement-direct-helper-sharing.md
+            // Whole replacement returns the exact insertPtr before its getter.
+            if first == 0 && after == bytes.len() {
+                return Ok(index::IndexResult::Borrowed(replacement.clone()));
+            }
+            if let Some(insert) = ops.index_c_pure_binary(replacement)? {
+                let capacity = prefix
+                    .len()
+                    .checked_add(insert.len())
+                    .and_then(|length| length.checked_add(suffix.len()))
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original C binary result width",
+                    ))?;
+                let mut result = Vec::with_capacity(capacity);
+                result.extend_from_slice(prefix);
+                result.extend_from_slice(&insert);
+                result.extend_from_slice(suffix);
+                if count == insert.len() && in_place && !ops.index_c_original_is_shared(subject)? {
+                    ops.index_c_binary_splice(subject, result.into())?;
+                    return Ok(index::IndexResult::Borrowed(subject.clone()));
+                }
+                return Ok(index::IndexResult::Created(
+                    ops.index_c_binary_result(result.into())?,
+                ));
+            }
+        } else {
+            if !prefix.is_empty() || !suffix.is_empty() {
+                // naming.string.original-binary-replacement-sharing-and-result-roles
+                // docs/design/analysis/name-resolution-proofs/string-original-binary-replacement-sharing-and-result-roles.md
+                // Nonzero NULL-source constructor storage is not initialised.
+                // No recorded allocator bytes authenticate a deterministic producer.
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "uninitialised original C binary replacement constructor",
+                )
+                .into());
+            }
+            return Ok(index::IndexResult::Created(
+                ops.index_c_binary_result(std::rc::Rc::from([]))?,
+            ));
+        }
     }
-    let first = first.max(0);
-    let last = last.min(end);
-    let lo = usize::try_from(first).unwrap_or(0);
-    let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
-    let mut out: String = chars[..lo].iter().collect();
-    if args.len() == 4 {
-        out.push_str(&ops.try_as_str(&args[3])?);
+    let units = ops.index_c_unicode_units(subject)?;
+    let prefix = units
+        .get(..first)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C Unicode prefix extent",
+        ))?;
+    let suffix = units
+        .get(after..)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original C Unicode suffix extent",
+        ))?;
+    let result = ops.index_c_unicode_result(prefix.into(), version)?;
+    let reached = (|| -> Result<(), CmdError> {
+        if let Some(replacement) = replacement {
+            ops.index_c_append_object(&result, replacement)?;
+        }
+        if !suffix.is_empty() {
+            ops.index_c_append_unicode(&result, suffix)?;
+        }
+        Ok(())
+    })();
+    if let Err(first) = reached {
+        ops.discard_owned_index_result(result);
+        return Err(first);
     }
-    out.extend(chars[hi_excl..].iter());
-    Ok(ops.new_string(out))
+    Ok(index::IndexResult::Created(result))
 }
 
 /// `string insert string index insertString` — insert `insertString` before the
 /// character at `index`. `end` denotes the position *after* the last character
 /// (so it appends); the index resolves against `len + 1`.
-pub fn insert<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
-    let [s, idx, ins] = args else {
-        return Err(CmdError::wrong_args(
-            "string insert string index insertString",
-        ));
-    };
-    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
-    let len = chars.len();
-    let at = index::resolve_value(ops, idx, len + 1)?;
-    let at = if at < 0 {
-        0
-    } else {
-        usize::try_from(at).unwrap_or(len).min(len)
-    };
-    let mut out: String = chars[..at].iter().collect();
-    out.push_str(&ops.try_as_str(ins)?);
-    out.extend(chars[at..].iter());
-    Ok(ops.new_string(out))
+pub fn insert<O: NativeIndexOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    index::run_created_index_result(ops, |ops| {
+        let [s, idx, ins] = args else {
+            return Err(CmdError::wrong_args(
+                "string insert string index insertString",
+            ));
+        };
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let len = chars.len();
+        let at = index::resolve_value(ops, idx, len + 1)?;
+        let at = if at < 0 {
+            0
+        } else {
+            usize::try_from(at).unwrap_or(len).min(len)
+        };
+        let mut out: String = chars[..at].iter().collect();
+        out.push_str(&ops.index_unicode(ins)?);
+        out.extend(chars[at..].iter());
+        Ok(ops.new_string(out))
+    })
 }
 
 /// `string cat ?arg ...?` — concatenate the string reps of all arguments.
@@ -726,103 +1008,113 @@ pub fn trim<O: ValueOps>(
 
 /// `string first needleString haystackString ?startIndex?` — the character index
 /// of the first occurrence of `needle` at or after `start` (default 0), or -1.
-pub fn first<O: ValueOps>(
+pub fn first<O: NativeIndexOps>(
     ops: &mut O,
     needle: &O::Value,
     haystack: &O::Value,
     start: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
-    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
-        let needle_count = ops.native_char_len(needle)?;
-        let count = ops.native_char_len(haystack)?;
-        let start = start
-            .map(|value| index::resolve_value(ops, value, count))
-            .transpose()?
-            .unwrap_or(0)
-            .max(0);
-        let found = RawString::from_bytes(ops.as_bytes(haystack)).jim084_first(
-            count,
-            &RawString::from_bytes(ops.as_bytes(needle)),
-            needle_count,
-            usize::try_from(start).unwrap_or(usize::MAX),
-        )?;
-        return Ok(ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX))));
-    }
-    let hay: Vec<char> = ops.try_as_str(haystack)?.chars().collect();
-    let needle: Vec<char> = ops.try_as_str(needle)?.chars().collect();
-    let start = match start {
-        None => 0,
-        Some(s) => usize::try_from(index::resolve_value(ops, s, hay.len())?.max(0)).unwrap_or(0),
-    };
-    if needle.is_empty() {
-        return Ok(ops.new_int(-1));
-    }
-    let mut idx: i64 = -1;
-    if needle.len() <= hay.len() {
-        for i in start..=hay.len() - needle.len() {
-            if hay[i..i + needle.len()] == needle[..] {
-                idx = i64::try_from(i).unwrap_or(i64::MAX);
-                break;
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let needle_count = ops.index_character_count(needle)?;
+            let count = ops.index_character_count(haystack)?;
+            let start = start
+                .map(|value| index::resolve_value(ops, value, count))
+                .transpose()?
+                .unwrap_or(0)
+                .max(0);
+            let found = RawString::from_bytes(ops.index_operand_bytes(haystack)?).jim084_first(
+                count,
+                &RawString::from_bytes(ops.index_operand_bytes(needle)?),
+                needle_count,
+                usize::try_from(start).unwrap_or(usize::MAX),
+            )?;
+            return Ok(
+                ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX)))
+            );
+        }
+        let hay: Vec<char> = ops.index_unicode(haystack)?.chars().collect();
+        let needle: Vec<char> = ops.index_unicode(needle)?.chars().collect();
+        let start = match start {
+            None => 0,
+            Some(s) => {
+                usize::try_from(index::resolve_value(ops, s, hay.len())?.max(0)).unwrap_or(0)
+            }
+        };
+        if needle.is_empty() {
+            return Ok(ops.new_int(-1));
+        }
+        let mut idx: i64 = -1;
+        if needle.len() <= hay.len() {
+            for i in start..=hay.len() - needle.len() {
+                if hay[i..i + needle.len()] == needle[..] {
+                    idx = i64::try_from(i).unwrap_or(i64::MAX);
+                    break;
+                }
             }
         }
-    }
-    Ok(ops.new_int(idx))
+        Ok(ops.new_int(idx))
+    })
 }
 
 /// `string last needleString haystackString ?lastIndex?` — the character index of
 /// the last occurrence ending at or before `lastIndex` (default end), or -1.
-pub fn last<O: ValueOps>(
+pub fn last<O: NativeIndexOps>(
     ops: &mut O,
     needle: &O::Value,
     haystack: &O::Value,
     last_index: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
-    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
-        let needle_count = ops.native_char_len(needle)?;
-        let count = ops.native_char_len(haystack)?;
-        let prefix = last_index
-            .map(|value| index::resolve_value(ops, value, count))
-            .transpose()?
-            .unwrap_or_else(|| i64::try_from(count).unwrap_or(i64::MAX))
-            .max(0);
-        let found = RawString::from_bytes(ops.as_bytes(haystack)).jim084_last(
-            usize::try_from(prefix).unwrap_or(usize::MAX),
-            &RawString::from_bytes(ops.as_bytes(needle)),
-            needle_count,
-        )?;
-        return Ok(ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX))));
-    }
-    let hay: Vec<char> = ops.try_as_str(haystack)?.chars().collect();
-    let needle: Vec<char> = ops.try_as_str(needle)?.chars().collect();
-    let last: i64 = match last_index {
-        None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
-        Some(s) => index::resolve_value(ops, s, hay.len())?,
-    };
-    // An empty haystack can hold no non-empty needle — return -1 before the
-    // clamp below, whose `saturating_sub(1)` would otherwise yield index 0 and
-    // panic when the search slices `hay[0..needle.len()]` (e.g.
-    // `string last a {} 0`).
-    if needle.is_empty() || last < 0 || hay.is_empty() {
-        return Ok(ops.new_int(-1));
-    }
-    let last = usize::try_from(last)
-        .unwrap_or(0)
-        .min(hay.len().saturating_sub(1));
-    let mut idx: i64 = -1;
-    // `needle.len() <= hay.len()` guards the `hay[i..i + needle.len()]` slice:
-    // without it, an empty (or too-short) haystack with an explicit index
-    // (`string last a "" 0`) drives `last` to 0, passes `last + 1 >= needle`,
-    // and slices past the end. `string first` has the same guard.
-    if needle.len() <= hay.len() && last + 1 >= needle.len() {
-        let hi = last + 1 - needle.len();
-        for i in (0..=hi).rev() {
-            if hay[i..i + needle.len()] == needle[..] {
-                idx = i64::try_from(i).unwrap_or(i64::MAX);
-                break;
+    index::run_created_index_result(ops, |ops| {
+        if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+            let needle_count = ops.index_character_count(needle)?;
+            let count = ops.index_character_count(haystack)?;
+            let prefix = last_index
+                .map(|value| index::resolve_value(ops, value, count))
+                .transpose()?
+                .unwrap_or_else(|| i64::try_from(count).unwrap_or(i64::MAX))
+                .max(0);
+            let found = RawString::from_bytes(ops.index_operand_bytes(haystack)?).jim084_last(
+                usize::try_from(prefix).unwrap_or(usize::MAX),
+                &RawString::from_bytes(ops.index_operand_bytes(needle)?),
+                needle_count,
+            )?;
+            return Ok(
+                ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX)))
+            );
+        }
+        let hay: Vec<char> = ops.index_unicode(haystack)?.chars().collect();
+        let needle: Vec<char> = ops.index_unicode(needle)?.chars().collect();
+        let last: i64 = match last_index {
+            None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
+            Some(s) => index::resolve_value(ops, s, hay.len())?,
+        };
+        // An empty haystack can hold no non-empty needle — return -1 before the
+        // clamp below, whose `saturating_sub(1)` would otherwise yield index 0 and
+        // panic when the search slices `hay[0..needle.len()]` (e.g.
+        // `string last a {} 0`).
+        if needle.is_empty() || last < 0 || hay.is_empty() {
+            return Ok(ops.new_int(-1));
+        }
+        let last = usize::try_from(last)
+            .unwrap_or(0)
+            .min(hay.len().saturating_sub(1));
+        let mut idx: i64 = -1;
+        // `needle.len() <= hay.len()` guards the `hay[i..i + needle.len()]` slice:
+        // without it, an empty (or too-short) haystack with an explicit index
+        // (`string last a "" 0`) drives `last` to 0, passes `last + 1 >= needle`,
+        // and slices past the end. `string first` has the same guard.
+        if needle.len() <= hay.len() && last + 1 >= needle.len() {
+            let hi = last + 1 - needle.len();
+            for i in (0..=hi).rev() {
+                if hay[i..i + needle.len()] == needle[..] {
+                    idx = i64::try_from(i).unwrap_or(i64::MAX);
+                    break;
+                }
             }
         }
-    }
-    Ok(ops.new_int(idx))
+        Ok(ops.new_int(idx))
+    })
 }
 
 /// `string match ?-nocase? pattern string` — glob match, returning a boolean.
@@ -967,7 +1259,7 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
 }
 
 /// Arity-check (`string ?chars?`) wrapper shared by the three `trim` arms.
-fn trim_dispatch<O: ValueOps>(
+fn trim_dispatch<O: NativeIndexOps>(
     ops: &mut O,
     rest: &[O::Value],
     usage: &str,
@@ -989,7 +1281,7 @@ fn trim_dispatch<O: ValueOps>(
 /// is not handled here — letting the calling runtime fall back to its own
 /// implementation. The `Some(Err(..))` case is a genuine command error (arity,
 /// bad index, …).
-pub fn dispatch_canon<O: ValueOps>(
+pub fn dispatch_canon<O: NativeIndexOps>(
     ops: &mut O,
     sub: &str,
     rest: &[O::Value],
@@ -1084,20 +1376,22 @@ pub fn dispatch_canon<O: ValueOps>(
 /// `charIndex` (`StringStartCmd`/`StringEndCmd`). A "word" is a maximal run of
 /// word-characters, or a single non-word character. `start` selects `wordstart`
 /// (the index of the word's first char) vs `wordend` (one past its last char).
-pub fn word_bound<O: ValueOps>(
+pub fn word_bound<O: NativeIndexOps>(
     ops: &mut O,
     s: &O::Value,
     idx: &O::Value,
     start: bool,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
-    let index = index::resolve_value(ops, idx, chars.len())?;
-    let result = if start {
-        word_start(&chars, index)
-    } else {
-        word_end(&chars, index)
-    };
-    Ok(ops.new_int(i64::try_from(result).unwrap_or(i64::MAX)))
+    index::run_created_index_result(ops, |ops| {
+        let chars: Vec<char> = ops.index_unicode(s)?.chars().collect();
+        let index = index::resolve_value(ops, idx, chars.len())?;
+        let result = if start {
+            word_start(&chars, index)
+        } else {
+            word_end(&chars, index)
+        };
+        Ok(ops.new_int(i64::try_from(result).unwrap_or(i64::MAX)))
+    })
 }
 
 /// The start of the word containing (clamped) `index` — walk left over word
@@ -1165,7 +1459,10 @@ fn is_connector_punct(c: char) -> bool {
 /// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the
 /// subcommand). Convenience over [`dispatch_canon`] for a runtime that does not
 /// pre-resolve abbreviations; exact subcommand names only.
-pub fn dispatch<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Option<Result<O::Value, CmdError>> {
+pub fn dispatch<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Option<Result<O::Value, CmdError>> {
     let sub = match ops.try_as_str(args.first()?) {
         Ok(sub) => sub,
         Err(error) => return Some(Err(error.into())),
@@ -1184,6 +1481,67 @@ mod tests {
     /// A throwaway string-only `ValueOps` for the `first`/`last` index tests.
     #[derive(Default)]
     struct StrOps;
+
+    impl crate::index::NativeIndexOps for StrOps {
+        type IndexOperation = ();
+        type IndexKeyOwner = Self::Value;
+        fn index_borrowed_key(
+            &mut self,
+            value: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value.clone())
+        }
+        fn index_created_key(
+            &mut self,
+            value: Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value)
+        }
+        fn index_key_value(owner: &Self::Value) -> &Self::Value {
+            owner
+        }
+        fn index_hold_key_result(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_finish_held_key_result(
+            &mut self,
+            held: Self::Value,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(crate::index::IndexResult::Detached(held))
+        }
+        fn index_key_argument(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_key_result(
+            &mut self,
+            owner: &Self::Value,
+            created: bool,
+            ancestor: bool,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(if created {
+                crate::index::IndexResult::Created(owner.clone())
+            } else if ancestor {
+                crate::index::IndexResult::Detached(owner.clone())
+            } else {
+                crate::index::IndexResult::Borrowed(owner.clone())
+            })
+        }
+        fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn discard_owned_index_result(&mut self, created: Self::Value) {
+            drop(created);
+        }
+    }
 
     impl ValueOps for StrOps {
         fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {

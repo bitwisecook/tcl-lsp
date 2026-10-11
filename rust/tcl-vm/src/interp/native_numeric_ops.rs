@@ -266,13 +266,20 @@ impl<'a> OriginalNumericOps<'a> {
         })
     }
 
-    fn retain_compound_failure<T>(&self, reached: &Result<T, CmdError>) {
-        if let Err(error) = reached
-            && let Some(first) = error.native_execution_refusal()
-        {
+    /// Retain the first original cause before mandatory result/backing cleanup.
+    /// This has no currentness precondition: a refused original still owns its
+    /// first cause, and cleanup must not replace it with a later refusal.
+    pub(crate) fn retain_failure(&self, error: &CmdError) {
+        if let Some(first) = error.native_execution_refusal() {
             self.vm
                 .borrow_mut()
                 .retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        }
+    }
+
+    fn retain_compound_failure<T>(&self, reached: &Result<T, CmdError>) {
+        if let Err(error) = reached {
+            self.retain_failure(error);
         }
     }
 

@@ -6,6 +6,16 @@
 
 use tcl_dialect::TclVersion;
 
+/// Plain C `char` promotion of an independently selected physical backend.
+/// This fact grants no Tcl release, storage, getter or interpreter authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeCPlainChar {
+    /// A naked high byte is promoted through signed `char`.
+    Signed,
+    /// A naked high byte is promoted through unsigned `char`.
+    Unsigned,
+}
+
 /// A decoded native unit, including surrogate units in C8.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TclUtfUnit {
@@ -94,6 +104,35 @@ impl NativeTclUtf {
             output.push(unit.value);
             offset += unit.width;
             previous = Some(unit.value);
+        }
+        output
+    }
+
+    /// Original Unicode STORAGE conversion through the pinned core's internal
+    /// `TclUtfToUniChar` macro. C84/85 fast-path bytes below C0 are cast from
+    /// actual plain `char` to 16-bit `Tcl_UniChar`; the public UTF decoder has
+    /// a different unsigned-byte conversion. Later selected cores use their
+    /// existing public-unit traversal. The caller supplies its actual backend
+    /// promotion; this recipe does not attest an external library's build.
+    #[must_use]
+    pub fn decode_storage_units(self, bytes: &[u8], promotion: NativeCPlainChar) -> Vec<u32> {
+        let mut output = Vec::new();
+        let mut offset = 0;
+        let mut previous = None;
+        while let Some(unit) = self.decode_unit(&bytes[offset..], previous) {
+            let value = if self.version <= TclVersion::V8_5
+                && promotion == NativeCPlainChar::Signed
+                && (0x80..0xc0).contains(&bytes[offset])
+            {
+                u32::from(u16::from_ne_bytes(
+                    i16::from(i8::from_ne_bytes([bytes[offset]])).to_ne_bytes(),
+                ))
+            } else {
+                unit.value
+            };
+            output.push(value);
+            offset += unit.width;
+            previous = Some(value);
         }
         output
     }
@@ -623,5 +662,42 @@ mod tests {
             }
         }
         assert_eq!(count, 70);
+    }
+}
+
+#[cfg(test)]
+mod original_storage_unit_controls {
+    use super::*;
+    #[test]
+    fn legacy_storage_plain_char_promotion_is_separate_from_public_unit_decoding() {
+        // naming.string.original-counted-replacement-and-index-stages
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-replacement-and-index-stages.md
+        // The measured legacy provider has signed char. Unsigned is a pure
+        // supplied-ABI control; no external unsigned-build process is claimed.
+        let bytes = [0xf0, 0x9f, 0x98, 0x80];
+        for version in [TclVersion::V8_4, TclVersion::V8_5] {
+            let units = NativeTclUtf::for_version(version);
+            assert_eq!(
+                units.decode_storage_units(&bytes, NativeCPlainChar::Signed),
+                [0xf0, 0xff9f, 0xff98, 0xff80]
+            );
+            assert_eq!(
+                units.decode_storage_units(&bytes, NativeCPlainChar::Unsigned),
+                [0xf0, 0x9f, 0x98, 0x80]
+            );
+            assert_eq!(units.decode_units(&bytes), [0xf0, 0x9f, 0x98, 0x80]);
+        }
+        assert_eq!(
+            NativeTclUtf::for_version(TclVersion::V8_6)
+                .decode_storage_units(&bytes, NativeCPlainChar::Signed),
+            [0xd83d, 0xde00]
+        );
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                NativeTclUtf::for_version(version)
+                    .decode_storage_units(&bytes, NativeCPlainChar::Signed),
+                [0x1f600]
+            );
+        }
     }
 }

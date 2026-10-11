@@ -21,7 +21,6 @@
 use tcl_runtime_api::Completion;
 use tcl_syntax::glob::string_case_match;
 
-use crate::command::resolve_index;
 use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
@@ -105,10 +104,6 @@ fn string_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
 /// Reach the actual host length handler independently of authored TMM policy.
 pub(crate) fn physical_string_length(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     string_op(vm, "length", args)
-}
-
-fn ilen(n: usize) -> i64 {
-    i64::try_from(n).unwrap_or(i64::MAX)
 }
 
 /// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
@@ -249,55 +244,20 @@ fn string_repeat(vm: &mut Vm, s: &Value, count: &Value) -> Completion<Value> {
 /// (tclCmdMZ.c): an empty/inverted range leaves the string unchanged, but an
 /// empty *original* string is replaceable (so `string replace {} -1 0 A` → A).
 fn string_replace(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    if rest.len() < 3 || rest.len() > 4 {
-        return err_wrong_args(vm, "string replace string first last ?string?");
+    match tcl_cmd_core::string::replace(vm, rest) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
-    let (s, first, last) = (&rest[0], &rest[1], &rest[2]);
-    let chars: Vec<char> = s.to_str().chars().collect();
-    let len = chars.len();
-    let end = isize::try_from(len).unwrap_or(isize::MAX) - 1;
-    let Some(first) = resolve_index(vm, &first.to_str(), len) else {
-        return bad_index(vm, &first.to_str());
-    };
-    let Some(last) = resolve_index(vm, &last.to_str(), len) else {
-        return bad_index(vm, &last.to_str());
-    };
-    if last < 0 || first > end || last < first {
-        return ok(Value::string(s.to_str().to_string()));
-    }
-    let first = first.max(0);
-    let last = last.min(end);
-    let lo = usize::try_from(first).unwrap_or(0);
-    let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
-    let mut out: String = chars[..lo].iter().collect();
-    if let [_, _, _, repl] = rest {
-        out.push_str(&repl.to_str());
-    }
-    out.extend(chars[hi_excl..].iter());
-    ok(Value::string(out))
 }
 
 /// `string insert string index insertString` — insert before char `index`.
 /// Unlike most string ops, `end` denotes the position *after* the last
 /// character (so `end` appends).
 fn string_insert(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let [s, idx, ins] = rest else {
-        return err_wrong_args(vm, "string insert string index insertString");
-    };
-    let chars: Vec<char> = s.to_str().chars().collect();
-    let len = chars.len();
-    let Some(at) = resolve_index(vm, &idx.to_str(), len + 1) else {
-        return bad_index(vm, &idx.to_str());
-    };
-    let at = if at < 0 {
-        0
-    } else {
-        usize::try_from(at).unwrap_or(len).min(len)
-    };
-    let mut out: String = chars[..at].iter().collect();
-    out.push_str(&ins.to_str());
-    out.extend(chars[at..].iter());
-    ok(Value::string(out))
+    match tcl_cmd_core::string::insert(vm, rest) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
+    }
 }
 
 /// Whether `opt` is `-nocase` (or a non-empty unique abbreviation of it).
@@ -326,135 +286,48 @@ fn string_match(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `string toupper|tolower|totitle string ?first? ?last?` — convert the
 /// characters in `[first, last]` (default the whole string).
 fn case_convert(vm: &mut Vm, rest: &[Value], op: &str) -> Completion<Value> {
-    let (s, first_spec, last_spec) = match rest {
-        [s] => (s, None, None),
-        [s, f] => (s, Some(f), None),
-        [s, f, l] => (s, Some(f), Some(l)),
-        _ => {
-            return err_wrong_args(vm, &format!("string {op} string ?first? ?last?"));
-        }
+    let mode = match op {
+        "toupper" => tcl_cmd_core::string::CaseMode::Upper,
+        "tolower" => tcl_cmd_core::string::CaseMode::Lower,
+        _ => tcl_cmd_core::string::CaseMode::Title,
     };
-    let chars: Vec<char> = s.to_str().chars().collect();
-    let len = chars.len();
-    if len == 0 {
-        return ok(Value::empty());
+    match tcl_cmd_core::string::case_convert(
+        vm,
+        rest,
+        mode,
+        &format!("string {op} string ?first? ?last?"),
+    ) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
-    let first = match first_spec {
-        None => 0,
-        Some(f) => match resolve_index(vm, &f.to_str(), len) {
-            Some(i) => i.max(0),
-            None => return bad_index(vm, &f.to_str()),
-        },
-    };
-    let last = match last_spec {
-        Some(l) => match resolve_index(vm, &l.to_str(), len) {
-            Some(i) => i,
-            None => return bad_index(vm, &l.to_str()),
-        },
-        // With only a `first` index, just that one character is converted; with
-        // no indices at all, the whole string.
-        None if first_spec.is_some() => first,
-        None => isize::try_from(len).unwrap_or(isize::MAX) - 1,
-    };
-    let mut out = String::with_capacity(s.to_str().len());
-    for (idx, &c) in chars.iter().enumerate() {
-        let i = isize::try_from(idx).unwrap_or(isize::MAX);
-        if i < first || i > last {
-            out.push(c);
-            continue;
-        }
-        // Per-character Unicode *simple* case mapping, shared with the
-        // `STR_UPPER`/`STR_LOWER`/`STR_TITLE` opcodes and the portable
-        // `tcl_cmd_core::string::case_convert`, so command and bytecode agree
-        // with C's `Tcl_UtfTo{Upper,Lower,Title}` (`string toupper ß` → `ß`,
-        // not Rust's full-mapping `SS`). `totitle` titlecases the first
-        // character of the range and lowercases the remainder.
-        out.push(match op {
-            "toupper" => tcl_cmd_core::string::simple_upper(c),
-            "tolower" => tcl_cmd_core::string::simple_lower(c),
-            _ if i == first => tcl_cmd_core::string::simple_title(c),
-            _ => tcl_cmd_core::string::simple_title_rest(c),
-        });
-    }
-    ok(Value::string(out))
-}
-
-fn bad_index(vm: &Vm, spec: &str) -> Completion<Value> {
-    crate::command::bad_index(vm, spec)
 }
 
 /// `string first needle haystack ?startIndex?` — first occurrence at or after
 /// `startIndex` (character index, or -1).
 fn string_first(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let (needle, hay, start_spec) = match rest {
-        [n, h] => (n, h, None),
-        [n, h, s] => (n, h, Some(s)),
-        _ => {
-            return err_wrong_args(vm, "string first needleString haystackString ?startIndex?");
-        }
+    let (needle, haystack, start) = match rest {
+        [needle, haystack] => (needle, haystack, None),
+        [needle, haystack, start] => (needle, haystack, Some(start)),
+        _ => return err_wrong_args(vm, "string first needleString haystackString ?startIndex?"),
     };
-    let hay: Vec<char> = hay.to_str().chars().collect();
-    let needle: Vec<char> = needle.to_str().chars().collect();
-    let start = match start_spec {
-        None => 0,
-        Some(s) => match resolve_index(vm, &s.to_str(), hay.len()) {
-            Some(i) => usize::try_from(i).unwrap_or(0),
-            None => return bad_index(vm, &s.to_str()),
-        },
-    };
-    if needle.is_empty() {
-        return ok(Value::int(-1));
+    match tcl_cmd_core::string::first(vm, needle, haystack, start) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
-    let mut idx = -1;
-    if needle.len() <= hay.len() {
-        for i in start..=hay.len() - needle.len() {
-            if hay[i..i + needle.len()] == needle[..] {
-                idx = ilen(i);
-                break;
-            }
-        }
-    }
-    ok(Value::int(idx))
 }
 
 /// `string last needle haystack ?lastIndex?` — last occurrence starting at or
 /// before `lastIndex` (character index, or -1).
 fn string_last(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let (needle, hay, last_spec) = match rest {
-        [n, h] => (n, h, None),
-        [n, h, s] => (n, h, Some(s)),
-        _ => {
-            return err_wrong_args(vm, "string last needleString haystackString ?lastIndex?");
-        }
+    let (needle, haystack, start) = match rest {
+        [needle, haystack] => (needle, haystack, None),
+        [needle, haystack, start] => (needle, haystack, Some(start)),
+        _ => return err_wrong_args(vm, "string last needleString haystackString ?lastIndex?"),
     };
-    let hay: Vec<char> = hay.to_str().chars().collect();
-    let needle: Vec<char> = needle.to_str().chars().collect();
-    // `lastIndex` is the index of the last character considered; the match must
-    // end at or before it.
-    let last: isize = match last_spec {
-        None => isize::try_from(hay.len()).unwrap_or(isize::MAX) - 1,
-        Some(s) => match resolve_index(vm, &s.to_str(), hay.len()) {
-            Some(i) => i,
-            None => return bad_index(vm, &s.to_str()),
-        },
-    };
-    if needle.is_empty() || last < 0 {
-        return ok(Value::int(-1));
+    match tcl_cmd_core::string::last(vm, needle, haystack, start) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
-    let last = usize::try_from(last)
-        .unwrap_or(0)
-        .min(hay.len().saturating_sub(1));
-    let mut idx = -1;
-    if !needle.is_empty() && last + 1 >= needle.len() {
-        let hi = last + 1 - needle.len();
-        for i in (0..=hi).rev() {
-            if hay[i..i + needle.len()] == needle[..] {
-                idx = ilen(i);
-                break;
-            }
-        }
-    }
-    ok(Value::int(idx))
 }
 
 /// The default `string trim` set — every Unicode space character plus NUL

@@ -29,6 +29,405 @@ use tcl_dialect::TclVersion;
 use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
+
+/// Original index conversion at the command boundary, with full Host causes.
+/// Portable adapters explicitly use the neutral default; physical Jim adapters
+/// select their original-object worker independently of the numeral grammar.
+pub trait NativeIndexOps: ValueOps {
+    /// Cloneable allocation-only transport for a selected key's actual role.
+    /// Cloning this guard must not acquire another native object reference.
+    type IndexKeyOwner: Clone;
+
+    /// Borrow a selected original/member key without an invented native +1.
+    fn index_borrowed_key(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<Self::IndexKeyOwner, CmdError>;
+
+    /// Own cleanup of the exact fresh-zero selected constructor.
+    fn index_created_key(&mut self, created: Self::Value) -> Result<Self::IndexKeyOwner, CmdError>;
+
+    /// Project the original header/value without a String getter or clone.
+    fn index_key_value(owner: &Self::IndexKeyOwner) -> &Self::Value;
+
+    /// Allocation-only transport into a reached native container constructor.
+    /// The constructor supplies its own actual member references.
+    fn index_key_argument(&mut self, owner: &Self::IndexKeyOwner) -> Result<Self::Value, CmdError>;
+
+    /// Transfer the selected key into an actual command-result role.
+    /// `created` and `created_ancestor` are constructor facts, never count or
+    /// pointer guesses. A parent may retire only after its selected child holds.
+    fn index_key_result(
+        &mut self,
+        owner: &Self::IndexKeyOwner,
+        created: bool,
+        created_ancestor: bool,
+    ) -> Result<IndexResult<Self::Value>, CmdError>;
+
+    /// Hold the selected child at its genuine result boundary before parent retirement.
+    fn index_hold_key_result(
+        &mut self,
+        owner: &Self::IndexKeyOwner,
+    ) -> Result<Self::IndexKeyOwner, CmdError>;
+
+    /// Transfer the same held child after mandatory Created backing cleanup.
+    fn index_finish_held_key_result(
+        &mut self,
+        held: Self::IndexKeyOwner,
+    ) -> Result<IndexResult<Self::Value>, CmdError>;
+
+    /// The actual entered operation. Neutral adapters explicitly use `()`.
+    type IndexOperation;
+
+    /// Capture the original operation before any operand getter or length.
+    /// This entry grants no String, numeric, name or cache purpose.
+    ///
+    /// # Errors
+    /// The complete first refusal of the actual selected interpreter.
+    fn enter_index_operation(&mut self) -> Result<Self::IndexOperation, CmdError>;
+
+    /// Check the SAME original operation after reached effects and cleanup.
+    ///
+    /// # Errors
+    /// The complete first refusal, including change-and-restore.
+    fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError>;
+
+    /// Discard a reached Created, Detached or ReturnedOwnedTransport result.
+    /// Borrowed input transport is released by the shared role owner instead.
+    /// Mandatory retirement continues after refusal and grants no new role.
+    fn discard_owned_index_result(&mut self, created: Self::Value);
+
+    /// Character count at the same selected String stage, preserving native
+    /// shortcuts and checking old-primary retirement before cache adoption.
+    ///
+    /// # Errors
+    /// Selected String/count protocol refusal or full original Host cause.
+    fn index_character_count(&mut self, original: &Self::Value) -> Result<usize, CmdError> {
+        self.native_char_len(original).map_err(Into::into)
+    }
+
+    /// Unicode projection only after the checked original counted String door.
+    ///
+    /// # Errors
+    /// Full original getter/Host failure or actual invalid Unicode extent.
+    fn index_unicode(&mut self, original: &Self::Value) -> Result<std::rc::Rc<str>, CmdError> {
+        tcl_syntax::raw_string::RawString::from_bytes(self.index_operand_bytes(original)?)
+            .unicode()
+            .map_err(Into::into)
+    }
+
+    /// The reached original List conversion under the complete Index operation.
+    /// Physical adapters check both the original currency and header inside the
+    /// List worker, including old-primary retirement before backing adoption.
+    ///
+    /// # Errors
+    /// Original List conversion or the complete first Host refusal.
+    fn index_list_elements(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<Vec<Self::Value>, CmdError> {
+        self.list_elements(original).map_err(Into::into)
+    }
+
+    /// The selected length purpose retains its native cached/constant/abstract
+    /// shortcuts. Only a reached conversion uses the checked List worker.
+    ///
+    /// # Errors
+    /// Selected length conversion or the complete original Host cause.
+    fn index_list_length(&mut self, original: &Self::Value) -> Result<usize, CmdError> {
+        self.list_len(original).map_err(Into::into)
+    }
+
+    /// The independently selected member accessor preserves native abstract
+    /// list shortcuts; its result is checked before the consumer proceeds.
+    ///
+    /// # Errors
+    /// Selected member conversion or the complete original Host cause.
+    fn index_list_member(
+        &mut self,
+        original: &Self::Value,
+        index: usize,
+    ) -> Result<Option<IndexResult<Self::Value>>, CmdError> {
+        self.list_index(original, index)
+            .map(|member| member.map(IndexResult::Borrowed))
+            .map_err(Into::into)
+    }
+
+    /// Borrow Jim's actual List member headers for an original index path.
+    /// None is only a neutral adapter; no original is recreated from text.
+    ///
+    /// # Errors
+    /// Original path List conversion or complete first Host refusal.
+    fn original_jim_index_path(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<Option<Vec<Self::Value>>, CmdError> {
+        Ok(None)
+    }
+
+    /// Resolve the SAME original Jim index header. `None` is a neutral adapter;
+    /// an unavailable selected native worker must return its actual refusal.
+    ///
+    /// # Errors
+    /// Original header, operation or selected getter/engine refusal, or bad index.
+    fn original_jim_index(&mut self, _original: &Self::Value) -> Result<Option<i32>, CmdError> {
+        Ok(None)
+    }
+
+    /// Original C ListIndex worker, including its source-selected owner/copy order.
+    /// Neutral and Jim adapters return None; actual C adapters cannot reparse
+    /// their original headers through the neutral Unicode fallback.
+    fn original_c_list_index(
+        &mut self,
+        _list: &Self::Value,
+        _indices: &[Self::Value],
+        _path: bool,
+    ) -> Result<Option<IndexResult<Self::Value>>, CmdError> {
+        Ok(None)
+    }
+
+    /// Original C ListRange worker and actual returned ownership transport.
+    fn original_c_list_range(
+        &mut self,
+        _list: &Self::Value,
+        _first: &Self::Value,
+        _last: &Self::Value,
+    ) -> Result<Option<IndexResult<Self::Value>>, CmdError> {
+        Ok(None)
+    }
+
+    /// Actual selected C release, independent of neutral lexical grammar.
+    fn index_c_version(&self) -> Option<TclVersion> {
+        None
+    }
+
+    /// Resolve the SAME original C index header, including its native caches.
+    /// None is the explicit neutral adapter, never a native parser fallback.
+    ///
+    /// # Errors
+    /// Selected numeric/offset worker failure or full original Host refusal.
+    fn original_c_index(
+        &mut self,
+        _original: &Self::Value,
+        _length: usize,
+    ) -> Result<Option<i64>, CmdError> {
+        Ok(None)
+    }
+
+    /// Reach original C Unicode storage under the retained actual operation.
+    ///
+    /// # Errors
+    /// Selected native unit producer/cache or full original Host refusal.
+    fn index_c_unicode_units(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<std::rc::Rc<[u32]>, CmdError> {
+        self.native_unicode_units(original).map_err(Into::into)
+    }
+
+    /// Actual original pure ByteArray eligibility at the reached C stage.
+    /// C9 proper binary backing remains eligible with a resident String.
+    /// Snapshots grant no producer purpose.
+    fn index_c_pure_binary(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<Option<std::rc::Rc<[u8]>>, CmdError> {
+        Ok(None)
+    }
+
+    /// Sharing of the exact original, before any working-reference acquisition.
+    fn index_c_original_is_shared(&mut self, _original: &Self::Value) -> Result<bool, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C sharing").into())
+    }
+
+    /// Original duplicate constructor, with source context captured before its
+    /// reached callbacks and full refusal retained before unused fresh cleanup.
+    fn index_c_duplicate_original(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<Self::Value, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C duplicate constructor").into())
+    }
+
+    /// Genuine fresh binary constructor selected for this original C command.
+    fn index_c_binary_result(
+        &mut self,
+        _bytes: std::rc::Rc<[u8]>,
+    ) -> Result<Self::Value, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C binary result constructor").into())
+    }
+
+    /// Checked same-original binary splice; allocation leases add no native +1.
+    fn index_c_binary_splice(
+        &mut self,
+        _original: &Self::Value,
+        _bytes: std::rc::Rc<[u8]>,
+    ) -> Result<(), CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original C binary splice").into())
+    }
+
+    /// Genuine fresh C Unicode constructor, independent of host Unicode text.
+    ///
+    /// # Errors
+    /// The selected native constructor or original operation is unavailable.
+    fn index_c_unicode_result(
+        &mut self,
+        units: std::rc::Rc<[u32]>,
+        version: TclVersion,
+    ) -> Result<Self::Value, CmdError> {
+        self.native_unicode_string_result(units, version)
+            .map_err(Into::into)
+    }
+
+    /// Append an original operand to the privately created native result.
+    /// No copy-on-write decision or native-reference grant is supplied here.
+    ///
+    /// # Errors
+    /// Reached native append/getter/cache or full original Host refusal.
+    fn index_c_append_object(
+        &mut self,
+        _result: &Self::Value,
+        _original: &Self::Value,
+    ) -> Result<(), CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("private original C String append").into())
+    }
+
+    /// Append reached native Unicode units to the privately created result.
+    ///
+    /// # Errors
+    /// Selected native Unicode append or full original Host refusal.
+    fn index_c_append_unicode(
+        &mut self,
+        _result: &Self::Value,
+        _units: &[u32],
+    ) -> Result<(), CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("private original C Unicode append").into())
+    }
+
+    /// Checked original spelling for a reached index diagnostic.
+    ///
+    /// # Errors
+    /// Original getter, header or operation refusal.
+    fn index_operand_bytes(
+        &mut self,
+        original: &Self::Value,
+    ) -> Result<std::rc::Rc<[u8]>, CmdError> {
+        self.native_string_bytes(original).map_err(Into::into)
+    }
+
+    /// Apply the native getter to an explicitly fresh textual argument. This
+    /// separate door grants no relationship to another original header/cache.
+    ///
+    /// # Errors
+    /// The same selected physical worker failures as `original_jim_index`.
+    fn textual_jim_index(&mut self, _source: &[u8]) -> Result<Option<i32>, CmdError> {
+        Ok(None)
+    }
+}
+
+/// The actual return constructor records ownership instead of inferring it
+/// from spelling, native counts, cache state or pointer equality.
+pub enum IndexResult<V> {
+    /// An original argument or selected member: no fresh native object role.
+    Borrowed(V),
+    /// A reached constructor: retire its fresh result on operation refusal.
+    Created(V),
+    /// The exact selected child detached from backing created by this worker.
+    /// Its live-zero result ownership is explicit, independent of construction.
+    Detached(V),
+    /// Existing C ListIndex/Range owner transferred by its actual returned-owner API.
+    /// This role supplies no reference to the original input during getters.
+    ReturnedOwnedTransport(V),
+}
+
+/// Finish the original operation before classifying a command outcome. Any
+/// reached fresh result is retired before the final post-cleanup check; the
+/// first refusal remains the reported cause even if retirement also refuses.
+pub(crate) fn finish_index_result<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::IndexOperation,
+    reached: Result<IndexResult<O::Value>, CmdError>,
+) -> Result<O::Value, CmdError> {
+    if let Err(first) = ops.check_index_operation(original) {
+        match reached {
+            Ok(
+                IndexResult::Created(created)
+                | IndexResult::Detached(created)
+                | IndexResult::ReturnedOwnedTransport(created),
+            ) => ops.discard_owned_index_result(created),
+            Ok(IndexResult::Borrowed(borrowed)) => drop(borrowed),
+            Err(_) => {}
+        }
+        // Mandatory cleanup cannot replace the first original cause.
+        let _ = ops.check_index_operation(original);
+        return Err(first);
+    }
+    reached.map(|result| match result {
+        IndexResult::Created(value)
+        | IndexResult::Detached(value)
+        | IndexResult::ReturnedOwnedTransport(value)
+        | IndexResult::Borrowed(value) => value,
+    })
+}
+
+pub(crate) fn run_index_result<O: NativeIndexOps>(
+    ops: &mut O,
+    worker: impl FnOnce(&mut O) -> Result<IndexResult<O::Value>, CmdError>,
+) -> Result<O::Value, CmdError> {
+    let original = ops.enter_index_operation()?;
+    let reached = worker(ops);
+    finish_index_result(ops, &original, reached)
+}
+
+pub(crate) fn run_created_index_result<O: NativeIndexOps>(
+    ops: &mut O,
+    worker: impl FnOnce(&mut O) -> Result<O::Value, CmdError>,
+) -> Result<O::Value, CmdError> {
+    run_index_result(ops, |ops| worker(ops).map(IndexResult::Created))
+}
+
+/// Result-shape owner supplies the exact cleanup for its reached output. This
+/// works for compound command receipts without guessing native ownership.
+pub(crate) fn run_index_output<O: NativeIndexOps, T, E>(
+    ops: &mut O,
+    worker: impl FnOnce(&mut O) -> Result<T, E>,
+    discard: impl FnOnce(&mut O, T),
+    mut host_error: impl FnMut(CmdError) -> E,
+) -> Result<T, E> {
+    let original = ops.enter_index_operation().map_err(&mut host_error)?;
+    let reached = worker(ops);
+    if let Err(first) = ops.check_index_operation(&original) {
+        if let Ok(output) = reached {
+            discard(ops, output);
+        }
+        let _ = ops.check_index_operation(&original);
+        return Err(host_error(first));
+    }
+    reached
+}
+
+/// Checked metadata has no newly created native result to retire.
+pub(crate) fn run_index_metadata<O: NativeIndexOps, T>(
+    ops: &mut O,
+    worker: impl FnOnce(&mut O) -> Result<T, CmdError>,
+) -> Result<T, CmdError> {
+    let original = ops.enter_index_operation()?;
+    let reached = worker(ops);
+    ops.check_index_operation(&original)?;
+    reached
+}
+
+/// Convert Jim's encoded absolute/end-relative index against this container.
+#[must_use]
+pub fn resolve_jim_encoding(encoded: i32, len: usize) -> i64 {
+    if encoded < 0 && encoded != -i32::MAX {
+        i64::try_from(len)
+            .unwrap_or(i64::MAX)
+            .wrapping_add(i64::from(encoded))
+    } else {
+        i64::from(encoded)
+    }
+}
 use tcl_syntax::number::{Number, NumberSyntax, ParseFlags, Radix};
 
 /// One index word as a release reads it.
@@ -384,44 +783,53 @@ pub fn finish_jim_index(value: i64, end_relative: bool, length: i64) -> Option<i
 ///
 /// # Errors
 /// A bad-index error, or an unselected native policy.
-pub fn resolve_for_ops<O: ValueOps>(ops: &mut O, spec: &str, len: usize) -> Result<i64, CmdError> {
-    let syntax = ops
-        .index_syntax()
-        .ok_or_else(|| CmdError::new("container index dialect is not selected"))?;
-    if syntax.grammar != tcl_dialect::IndexGrammar::Jim {
-        if let Some(value) = resolve_opt_in(spec, len, syntax) {
-            return Ok(value);
+pub fn resolve_for_ops<O: NativeIndexOps>(
+    ops: &mut O,
+    spec: &str,
+    len: usize,
+) -> Result<i64, CmdError> {
+    run_index_metadata(ops, |ops| {
+        let syntax = ops
+            .index_syntax()
+            .ok_or_else(|| CmdError::new("container index dialect is not selected"))?;
+        if syntax.grammar != tcl_dialect::IndexGrammar::Jim {
+            if let Some(value) = resolve_opt_in(spec, len, syntax) {
+                return Ok(value);
+            }
+            if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64
+                && let Some((expression, connector)) = wide_expression(spec, syntax)
+            {
+                let value = ops.eval_index_expression(expression).map_err(|error| {
+                    if error.native_access_refusal().is_some() {
+                        CmdError::from(error)
+                    } else {
+                        bad_index_for_ops(ops, spec, syntax)
+                    }
+                })?;
+                let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+                return Ok(match connector {
+                    Some(b'-') => end.saturating_sub(value),
+                    Some(_) => end.saturating_add(value),
+                    None => value,
+                });
+            }
+            return Err(bad_index_for_ops(ops, spec, syntax));
         }
-        if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64
-            && let Some((expression, connector)) = wide_expression(spec, syntax)
-        {
-            let value = ops.eval_index_expression(expression).map_err(|error| {
-                if error.native_access_refusal().is_some() {
-                    CmdError::from(error)
-                } else {
-                    bad_index_for_ops(ops, spec, syntax)
-                }
-            })?;
-            let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
-            return Ok(match connector {
-                Some(b'-') => end.saturating_sub(value),
-                Some(_) => end.saturating_add(value),
-                None => value,
-            });
+        if let Some(encoded) = ops.textual_jim_index(spec.as_bytes())? {
+            return Ok(resolve_jim_encoding(encoded, len));
         }
-        return Err(bad_index_for_ops(ops, spec, syntax));
-    }
-    let (expression, relative) =
-        jim_expression(spec).ok_or_else(|| bad_index_for_ops(ops, spec, syntax))?;
-    let value = ops.eval_index_expression(expression).map_err(|error| {
-        if error.native_access_refusal().is_some() {
-            CmdError::from(error)
-        } else {
-            bad_index_for_ops(ops, spec, syntax)
-        }
-    })?;
-    finish_jim_index(value, relative, i64::try_from(len).unwrap_or(i64::MAX))
-        .ok_or_else(|| bad_index_for_ops(ops, spec, syntax))
+        let (expression, relative) =
+            jim_expression(spec).ok_or_else(|| bad_index_for_ops(ops, spec, syntax))?;
+        let value = ops.eval_index_expression(expression).map_err(|error| {
+            if error.native_access_refusal().is_some() {
+                CmdError::from(error)
+            } else {
+                bad_index_for_ops(ops, spec, syntax)
+            }
+        })?;
+        finish_jim_index(value, relative, i64::try_from(len).unwrap_or(i64::MAX))
+            .ok_or_else(|| bad_index_for_ops(ops, spec, syntax))
+    })
 }
 
 pub(crate) fn wide_expression(
@@ -459,25 +867,82 @@ pub(crate) fn wide_expression(
 ///
 /// # Errors
 /// The same errors as [`resolve_for_ops`].
-pub fn resolve_value<O: ValueOps>(
+pub fn resolve_value<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     len: usize,
 ) -> Result<i64, CmdError> {
-    let spelling = ops.try_as_str(value)?;
-    resolve_for_ops(ops, &spelling, len)
+    run_index_metadata(ops, |ops| {
+        if ops
+            .index_syntax()
+            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+            && let Some(encoded) = ops.original_jim_index(value)?
+        {
+            return Ok(resolve_jim_encoding(encoded, len));
+        }
+        if ops.index_c_version().is_some()
+            && let Some(resolved) = ops.original_c_index(value, len)?
+        {
+            return Ok(resolved);
+        }
+        let spelling = ops.index_unicode(value)?;
+        resolve_for_ops(ops, &spelling, len)
+    })
+}
+
+/// Prepare a complete Jim original index vector before container conversion.
+/// `None` describes only neutral adapters. A mixed physical/neutral vector is
+/// unavailable rather than evaluating a prefix twice under a new receipt.
+///
+/// # Errors
+/// The first reached original-index failure or an inconsistent adapter.
+pub fn prepare_jim_indices<O: NativeIndexOps>(
+    ops: &mut O,
+    originals: &[&O::Value],
+) -> Result<Option<Vec<i32>>, CmdError> {
+    run_index_metadata(ops, |ops| {
+        if !ops
+            .index_syntax()
+            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+        {
+            return Ok(None);
+        }
+        let mut indices = Vec::with_capacity(originals.len());
+        let mut neutral = false;
+        for original in originals {
+            match ops.original_jim_index(original)? {
+                Some(index) if !neutral => indices.push(index),
+                None if indices.is_empty() => neutral = true,
+                _ => {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "mixed original Jim Index adapter",
+                    )
+                    .into());
+                }
+            }
+        }
+        Ok((!neutral).then_some(indices))
+    })
 }
 
 /// Validate whether a selected native index can be encoded for a search path.
-#[must_use]
-pub fn encodable_for_ops<O: ValueOps>(ops: &mut O, spec: &str) -> Option<bool> {
-    let syntax = ops.index_syntax()?;
-    let value = resolve_for_ops(ops, spec, 1).ok()?;
-    let end_relative = match syntax.grammar {
-        tcl_dialect::IndexGrammar::Jim => spec.starts_with("end"),
-        _ => spec.starts_with("end") || (!spec.is_empty() && "end".starts_with(spec)),
-    };
-    Some(if end_relative { value <= 0 } else { value >= 0 })
+///
+/// # Errors
+/// Bad index or the actual first native operation/getter failure.
+pub fn encodable_for_ops<O: NativeIndexOps>(ops: &mut O, spec: &str) -> Result<bool, CmdError> {
+    run_index_metadata(ops, |ops| {
+        let syntax = ops.index_syntax().ok_or_else(|| {
+            CmdError::from(ValueError::CommandProtocolUnavailable(
+                "container index dialect",
+            ))
+        })?;
+        let value = resolve_for_ops(ops, spec, 1)?;
+        let end_relative = match syntax.grammar {
+            tcl_dialect::IndexGrammar::Jim => spec.starts_with("end"),
+            _ => spec.starts_with("end") || (!spec.is_empty() && "end".starts_with(spec)),
+        };
+        Ok(if end_relative { value <= 0 } else { value >= 0 })
+    })
 }
 
 /// Native bad-index message, preserving the authored spelling.
@@ -503,7 +968,16 @@ pub fn bad_index_for_ops<O: ValueOps>(
     spec: impl AsRef<[u8]>,
     syntax: tcl_dialect::IndexSyntax,
 ) -> CmdError {
-    let error = bad_index_in(spec, syntax);
+    let diagnostic = if syntax.grammar == tcl_dialect::IndexGrammar::Jim {
+        spec.as_ref()
+    } else {
+        // C Tcl's native bad-index diagnostic consumes Tcl_GetString through
+        // its original %s field; counted parser extent remains independent.
+        // naming.string.original-counted-replacement-and-index-stages
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-replacement-and-index-stages.md
+        tcl_core_types::c_string_extent(spec.as_ref())
+    };
+    let error = bad_index_in(diagnostic, syntax);
     match ops.index_error_string_protocol() {
         Ok(Some(protocol)) => error.with_native_string_result(protocol),
         Ok(None) => error,
@@ -511,43 +985,162 @@ pub fn bad_index_for_ops<O: ValueOps>(
     }
 }
 
-/// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
-/// -index`): each spec steps one level. An out-of-range step is an error
-/// (`element <spec> missing from sublist "<list>"`); a non-list step stops,
-/// returning the current value (C's `TclLindexFlat` fallthrough). Returns the
-/// error **message bytes** so each command wraps them in its own error type.
+/// A selected key and backing constructors needed to keep its actual header live.
+/// Guards clone allocation transport only. No key is reconstructed from text.
+#[derive(Clone)]
+pub struct IndexedKey<K> {
+    selected: K,
+    created: bool,
+    ancestors: Vec<(K, bool)>,
+}
+
+/// Borrow the selected value without an extra native reference.
+pub fn key_value<O: NativeIndexOps>(key: &IndexedKey<O::IndexKeyOwner>) -> &O::Value {
+    O::index_key_value(&key.selected)
+}
+
+/// Transfer the exact selected result before mandatory backing cleanup.
+pub fn key_result<O: NativeIndexOps>(
+    ops: &mut O,
+    key: IndexedKey<O::IndexKeyOwner>,
+) -> Result<IndexResult<O::Value>, CmdError> {
+    let created_ancestor = key.ancestors.iter().any(|(_, created)| *created);
+    if created_ancestor && !key.created {
+        let held = ops.index_hold_key_result(&key.selected)?;
+        drop(key); // mandatory backing cleanup while the real selected child holds
+        return ops.index_finish_held_key_result(held);
+    }
+    ops.index_key_result(&key.selected, key.created, false)
+}
+
+fn step_key<O: NativeIndexOps>(
+    ops: &mut O,
+    mut current: IndexedKey<O::IndexKeyOwner>,
+    selected: IndexResult<O::Value>,
+) -> Result<IndexedKey<O::IndexKeyOwner>, CmdError> {
+    let (next, created) = match selected {
+        IndexResult::Borrowed(member) => (ops.index_borrowed_key(&member)?, false),
+        IndexResult::Created(created)
+        | IndexResult::Detached(created)
+        | IndexResult::ReturnedOwnedTransport(created) => (ops.index_created_key(created)?, true),
+    };
+    current.ancestors.push((current.selected, current.created));
+    Ok(IndexedKey {
+        selected: next,
+        created,
+        ancestors: current.ancestors,
+    })
+}
+
+/// Drill a search/sort path while retaining explicit selected constructor roles.
+/// Parent backing remains live through the last key use; the key guard supplies
+/// no additional native reference while original getters execute.
 ///
 /// # Errors
-/// `bad index`, the list-parse error, or `element … missing from sublist …`.
-pub fn drill<O: ValueOps>(
+/// Original conversion/index failures or the complete first Host refusal.
+pub fn drill<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     path: &[Vec<u8>],
-) -> Result<O::Value, CmdError> {
-    let mut cur = value.clone();
-    for spec in path {
-        let len = ops.list_len(&cur)?;
-        let spec_text = std::str::from_utf8(spec).map_err(|error| {
-            tcl_syntax::raw_string::UnicodeAccessError {
-                valid_up_to: error.valid_up_to(),
-                error_len: error.error_len(),
+) -> Result<IndexedKey<O::IndexKeyOwner>, CmdError> {
+    run_index_output(
+        ops,
+        |ops| {
+            let mut current = IndexedKey {
+                selected: ops.index_borrowed_key(value)?,
+                created: false,
+                ancestors: Vec::new(),
+            };
+            for spec in path {
+                let value = O::index_key_value(&current.selected);
+                let len = ops.index_list_length(value)?;
+                let spec_text = std::str::from_utf8(spec).map_err(|error| {
+                    tcl_syntax::raw_string::UnicodeAccessError {
+                        valid_up_to: error.valid_up_to(),
+                        error_len: error.error_len(),
+                    }
+                })?;
+                let idx = resolve_for_ops(ops, spec_text, len)?;
+                if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) >= len {
+                    let mut message = b"element ".to_vec();
+                    message.extend_from_slice(spec);
+                    message.extend_from_slice(b" missing from sublist \"");
+                    message.extend_from_slice(&ops.as_bytes(value));
+                    message.push(b'"');
+                    return Err(CmdError::new_bytes(message));
+                }
+                match ops.index_list_member(value, usize::try_from(idx).unwrap_or(0)) {
+                    Ok(Some(member)) => current = step_key(ops, current, member)?,
+                    Err(error) if error.native_execution_refusal().is_some() => return Err(error),
+                    _ => return Ok(current),
+                }
             }
-        })?;
-        let idx = resolve_for_ops(ops, spec_text, len)?;
-        if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) >= len {
-            let mut m = b"element ".to_vec();
-            m.extend_from_slice(spec);
-            m.extend_from_slice(b" missing from sublist \"");
-            m.extend_from_slice(&ops.as_bytes(&cur));
-            m.push(b'"');
-            return Err(CmdError::new_bytes(m));
-        }
-        match ops.list_index(&cur, usize::try_from(idx).unwrap_or(0)) {
-            Ok(Some(e)) => cur = e,
-            _ => return Ok(cur),
-        }
-    }
-    Ok(cur)
+            Ok(current)
+        },
+        |_, key| drop(key),
+        |error| error,
+    )
+}
+
+/// Drill Jim's original member path with its independently selected native
+/// Index objects. Every original coordinate precedes every container getter.
+/// The reached missing-member message is Jim's CString diagnostic, without a
+/// C errorCode or a native String-result claim.
+///
+/// # Errors
+/// Original conversion, Jim missing-member failure or complete Host refusal.
+pub fn drill_original_jim<O: NativeIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    indices: &[O::Value],
+) -> Result<IndexedKey<O::IndexKeyOwner>, CmdError> {
+    run_index_output(
+        ops,
+        |ops| {
+            let encoded = prepare_jim_indices(ops, &indices.iter().collect::<Vec<_>>())?;
+            let mut current = IndexedKey {
+                selected: ops.index_borrowed_key(value)?,
+                created: false,
+                ancestors: Vec::new(),
+            };
+            for (ordinal, original) in indices.iter().enumerate() {
+                let members = ops.index_list_elements(key_value::<O>(&current))?;
+                let at = match &encoded {
+                    Some(encoded) => resolve_jim_encoding(encoded[ordinal], members.len()),
+                    None => resolve_value(ops, original, members.len())?,
+                };
+                if let Some(member) = usize::try_from(at).ok().and_then(|at| members.get(at)) {
+                    current = step_key(ops, current, IndexResult::Borrowed(member.clone()))?;
+                    continue;
+                }
+                let encoded = encoded
+                    .as_ref()
+                    .map(|indices| i64::from(indices[ordinal]))
+                    .unwrap_or(at);
+                let out_of_range = encoded < 0
+                    || usize::try_from(encoded).is_ok_and(|index| index > members.len());
+                let spelling = ops.index_operand_bytes(original)?;
+                let mut message = if out_of_range {
+                    b"index \"".to_vec()
+                } else {
+                    b"element ".to_vec()
+                };
+                message.extend_from_slice(tcl_core_types::c_string_extent(&spelling));
+                if out_of_range {
+                    message.extend_from_slice(b"\" out of range");
+                } else {
+                    message.extend_from_slice(b" missing from sublist \"");
+                    let container = ops.index_operand_bytes(key_value::<O>(&current))?;
+                    message.extend_from_slice(tcl_core_types::c_string_extent(&container));
+                    message.push(b'"');
+                }
+                return Err(CmdError::new_bytes(message));
+            }
+            Ok(current)
+        },
+        |_, key| drop(key),
+        |error| error,
+    )
 }
 
 /// Whether an index `spec` is *encodable* the way `TclIndexEncode` requires for

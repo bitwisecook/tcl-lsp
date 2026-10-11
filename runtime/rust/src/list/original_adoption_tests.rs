@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Software bounds at the original List primary retirement/adoption stage.
 use super::*;
-use crate::interp::{native_arguments::OriginalArguments, Interp};
+use crate::interp::{Interp, native_arguments::OriginalArguments};
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
@@ -451,6 +451,250 @@ fn original_operational_conversion_retains_slot_failure_before_unused_member_hos
                 .unwrap_err()
                 .native_execution_refusal(),
             Some(&first),
+        );
+    }
+}
+
+fn original_copy_native() -> Interp {
+    Interp::with_native_core(
+        crate::interp::default_host(),
+        crate::environment::profile_for_dialect("tcl9.1"),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap()
+}
+fn original_copy_series(length: usize, protocol: NativeStringProtocol) -> obj::Owned {
+    let extent = length.to_string();
+    let Ok(plan) = tcl_cmd_core::lseq::decode(&[extent.as_bytes()]) else {
+        panic!("actual arithmetic series plan");
+    };
+    let series = tcl_cmd_core::lseq::prepare_series(&plan).unwrap().unwrap();
+    obj::Owned::fresh(crate::native_arithseries::new_series(series, protocol).unwrap())
+}
+
+#[test]
+fn original_ordinary_list_projection_keeps_fresh_series_members_and_captured_header_roles() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let interpreter = original_copy_native();
+    let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
+    let value = original_copy_series(3, protocol);
+    let cached = crate::native_arithseries::elements(value.as_ptr(), protocol).unwrap();
+    let old_members: Vec<_> = cached
+        .iter()
+        .map(|&member| obj::NativeObjectLifetime::retain(member))
+        .collect();
+    let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
+    let members = ordinary_list_elements_native_using(
+        value.as_ptr(),
+        protocol,
+        &|| arguments.check_for(&interpreter),
+        &|error| arguments.retain_refusal(error.into()),
+    )
+    .unwrap();
+    assert_eq!(members.len(), 3);
+    assert!(core::ptr::eq(
+        obj::obj_type_ptr(value.as_ptr()),
+        &TCL_LIST_TYPE
+    ));
+    assert!(!obj::has_string_rep(value.as_ptr()));
+    assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+    for (coordinate, (&member, old)) in members.iter().zip(&old_members).enumerate() {
+        assert_ne!(member, old.as_ptr());
+        assert!(!obj::allocation_is_live(old.as_ptr()));
+        assert_eq!(obj::internal_rep(member), coordinate as u64);
+        assert_eq!(unsafe { (*member).ref_count }, 1);
+    }
+    arguments.check_for(&interpreter).unwrap();
+    assert!(interpreter.native_execution_refusal().is_none());
+}
+
+#[test]
+fn original_ordinary_list_projection_retirement_refuses_before_new_backing() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let mut interpreter = original_copy_native();
+    let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
+    let value = original_copy_series(2, protocol);
+    let cached = crate::native_arithseries::elements(value.as_ptr(), protocol).unwrap();
+    let old_members: Vec<_> = cached
+        .iter()
+        .map(|&member| obj::NativeObjectLifetime::retain(member))
+        .collect();
+    obj::change_type(cached[0], &MEMBER, 0);
+    let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
+    interpreter.set_result_bytes(b"PRIOR");
+    let prior = interpreter.get_obj_result();
+    MEMBER_FREES.with(|calls| calls.set(0));
+    MEMBER_REFS.with(|refs| refs.set(-1));
+    crate::codegen_abi::tcl_runtime_set_current_interp(&mut interpreter);
+    let _current = CurrentInterp;
+    let objects_before = crate::counters::live_objs();
+    let failure = ordinary_list_elements_native_using(
+        value.as_ptr(),
+        protocol,
+        &|| arguments.check_for(&interpreter),
+        &|error| arguments.retain_refusal(error.into()),
+    )
+    .unwrap_err();
+    let first = interpreter.native_execution_refusal().unwrap();
+    assert!(
+        matches!(&first, NativeExecutionError::HostCommandRefusal(reason)
+        if reason.reason == "mandatory unused List member retirement")
+    );
+    assert_eq!(failure.native_execution_refusal(), Some(&first));
+    assert_eq!(MEMBER_FREES.with(Cell::get), 1);
+    assert_eq!(MEMBER_REFS.with(Cell::get), 0);
+    assert!(
+        old_members
+            .iter()
+            .all(|member| !obj::allocation_is_live(member.as_ptr()))
+    );
+    assert_eq!(
+        crate::counters::live_objs(),
+        objects_before - cached.len() as i64
+    );
+    assert!(obj::obj_type_ptr(value.as_ptr()).is_null());
+    assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+    assert!(!obj::has_string_rep(value.as_ptr()));
+    assert_eq!(interpreter.get_obj_result(), prior);
+    assert_eq!(
+        arguments
+            .check_for(&interpreter)
+            .unwrap_err()
+            .native_execution_refusal(),
+        Some(&first)
+    );
+}
+
+#[test]
+fn original_list_copy_projection_keeps_shared_members_and_lazy_abstract_length() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let interpreter = original_copy_native();
+    let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
+    {
+        let value = original();
+        let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
+        MODE.with(|mode| mode.set(0));
+        FREES.with(|calls| calls.set(0));
+        let copy = native_list_copy_using(
+            value.as_ptr(),
+            protocol,
+            &|| arguments.check_for(&interpreter),
+            &|error| arguments.retain_refusal(error.into()),
+        )
+        .unwrap();
+        let original_members = list_elements_native_checked(value.as_ptr(), protocol).unwrap();
+        let copied_members = list_elements_native_checked(copy.as_ptr(), protocol).unwrap();
+        assert_ne!(value.as_ptr(), copy.as_ptr());
+        assert_eq!(original_members, copied_members);
+        assert_eq!(FREES.with(Cell::get), 1);
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+        assert_eq!(unsafe { (*copy.as_ptr()).ref_count }, 1);
+        assert!(
+            original_members
+                .iter()
+                .all(|&member| unsafe { (*member).ref_count == 1 })
+        );
+        assert_eq!(obj::bytes_of(value.as_ptr()), b"a b");
+        assert!(!obj::has_string_rep(copy.as_ptr()));
+        drop(copy);
+        assert!(
+            original_members
+                .iter()
+                .all(|&member| unsafe { (*member).ref_count == 1 })
+        );
+        arguments.check_for(&interpreter).unwrap();
+    }
+    let length = tcl_cmd_core::lseq::MAX_MATERIALIZE as usize + 1;
+    let value = original_copy_series(length, protocol);
+    let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
+    let copy = native_list_copy_using(
+        value.as_ptr(),
+        protocol,
+        &|| arguments.check_for(&interpreter),
+        &|error| arguments.retain_refusal(error.into()),
+    )
+    .unwrap();
+    assert_ne!(copy.as_ptr(), value.as_ptr());
+    assert_eq!(
+        crate::native_arithseries::physical_state(value.as_ptr()),
+        Some((length, 2, false))
+    );
+    assert_eq!(
+        crate::native_arithseries::physical_state(copy.as_ptr()),
+        Some((length, 2, false))
+    );
+    assert!(!obj::has_string_rep(value.as_ptr()));
+    assert!(!obj::has_string_rep(copy.as_ptr()));
+    assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+    assert_eq!(unsafe { (*copy.as_ptr()).ref_count }, 1);
+    drop(copy);
+    assert_eq!(
+        crate::native_arithseries::physical_state(value.as_ptr()),
+        Some((length, 1, false))
+    );
+    arguments.check_for(&interpreter).unwrap();
+    assert!(interpreter.native_execution_refusal().is_none());
+}
+
+#[test]
+fn original_list_copy_projection_refuses_reached_retirement_before_fresh_header() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in [1, 2, 3] {
+        let mut interpreter = original_copy_native();
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
+        let value = original();
+        let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
+        interpreter.set_result_bytes(b"PRIOR");
+        let prior = interpreter.get_obj_result();
+        MODE.with(|selected| selected.set(mode));
+        FREES.with(|calls| calls.set(0));
+        crate::codegen_abi::tcl_runtime_set_current_interp(&mut interpreter);
+        let _current = CurrentInterp;
+        let objects_before = crate::counters::live_objs();
+        let Err(failure) = native_list_copy_using(
+            value.as_ptr(),
+            protocol,
+            &|| arguments.check_for(&interpreter),
+            &|error| arguments.retain_refusal(error.into()),
+        ) else {
+            panic!("real original primary retirement must refuse");
+        };
+        let first = interpreter.native_execution_refusal().unwrap();
+        assert_eq!(failure.native_execution_refusal(), Some(&first));
+        if mode == 1 {
+            assert!(
+                matches!(&first, NativeExecutionError::HostCommandRefusal(reason)
+                if reason.reason == "original List primary retirement")
+            );
+            assert!(obj::obj_type_ptr(value.as_ptr()).is_null());
+        } else {
+            assert_eq!(
+                first,
+                NativeExecutionError::ValueAccessRefusal(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "changed native primary publication slot"
+                    )
+                )
+            );
+            assert!(!core::ptr::eq(
+                obj::obj_type_ptr(value.as_ptr()),
+                &TCL_LIST_TYPE
+            ));
+        }
+        assert_eq!(crate::counters::live_objs(), objects_before);
+        assert_eq!(obj::bytes_of(value.as_ptr()), b"a b");
+        assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
+        assert_eq!(interpreter.get_obj_result(), prior);
+        assert_eq!(
+            arguments
+                .check_for(&interpreter)
+                .unwrap_err()
+                .native_execution_refusal(),
+            Some(&first)
         );
     }
 }

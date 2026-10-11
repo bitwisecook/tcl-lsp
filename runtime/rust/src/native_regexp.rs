@@ -168,29 +168,3 @@ pub(crate) static JIM_REGEXP_TYPE: TclObjType = TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
-
-pub(crate) fn cached_jim_index(original: *mut TclObj) -> Result<Option<i32>, ValueError> {
-    obj::check_native_liveness(original)?;
-    Ok((obj::obj_type_ptr(original) == &JIM_INDEX_TYPE)
-        .then(|| obj::internal_rep(original) as u32 as i32))
-}
-pub(crate) fn install_jim_index(
-    original: *mut TclObj,
-    index: tcl_syntax::native_jim_index::JimIndex,
-) {
-    obj::change_type(original, &JIM_INDEX_TYPE, index.0 as u32 as u64);
-}
-extern "C" fn update_jim_index(original: *mut TclObj) {
-    let index = tcl_syntax::native_jim_index::JimIndex(obj::internal_rep(original) as u32 as i32);
-    // SAFETY: this live scalar descriptor has no child allocation or callback.
-    unsafe {
-        obj::set_string_rep(original, &index.string_bytes());
-    }
-}
-static JIM_INDEX_TYPE: TclObjType = TclObjType {
-    name: c"index".as_ptr(),
-    free_int_rep_proc: None,
-    dup_int_rep_proc: None,
-    update_string_proc: Some(update_jim_index),
-    set_from_any_proc: None,
-};

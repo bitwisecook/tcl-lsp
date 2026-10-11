@@ -87,3 +87,30 @@ pub(crate) fn install(object: *mut TclObj, offset: NativeEndOffset) -> Result<()
     install_unchecked(object, offset);
     Ok(())
 }
+
+/// Checked sibling of the same original end-offset adoption owner.
+/// Incoming backing remains locally owned until the shared retirement kernel
+/// accepts adoption; no reference is added around the old descriptor callback.
+pub(crate) fn install_checked<E: From<ValueError>>(
+    object: *mut TclObj,
+    offset: NativeEndOffset,
+    check: &mut dyn FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    check()?;
+    super::check_native_liveness(object)?;
+    if !super::has_string_rep(object) {
+        return Err(
+            ValueError::CommandProtocolUnavailable("original end-offset resident string").into(),
+        );
+    }
+    let descriptor = if offset.version() < tcl_dialect::TclVersion::V9_0 {
+        &LEGACY_TYPE
+    } else {
+        &MODERN_TYPE
+    };
+    let mut backing = Box::new(offset);
+    let rep = (&mut *backing as *mut NativeEndOffset) as usize as u64;
+    super::change_type_with_stage_check(object, descriptor, rep, check)?;
+    let _ = Box::into_raw(backing);
+    check()
+}

@@ -1154,8 +1154,15 @@ fn encoded_string_index(encoded: i32) -> Value {
 /// the non-validating `unwrap_or` forms it replaced turned a garbage index into
 /// a plausible-looking value.
 fn checked_index_value(vm: &mut Vm, v: &Value, len: usize) -> Result<isize, Completion<Value>> {
-    let s = v.to_str();
-    crate::command::resolve_index(vm, &s, len).ok_or_else(|| crate::command::bad_index(vm, &s))
+    let selected = tcl_cmd_core::index::resolve_value(vm, v, len)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    isize::try_from(selected).map_err(|_| {
+        crate::command::completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("VM original index width")
+                .into(),
+        )
+    })
 }
 
 /// List element at signed index, or empty when out of range.
@@ -6658,13 +6665,13 @@ impl Vm {
                 let chars: Vec<char> = string.chars().collect();
                 let len = chars.len();
 
-                let first_s = first.to_str();
-                let last_s = last.to_str();
-                let Some(from) = crate::command::resolve_index(self, &first_s, len) else {
-                    return Tick::Return(crate::command::bad_index(self, &first_s));
+                let from = match checked_index_value(self, &first, len) {
+                    Ok(index) => index,
+                    Err(error) => return Tick::Return(error),
                 };
-                let Some(to) = crate::command::resolve_index(self, &last_s, len) else {
-                    return Tick::Return(crate::command::bad_index(self, &last_s));
+                let to = match checked_index_value(self, &last, len) {
+                    Ok(index) => index,
+                    Err(error) => return Tick::Return(error),
                 };
                 let slen = isize::try_from(len).unwrap_or(isize::MAX) - 1;
                 if to < 0 || from > slen || to < from {

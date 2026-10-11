@@ -182,43 +182,7 @@ impl core_re::NativeRegexSource for Vm {
     }
 
     fn jim_regex_index(&mut self, original: &Value) -> Result<i32, tcl_cmd_core::CmdError> {
-        use tcl_syntax::value::ValueOps;
-        if let Some(value) = original.native_integer_primary()? {
-            return Ok(tcl_syntax::native_jim_index::JimIndex::from_integer(value));
-        }
-        if let Some(index) = original.native_jim_index()? {
-            return Ok(index);
-        }
-        let bytes = self.native_string_bytes(original)?;
-        let index = tcl_syntax::native_jim_index::evaluate_index(&bytes, |input| match input {
-            tcl_syntax::native_jim_index::JimIndexExpression::Original => {
-                // SetIndexFromAny pins the SAME expression during GetWideExpr.
-                let expression = original.clone();
-                self.native_jim_wide_expression(&expression)
-            }
-            tcl_syntax::native_jim_index::JimIndexExpression::EndSuffix(source) => {
-                let suffix = Value::new_native_string_bytes(source);
-                self.native_jim_wide_expression(&suffix)
-            }
-        })
-        .map_err(|error| {
-            let error = match error {
-                tcl_syntax::native_jim_index::JimIndexEvaluationError::Index(error) => {
-                    tcl_cmd_core::CmdError::from(error)
-                }
-                tcl_syntax::native_jim_index::JimIndexEvaluationError::Expression(error) => error,
-            };
-            if error.native_execution_refusal().is_some() {
-                error
-            } else {
-                let mut message = b"bad index \"".to_vec();
-                message.extend_from_slice(tcl_core_types::c_string_extent(&bytes));
-                message.extend_from_slice(b"\": must be intexpr or end?[+-]intexpr?");
-                tcl_cmd_core::CmdError::new_bytes(message)
-            }
-        })?;
-        original.install_native_jim_index(index);
-        Ok(index.0)
+        tcl_cmd_core::native_jim_index::original_index(self, original)
     }
 
     fn regex_recipe(

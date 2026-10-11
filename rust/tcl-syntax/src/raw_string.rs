@@ -929,6 +929,31 @@ impl RawString {
             .map(|bytes| (bytes, count))
     }
 
+    /// Prefix and appended after-part bytes for a pinned Jim084 replacement.
+    /// `first` and `last` are already clamped character positions. Jim builds
+    /// the prefix with `Jim_NewStringObjUtf8`, but passes the remaining
+    /// CHARACTER count as the BYTE length of the after-part append. Retain that
+    /// selected extent even when it cuts a multibyte sequence. The prefix
+    /// producer's cached character count is exactly `first`; each appended
+    /// segment updates that count independently.
+    ///
+    /// # Errors
+    /// A reached UTF seek or byte copy exceeds the retained counted allocation.
+    pub fn jim084_replacement_parts(
+        &self,
+        first: usize,
+        last: usize,
+        character_count: usize,
+    ) -> Result<(Vec<u8>, Vec<u8>), NativeStringAccessError> {
+        let before_end = self.jim084_byte_offset(first)?;
+        let after_start = self.jim084_byte_offset(last.saturating_add(1))?;
+        let after_bytes = character_count.saturating_sub(last.saturating_add(1));
+        Ok((
+            self.copy_owned_bytes(0, before_end)?,
+            self.copy_owned_bytes(after_start, after_start.saturating_add(after_bytes))?,
+        ))
+    }
+
     /// Original byte offset selected by Jim's leading-byte index traversal.
     /// An offset beyond the retained counted allocation is unavailable.
     pub fn jim084_byte_offset(&self, index: usize) -> Result<usize, NativeStringAccessError> {
@@ -1184,5 +1209,24 @@ mod tests {
         );
         assert!(raw.unicode().is_err());
         assert_eq!(raw.bytes().len(), 7);
+    }
+}
+
+#[cfg(test)]
+mod original_jim_replacement_controls {
+    use super::*;
+    #[test]
+    fn original_jim_after_part_uses_the_measured_character_derived_byte_extent() {
+        // naming.string.original-counted-replacement-and-index-stages
+        // docs/design/analysis/name-resolution-proofs/string-original-counted-replacement-and-index-stages.md
+        // Native Jim629 cases4/5 measure the suffix byte extent. This pure
+        // geometry test grants no header cache, caller role or callback claim.
+        let subject = RawString::from_bytes("Aé€😀Z".as_bytes());
+        let (prefix, after) = subject.jim084_replacement_parts(1, 1, 5).unwrap();
+        assert_eq!(prefix, b"A");
+        assert_eq!(after, "€".as_bytes());
+        let (prefix, after) = subject.jim084_replacement_parts(2, 2, 5).unwrap();
+        assert_eq!(prefix, "Aé".as_bytes());
+        assert_eq!(after, [0xf0, 0x9f]);
     }
 }

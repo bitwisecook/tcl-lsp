@@ -238,13 +238,35 @@ pub(crate) fn selected_string_protocol(value: *mut TclObj) -> Option<NativeStrin
     })
 }
 
-pub(crate) fn copy_context(original: *mut TclObj, duplicate: *mut TclObj) {
+/// Original weak context transport. It grants no native object reference.
+#[derive(Clone)]
+pub(crate) struct CapturedObjectContext(Option<Weak<NativeJimObjectContext>>);
+
+pub(crate) fn capture_object_context(original: *mut TclObj) -> CapturedObjectContext {
+    CapturedObjectContext(
+        OBJECT_CONTEXTS.with(|contexts| contexts.borrow().get(&(original as usize)).cloned()),
+    )
+}
+
+pub(crate) fn install_captured_object_context(
+    target: *mut TclObj,
+    original: &CapturedObjectContext,
+) {
     OBJECT_CONTEXTS.with(|contexts| {
-        let previous = contexts.borrow().get(&(original as usize)).cloned();
-        if let Some(previous) = previous {
-            contexts.borrow_mut().insert(duplicate as usize, previous);
+        let mut contexts = contexts.borrow_mut();
+        if let Some(previous) = &original.0 {
+            contexts.insert(target as usize, previous.clone());
+        } else {
+            contexts.remove(&(target as usize));
         }
     });
+}
+
+pub(crate) fn copy_context(original: *mut TclObj, duplicate: *mut TclObj) {
+    let retained = capture_object_context(original);
+    if retained.0.is_some() {
+        install_captured_object_context(duplicate, &retained);
+    }
 }
 
 pub(crate) fn forget_context(value: *mut TclObj) {

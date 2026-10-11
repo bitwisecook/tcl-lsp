@@ -34,6 +34,10 @@ mod native_concat;
 #[cfg(test)]
 #[path = "value_ops/native_concat_tests.rs"]
 mod native_concat_tests;
+#[path = "value_ops/native_indexed_append.rs"]
+mod native_indexed_append;
+#[path = "value_ops/native_jim_index.rs"]
+mod native_jim_index;
 #[cfg(test)]
 #[path = "value_ops/native_jim_string_cat_tests.rs"]
 mod native_jim_string_cat_tests;
@@ -947,43 +951,12 @@ impl ValueOps for Vm {
     }
 
     fn list_len(&mut self, value: &Value) -> Result<usize, ValueError> {
-        use tcl_registry::native_stock_list::NativeObjectLengthAction;
-        let purpose = self
-            .object_materialization()
-            .ok_or(ValueError::CommandProtocolUnavailable("object list length"))?;
-        value.check_native_header()?;
-        let protocol = purpose.length_protocol();
-        let class = value.stock_list_input_class();
-        let canonical_empty = match value.resident_string_storage_identity() {
-            Some(tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty) => true,
-            Some(tcl_syntax::native_string::NativeStringStorageIdentity::Unknown)
-                if value
-                    .resident_string_bytes()
-                    .is_some_and(|bytes| bytes.is_empty()) =>
-            {
-                if protocol.action(class, true) != protocol.action(class, false) {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "object list length storage identity",
-                    ));
-                }
-                false
-            }
-            _ => false,
-        };
-        match protocol.action(class, canonical_empty).ok_or(
-            ValueError::CommandProtocolUnavailable("object list length storage"),
-        )? {
-            NativeObjectLengthAction::CachedList => value
-                .native_list_backing_in(purpose.protocol())?
-                .map(|backing| backing.len())
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "object list length storage",
-                )),
-            NativeObjectLengthAction::Constant(length) => Ok(length),
-            NativeObjectLengthAction::ConvertToList => {
-                self.list_elements(value).map(|elements| elements.len())
-            }
-        }
+        native_jim_index::list_length_using(
+            self,
+            value,
+            &mut |_, _| Ok(()),
+            |interpreter, original| interpreter.list_elements(original),
+        )
     }
 
     fn list_elements(&mut self, v: &Value) -> Result<Vec<Value>, ValueError> {

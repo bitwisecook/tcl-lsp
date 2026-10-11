@@ -1014,6 +1014,23 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for VmAppendObjects {
         value.native_unicode_units(protocol)
     }
 
+    fn decode_unicode_source(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        bytes: &[u8],
+    ) -> Result<Rc<[u32]>, ValueError> {
+        let version = protocol
+            .tcl_version()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original append C Unicode source units",
+            ))?;
+        Ok(Rc::from(
+            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).decode_storage_units(
+                bytes,
+                tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+            ),
+        ))
+    }
     fn set_string(
         &self,
         value: &Value,
@@ -1022,30 +1039,7 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for VmAppendObjects {
         count: Option<usize>,
         unicode: Option<Rc<[u32]>>,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        if protocol.is_jim084() && (resident.is_none() || unicode.is_some()) {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "Jim append String backing",
-            ));
-        }
-        *value.0.string.borrow_mut() = resident
-            .as_ref()
-            .map(|(bytes, _)| RawString::from_bytes(Rc::clone(bytes)));
-        value
-            .0
-            .string_storage
-            .set(resident.map_or(NativeStringStorageIdentity::Unknown, |(_, storage)| storage));
-        *value.0.intrep.borrow_mut() = if protocol.is_jim084() {
-            IntRep::JimString(count)
-        } else {
-            IntRep::NativeString {
-                protocol,
-                num_chars: count,
-                unicode,
-            }
-        };
-        *value.0.double_format.borrow_mut() = None;
-        *value.0.source_location.borrow_mut() = None;
-        Ok(())
+        value.native_append_string_using(protocol, resident, count, unicode, &mut None)
     }
 
     fn set_binary(
@@ -1054,26 +1048,7 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for VmAppendObjects {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         bytes: Rc<[u8]>,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        if protocol.tcl_version().is_none() {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "native append binary backing",
-            ));
-        }
-        *value.0.string.borrow_mut() = None;
-        value
-            .0
-            .string_storage
-            .set(NativeStringStorageIdentity::Unknown);
-        *value.0.intrep.borrow_mut() = IntRep::ByteArray(Rc::new(ByteArrayRep {
-            bytes,
-            string_protocol: Cell::new(Some(protocol)),
-            origin: None,
-            conversion: None,
-            proper: true,
-        }));
-        *value.0.double_format.borrow_mut() = None;
-        *value.0.source_location.borrow_mut() = None;
-        Ok(())
+        value.native_append_binary_using(protocol, bytes, &mut None)
     }
 
     fn new_string(&self, bytes: Rc<[u8]>) -> Value {
@@ -1432,10 +1407,62 @@ impl Value {
 
     /// Duplicate under the selected native object recipe without string generation.
     #[must_use]
-    pub fn duplicate_native_object_in(
+    pub fn duplicate_native_object_in(&self, protocol: NativeStringProtocol) -> Self {
+        self.duplicate_native_object_using::<ValueError>(
+            protocol,
+            &mut None,
+            &mut None,
+            &mut |_| {},
+        )
+        .expect("neutral duplicate has no checked stage")
+    }
+
+    /// The same original duplication with a retained actual operation and
+    /// node-aware String producer. Source context is captured before any reached
+    /// callback; a refused fresh result is retired before returning the first cause.
+    pub(crate) fn duplicate_native_object_checked<E: From<ValueError>>(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
-    ) -> Self {
+        protocol: NativeStringProtocol,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>,
+        retain: &mut dyn FnMut(&E),
+    ) -> Result<Self, E> {
+        self.duplicate_native_object_using(protocol, &mut Some(check), &mut Some(strings), retain)
+    }
+
+    fn duplicate_native_object_using<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        retain: &mut dyn FnMut(&E),
+    ) -> Result<Self, E> {
+        Self::native_stage_check(check)?;
+        if check.is_some() {
+            self.check_native_header()?;
+        }
+        let source_context = self.0.jim_context.borrow().clone();
+        let finish = |duplicate: Self,
+                      check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+                      retain: &mut dyn FnMut(&E)|
+         -> Result<Self, E> {
+            let reached = Self::native_stage_check(check).and_then(|()| {
+                if check.is_some() {
+                    self.check_native_header()?;
+                    duplicate.check_native_header()?;
+                }
+                Ok(())
+            });
+            if let Err(first) = reached {
+                retain(&first);
+                drop(duplicate);
+                return Err(first);
+            }
+            if check.is_some() {
+                *duplicate.0.jim_context.borrow_mut() = source_context.clone();
+            }
+            Ok(duplicate)
+        };
         if protocol.object_header_duplicate_action(
             self.resident_string_bytes()
                 .as_ref()
@@ -1448,7 +1475,7 @@ impl Value {
                 .jim_context
                 .borrow_mut()
                 .clone_from(&self.0.jim_context.borrow());
-            return duplicate;
+            return finish(duplicate, check, retain);
         }
         if protocol.is_jim084()
             && matches!(
@@ -1465,7 +1492,7 @@ impl Value {
                 .jim_context
                 .borrow_mut()
                 .clone_from(&self.0.jim_context.borrow());
-            return duplicate;
+            return finish(duplicate, check, retain);
         }
         if matches!(&*self.0.intrep.borrow(), IntRep::NativeBytecode(_)) {
             let duplicate = Self::new_native_string_bytes(
@@ -1473,7 +1500,7 @@ impl Value {
                     .expect("native bytecode requires resident source")
                     .as_ref(),
             );
-            return duplicate;
+            return finish(duplicate, check, retain);
         }
         let duplicate = self.duplicate_native_object();
         if let IntRep::NativeString {
@@ -1484,43 +1511,128 @@ impl Value {
             && !protocol.string_primary_survives_duplicate(*num_chars)
         {
             *duplicate.0.intrep.borrow_mut() = IntRep::Str;
-            return duplicate;
+            return finish(duplicate, check, retain);
         }
         self.copy_native_variable_primary_to(&duplicate);
-        let cache = self.0.intrep.borrow();
-        match &*cache {
-            IntRep::Dict(dict) => {
-                let pairs = dict.with_pairs(<[(Value, Value)]>::to_vec);
-                let mut hash_order = if protocol.is_jim084() {
-                    dict.contents.borrow().hash_order.clone()
-                } else {
-                    TclStringHashOrder::default()
-                };
-                if !protocol.is_jim084() {
+        // Neutral duplication retains its eager member snapshot. Checked
+        // duplication captures allocation-only Dictionary identity/currentness;
+        // each genuine target member hold follows its reached key insertion.
+        let dictionary = {
+            let cache = self.0.intrep.borrow();
+            if let IntRep::Dict(dict) = &*cache {
+                Some((
+                    check
+                        .is_none()
+                        .then(|| dict.with_pairs(<[(Value, Value)]>::to_vec)),
+                    if protocol.is_jim084() {
+                        dict.contents.borrow().hash_order.clone()
+                    } else {
+                        TclStringHashOrder::default()
+                    },
+                    dict.string_protocol.get(),
+                    Rc::downgrade(dict),
+                    dict.epoch.get(),
+                    dict.with_pairs(<[(Value, Value)]>::len),
+                ))
+            } else {
+                None
+            }
+        };
+        if let Some((
+            neutral_pairs,
+            mut hash_order,
+            dictionary_protocol,
+            original_dictionary,
+            original_epoch,
+            original_length,
+        )) = dictionary
+        {
+            let mut pairs = neutral_pairs.unwrap_or_default();
+            if check.is_some() {
+                // The temporary shallow copy is not a target Dictionary owner.
+                // Release its backing lease before any reached key getter.
+                *duplicate.0.intrep.borrow_mut() = IntRep::Str;
+            }
+            let dictionary_current = || -> Result<Rc<DictRep>, E> {
+                self.check_native_header()?;
+                let primary = self.0.intrep.borrow();
+                if let IntRep::Dict(dict) = &*primary
+                    && std::rc::Weak::ptr_eq(&Rc::downgrade(dict), &original_dictionary)
+                    && dict.epoch.get() == original_epoch
+                    && dict.with_pairs(<[(Value, Value)]>::len) == original_length
+                {
+                    return Ok(Rc::clone(dict));
+                }
+                Err(ValueError::CommandProtocolUnavailable(
+                    "changed original duplicate Dictionary primary",
+                )
+                .into())
+            };
+            let reached = (|| {
+                if check.is_some() {
+                    for index in 0..original_length {
+                        Self::native_stage_check(check)?;
+                        let key = dictionary_current()?.with_pairs(|original| {
+                            original[index].0.native_lifetime_lease().into_value()
+                        });
+                        if !protocol.is_jim084() {
+                            let bytes = match strings {
+                                Some(strings) => strings(&key)?,
+                                None => unreachable!(
+                                    "checked duplicate requires original String producer"
+                                ),
+                            };
+                            Self::native_stage_check(check)?;
+                            // The exact original table/epoch is verified before
+                            // native key/value references enter the target.
+                            drop(dictionary_current()?);
+                            hash_order.insert(&bytes);
+                        }
+                        Self::native_stage_check(check)?;
+                        let pair = dictionary_current()?.with_pairs(|original| {
+                            (key.into_native_reference(), original[index].1.clone())
+                        });
+                        pairs.push(pair);
+                    }
+                    Self::native_stage_check(check)?;
+                    drop(dictionary_current()?);
+                } else if !protocol.is_jim084() {
                     for (key, _) in &pairs {
                         hash_order.insert(&key.string_bytes());
                     }
                 }
-                *duplicate.0.intrep.borrow_mut() = IntRep::Dict(Rc::new(DictRep::new(
-                    pairs,
-                    hash_order,
-                    dict.string_protocol.get(),
-                )));
+                Ok::<(), E>(())
+            })();
+            if let Err(first) = reached {
+                retain(&first);
+                drop(pairs);
+                drop(duplicate);
+                return Err(first);
             }
-            IntRep::ByteArray(backing) => {
-                *duplicate.0.intrep.borrow_mut() = IntRep::ByteArray(Rc::new((**backing).clone()));
+            *duplicate.0.intrep.borrow_mut() = IntRep::Dict(Rc::new(DictRep::new(
+                pairs,
+                hash_order,
+                dictionary_protocol,
+            )));
+        } else {
+            let cache = self.0.intrep.borrow();
+            match &*cache {
+                IntRep::ByteArray(backing) => {
+                    *duplicate.0.intrep.borrow_mut() =
+                        IntRep::ByteArray(Rc::new((**backing).clone()));
+                }
+                IntRep::List {
+                    items,
+                    string_protocol,
+                    ..
+                } if protocol.is_jim084() => {
+                    *duplicate.0.intrep.borrow_mut() =
+                        IntRep::native_list(items.as_ref().clone(), false, string_protocol.get());
+                }
+                _ => {}
             }
-            IntRep::List {
-                items,
-                string_protocol,
-                ..
-            } if protocol.is_jim084() => {
-                *duplicate.0.intrep.borrow_mut() =
-                    IntRep::native_list(items.as_ref().clone(), false, string_protocol.get());
-            }
-            _ => {}
         }
-        duplicate
+        finish(duplicate, check, retain)
     }
 
     /// Duplicate physical representations without reaching their string updater.
@@ -1586,6 +1698,15 @@ impl Value {
     ) -> Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe> {
         match &*self.0.intrep.borrow() {
             IntRep::ByteArray(bytes) => bytes.origin,
+            _ => None,
+        }
+    }
+
+    /// Actual native updater protocol of the original binary backing.
+    /// This metadata grants no command or String getter authority.
+    pub(crate) fn native_byte_array_protocol(&self) -> Option<NativeStringProtocol> {
+        match &*self.0.intrep.borrow() {
+            IntRep::ByteArray(bytes) => bytes.string_protocol.get(),
             _ => None,
         }
     }
@@ -1727,6 +1848,45 @@ impl Value {
     ) -> Result<T, E> {
         Self::native_stage_check(check)?;
         reached.map_err(Into::into)
+    }
+
+    /// Duplicate original representations into this private receiver through the
+    /// shared checked primary retirement owner. Capture every source fact before
+    /// retiring the receiver; allocation handles grant no native reference.
+    pub(crate) fn native_duplicate_into_checked<E: From<ValueError>>(
+        &self,
+        source: &Value,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        check()?;
+        self.check_native_header()?;
+        source.check_native_header()?;
+        let string = source.0.string.borrow().clone();
+        let storage = source.0.string_storage.get();
+        let cache = {
+            let original = source.0.intrep.borrow();
+            match &*original {
+                IntRep::NativeString {
+                    protocol,
+                    num_chars,
+                    ..
+                } if !protocol.string_primary_survives_duplicate(*num_chars) => IntRep::Str,
+                IntRep::JimRegexp(cache) => IntRep::JimRegexp(cache.duplicate()),
+                _ => original.clone(),
+            }
+        };
+        let format = source.0.double_format.borrow().clone();
+        let location = source.0.source_location.borrow().clone();
+        let context = source.0.jim_context.borrow().clone();
+        check()?;
+        source.check_native_header()?;
+        self.replace_primary_using(cache, &mut Some(&mut *check))?;
+        *self.0.string.borrow_mut() = string;
+        self.0.string_storage.set(storage);
+        *self.0.double_format.borrow_mut() = format;
+        *self.0.source_location.borrow_mut() = location;
+        *self.0.jim_context.borrow_mut() = context;
+        check()
     }
 
     fn replace_primary_using<E: From<ValueError>>(
@@ -3310,6 +3470,12 @@ impl Value {
     pub(crate) fn clear_native_index_arithmetic_primary(&self) {
         self.replace_primary(IntRep::Str);
     }
+    pub(crate) fn clear_native_index_arithmetic_primary_checked<E: From<ValueError>>(
+        &self,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.replace_primary_using(IntRep::Str, &mut Some(check))
+    }
     pub(crate) fn native_end_offset(
         &self,
     ) -> Option<tcl_syntax::native_end_offset::NativeEndOffset> {
@@ -3332,8 +3498,33 @@ impl Value {
         self.replace_primary(IntRep::NativeEndOffset(offset));
         Ok(())
     }
-    pub(crate) fn install_native_jim_index(&self, index: tcl_syntax::native_jim_index::JimIndex) {
-        self.replace_primary(IntRep::JimIndex(index));
+    pub(crate) fn install_native_end_offset_checked<E: From<ValueError>>(
+        &self,
+        offset: tcl_syntax::native_end_offset::NativeEndOffset,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        check()?;
+        self.check_native_header()?;
+        if self.resident_string_bytes().is_none() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original end-offset resident string",
+            )
+            .into());
+        }
+        self.replace_primary_using(IntRep::NativeEndOffset(offset), &mut Some(check))
+    }
+    pub(crate) fn install_native_jim_index_checked<E: From<ValueError>>(
+        &self,
+        index: tcl_syntax::native_jim_index::JimIndex,
+        current: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        if self.resident_string_bytes().is_none() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original Jim Index resident string",
+            )
+            .into());
+        }
+        self.replace_primary_using(IntRep::JimIndex(index), &mut Some(current))
     }
     pub(crate) fn native_jim_regexp_cache(
         &self,
@@ -5919,6 +6110,36 @@ impl Value {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
     ) -> Result<usize, tcl_syntax::value::ValueError> {
+        self.native_character_count_using(protocol, representation, &mut None, &mut || {
+            self.native_string_bytes(protocol)
+                .map_err(|_| ValueError::CommandProtocolUnavailable("native string length storage"))
+        })
+    }
+
+    pub(crate) fn native_character_count_checked(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+        current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+    ) -> Result<usize, tcl_cmd_core::CmdError> {
+        self.native_character_count_using(
+            protocol,
+            representation,
+            &mut Some(current),
+            original_string,
+        )
+    }
+
+    fn native_character_count_using<E: From<ValueError>>(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+        current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<usize, E> {
+        Self::native_stage_check(current)?;
+        self.check_native_header()?;
         if representation.preserves_short_string()
             && let Some(bytes) = self.resident_string_bytes()
             && bytes.len() < 2
@@ -5934,11 +6155,11 @@ impl Value {
             if let IntRep::JimString(Some(count)) = *self.0.intrep.borrow() {
                 return Ok(count);
             }
-            let bytes = self.native_string_bytes(protocol).map_err(|_| {
-                ValueError::CommandProtocolUnavailable("native string length storage")
-            })?;
+            let reached = original_string();
+            Self::native_stage_check(current)?;
+            let bytes = reached?;
             let count = RawString::from_bytes(bytes).jim084_characters().count();
-            *self.0.intrep.borrow_mut() = IntRep::JimString(Some(count));
+            self.replace_primary_using(IntRep::JimString(Some(count)), current)?;
             return Ok(count);
         }
         if let IntRep::NativeString {
@@ -5948,15 +6169,15 @@ impl Value {
         } = &*self.0.intrep.borrow()
         {
             if *origin != protocol {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "native string cache origin",
-                ));
+                return Err(
+                    ValueError::CommandProtocolUnavailable("native string cache origin").into(),
+                );
             }
             return Ok(*count);
         }
-        let bytes = self
-            .native_string_bytes(protocol)
-            .map_err(|_| ValueError::CommandProtocolUnavailable("native string length storage"))?;
+        let reached = original_string();
+        Self::native_stage_check(current)?;
+        let bytes = reached?;
         let version = protocol
             .tcl_version()
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -5965,12 +6186,102 @@ impl Value {
         let count = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
             .decode_units(&bytes)
             .len();
-        *self.0.intrep.borrow_mut() = IntRep::NativeString {
-            protocol,
-            num_chars: Some(count),
-            unicode: None,
-        };
+        self.replace_primary_using(
+            IntRep::NativeString {
+                protocol,
+                num_chars: Some(count),
+                unicode: None,
+            },
+            current,
+        )?;
         Ok(count)
+    }
+
+    pub(crate) fn native_append_binary_checked<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        bytes: Rc<[u8]>,
+        current: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.native_append_binary_using(protocol, bytes, &mut Some(current))
+    }
+
+    fn native_append_binary_using<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        bytes: Rc<[u8]>,
+        current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(current)?;
+        self.check_native_header()?;
+        if protocol.tcl_version().is_none() {
+            return Err(
+                ValueError::CommandProtocolUnavailable("native append binary backing").into(),
+            );
+        }
+        let origin = match &*self.0.intrep.borrow() {
+            IntRep::ByteArray(rep) if rep.string_protocol.get() == Some(protocol) => rep.origin,
+            _ => None,
+        };
+        let primary = IntRep::ByteArray(Rc::new(ByteArrayRep {
+            bytes,
+            string_protocol: Cell::new(Some(protocol)),
+            origin,
+            conversion: None,
+            proper: true,
+        }));
+        self.replace_primary_using(primary, current)?;
+        *self.0.string.borrow_mut() = None;
+        self.0
+            .string_storage
+            .set(NativeStringStorageIdentity::Unknown);
+        *self.0.double_format.borrow_mut() = None;
+        *self.0.source_location.borrow_mut() = None;
+        Self::native_stage_check(current)
+    }
+
+    pub(crate) fn native_append_string_checked<E: From<ValueError>>(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
+        count: Option<usize>,
+        unicode: Option<Rc<[u32]>>,
+        current: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.native_append_string_using(protocol, resident, count, unicode, &mut Some(current))
+    }
+
+    fn native_append_string_using<E: From<ValueError>>(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
+        count: Option<usize>,
+        unicode: Option<Rc<[u32]>>,
+        current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(current)?;
+        if protocol.is_jim084() && (resident.is_none() || unicode.is_some()) {
+            return Err(ValueError::CommandProtocolUnavailable("Jim append String backing").into());
+        }
+        let primary = if protocol.is_jim084() {
+            IntRep::JimString(count)
+        } else {
+            IntRep::NativeString {
+                protocol,
+                num_chars: count,
+                unicode,
+            }
+        };
+        self.replace_primary_using(primary, current)?;
+        *self.0.string.borrow_mut() = resident
+            .as_ref()
+            .map(|(bytes, _)| RawString::from_bytes(Rc::clone(bytes)));
+        self.0
+            .string_storage
+            .set(resident.map_or(NativeStringStorageIdentity::Unknown, |(_, storage)| storage));
+        *self.0.double_format.borrow_mut() = None;
+        *self.0.source_location.borrow_mut() = None;
+        Self::native_stage_check(current)
     }
 
     /// Reach native C Unicode preparation and retain actual decoded units.
@@ -5980,37 +6291,73 @@ impl Value {
     pub fn native_unicode_units(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
-    ) -> Result<Rc<[u32]>, tcl_syntax::value::ValueError> {
+    ) -> Result<Rc<[u32]>, ValueError> {
+        self.native_unicode_units_using(protocol, &mut None, &mut || {
+            self.native_string_bytes(protocol)
+                .map_err(|_| ValueError::CommandProtocolUnavailable("native Unicode storage"))
+        })
+    }
+
+    pub(crate) fn native_unicode_units_checked<E: From<ValueError>>(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        current: &mut dyn FnMut() -> Result<(), E>,
+        original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<Rc<[u32]>, E> {
+        self.native_unicode_units_using(protocol, &mut Some(current), original_string)
+    }
+
+    fn native_unicode_units_using<E: From<ValueError>>(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, E>,
+    ) -> Result<Rc<[u32]>, E> {
+        Self::native_stage_check(current)?;
         self.check_native_header()?;
         let version = protocol
             .tcl_version()
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "native C Unicode units",
             ))?;
-        if let IntRep::NativeString {
-            protocol: origin,
-            unicode: Some(units),
-            ..
-        } = &*self.0.intrep.borrow()
-        {
-            if *origin != protocol {
-                return Err(ValueError::CommandProtocolUnavailable(
-                    "native string cache origin",
-                ));
+        let cached = match &*self.0.intrep.borrow() {
+            IntRep::NativeString {
+                protocol: origin,
+                unicode: Some(units),
+                ..
+            } => {
+                if *origin != protocol {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "native string cache origin",
+                    )
+                    .into());
+                }
+                Some(Rc::clone(units))
             }
-            return Ok(Rc::clone(units));
-        }
-        let bytes = self
-            .native_string_bytes(protocol)
-            .map_err(|_| ValueError::CommandProtocolUnavailable("native Unicode storage"))?;
-        let units: Rc<[u32]> = Rc::from(
-            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).decode_units(&bytes),
-        );
-        *self.0.intrep.borrow_mut() = IntRep::NativeString {
-            protocol,
-            num_chars: Some(units.len()),
-            unicode: Some(Rc::clone(&units)),
+            _ => None,
         };
+        if let Some(units) = cached {
+            Self::native_stage_check(current)?;
+            return Ok(units);
+        }
+        let reached = original_string();
+        Self::native_stage_check(current)?;
+        let bytes = reached?;
+        let units: Rc<[u32]> = Rc::from(
+            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).decode_storage_units(
+                &bytes,
+                tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+            ),
+        );
+        self.replace_primary_using(
+            IntRep::NativeString {
+                protocol,
+                num_chars: Some(units.len()),
+                unicode: Some(Rc::clone(&units)),
+            },
+            current,
+        )?;
+        Self::native_stage_check(current)?;
         Ok(units)
     }
 
@@ -8210,3 +8557,7 @@ mod jim_interpreter_retirement_tests {
 #[cfg(test)]
 #[path = "value_scalar_target_tests.rs"]
 mod native_scalar_target_tests;
+
+#[cfg(test)]
+#[path = "value/native_duplicate_controls.rs"]
+mod native_duplicate_controls;

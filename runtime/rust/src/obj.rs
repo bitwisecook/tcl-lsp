@@ -174,35 +174,41 @@ static NATIVE_STRING_TYPE: TclObjType = TclObjType {
     set_from_any_proc: None,
 };
 
-/// Record a successful native string coercion after its bytes were retained.
-fn retain_native_string_count(
-    value: *mut TclObj,
-    protocol: tcl_syntax::native_string::NativeStringProtocol,
-    count: usize,
-) {
-    let backing = Box::new(NativeStringRep {
-        protocol,
-        count: Some(count),
-        unicode: None,
-    });
-    change_type(
-        value,
-        &NATIVE_STRING_TYPE,
-        Box::into_raw(backing) as usize as u64,
-    );
-}
-
 /// Reach the selected actual character-count protocol on the original object.
 pub(crate) fn native_character_count(
     value: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
     representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
 ) -> Result<usize, tcl_syntax::value::ValueError> {
+    native_character_count_using(value, protocol, representation, &mut || Ok(()), &mut || {
+        crate::dict::native_object_bytes(value, protocol).map(std::rc::Rc::from)
+    })
+}
+
+/// Same reached count worker with the original operation and String producer.
+/// No lifetime pin or temporary native reference protects old-primary cleanup.
+pub(crate) fn native_character_count_checked(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+    current: &mut impl FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+    original_string: &mut impl FnMut() -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
+) -> Result<usize, tcl_cmd_core::CmdError> {
+    native_character_count_using(value, protocol, representation, current, original_string)
+}
+
+fn native_character_count_using<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+    current: &mut impl FnMut() -> Result<(), E>,
+    original_string: &mut impl FnMut() -> Result<std::rc::Rc<[u8]>, E>,
+) -> Result<usize, E> {
     use tcl_syntax::value::ValueError;
+    current()?;
+    check_native_liveness(value)?;
     if !native_string_available(value) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native string length storage",
-        ));
+        return Err(ValueError::CommandProtocolUnavailable("native string length storage").into());
     }
     if let Some(length) = crate::bytearray::native_string_length(value, representation) {
         return Ok(length);
@@ -211,34 +217,67 @@ pub(crate) fn native_character_count(
         && has_string_rep(value)
         && unsafe { (*value).length } <= 1
     {
-        return Ok(unsafe { (*value).length as usize });
+        return usize::try_from(unsafe { (*value).length }).map_err(|_| {
+            ValueError::CommandProtocolUnavailable("native short String length").into()
+        });
     }
-    if protocol.is_jim084() {
-        drop(crate::dict::native_object_bytes(value, protocol)?);
-        return Ok(jim_character_count(value));
+    if protocol.is_jim084()
+        && core::ptr::eq(obj_type_ptr(value), &JIM_STRING_TYPE)
+        && internal_rep(value) != u64::MAX
+    {
+        return usize::try_from(internal_rep(value))
+            .map_err(|_| ValueError::CommandProtocolUnavailable("Jim String count width").into());
     }
-    if core::ptr::eq(obj_type_ptr(value), &NATIVE_STRING_TYPE) {
-        // SAFETY: the exact descriptor owns this live backing.
+    if !protocol.is_jim084() && core::ptr::eq(obj_type_ptr(value), &NATIVE_STRING_TYPE) {
+        // SAFETY: the exact live descriptor owns this resident count backing.
         let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
         if backing.protocol != protocol {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "native string count cache origin",
-            ));
+            return Err(
+                ValueError::CommandProtocolUnavailable("native string count cache origin").into(),
+            );
         }
         if let Some(count) = backing.count {
             return Ok(count);
         }
     }
-    let bytes = crate::dict::native_object_bytes(value, protocol)?;
-    let version = protocol
-        .tcl_version()
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "native character units",
-        ))?;
-    let count = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
-        .decode_units(&bytes)
-        .len();
-    retain_native_string_count(value, protocol, count);
+    let reached = original_string();
+    current()?;
+    check_native_liveness(value)?;
+    let bytes = reached?;
+    let count = if protocol.is_jim084() {
+        tcl_syntax::raw_string::RawString::from_bytes(bytes)
+            .jim084_characters()
+            .count()
+    } else {
+        let version = protocol
+            .tcl_version()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native character units",
+            ))?;
+        tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+            .decode_units(&bytes)
+            .len()
+    };
+    if protocol.is_jim084() {
+        change_type_with_stage_check(
+            value,
+            &JIM_STRING_TYPE,
+            u64::try_from(count).expect("native count fits u64"),
+            current,
+        )?;
+    } else {
+        let mut backing = Box::new(NativeStringRep {
+            protocol,
+            count: Some(count),
+            unicode: None,
+        });
+        let representation = u64::try_from(core::ptr::from_mut(backing.as_mut()) as usize)
+            .expect("native pointer fits u64");
+        change_type_with_stage_check(value, &NATIVE_STRING_TYPE, representation, current)?;
+        let _ = Box::into_raw(backing);
+    }
+    current()?;
+    check_native_liveness(value)?;
     Ok(count)
 }
 
@@ -570,6 +609,20 @@ fn copy_scalar_object_context(original: *mut TclObj, duplicate: *mut TclObj) {
 fn replace_scalar_object_context(receiver: *mut TclObj, source: *mut TclObj) {
     let retained = auxiliary(receiver).scalar_context.borrow().clone();
     let incoming = auxiliary(source).scalar_context.borrow().clone();
+    replace_scalar_object_context_from(receiver, retained, incoming);
+}
+
+type ScalarContextReceipt = Option<
+    Result<
+        Rc<crate::interp::native_scalar_context::NativeScalarObjectContext>,
+        tcl_syntax::raw_string::NativeValueAccessRefusal,
+    >,
+>;
+fn replace_scalar_object_context_from(
+    receiver: *mut TclObj,
+    retained: ScalarContextReceipt,
+    incoming: ScalarContextReceipt,
+) {
     let selected = match (retained, incoming) {
         (Some(Ok(retained)), Some(Ok(incoming))) if !retained.same_issuer(&incoming) => Some(Err(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -1471,43 +1524,69 @@ pub(crate) fn native_unicode_units(
     value: *mut TclObj,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
 ) -> Result<std::rc::Rc<[u32]>, tcl_syntax::value::ValueError> {
+    native_unicode_units_using(value, protocol, &mut || Ok(()), &mut || {
+        crate::dict::native_object_bytes(value, protocol).map(std::rc::Rc::from)
+    })
+}
+
+pub(crate) fn native_unicode_units_checked<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    current: &mut dyn FnMut() -> Result<(), E>,
+    original_string: &mut dyn FnMut() -> Result<std::rc::Rc<[u8]>, E>,
+) -> Result<std::rc::Rc<[u32]>, E> {
+    native_unicode_units_using(value, protocol, current, original_string)
+}
+
+fn native_unicode_units_using<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    current: &mut dyn FnMut() -> Result<(), E>,
+    original_string: &mut dyn FnMut() -> Result<std::rc::Rc<[u8]>, E>,
+) -> Result<std::rc::Rc<[u32]>, E> {
     use tcl_syntax::value::ValueError;
+    current()?;
+    check_native_liveness(value)?;
     let version = protocol
         .tcl_version()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "native Unicode unit storage",
         ))?;
     if !native_string_available(value) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native Unicode string updater",
-        ));
+        return Err(ValueError::CommandProtocolUnavailable("native Unicode string updater").into());
     }
     if core::ptr::eq(obj_type_ptr(value), &NATIVE_STRING_TYPE) {
-        // SAFETY: the exact descriptor owns this live backing.
-        let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
-        if backing.protocol != protocol {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "native Unicode cache origin",
-            ));
+        // SAFETY: exact live descriptor authenticates this original backing.
+        let cached = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
+        if cached.protocol != protocol {
+            return Err(
+                ValueError::CommandProtocolUnavailable("native Unicode cache origin").into(),
+            );
         }
-        if let Some(unicode) = &backing.unicode {
-            return Ok(unicode.clone());
+        if let Some(unicode) = &cached.unicode {
+            let unicode = unicode.clone();
+            current()?;
+            return Ok(unicode);
         }
     }
+    let reached = original_string();
+    current()?;
+    let bytes = reached?;
     let unicode: std::rc::Rc<[u32]> = std::rc::Rc::from(
-        tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
-            .decode_units(&crate::dict::native_object_bytes(value, protocol)?),
+        tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).decode_storage_units(
+            &bytes,
+            tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+        ),
     );
-    let backing = Box::new(NativeStringRep {
+    let mut backing = Box::new(NativeStringRep {
         protocol,
         count: Some(unicode.len()),
         unicode: Some(unicode.clone()),
     });
-    change_type(
-        value,
-        &NATIVE_STRING_TYPE,
-        Box::into_raw(backing) as usize as u64,
-    );
+    let rep = (&mut *backing as *mut NativeStringRep) as usize as u64;
+    change_type_with_stage_check(value, &NATIVE_STRING_TYPE, rep, current)?;
+    let _ = Box::into_raw(backing);
+    current()?;
     Ok(unicode)
 }
 
@@ -2304,6 +2383,45 @@ pub(crate) fn is_shared(obj: *mut TclObj) -> bool {
 /// the internal rep (via the type's `dup_int_rep_proc`, or a raw copy for
 /// self-contained reps like int/double).
 pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
+    duplicate_using::<tcl_syntax::value::ValueError>(src, None, &mut |_| {})
+        .expect("neutral duplicate has no checked stage")
+}
+
+/// Duplicate the selected original and check before admitting its fresh result.
+/// The original context is captured before its actual dup callback. Refusal is
+/// retained before mandatory fresh cleanup, which may itself retire callbacks.
+pub(crate) fn duplicate_with_stage_check<E: From<tcl_syntax::value::ValueError>>(
+    source: *mut TclObj,
+    check: &mut dyn FnMut() -> Result<(), E>,
+    retain: &mut dyn FnMut(&E),
+) -> Result<*mut TclObj, E> {
+    duplicate_using(source, Some(check), retain)
+}
+
+fn duplicate_using<E: From<tcl_syntax::value::ValueError>>(
+    src: *mut TclObj,
+    mut check: Option<&mut dyn FnMut() -> Result<(), E>>,
+    retain: &mut dyn FnMut(&E),
+) -> Result<*mut TclObj, E> {
+    if let Some(check) = check.as_mut() {
+        check()?;
+        check_native_liveness(src)?;
+    }
+    let _lease = check.as_ref().map(|_| NativeObjectLifetime::retain(src));
+    let source_epoch = auxiliary(src).primary_epoch.get();
+    if check.is_some() && source_epoch.is_none() {
+        let first: E = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original duplicate source primary epoch",
+        )
+        .into();
+        retain(&first);
+        return Err(first);
+    }
+    let source_type = obj_type_ptr(src);
+    let source_rep = internal_rep(src);
+    let source_context = crate::native_source::capture_object_context(src);
+    let source_scalar = auxiliary(src).scalar_context.borrow().clone();
+    let source_location = script_location(src);
     if crate::native_source::selected_string_protocol(src).is_some_and(|protocol| {
         // SAFETY: duplicate's caller supplies this live original header.
         let resident_length =
@@ -2312,14 +2430,29 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
             == tcl_syntax::native_string::NativeObjectHeaderDuplicateAction::CanonicalEmptyString
     }) {
         let duplicate = new_string_bytes(b"");
+        if let Some(check) = check.as_mut() {
+            if let Err(first) = check().and_then(|()| check_native_liveness(src).map_err(E::from)) {
+                retain(&first);
+                retire_checked_duplicate(duplicate);
+                return Err(first);
+            }
+        }
         crate::native_source::copy_context(src, duplicate);
         copy_scalar_object_context(src, duplicate);
-        return duplicate;
+        return Ok(duplicate);
     }
     let dup = obj_alloc();
     if dup.is_null() {
-        return dup;
+        return if check.is_some() {
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original duplicate allocation",
+            )
+            .into())
+        } else {
+            Ok(dup)
+        };
     }
+    let _duplicate_lease = check.as_ref().map(|_| NativeObjectLifetime::retain(dup));
     // SAFETY: `src` is live; `dup` is freshly owned and uniquely ours.
     unsafe {
         if !(*src).bytes.is_null() {
@@ -2343,12 +2476,167 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
             }
         }
     }
-    crate::native_source::copy_context(src, dup);
-    copy_scalar_object_context(src, dup);
-    if let Some((file, line)) = script_location(src) {
-        retain_script_location(dup, file, line);
+    if let Some(check) = check.as_mut() {
+        let reached = check().and_then(|()| {
+            check_native_liveness(src)?;
+            check_native_liveness(dup)?;
+            if auxiliary(src).primary_epoch.get() != source_epoch
+                || obj_type_ptr(src) != source_type
+                || internal_rep(src) != source_rep
+            {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "changed original duplicate source primary",
+                )
+                .into());
+            }
+            Ok(())
+        });
+        if let Err(first) = reached {
+            retain(&first);
+            retire_checked_duplicate(dup);
+            return Err(first);
+        }
+        crate::native_source::install_captured_object_context(dup, &source_context);
+        auxiliary(dup).scalar_context.replace(source_scalar);
+        if let Some((file, line)) = source_location {
+            retain_script_location(dup, file, line);
+        }
+    } else {
+        crate::native_source::copy_context(src, dup);
+        copy_scalar_object_context(src, dup);
+        if let Some((file, line)) = script_location(src) {
+            retain_script_location(dup, file, line);
+        }
     }
-    dup
+    Ok(dup)
+}
+
+/// Replace the receiver through the same checked primary retirement owner.
+/// Capture the receiver primary before the source dup callback and refuse any
+/// replacement, including a change followed by restoration, before retirement.
+/// Incoming duplicate backing remains caller-owned until successful admission.
+/// Native reference counts of source and receiver remain unchanged throughout.
+pub(crate) fn duplicate_into_with_stage_check<E: From<tcl_syntax::value::ValueError>>(
+    receiver: *mut TclObj,
+    source: *mut TclObj,
+    check: &mut dyn FnMut() -> Result<(), E>,
+    retain: &mut dyn FnMut(&E),
+) -> Result<(), E> {
+    check()?;
+    check_native_liveness(receiver)?;
+    let _receiver = NativeObjectLifetime::retain(receiver);
+    let receiver_epoch = auxiliary(receiver).primary_epoch.get();
+    if receiver_epoch.is_none() {
+        let first: E = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original duplicate receiver primary epoch",
+        )
+        .into();
+        retain(&first);
+        return Err(first);
+    }
+    let receiver_type = obj_type_ptr(receiver);
+    let receiver_rep = internal_rep(receiver);
+    let receiver_context = auxiliary(receiver).scalar_context.borrow().clone();
+    let duplicate = duplicate_with_stage_check(source, check, retain)?;
+    let _incoming = NativeObjectLifetime::retain(duplicate);
+    let receiver_current = check().and_then(|()| {
+        check_native_liveness(receiver)?;
+        if auxiliary(receiver).primary_epoch.get() != receiver_epoch
+            || obj_type_ptr(receiver) != receiver_type
+            || internal_rep(receiver) != receiver_rep
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "changed original duplicate receiver primary",
+            )
+            .into());
+        }
+        Ok(())
+    });
+    if let Err(first) = receiver_current {
+        retain(&first);
+        retire_checked_duplicate(duplicate);
+        return Err(first);
+    }
+    let incoming_context = auxiliary(duplicate).scalar_context.borrow().clone();
+    let incoming_type = obj_type_ptr(duplicate);
+    let incoming_rep = internal_rep(duplicate);
+    let incoming_epoch = auxiliary(duplicate).primary_epoch.get();
+    if incoming_epoch.is_none() {
+        let first: E = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original duplicate incoming primary epoch",
+        )
+        .into();
+        retain(&first);
+        retire_checked_duplicate(duplicate);
+        return Err(first);
+    }
+    let reached = change_type_with_stage_check(receiver, incoming_type, incoming_rep, &mut || {
+        check()?;
+        check_native_liveness(duplicate)?;
+        if auxiliary(duplicate).primary_epoch.get() != incoming_epoch
+            || obj_type_ptr(duplicate) != incoming_type
+            || internal_rep(duplicate) != incoming_rep
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "changed original duplicate incoming backing",
+            )
+            .into());
+        }
+        Ok(())
+    });
+    if let Err(first) = reached {
+        retain(&first);
+        retire_checked_duplicate(duplicate);
+        return Err(first);
+    }
+    // No callback/checker occurs between primary adoption and its representation
+    // transport. The duplicate's incoming primary now belongs to the receiver.
+    unsafe {
+        (*duplicate).type_ptr = core::ptr::null();
+        (*duplicate).internal_rep =
+            if (*duplicate).bytes.is_null() || has_canonical_empty_string(duplicate) {
+                0
+            } else {
+                (*duplicate).length as u64 + 1
+            };
+    }
+    let cache = auxiliary(duplicate).cache.take();
+    auxiliary(receiver).cache.replace(cache);
+    replace_scalar_object_context_from(receiver, receiver_context, incoming_context);
+    invalidate_string(receiver);
+    unsafe {
+        if !(*duplicate).bytes.is_null() {
+            if has_canonical_empty_string(duplicate) {
+                set_owned_string(
+                    receiver,
+                    (*duplicate).bytes as *const u8,
+                    (*duplicate).length as usize,
+                );
+            } else {
+                set_allocated_string(
+                    receiver,
+                    (*duplicate).bytes as *const u8,
+                    (*duplicate).length as usize,
+                );
+            }
+        }
+    }
+    let context = crate::native_source::capture_object_context(duplicate);
+    crate::native_source::install_captured_object_context(receiver, &context);
+    revoke_script_location(receiver);
+    if let Some((file, line)) = script_location(duplicate) {
+        retain_script_location(receiver, file, line);
+    }
+    retire_checked_duplicate(duplicate);
+    check()
+}
+
+/// The exact constructor role is known; an already retired selected header
+/// needs no second cleanup and cannot be promoted back into a native reference.
+fn retire_checked_duplicate(duplicate: *mut TclObj) {
+    if allocation_is_live(duplicate) {
+        crate::interp::drop_fresh(duplicate);
+    }
 }
 
 /// Replace one live object's representations with a duplicate, keeping its identity and refs.
@@ -2384,44 +2672,57 @@ pub(crate) fn set_native_append_string(
     count: Option<usize>,
     unicode: Option<std::rc::Rc<[u32]>>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
+    set_native_append_string_checked(value, protocol, resident, count, unicode, &mut || Ok(()))
+}
+
+pub(crate) fn set_native_append_string_checked<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    resident: Option<(
+        std::rc::Rc<[u8]>,
+        tcl_syntax::native_string::NativeStringStorageIdentity,
+    )>,
+    count: Option<usize>,
+    unicode: Option<std::rc::Rc<[u32]>>,
+    current: &mut dyn FnMut() -> Result<(), E>,
+) -> Result<(), E> {
     use tcl_syntax::native_string::NativeStringStorageIdentity as Storage;
     use tcl_syntax::value::ValueError;
+    current()?;
+    check_native_liveness(value)?;
     if resident.as_ref().is_some_and(|(bytes, storage)| {
         *storage == Storage::Unknown || (*storage == Storage::CanonicalEmpty && !bytes.is_empty())
     }) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native append resident storage",
-        ));
+        return Err(
+            ValueError::CommandProtocolUnavailable("native append resident storage").into(),
+        );
     }
     if protocol.is_jim084() && (resident.is_none() || unicode.is_some()) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "Jim append String backing",
-        ));
+        return Err(ValueError::CommandProtocolUnavailable("Jim append String backing").into());
     }
     invalidate_string(value);
     if protocol.is_jim084() {
-        change_type(
+        change_type_with_stage_check(
             value,
             &JIM_STRING_TYPE,
             count.map_or(u64::MAX, |count| count as u64),
-        );
+            current,
+        )?;
     } else {
-        let backing = Box::new(NativeStringRep {
+        let mut backing = Box::new(NativeStringRep {
             protocol,
             count,
             unicode,
         });
-        change_type(
-            value,
-            &NATIVE_STRING_TYPE,
-            Box::into_raw(backing) as usize as u64,
-        );
+        let rep = (&mut *backing as *mut NativeStringRep) as usize as u64;
+        change_type_with_stage_check(value, &NATIVE_STRING_TYPE, rep, current)?;
+        let _ = Box::into_raw(backing);
     }
     if let Some((bytes, storage)) = resident {
-        // SAFETY: the original live object now owns a typed append String backing.
+        // SAFETY: accepted adoption owns this live original String backing.
         unsafe { set_native_updater_string_rep(value, &bytes, storage == Storage::CanonicalEmpty) };
     }
-    Ok(())
+    current()
 }
 
 /// Whether `obj` is a plain string (no typed internal rep) — the precondition
@@ -2818,3 +3119,7 @@ pub(crate) mod native_property_name;
 #[cfg(test)]
 #[path = "obj/native_scalar_adoption_tests.rs"]
 mod native_scalar_adoption_tests;
+
+#[cfg(test)]
+#[path = "obj/native_duplicate_controls.rs"]
+mod native_duplicate_controls;

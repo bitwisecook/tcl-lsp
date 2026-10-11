@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original counted Unicode search and the reached native range constructor.
 
+use crate::index::NativeIndexOps;
 use crate::{CmdError, index};
 use tcl_dialect::TclVersion;
 use tcl_syntax::native_object::NativeObjectCacheSnapshot;
@@ -98,18 +99,20 @@ fn reached_range<O: ValueOps>(
 /// Declines a missing original Unicode representation or an invalid index.
 // Native proof: naming.namespace.original-counted-tail-compiler-and-runtime
 // docs/design/analysis/name-resolution-proofs/original-counted-tail-compiler-and-runtime.md
-pub fn compiled_range<O: ValueOps>(
+pub fn compiled_range<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
     first: &O::Value,
     last: &O::Value,
     version: TclVersion,
 ) -> Result<O::Value, CmdError> {
-    require_protocol(ops, version)?;
-    let length = ops.native_char_len(subject)?;
-    let first = index::resolve_value(ops, first, length)?;
-    let last = index::resolve_value(ops, last, length)?;
-    reached_range(ops, subject, first, last, version)
+    index::run_created_index_result(ops, |ops| {
+        require_protocol(ops, version)?;
+        let length = ops.index_character_count(subject)?;
+        let first = index::resolve_value(ops, first, length)?;
+        let last = index::resolve_value(ops, last, length)?;
+        reached_range(ops, subject, first, last, version)
+    })
 }
 
 /// Execute the selected original Tail program with its registered `::` literal.
@@ -150,48 +153,50 @@ pub fn compiled_tail<O: ValueOps>(
 /// Declines unreached Unicode, foreign protocol or an invalid selected index.
 // Native proof: naming.namespace.original-counted-qualifiers-compiler-and-runtime
 // docs/design/analysis/name-resolution-proofs/original-counted-qualifiers-compiler-and-runtime.md
-pub fn compiled_index<O: ValueOps>(
+pub fn compiled_index<O: NativeIndexOps>(
     ops: &mut O,
     subject: &O::Value,
     index: &O::Value,
     version: TclVersion,
 ) -> Result<O::Value, CmdError> {
-    require_protocol(ops, version)?;
-    let length = ops.native_char_len(subject)?;
-    let index = index::resolve_value(ops, index, length)?;
-    let snapshot = ops.native_object_snapshot(subject)?;
-    let NativeObjectCacheSnapshot::String {
-        protocol,
-        unicode: Some(units),
-        ..
-    } = snapshot.cache
-    else {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "compiled index reached Unicode backing",
-        )
-        .into());
-    };
-    if protocol != NativeStringProtocol::C(version) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "compiled index original Unicode protocol",
-        )
-        .into());
-    }
-    let Ok(index) = usize::try_from(index) else {
-        return Ok(ops.new_bytes(&[]));
-    };
-    let Some(&unit) = units.get(index) else {
-        return Ok(ops.new_bytes(&[]));
-    };
-    if let Some(bytes) = snapshot.resident.filter(|bytes| bytes.len() == length) {
-        return Ok(ops.new_bytes(&bytes[index..=index]));
-    }
-    let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
-        .encode_units(&[unit])
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "compiled index selected unit width",
-        ))?;
-    Ok(ops.new_bytes(&bytes))
+    index::run_created_index_result(ops, |ops| {
+        require_protocol(ops, version)?;
+        let length = ops.index_character_count(subject)?;
+        let index = index::resolve_value(ops, index, length)?;
+        let snapshot = ops.native_object_snapshot(subject)?;
+        let NativeObjectCacheSnapshot::String {
+            protocol,
+            unicode: Some(units),
+            ..
+        } = snapshot.cache
+        else {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "compiled index reached Unicode backing",
+            )
+            .into());
+        };
+        if protocol != NativeStringProtocol::C(version) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "compiled index original Unicode protocol",
+            )
+            .into());
+        }
+        let Ok(index) = usize::try_from(index) else {
+            return Ok(ops.new_bytes(&[]));
+        };
+        let Some(&unit) = units.get(index) else {
+            return Ok(ops.new_bytes(&[]));
+        };
+        if let Some(bytes) = snapshot.resident.filter(|bytes| bytes.len() == length) {
+            return Ok(ops.new_bytes(&bytes[index..=index]));
+        }
+        let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+            .encode_units(&[unit])
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "compiled index selected unit width",
+            ))?;
+        Ok(ops.new_bytes(&bytes))
+    })
 }
 
 /// Execute the selected original Qualifiers prefix program. Its colon-run

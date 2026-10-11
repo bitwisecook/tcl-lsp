@@ -49,7 +49,9 @@ struct TclList {
 
 #[path = "list/native_list_storage.rs"]
 mod native_list_storage;
-pub(crate) use native_list_storage::{native_list_command_range, native_list_range};
+pub(crate) use native_list_storage::{
+    native_list_command_range, native_list_command_range_using, native_list_range,
+};
 
 struct NativeListElements(
     Vec<*mut TclObj>,
@@ -889,10 +891,49 @@ pub(crate) fn ordinary_list_elements_native_checked(
     value: *mut TclObj,
     protocol: NativeStringProtocol,
 ) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+    ordinary_list_elements_native_with_stage_handlers(value, protocol, None, None)
+}
+
+/// The ordinary converter under the same original header and operation check.
+/// The caller's mapper retains full first cause before unused member cleanup.
+pub(crate) fn ordinary_list_elements_native_using<E>(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &(impl Fn() -> Result<(), E> + ?Sized),
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<Vec<*mut TclObj>, E> {
+    with_native_conversion_check(check, refuse, |stage, retain| {
+        ordinary_list_elements_native_with_stage_handlers(
+            value,
+            protocol,
+            Some(stage),
+            Some(retain),
+        )
+    })
+}
+
+fn ordinary_list_elements_native_with_stage_handlers(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+    retain_error: Option<&dyn Fn(tcl_syntax::value::ValueError) -> tcl_syntax::value::ValueError>,
+) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+    if stage_check.is_some() {
+        list_stage_current_checked(value, None, stage_check)?;
+    }
     if !crate::native_arithseries::is_series(value) {
-        return list_elements_native_checked(value, protocol);
+        return list_elements_native_with_stage_handlers(
+            value,
+            protocol,
+            None,
+            stage_check,
+            retain_error,
+        );
     }
     let members = crate::native_arithseries::ordinary_members(value, protocol)?;
+    if stage_check.is_some() {
+        list_stage_current_checked(value, None, stage_check)?;
+    }
     let elements: Vec<_> = members.iter().map(obj::Owned::as_ptr).collect();
     for &element in &elements {
         // SAFETY: each fresh member remains owned until the List takes its ref.
@@ -903,13 +944,13 @@ pub(crate) fn ordinary_list_elements_native_checked(
         canonical: Rc::new(Cell::new(false)),
         string_protocol: Cell::new(Some(protocol)),
     });
-    obj::change_type(
-        value,
-        &TCL_LIST_TYPE,
-        Box::into_raw(backing) as usize as u64,
-    );
+    let adopted = install_list_backing(value, backing, None, stage_check, retain_error);
     drop(members);
-    list_elements_native_checked(value, protocol)
+    if stage_check.is_some() {
+        list_stage_current_checked(value, None, stage_check)?;
+    }
+    adopted?;
+    list_elements_native_with_stage_handlers(value, protocol, None, stage_check, retain_error)
 }
 
 /// Reach C8.5+ TclListObjCopy: ordinary Lists retain their member backing in a
@@ -918,6 +959,31 @@ pub(crate) fn native_list_copy(
     original: *mut TclObj,
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+    native_list_copy_with_stage_handlers(original, protocol, None, None)
+}
+
+/// Copy through the same selected length or ordinary-member recipe. Abstract
+/// length-hook copies do not reach GetElements or materialize a member cache.
+pub(crate) fn native_list_copy_using<E>(
+    original: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: &(impl Fn() -> Result<(), E> + ?Sized),
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    with_native_conversion_check(check, refuse, |stage, retain| {
+        native_list_copy_with_stage_handlers(original, protocol, Some(stage), Some(retain))
+    })
+}
+
+fn native_list_copy_with_stage_handlers(
+    original: *mut TclObj,
+    protocol: NativeStringProtocol,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+    retain_error: Option<&dyn Fn(tcl_syntax::value::ValueError) -> tcl_syntax::value::ValueError>,
+) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+    if stage_check.is_some() {
+        list_stage_current_checked(original, None, stage_check)?;
+    }
     if !protocol
         .tcl_version()
         .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5)
@@ -930,9 +996,26 @@ pub(crate) fn native_list_copy(
         crate::native_arithseries::length_in(original, protocol)?;
         // Native lengthProc objects duplicate their genuine abstract header
         // before any GetElements call, retaining the original backing/cache.
-        return Ok(obj::Owned::fresh(obj::duplicate(original)));
+        let duplicate = if let Some(stage) = stage_check {
+            obj::duplicate_with_stage_check(
+                original,
+                &mut || stage(),
+                &mut |error: &tcl_syntax::value::ValueError| {
+                    let _ = retain_native_conversion_error(error.clone(), None, retain_error);
+                },
+            )?
+        } else {
+            obj::duplicate(original)
+        };
+        return Ok(obj::Owned::fresh(duplicate));
     }
-    let _ = list_elements_native_checked(original, protocol)?;
+    let _ = list_elements_native_with_stage_handlers(
+        original,
+        protocol,
+        None,
+        stage_check,
+        retain_error,
+    )?;
     // SAFETY: selected conversion installed the actual ordinary List primary.
     // Rc backing ownership creates a native header without retaining children.
     let list = unsafe { list_ref(original) };
@@ -1692,7 +1775,7 @@ mod tests {
     }
     use super::*;
     use crate::counters;
-    use crate::obj::{new_string_bytes, TclObj};
+    use crate::obj::{TclObj, new_string_bytes};
 
     fn leak_free(body: impl FnOnce()) {
         counters::reset();

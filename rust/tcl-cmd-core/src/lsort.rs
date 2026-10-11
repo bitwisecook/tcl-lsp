@@ -37,6 +37,7 @@
 //!
 //! Semantics follow tclsh 9.0.
 
+use crate::index::NativeIndexOps;
 use tcl_syntax::list::split_list;
 use tcl_syntax::value::ValueOps;
 
@@ -120,18 +121,18 @@ fn not_real(s: &[u8]) -> LsortError {
 }
 
 /// The outcome of [`prepare`].
-pub enum Lsort<V> {
+pub enum Lsort<V, K> {
     /// A non-`-command` sort: the finished result list.
     Done(V),
     /// A `-command` sort: hand to [`sort_command`] then [`build_command`].
-    Command(CommandJob<V>),
+    Command(CommandJob<V, K>),
 }
 
 /// A prepared `-command` sort: the decorated items (group base + the key element
 /// passed to the comparator) plus everything [`build_command`] needs.
-pub struct CommandJob<V> {
+pub struct CommandJob<V, K> {
     /// `(group base, key element)` per logical element, in input order.
-    pub items: Vec<(usize, V)>,
+    pub items: Vec<(usize, index::IndexedKey<K>)>,
     /// The flat source list elements.
     elems: Vec<V>,
     /// `-increasing` (vs `-decreasing`).
@@ -152,168 +153,215 @@ pub struct CommandJob<V> {
 // before the `as usize` casts, so the truncation/sign-loss allows are safe here.
 #[allow(clippy::too_many_lines)]
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::Value>, LsortError> {
-    if args.is_empty() {
-        return Err(LsortError::msg(
-            "wrong # args: should be \"lsort ?-option value ...? list\"",
-        ));
-    }
-    let mut mode = SortMode::Ascii;
-    let mut command = false;
-    let (mut nocase, mut increasing, mut unique, mut indices_out) = (false, true, false, false);
-    let mut group = 1usize;
-    let mut index_path: Vec<Vec<u8>> = Vec::new();
-    let mut cmd_prefix: Option<O::Value> = None;
+pub fn prepare<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Result<Lsort<O::Value, O::IndexKeyOwner>, LsortError> {
+    index::run_index_output(
+        ops,
+        |ops| {
+            if args.is_empty() {
+                return Err(LsortError::msg(
+                    "wrong # args: should be \"lsort ?-option value ...? list\"",
+                ));
+            }
+            let mut mode = SortMode::Ascii;
+            let mut command = false;
+            let (mut nocase, mut increasing, mut unique, mut indices_out) =
+                (false, true, false, false);
+            let mut group = 1usize;
+            let mut index_path: Vec<Vec<u8>> = Vec::new();
+            let mut jim_path: Option<Vec<O::Value>> = None;
+            let mut cmd_prefix: Option<O::Value> = None;
 
-    let last = args.len() - 1; // the list
-    let mut i = 0;
-    while i < last {
-        match OPTIONS
-            .index_of_original(ops, &args[i])
-            .map_err(LsortError::from_command)?
-        {
-            OPT_ASCII => mode = SortMode::Ascii,
-            OPT_DICTIONARY => mode = SortMode::Dictionary,
-            OPT_INTEGER => mode = SortMode::Integer,
-            OPT_REAL => mode = SortMode::Real,
-            OPT_NOCASE => nocase = true,
-            OPT_INCREASING => increasing = true,
-            OPT_DECREASING => increasing = false,
-            OPT_INDICES => indices_out = true,
-            OPT_INDEX => {
-                if i + 1 >= last {
-                    return Err(needs_value(b"-index", b"list index"));
+            let last = args.len() - 1; // the list
+            let mut i = 0;
+            while i < last {
+                match OPTIONS
+                    .index_of_original(ops, &args[i])
+                    .map_err(LsortError::from_command)?
+                {
+                    OPT_ASCII => mode = SortMode::Ascii,
+                    OPT_DICTIONARY => mode = SortMode::Dictionary,
+                    OPT_INTEGER => mode = SortMode::Integer,
+                    OPT_REAL => mode = SortMode::Real,
+                    OPT_NOCASE => nocase = true,
+                    OPT_INCREASING => increasing = true,
+                    OPT_DECREASING => increasing = false,
+                    OPT_INDICES => indices_out = true,
+                    OPT_INDEX => {
+                        if i + 1 >= last {
+                            return Err(needs_value(b"-index", b"list index"));
+                        }
+                        if ops
+                            .index_syntax()
+                            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+                        {
+                            jim_path = ops
+                                .original_jim_index_path(&args[i + 1])
+                                .map_err(LsortError::from_command)?;
+                            if jim_path.as_ref().is_some_and(Vec::is_empty) {
+                                return Err(needs_value(b"-index", b"list index"));
+                            }
+                        }
+                        if jim_path.is_none() {
+                            index_path = split_index(&ops.as_bytes(&args[i + 1]))?;
+                        }
+                        i += 1;
+                    }
+                    OPT_STRIDE => {
+                        if i + 1 >= last {
+                            return Err(needs_value(b"-stride", b"stride length"));
+                        }
+                        let sb = ops.as_bytes(&args[i + 1]);
+                        match sort::parse_wide(&sb) {
+                            Some(w) if w >= 2 => group = w as usize,
+                            Some(_) => {
+                                return Err(LsortError::msg("stride length must be at least 2"));
+                            }
+                            None => return Err(not_integer(&sb)),
+                        }
+                        i += 1;
+                    }
+                    OPT_COMMAND => {
+                        if i + 1 >= last {
+                            return Err(needs_value(b"-command", b"comparison command"));
+                        }
+                        command = true;
+                        cmd_prefix = Some(args[i + 1].clone());
+                        i += 1;
+                    }
+                    OPT_UNIQUE => unique = true,
+                    _ => unreachable!("the option table is closed"),
                 }
-                index_path = split_index(&ops.as_bytes(&args[i + 1]))?;
                 i += 1;
             }
-            OPT_STRIDE => {
-                if i + 1 >= last {
-                    return Err(needs_value(b"-stride", b"stride length"));
-                }
-                let sb = ops.as_bytes(&args[i + 1]);
-                match sort::parse_wide(&sb) {
-                    Some(w) if w >= 2 => group = w as usize,
-                    Some(_) => return Err(LsortError::msg("stride length must be at least 2")),
-                    None => return Err(not_integer(&sb)),
-                }
-                i += 1;
-            }
-            OPT_COMMAND => {
-                if i + 1 >= last {
-                    return Err(needs_value(b"-command", b"comparison command"));
-                }
-                command = true;
-                cmd_prefix = Some(args[i + 1].clone());
-                i += 1;
-            }
-            OPT_UNIQUE => unique = true,
-            _ => unreachable!("the option table is closed"),
-        }
-        i += 1;
-    }
 
-    let elems = ops
-        .list_elements(&args[last])
-        .map_err(|e| LsortError::from_command(e.into()))?;
-    let len = elems.len();
-    if len == 0 {
-        return Ok(Lsort::Done(ops.new_list(Vec::new())));
-    }
+            let elems = ops
+                .index_list_elements(&args[last])
+                .map_err(|e| LsortError::from_command(e.into()))?;
+            let len = elems.len();
+            if len == 0 {
+                return Ok(Lsort::Done(ops.new_list(Vec::new())));
+            }
 
-    // -stride groups the flat list; the leading -index value (default 0) picks
-    // the key element within each group, the rest of the path applies within it.
-    let mut group_offset = 0usize;
-    let mut key_path: &[Vec<u8>] = &index_path;
-    if group > 1 {
-        if len % group != 0 {
-            return Err(LsortError::msg(
-                "list size must be a multiple of the stride length",
-            ));
-        }
-        if !index_path.is_empty() {
-            match index::resolve_for_ops(ops, &String::from_utf8_lossy(&index_path[0]), group).ok()
-            {
-                Some(g) if g >= 0 && (g as usize) < group => group_offset = g as usize,
-                _ => {
+            // -stride groups the flat list; the leading -index value (default 0) picks
+            // the key element within each group, the rest of the path applies within it.
+            let mut group_offset = 0usize;
+            let mut key_path: &[Vec<u8>] = &index_path;
+            if group > 1 {
+                if len % group != 0 {
                     return Err(LsortError::msg(
-                        "when used with \"-stride\", the leading \"-index\" value must be within the group",
+                        "list size must be a multiple of the stride length",
                     ));
                 }
+                if !index_path.is_empty() {
+                    match index::resolve_for_ops(
+                        ops,
+                        &String::from_utf8_lossy(&index_path[0]),
+                        group,
+                    ) {
+                        Ok(g) if g >= 0 && (g as usize) < group => group_offset = g as usize,
+                        Err(error) if error.native_execution_refusal().is_some() => {
+                            return Err(LsortError::from_command(error));
+                        }
+                        _ => {
+                            return Err(LsortError::msg(
+                                "when used with \"-stride\", the leading \"-index\" value must be within the group",
+                            ));
+                        }
+                    }
+                    key_path = &index_path[1..];
+                }
             }
-            key_path = &index_path[1..];
-        }
-    }
-    let logical = len / group;
+            let logical = len / group;
 
-    if command {
-        // Extract the key *values* (the comparator receives them); the merge sort
-        // happens in `sort_command` over the adapter's callback.
-        let mut items: Vec<(usize, O::Value)> = Vec::with_capacity(logical);
-        for l in 0..logical {
-            let base = l * group;
-            let key = index::drill(ops, &elems[base + group_offset], key_path)
+            if command {
+                // Extract the key *values* (the comparator receives them); the merge sort
+                // happens in `sort_command` over the adapter's callback.
+                let mut items: Vec<(usize, index::IndexedKey<O::IndexKeyOwner>)> =
+                    Vec::with_capacity(logical);
+                for l in 0..logical {
+                    let base = l * group;
+                    let key = match &jim_path {
+                        Some(path) => {
+                            index::drill_original_jim(ops, &elems[base + group_offset], path)
+                        }
+                        None => index::drill(ops, &elems[base + group_offset], key_path),
+                    }
+                    .map_err(LsortError::from_command)?;
+                    items.push((base, key));
+                }
+                return Ok(Lsort::Command(CommandJob {
+                    items,
+                    elems,
+                    increasing,
+                    unique,
+                    group,
+                    indices_out,
+                    cmd_prefix: cmd_prefix.expect("set with -command"),
+                }));
+            }
+
+            // Non-command: extract the key *bytes*, validate, sort, unique, build.
+            let mut items: Vec<(usize, Vec<u8>)> = Vec::with_capacity(logical);
+            for l in 0..logical {
+                let base = l * group;
+                let key = match &jim_path {
+                    Some(path) => index::drill_original_jim(ops, &elems[base + group_offset], path),
+                    None => index::drill(ops, &elems[base + group_offset], key_path),
+                }
                 .map_err(LsortError::from_command)?;
-            items.push((base, key));
-        }
-        return Ok(Lsort::Command(CommandJob {
-            items,
-            elems,
-            increasing,
-            unique,
-            group,
-            indices_out,
-            cmd_prefix: cmd_prefix.expect("set with -command"),
-        }));
-    }
-
-    // Non-command: extract the key *bytes*, validate, sort, unique, build.
-    let mut items: Vec<(usize, Vec<u8>)> = Vec::with_capacity(logical);
-    for l in 0..logical {
-        let base = l * group;
-        let key = index::drill(ops, &elems[base + group_offset], key_path)
-            .map_err(LsortError::from_command)?;
-        items.push((base, ops.as_bytes(&key).to_vec()));
-    }
-    // Validate numeric keys up front (Tcl errors on the first non-number).
-    if mode == SortMode::Integer
-        && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_wide(k).is_none())
-    {
-        return Err(not_integer(k));
-    } else if mode == SortMode::Real
-        && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_real(k).is_none())
-    {
-        return Err(not_real(k));
-    }
-    items.sort_by(|a, b| {
-        let ord = sort::key_compare(mode, nocase, &a.1, &b.1);
-        if increasing { ord } else { ord.reverse() }
-    });
-    if unique {
-        // Keep the *last* of each equal run (C's `MergeLists` keeps the right
-        // element), so two inputs that compare equal but render differently
-        // yield the later one — `lsort -nocase -unique {A a}` → `a`,
-        // `lsort -integer -unique {01 1}` → `1`. `Vec::dedup_by` keeps the
-        // first, which is the wrong end.
-        let mut deduped: Vec<(usize, Vec<u8>)> = Vec::with_capacity(items.len());
-        for it in items.drain(..) {
-            if let Some(prev) = deduped.last()
-                && sort::key_compare(mode, nocase, &prev.1, &it.1).is_eq()
-            {
-                deduped.pop();
+                items.push((base, ops.as_bytes(index::key_value::<O>(&key)).to_vec()));
             }
-            deduped.push(it);
-        }
-        items = deduped;
-    }
-    let bases: Vec<usize> = items.iter().map(|(b, _)| *b).collect();
-    Ok(Lsort::Done(build_result(
-        ops,
-        &bases,
-        &elems,
-        group,
-        indices_out,
-    )))
+            // Validate numeric keys up front (Tcl errors on the first non-number).
+            if mode == SortMode::Integer
+                && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_wide(k).is_none())
+            {
+                return Err(not_integer(k));
+            } else if mode == SortMode::Real
+                && let Some((_, k)) = items.iter().find(|(_, k)| sort::parse_real(k).is_none())
+            {
+                return Err(not_real(k));
+            }
+            items.sort_by(|a, b| {
+                let ord = sort::key_compare(mode, nocase, &a.1, &b.1);
+                if increasing { ord } else { ord.reverse() }
+            });
+            if unique {
+                // Keep the *last* of each equal run (C's `MergeLists` keeps the right
+                // element), so two inputs that compare equal but render differently
+                // yield the later one — `lsort -nocase -unique {A a}` → `a`,
+                // `lsort -integer -unique {01 1}` → `1`. `Vec::dedup_by` keeps the
+                // first, which is the wrong end.
+                let mut deduped: Vec<(usize, Vec<u8>)> = Vec::with_capacity(items.len());
+                for it in items.drain(..) {
+                    if let Some(prev) = deduped.last()
+                        && sort::key_compare(mode, nocase, &prev.1, &it.1).is_eq()
+                    {
+                        deduped.pop();
+                    }
+                    deduped.push(it);
+                }
+                items = deduped;
+            }
+            let bases: Vec<usize> = items.iter().map(|(b, _)| *b).collect();
+            Ok(Lsort::Done(build_result(
+                ops,
+                &bases,
+                &elems,
+                group,
+                indices_out,
+            )))
+        },
+        |ops, output| match output {
+            Lsort::Done(created) => ops.discard_owned_index_result(created),
+            // Key guards retain constructor cleanup independently of borrowed
+            // members; merge copies add no native object references.
+            Lsort::Command(job) => drop(job),
+        },
+        LsortError::from_command,
+    )
 }
 
 /// Run the `-command` stable merge sort over `cmp` (which returns the comparison
@@ -324,16 +372,16 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
 /// # Errors
 /// Propagates the comparator's error `E` (e.g. a non-integer result, or the
 /// script itself failing).
-pub fn sort_command<V: Clone, E>(
-    job: &mut CommandJob<V>,
-    mut cmp: impl FnMut(&V, &V) -> Result<i32, E>,
+pub fn sort_command<V, K: Clone, E>(
+    job: &mut CommandJob<V, K>,
+    mut cmp: impl FnMut(&index::IndexedKey<K>, &index::IndexedKey<K>) -> Result<i32, E>,
 ) -> Result<(), E> {
     let increasing = job.increasing;
     merge_sort(&mut job.items, increasing, &mut cmp)?;
     if job.unique {
         // `-unique` equivalence is the comparator's (not bytewise); the *last* of
         // an equal run is kept (C's `MergeLists` keeps the right element).
-        let mut deduped: Vec<(usize, V)> = Vec::with_capacity(job.items.len());
+        let mut deduped: Vec<(usize, index::IndexedKey<K>)> = Vec::with_capacity(job.items.len());
         for it in job.items.drain(..) {
             if let Some(prev) = deduped.last()
                 && cmp(&prev.1, &it.1)? == 0
@@ -392,7 +440,10 @@ fn merge_sort<V: Clone, E>(
 
 /// Build the result list after a `-command` sort.
 #[must_use]
-pub fn build_command<O: ValueOps>(ops: &mut O, job: &CommandJob<O::Value>) -> O::Value {
+pub fn build_command<O: NativeIndexOps>(
+    ops: &mut O,
+    job: &CommandJob<O::Value, O::IndexKeyOwner>,
+) -> O::Value {
     let bases: Vec<usize> = job.items.iter().map(|(b, _)| *b).collect();
     build_result(ops, &bases, &job.elems, job.group, job.indices_out)
 }

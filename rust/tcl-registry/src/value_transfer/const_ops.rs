@@ -911,6 +911,67 @@ impl<'ctx> ConstOps<'ctx> {
     }
 }
 
+impl tcl_cmd_core::index::NativeIndexOps for ConstOps<'_> {
+    type IndexOperation = ();
+    type IndexKeyOwner = Self::Value;
+    fn index_borrowed_key(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(value.clone())
+    }
+    fn index_created_key(
+        &mut self,
+        value: Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(value)
+    }
+    fn index_key_value(owner: &Self::Value) -> &Self::Value {
+        owner
+    }
+    fn index_hold_key_result(
+        &mut self,
+        owner: &Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(owner.clone())
+    }
+    fn index_finish_held_key_result(
+        &mut self,
+        held: Self::Value,
+    ) -> Result<tcl_cmd_core::index::IndexResult<Self::Value>, tcl_cmd_core::CmdError> {
+        Ok(tcl_cmd_core::index::IndexResult::Detached(held))
+    }
+    fn index_key_argument(
+        &mut self,
+        owner: &Self::Value,
+    ) -> Result<Self::Value, tcl_cmd_core::CmdError> {
+        Ok(owner.clone())
+    }
+    fn index_key_result(
+        &mut self,
+        owner: &Self::Value,
+        created: bool,
+        ancestor: bool,
+    ) -> Result<tcl_cmd_core::index::IndexResult<Self::Value>, tcl_cmd_core::CmdError> {
+        Ok(if created {
+            tcl_cmd_core::index::IndexResult::Created(owner.clone())
+        } else if ancestor {
+            tcl_cmd_core::index::IndexResult::Detached(owner.clone())
+        } else {
+            tcl_cmd_core::index::IndexResult::Borrowed(owner.clone())
+        })
+    }
+    fn enter_index_operation(&mut self) -> Result<(), tcl_cmd_core::CmdError> {
+        Ok(())
+    }
+    fn check_index_operation(&mut self, _: &()) -> Result<(), tcl_cmd_core::CmdError> {
+        Ok(())
+    }
+    fn discard_owned_index_result(&mut self, created: Self::Value) {
+        drop(created);
+    }
+}
+
 impl ValueOps for ConstOps<'_> {
     type Value = ConstValue;
 

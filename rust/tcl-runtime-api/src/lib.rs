@@ -46,6 +46,7 @@ pub use tcl_core_types::{
 pub use tcl_lexer::{SourceChannel, SourceImage};
 
 /// Independent supported-backend C ABI issuance for native hash owners.
+pub mod native_c_string_abi;
 pub mod native_hash_abi;
 pub mod native_return_literal;
 

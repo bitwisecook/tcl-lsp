@@ -73,6 +73,48 @@ impl NativeListIndexOps for Vm {
             self.index_version()?,
         ))
     }
+    fn index_members_checked(&mut self, original: &Value) -> Result<NativeListItems, CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let numeric =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
+        let protocol = numeric
+            .dialect()
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C List member issuer",
+            ))?;
+        original.native_object_list_elements_with_strings(
+            protocol,
+            &mut || numeric.current_for_value(original),
+            &mut |value| numeric.string(value, protocol),
+        )
+    }
+    fn index_ordinary_members_checked(
+        &mut self,
+        original: &Value,
+    ) -> Result<NativeListItems, CmdError> {
+        // VM's selected object getter installs ordinary storage; it does not
+        // donate a Runtime arithmetic-series Index/GetElements producer.
+        self.index_members_checked(original)
+    }
+    fn index_list_copy_checked(&mut self, original: &Value) -> Result<Value, CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let numeric =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
+        let protocol = numeric
+            .dialect()
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C List copy issuer",
+            ))?;
+        original.native_list_copy_checked(
+            protocol,
+            &mut || numeric.current_for_value(original),
+            &mut |value| numeric.string(value, protocol),
+        )
+    }
     fn index_number(&mut self, original: &Value) -> Result<Option<Number>, ValueError> {
         let version = self.index_version()?;
         let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
@@ -88,6 +130,45 @@ impl NativeListIndexOps for Vm {
             },
         )
     }
+    fn index_number_checked(
+        &mut self,
+        original: &Value,
+    ) -> Result<Option<Number>, tcl_cmd_core::CmdError> {
+        let version = self.index_version()?;
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let ops =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
+        if version >= TclVersion::V9_0 {
+            return ops
+                .number(original, NativeNumberGetterKind::Number)
+                .map(Result::ok);
+        }
+        ops.probe(original, NativeScalarGetterKind::Int)
+            .map(|outcome| match outcome {
+                Ok(NativeScalarGetterValue::Wide(integer)) => Some(Number::Int(integer)),
+                _ => None,
+            })
+    }
+    fn index_clear_arithmetic_primary_checked(
+        &mut self,
+        original: &Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let ops =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
+        original
+            .clear_native_index_arithmetic_primary_checked(&mut || ops.current_for_value(original))
+    }
+    fn index_install_offset_checked(
+        &mut self,
+        original: &Value,
+        offset: NativeEndOffset,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let ops =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
+        original.install_native_end_offset_checked(offset, &mut || ops.current_for_value(original))
+    }
     fn index_clear_arithmetic_primary(original: &Value) {
         original.clear_native_index_arithmetic_primary();
     }
@@ -99,6 +180,30 @@ impl NativeListIndexOps for Vm {
     }
 }
 impl tcl_cmd_core::native_list_index::NativeListRangeOps for Vm {
+    fn range_original_checked(
+        &mut self,
+        original: &Value,
+        first: i64,
+        last: i64,
+    ) -> Result<Value, CmdError> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)?;
+        let numeric =
+            crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(self, &scope)?;
+        let protocol = numeric
+            .dialect()
+            .native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C List range issuer",
+            ))?;
+        original.native_list_command_range_checked(
+            first,
+            last,
+            protocol,
+            &mut || numeric.current_for_value(original),
+            &mut |value| numeric.string(value, protocol),
+        )
+    }
     fn range_original(
         &mut self,
         original: &Value,

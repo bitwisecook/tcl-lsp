@@ -22,7 +22,7 @@
 //! object headers, variable writes and completion publication.
 
 use crate::interp::{Code, Interp};
-use crate::obj::{self, new_string_bytes, new_wide_int_obj, TclObj};
+use crate::obj::{self, TclObj, new_string_bytes, new_wide_int_obj};
 use tcl_cmd_core::regex::{self as core_re, RegexpResult, RegsubError};
 
 /// The `errorInfo` frame C appends when a `regsub -command` prefix fails
@@ -164,47 +164,7 @@ impl core_re::NativeRegexSource for Interp {
     }
 
     fn jim_regex_index(&mut self, original: &*mut TclObj) -> Result<i32, tcl_cmd_core::CmdError> {
-        use tcl_syntax::value::ValueOps;
-        obj::check_native_liveness(*original)?;
-        if std::ptr::eq(obj::obj_type_ptr(*original), &obj::TCL_INT_TYPE) {
-            return self
-                .as_int(original)
-                .map(tcl_syntax::native_jim_index::JimIndex::from_integer)
-                .map_err(Into::into);
-        }
-        if let Some(index) = crate::native_regexp::cached_jim_index(*original)? {
-            return Ok(index);
-        }
-        let bytes = self.native_string_bytes(original)?;
-        let index = tcl_syntax::native_jim_index::evaluate_index(&bytes, |input| match input {
-            tcl_syntax::native_jim_index::JimIndexExpression::Original => {
-                // SetIndexFromAny pins the SAME expression during GetWideExpr.
-                let expression = obj::Owned::retain(*original);
-                crate::builtins::native_jim_wide_expression(self, expression.as_ptr())
-            }
-            tcl_syntax::native_jim_index::JimIndexExpression::EndSuffix(source) => {
-                let suffix = obj::Owned::fresh(obj::new_string_bytes(source));
-                crate::builtins::native_jim_wide_expression(self, suffix.as_ptr())
-            }
-        })
-        .map_err(|error| {
-            let error = match error {
-                tcl_syntax::native_jim_index::JimIndexEvaluationError::Index(error) => {
-                    tcl_cmd_core::CmdError::from(error)
-                }
-                tcl_syntax::native_jim_index::JimIndexEvaluationError::Expression(error) => error,
-            };
-            if error.native_execution_refusal().is_some() {
-                error
-            } else {
-                let mut message = b"bad index \"".to_vec();
-                message.extend_from_slice(tcl_core_types::c_string_extent(&bytes));
-                message.extend_from_slice(b"\": must be intexpr or end?[+-]intexpr?");
-                tcl_cmd_core::CmdError::new_bytes(message)
-            }
-        })?;
-        crate::native_regexp::install_jim_index(*original, index);
-        Ok(index.0)
+        tcl_cmd_core::native_jim_index::original_index(self, original)
     }
 
     fn regex_recipe(
@@ -442,11 +402,7 @@ impl core_re::NativeRegsubObjects for Interp {
             .map_err(|error| self.report_cmd_error(error.into()))?;
         call.extend(arguments.iter().map(Self::Object::as_ptr));
         let code = self.dispatch(&call);
-        if code == Code::Ok {
-            Ok(())
-        } else {
-            Err(code)
-        }
+        if code == Code::Ok { Ok(()) } else { Err(code) }
     }
     fn regex_reset_result(&mut self) -> Result<(), tcl_syntax::value::ValueError> {
         self.set_result_bytes(b"");

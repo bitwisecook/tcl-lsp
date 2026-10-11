@@ -383,6 +383,21 @@ pub enum RegexpResult<V> {
     },
 }
 
+fn discard_regexp_result<O: NativeIndexOps>(ops: &mut O, result: RegexpResult<O::Value>) {
+    match result {
+        RegexpResult::Inline(created) => ops.discard_owned_index_result(created),
+        RegexpResult::Count {
+            assign: Some(assignments),
+            ..
+        } => {
+            for (_, created) in assignments {
+                ops.discard_owned_index_result(created);
+            }
+        }
+        RegexpResult::Count { assign: None, .. } => {}
+    }
+}
+
 /// The outcome of [`regsub`]: the substituted text, the substitution count, and
 /// the optional result-variable name (the adapter sets the var or returns the
 /// text, and owns the const-variable check).
@@ -708,7 +723,7 @@ fn notbol_at(cps: &[i32], offset: usize) -> bool {
 /// `offset >= char_len` check then yields no match) and a too-large `-N` becomes
 /// the start, both the intended clamp behaviour.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn resolve_start_checked<O: ValueOps>(
+fn resolve_start_checked<O: NativeIndexOps>(
     ops: &mut O,
     spec: &[u8],
     char_len: usize,
@@ -913,69 +928,78 @@ pub fn regexp_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
 where
     E::Regex: 'static,
 {
-    if ops
-        .jim_regex_recipe()
-        .map_err(|error| {
-            RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(error)))
-        })?
-        .is_some()
-    {
-        return regexp_jim_original::<O, E, Err>(ops, args, version, assign);
-    }
-    let (c, indices, inline, about, offset) =
-        regexp_option_scan(&mut OriginalOptionArguments { ops, args }, version)
-            .map_err(RegexpExecutionError::Regex)?;
-    let remaining = &args[offset..];
-    // Validate arity before reaching any non-option getter.
-    if remaining.len() + usize::from(about) < 2 {
-        return Err(RegexpExecutionError::Regex(wrong_args(REGEXP_USAGE)));
-    }
-    if inline && remaining.len() != 2 {
-        return Err(RegexpExecutionError::Regex(RegexError::new(
-            b"regexp match variables not allowed when using -inline".to_vec(),
-        )));
-    }
-    let recipe = ops.regex_recipe().map_err(|error| {
-        RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(error)))
-    })?;
-    if let Some(recipe) = recipe {
-        return regexp_native_selected::<O, E, Err>(
-            ops,
-            remaining,
-            recipe,
-            RegexpOptions {
-                version,
-                common: c,
-                indices,
-                inline,
-                about,
-            },
-            |ops, index, value| assign(ops, &remaining[index + 2], value),
-        );
-    }
-    let bytes = remaining[..if about { 1 } else { 2 }]
-        .iter()
-        .map(|value| {
-            ops.native_string_bytes(value)
-                .map(|bytes| bytes.to_vec())
+    crate::index::run_index_output(
+        ops,
+        |ops| {
+            if ops
+                .jim_regex_recipe()
                 .map_err(|error| {
                     RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(error)))
+                })?
+                .is_some()
+            {
+                return regexp_jim_original::<O, E, Err>(ops, args, version, assign);
+            }
+            let (c, indices, inline, about, offset) =
+                regexp_option_scan(&mut OriginalOptionArguments { ops, args }, version)
+                    .map_err(RegexpExecutionError::Regex)?;
+            let remaining = &args[offset..];
+            // Validate arity before reaching any non-option getter.
+            if remaining.len() + usize::from(about) < 2 {
+                return Err(RegexpExecutionError::Regex(wrong_args(REGEXP_USAGE)));
+            }
+            if inline && remaining.len() != 2 {
+                return Err(RegexpExecutionError::Regex(RegexError::new(
+                    b"regexp match variables not allowed when using -inline".to_vec(),
+                )));
+            }
+            let recipe = ops.regex_recipe().map_err(|error| {
+                RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(error)))
+            })?;
+            if let Some(recipe) = recipe {
+                return regexp_native_selected::<O, E, Err>(
+                    ops,
+                    remaining,
+                    recipe,
+                    RegexpOptions {
+                        version,
+                        common: c,
+                        indices,
+                        inline,
+                        about,
+                    },
+                    |ops, index, value| assign(ops, &remaining[index + 2], value),
+                );
+            }
+            let bytes = remaining[..if about { 1 } else { 2 }]
+                .iter()
+                .map(|value| {
+                    ops.native_string_bytes(value)
+                        .map(|bytes| bytes.to_vec())
+                        .map_err(|error| {
+                            RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(
+                                error,
+                            )))
+                        })
                 })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut rest = bytes.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    rest.resize(remaining.len(), &[]);
-    regexp_selected_with_sink::<O, E, Err>(
-        ops,
-        &rest,
-        RegexpOptions {
-            version,
-            common: c,
-            indices,
-            inline,
-            about,
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut rest = bytes.iter().map(Vec::as_slice).collect::<Vec<_>>();
+            rest.resize(remaining.len(), &[]);
+            regexp_selected_with_sink::<O, E, Err>(
+                ops,
+                &rest,
+                RegexpOptions {
+                    version,
+                    common: c,
+                    indices,
+                    inline,
+                    about,
+                },
+                |ops, index, value| assign(ops, &remaining[index + 2], value),
+            )
         },
-        |ops, index, value| assign(ops, &remaining[index + 2], value),
+        discard_regexp_result,
+        |first| RegexpExecutionError::Regex(RegexError::from(first)),
     )
 }
 
@@ -1253,7 +1277,7 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
             )
             .map_err(host)?;
             if selected.inline == JimResultDelivery::Inline {
-                output.push(value);
+                output.push(ops.index_created_key(value).map_err(host)?);
             } else {
                 assign(ops, &original[index + 2], value)
                     .map_err(RegexpExecutionError::Assignment)?;
@@ -1272,7 +1296,12 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
         notbol = true;
     }
     if selected.inline == JimResultDelivery::Inline {
-        Ok(RegexpResult::Inline(ops.new_list(output)))
+        let values = output
+            .iter()
+            .map(|owner| ops.index_key_argument(owner))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(host)?;
+        Ok(RegexpResult::Inline(ops.new_list(values)))
     } else {
         Ok(RegexpResult::Count {
             assign: None,
@@ -1286,7 +1315,7 @@ fn regexp_jim_original<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
 ///
 /// # Errors
 /// Command errors or an incomplete search, retaining the full error receipt.
-pub fn regexp<O: ValueOps, E: RegexEngine>(
+pub fn regexp<O: NativeIndexOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
     version: TclVersion,
@@ -1301,7 +1330,7 @@ where
 ///
 /// # Errors
 /// Command errors remain errors; an incomplete search remains a typed decline.
-pub fn regexp_analysis<O: ValueOps, E: RegexEngine>(
+pub fn regexp_analysis<O: NativeIndexOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
     version: TclVersion,
@@ -1313,7 +1342,7 @@ where
     regexp_run::<O, E>(ops, args, version, &mut Run::Analysis(analysis))
 }
 
-fn regexp_run<O: ValueOps, E: RegexEngine>(
+fn regexp_run<O: NativeIndexOps, E: RegexEngine>(
     ops: &mut O,
     args: &[&[u8]],
     version: TclVersion,
@@ -1322,38 +1351,65 @@ fn regexp_run<O: ValueOps, E: RegexEngine>(
 where
     E::Regex: 'static,
 {
-    let (common, indices, inline, about, i) =
-        regexp_option_scan(&mut ByteOptionArguments(args), version)?;
-    let rest = &args[i..];
-    let mut pairs = Vec::new();
-    let outcome = regexp_selected_run::<O, E, std::convert::Infallible>(
+    crate::index::run_index_output(
         ops,
-        rest,
-        RegexpOptions {
-            version,
-            common,
-            indices,
-            inline,
-            about,
-        },
-        |_, index, value| {
-            if index == 0 {
-                pairs.clear();
+        |ops| {
+            let (common, indices, inline, about, i) =
+                regexp_option_scan(&mut ByteOptionArguments(args), version)?;
+            let rest = &args[i..];
+            // Deferred captures keep their genuine constructor cleanup role
+            // through every later match/getter, including replacement by -all.
+            let mut pairs: Vec<(Vec<u8>, O::IndexKeyOwner)> = Vec::new();
+            let outcome = regexp_selected_run::<O, E, CmdError>(
+                ops,
+                rest,
+                RegexpOptions {
+                    version,
+                    common,
+                    indices,
+                    inline,
+                    about,
+                },
+                |ops, index, value| {
+                    if index == 0 {
+                        pairs.clear();
+                    }
+                    pairs.push((rest[index + 2].to_vec(), ops.index_created_key(value)?));
+                    Ok(())
+                },
+                run,
+            );
+            match outcome {
+                Ok(RegexpResult::Count { count, .. }) => {
+                    let mut assign = Vec::with_capacity(pairs.len());
+                    for (name, owner) in pairs {
+                        let value = match ops.index_key_result(&owner, true, false) {
+                            Ok(crate::index::IndexResult::Created(value)) => value,
+                            Ok(_) => unreachable!("deferred capture constructor role"),
+                            Err(first) => {
+                                for (_, reached) in assign {
+                                    ops.discard_owned_index_result(reached);
+                                }
+                                return Err(RegexFailure::Error(RegexError::from(first)));
+                            }
+                        };
+                        assign.push((name, value));
+                    }
+                    Ok(RegexpResult::Count {
+                        assign: (count != 0).then_some(assign),
+                        count,
+                    })
+                }
+                Ok(result) => Ok(result),
+                Err(RegexpRunError::Regex(error)) => Err(error),
+                Err(RegexpRunError::Assignment(error)) => {
+                    Err(RegexFailure::Error(RegexError::from(error)))
+                }
             }
-            pairs.push((rest[index + 2].to_vec(), value));
-            Ok(())
         },
-        run,
-    );
-    match outcome {
-        Ok(RegexpResult::Count { count, .. }) => Ok(RegexpResult::Count {
-            assign: (count != 0).then_some(pairs),
-            count,
-        }),
-        Ok(result) => Ok(result),
-        Err(RegexpRunError::Regex(error)) => Err(error),
-        Err(RegexpRunError::Assignment(never)) => match never {},
-    }
+        discard_regexp_result,
+        |first| RegexFailure::Error(RegexError::from(first)),
+    )
 }
 
 enum RegexpRunError<Err> {
@@ -1361,7 +1417,7 @@ enum RegexpRunError<Err> {
     Assignment(Err),
 }
 
-fn regexp_selected_with_sink<O: ValueOps, E: RegexEngine, Err>(
+fn regexp_selected_with_sink<O: NativeIndexOps, E: RegexEngine, Err>(
     ops: &mut O,
     rest: &[&[u8]],
     options: RegexpOptions,
@@ -1386,7 +1442,7 @@ struct RegexpOptions {
     about: bool,
 }
 
-fn regexp_selected_run<O: ValueOps, E: RegexEngine, Err>(
+fn regexp_selected_run<O: NativeIndexOps, E: RegexEngine, Err>(
     ops: &mut O,
     rest: &[&[u8]],
     options: RegexpOptions,
@@ -1466,7 +1522,7 @@ where
 
     // Tcl's `all` doubles as flag + counter: starts 1 if `-all`, else 0.
     let mut all_count: i64 = i64::from(c.all);
-    let mut inline_items: Vec<O::Value> = Vec::new();
+    let mut inline_items: Vec<O::IndexKeyOwner> = Vec::new();
 
     loop {
         let notbol = notbol_at(&cps, offset);
@@ -1491,9 +1547,12 @@ where
         let m0 = matches[0];
         if inline {
             for k in 0..=nsubs {
-                inline_items.push(build_match_item(
-                    ops, &matches, k, nsubs, indices, str_bytes, &byteoff,
-                ));
+                let created =
+                    build_match_item(ops, &matches, k, nsubs, indices, str_bytes, &byteoff);
+                inline_items.push(
+                    ops.index_created_key(created)
+                        .map_err(|error| RegexpRunError::Regex(RegexError::from(error).into()))?,
+                );
             }
         } else {
             for index in 0..match_vars.len() {
@@ -1517,7 +1576,12 @@ where
     }
 
     if inline {
-        return Ok(RegexpResult::Inline(ops.new_list(inline_items)));
+        let values = inline_items
+            .iter()
+            .map(|owner| ops.index_key_argument(owner))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| RegexpRunError::Regex(RegexError::from(error).into()))?;
+        return Ok(RegexpResult::Inline(ops.new_list(values)));
     }
     Ok(RegexpResult::Count {
         assign: None,
@@ -1746,55 +1810,62 @@ pub fn regsub_prepare_original<'a, O: NativeRegexSource>(
     args: &'a [O::Value],
     version: TclVersion,
 ) -> Result<OriginalRegsubPreparation<'a, O::Value>, RegexError> {
-    let (common, command, offset) =
-        regsub_option_scan(&mut OriginalOptionArguments { ops, args }, version)?;
-    let originals = &args[offset..];
-    if originals.len() < 3 || originals.len() > 4 {
-        return Err(wrong_args(REGSUB_USAGE));
-    }
-    let recipe = ops
-        .regex_recipe()
-        .map_err(|error| RegexError::from(crate::CmdError::from(error)))?;
-    let command_start = if recipe.is_some() {
-        common
-            .start
-            .as_ref()
-            .map(|spec| {
-                let length = ops
-                    .native_char_len(&originals[1])
-                    .map_err(|error| RegexError::from(crate::CmdError::from(error)))?;
-                resolve_start_checked(ops, spec, length)
+    crate::index::run_index_output(
+        ops,
+        |ops| {
+            let (common, command, offset) =
+                regsub_option_scan(&mut OriginalOptionArguments { ops, args }, version)?;
+            let originals = &args[offset..];
+            if originals.len() < 3 || originals.len() > 4 {
+                return Err(wrong_args(REGSUB_USAGE));
+            }
+            let recipe = ops
+                .regex_recipe()
+                .map_err(|error| RegexError::from(crate::CmdError::from(error)))?;
+            let command_start = if recipe.is_some() {
+                common
+                    .start
+                    .as_ref()
+                    .map(|spec| {
+                        let length = ops
+                            .index_character_count(&originals[1])
+                            .map_err(|error| RegexError::from(crate::CmdError::from(error)))?;
+                        resolve_start_checked(ops, spec, length)
+                    })
+                    .transpose()?
+            } else {
+                None
+            };
+            let rest = originals[..if recipe.is_some() { 0 } else { 3 }]
+                .iter()
+                .map(|value| {
+                    ops.native_string_bytes(value)
+                        .map(|bytes| bytes.to_vec())
+                        .map_err(|error| RegexError::from(crate::CmdError::from(error)))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let start = if recipe.is_some() {
+                command_start.unwrap_or(0)
+            } else {
+                let (characters, _) = decode_utf8(&rest[1]);
+                common.start.as_ref().map_or(Ok(0), |spec| {
+                    resolve_start_checked(ops, spec, characters.len())
+                })?
+            };
+            Ok(OriginalRegsubPreparation {
+                version,
+                common,
+                command,
+                rest,
+                target: originals.get(3),
+                originals,
+                start,
+                recipe,
             })
-            .transpose()?
-    } else {
-        None
-    };
-    let rest = originals[..if recipe.is_some() { 0 } else { 3 }]
-        .iter()
-        .map(|value| {
-            ops.native_string_bytes(value)
-                .map(|bytes| bytes.to_vec())
-                .map_err(|error| RegexError::from(crate::CmdError::from(error)))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let start = if recipe.is_some() {
-        command_start.unwrap_or(0)
-    } else {
-        let (characters, _) = decode_utf8(&rest[1]);
-        common.start.as_ref().map_or(Ok(0), |spec| {
-            resolve_start_checked(ops, spec, characters.len())
-        })?
-    };
-    Ok(OriginalRegsubPreparation {
-        version,
-        common,
-        command,
-        rest,
-        target: originals.get(3),
-        originals,
-        start,
-        recipe,
-    })
+        },
+        |_, metadata| drop(metadata),
+        RegexError::from,
+    )
 }
 
 /// Result text and a borrowed same-original output target. The argv owner
@@ -1859,7 +1930,7 @@ pub trait NativeRegsubObjects: ValueOps {
 
 /// Original C cache, Unicode range and actual engine artifact adapters.
 /// A missing recipe is only the explicitly selected compatibility path.
-pub trait NativeRegexSource: ValueOps {
+pub trait NativeRegexSource: NativeIndexOps {
     /// A distinct actual Jim issuer; compatibility adapters provide none.
     fn jim_regex_recipe(
         &self,
@@ -2369,7 +2440,7 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     let (length, mut offset) = if about {
         (0, 0)
     } else {
-        let length = ops.native_char_len(&originals[1]).map_err(host)?;
+        let length = ops.index_character_count(&originals[1]).map_err(host)?;
         let offset = common
             .start
             .as_ref()
@@ -2393,7 +2464,7 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     let mut count = 0_i64;
     let mut items = Vec::new();
     loop {
-        let units = ops.native_unicode_units(&originals[1]).map_err(host)?;
+        let units = ops.index_c_unicode_units(&originals[1]).map_err(host)?;
         let characters =
             native_regex_characters(&units, "native regexp character width").map_err(host)?;
         let matches = E::exec(
@@ -2426,7 +2497,7 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
                 native_capture_value::<O, E>(ops, &originals[1], &units, span, recipe, indices)
                     .map_err(host)?;
             if inline {
-                items.push(value);
+                items.push(ops.index_created_key(value).map_err(host)?);
             } else {
                 assign(ops, index, value).map_err(RegexpExecutionError::Assignment)?;
             }
@@ -2444,7 +2515,12 @@ fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
         }
     }
     if inline {
-        Ok(RegexpResult::Inline(ops.new_list(items)))
+        let values = items
+            .iter()
+            .map(|owner| ops.index_key_argument(owner))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(host)?;
+        Ok(RegexpResult::Inline(ops.new_list(values)))
     } else {
         Ok(RegexpResult::Count {
             assign: None,
@@ -3147,20 +3223,27 @@ where
 ///
 /// # Errors
 /// Invalid options, arguments, or start index.
-pub fn regsub_start<O: ValueOps>(
+pub fn regsub_start<O: NativeIndexOps>(
     ops: &mut O,
     args: &[&[u8]],
     version: TclVersion,
 ) -> Result<usize, RegexError> {
-    let (common, _, offset) = regsub_option_scan(&mut ByteOptionArguments(args), version)?;
-    let rest = &args[offset..];
-    if rest.len() < 3 || rest.len() > 4 {
-        return Err(wrong_args(REGSUB_USAGE));
-    }
-    let (characters, _) = decode_utf8(rest[1]);
-    common.start.as_ref().map_or(Ok(0), |spec| {
-        resolve_start_checked(ops, spec, characters.len())
-    })
+    crate::index::run_index_output(
+        ops,
+        |ops| {
+            let (common, _, offset) = regsub_option_scan(&mut ByteOptionArguments(args), version)?;
+            let rest = &args[offset..];
+            if rest.len() < 3 || rest.len() > 4 {
+                return Err(wrong_args(REGSUB_USAGE));
+            }
+            let (characters, _) = decode_utf8(rest[1]);
+            common.start.as_ref().map_or(Ok(0), |spec| {
+                resolve_start_checked(ops, spec, characters.len())
+            })
+        },
+        |_, metadata| drop(metadata),
+        RegexError::from,
+    )
 }
 
 /// C-release compatibility adapter. Native engines use [`regsub_start`] and
@@ -3731,6 +3814,67 @@ mod tests {
     /// an assertion reads exactly as tclsh prints the answer.
     #[derive(Default)]
     struct ListOps;
+
+    impl crate::index::NativeIndexOps for ListOps {
+        type IndexOperation = ();
+        type IndexKeyOwner = Self::Value;
+        fn index_borrowed_key(
+            &mut self,
+            value: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value.clone())
+        }
+        fn index_created_key(
+            &mut self,
+            value: Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value)
+        }
+        fn index_key_value(owner: &Self::Value) -> &Self::Value {
+            owner
+        }
+        fn index_hold_key_result(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_finish_held_key_result(
+            &mut self,
+            held: Self::Value,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(crate::index::IndexResult::Detached(held))
+        }
+        fn index_key_argument(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_key_result(
+            &mut self,
+            owner: &Self::Value,
+            created: bool,
+            ancestor: bool,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(if created {
+                crate::index::IndexResult::Created(owner.clone())
+            } else if ancestor {
+                crate::index::IndexResult::Detached(owner.clone())
+            } else {
+                crate::index::IndexResult::Borrowed(owner.clone())
+            })
+        }
+        fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn discard_owned_index_result(&mut self, created: Self::Value) {
+            drop(created);
+        }
+    }
 
     impl ValueOps for ListOps {
         fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {

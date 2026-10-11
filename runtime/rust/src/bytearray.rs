@@ -135,6 +135,31 @@ pub(crate) fn set_native_append_bytes(
     bytes: &[u8],
     recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
 ) {
+    set_native_append_bytes_using::<tcl_syntax::value::ValueError>(value, bytes, recipe, None)
+        .expect("neutral native append binary backing has no checked stages");
+}
+
+/// Install reached native binary backing through the same checked primary owner.
+/// Every error leaves the incoming allocation caller-owned until discarded.
+pub(crate) fn set_native_append_bytes_checked<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    bytes: &[u8],
+    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    current: &mut dyn FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    set_native_append_bytes_using(value, bytes, recipe, Some(current))
+}
+
+fn set_native_append_bytes_using<E: From<tcl_syntax::value::ValueError>>(
+    value: *mut TclObj,
+    bytes: &[u8],
+    recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    mut current: Option<&mut dyn FnMut() -> Result<(), E>>,
+) -> Result<(), E> {
+    if let Some(current) = current.as_mut() {
+        current()?;
+        obj::check_native_liveness(value)?;
+    }
     let backing = Box::new(TclByteArray {
         bytes: bytes.to_vec(),
         conversion: None,
@@ -142,11 +167,29 @@ pub(crate) fn set_native_append_bytes(
         recipe,
     });
     obj::invalidate_string(value);
-    obj::change_type(
-        value,
-        &TCL_BYTE_ARRAY_TYPE,
-        Box::into_raw(backing) as usize as u64,
-    );
+    let incoming = Box::into_raw(backing);
+    let reached = if let Some(current) = current.as_mut() {
+        obj::change_type_with_stage_check(
+            value,
+            &TCL_BYTE_ARRAY_TYPE,
+            incoming as usize as u64,
+            &mut **current,
+        )
+    } else {
+        obj::change_type(value, &TCL_BYTE_ARRAY_TYPE, incoming as usize as u64);
+        Ok(())
+    };
+    if let Err(error) = reached {
+        // SAFETY: checked adoption did not take incoming backing on any error.
+        unsafe {
+            drop(Box::from_raw(incoming));
+        }
+        return Err(error);
+    }
+    if let Some(current) = current.as_mut() {
+        current()?;
+    }
+    Ok(())
 }
 
 /// Materialise a pure byte-array string for the selected primitive getter.
@@ -495,3 +538,70 @@ mod tests {
 
 #[cfg(test)]
 mod native_scalar_string_refusal_tests;
+
+#[cfg(test)]
+mod native_append_route_controls {
+    use super::*;
+    use std::cell::Cell;
+    thread_local! { static FREES: Cell<usize> = const { Cell::new(0) }; }
+    extern "C" fn reenter(receiver: *mut TclObj) {
+        FREES.with(|count| count.set(count.get() + 1));
+        // A genuine reached callback publishes an independent primary through
+        // the canonical kernel; vacate only its own selected old slot first.
+        unsafe {
+            (*receiver).type_ptr = core::ptr::null();
+            (*receiver).internal_rep = 0;
+        }
+        obj::change_type(receiver, &REENTERED, 91);
+    }
+    static ORIGINAL: obj::TclObjType = obj::TclObjType {
+        name: c"nativeAppendOriginalControl".as_ptr(),
+        free_int_rep_proc: Some(reenter),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    static REENTERED: obj::TclObjType = obj::TclObjType {
+        name: c"nativeAppendReenteredControl".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    #[test]
+    fn neutral_binary_append_preserves_its_independent_retirement_route() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Genuine software free callback distinguishes neutral and checked
+        // adoption. This grants no native C/Jim callback chronology.
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let recipe = dialect.byte_array_string_recipe(None).unwrap();
+        FREES.with(|count| count.set(0));
+        let neutral = obj::Owned::fresh(obj::alloc_typed(&ORIGINAL, 6));
+        set_native_append_bytes(neutral.as_ptr(), b"N", recipe);
+        assert!(core::ptr::eq(
+            obj::obj_type_ptr(neutral.as_ptr()),
+            &TCL_BYTE_ARRAY_TYPE
+        ));
+        assert_eq!(unsafe { byte_array_ref(neutral.as_ptr()) }.bytes, b"N");
+        let checked = obj::Owned::fresh(obj::alloc_typed(&ORIGINAL, 6));
+        let failure = set_native_append_bytes_checked(checked.as_ptr(), b"C", recipe, &mut || {
+            Ok::<(), tcl_syntax::value::ValueError>(())
+        })
+        .unwrap_err();
+        assert!(matches!(
+            failure,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "changed native primary publication slot"
+            )
+        ));
+        assert!(core::ptr::eq(
+            obj::obj_type_ptr(checked.as_ptr()),
+            &REENTERED
+        ));
+        assert_eq!(obj::internal_rep(checked.as_ptr()), 91);
+        assert_eq!(FREES.with(Cell::get), 2);
+        assert_eq!(unsafe { (*neutral.as_ptr()).ref_count }, 1);
+        assert_eq!(unsafe { (*checked.as_ptr()).ref_count }, 1);
+    }
+}

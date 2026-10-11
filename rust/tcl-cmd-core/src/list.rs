@@ -31,6 +31,7 @@
 #[path = "list/native_concat.rs"]
 mod native_concat;
 
+use crate::index::NativeIndexOps;
 use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueOps;
 
@@ -59,21 +60,32 @@ pub fn llength<O: ValueOps>(ops: &mut O, value: &O::Value) -> Result<O::Value, C
 /// (`lindex {{a b} c} {0 1}` → `b`); multiple arguments are each a single index.
 /// Jim instead treats that operand as one safe-expression index.
 /// Mirrors `Tcl_LindexObjCmd` (`TclLindexList`/`TclLindexFlat`).
-pub fn lindex<O: ValueOps>(
+pub fn lindex<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     idxs: &[O::Value],
 ) -> Result<O::Value, CmdError> {
+    index::run_index_result(ops, |ops| lindex_result(ops, value, idxs))
+}
+
+fn lindex_result<O: NativeIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    idxs: &[O::Value],
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    if let Some(result) = ops.original_c_list_index(value, idxs, true)? {
+        return Ok(result);
+    }
     if ops
         .index_syntax()
         .is_some_and(|syntax| !syntax.lindex_argument_is_path())
     {
-        return lindex_flat(ops, value, idxs);
+        return lindex_flat_result(ops, value, idxs);
     }
     let [only] = idxs else {
-        return lindex_flat(ops, value, idxs);
+        return lindex_flat_result(ops, value, idxs);
     };
-    let s = ops.try_as_str(only)?;
+    let s = ops.index_unicode(only)?;
     // A single index argument is an index *list* (`lindex $l {0 1}`). When it
     // is not a well-formed list (`lindex $l \{`), C falls back to treating it
     // as one index spec — which then fails as `bad index "{"`, not as a list
@@ -94,14 +106,39 @@ pub fn lindex<O: ValueOps>(
 /// # Errors
 /// `bad index …` for a malformed spec, or the list-parse error of a level that
 /// is not a well-formed list.
-pub fn lindex_flat<O: ValueOps>(
+pub fn lindex_flat<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     idxs: &[O::Value],
 ) -> Result<O::Value, CmdError> {
+    index::run_index_result(ops, |ops| lindex_flat_result(ops, value, idxs))
+}
+
+fn lindex_flat_result<O: NativeIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    idxs: &[O::Value],
+) -> Result<index::IndexResult<O::Value>, CmdError> {
+    if let Some(result) = ops.original_c_list_index(value, idxs, false)? {
+        return Ok(result);
+    }
+    // Jim_ListIndices extracts every original coordinate before converting
+    // any container: an index may also be the list or one of its members.
+    if let Some(indices) = index::prepare_jim_indices(ops, &idxs.iter().collect::<Vec<_>>())? {
+        let mut current = value.clone();
+        for encoded in indices {
+            let elements = ops.index_list_elements(&current)?;
+            let at = index::resolve_jim_encoding(encoded, elements.len());
+            let Some(member) = usize::try_from(at).ok().and_then(|at| elements.get(at)) else {
+                return Ok(index::IndexResult::Created(ops.empty()));
+            };
+            current = member.clone();
+        }
+        return Ok(index::IndexResult::Borrowed(current));
+    }
     let specs: Vec<_> = idxs
         .iter()
-        .map(|i| ops.try_as_str(i))
+        .map(|i| ops.index_unicode(i))
         .collect::<Result<_, _>>()?;
     let specs: Vec<String> = specs.iter().map(ToString::to_string).collect();
     lindex_specs(ops, value, &specs)
@@ -110,14 +147,14 @@ pub fn lindex_flat<O: ValueOps>(
 /// Walk `specs` one level per index — the shared body of [`lindex`] and
 /// [`lindex_flat`] (C's `TclLindexFlat` loop). An empty `specs` returns `value`
 /// unchanged, which is how `lindex $l {}` yields the whole list.
-fn lindex_specs<O: ValueOps>(
+fn lindex_specs<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     specs: &[String],
-) -> Result<O::Value, CmdError> {
+) -> Result<index::IndexResult<O::Value>, CmdError> {
     let mut cur = value.clone();
     for (k, spec) in specs.iter().enumerate() {
-        let elems = ops.list_elements(&cur)?;
+        let elems = ops.index_list_elements(&cur)?;
         let i = index::resolve_for_ops(ops, spec, elems.len())?;
         if let Some(i) = usize::try_from(i).ok().filter(|&i| i < elems.len()) {
             cur = elems[i].clone();
@@ -132,34 +169,54 @@ fn lindex_specs<O: ValueOps>(
                     index::resolve_for_ops(ops, rest, 0)?;
                 }
             }
-            return Ok(ops.empty());
+            return Ok(index::IndexResult::Created(ops.empty()));
         }
     }
-    Ok(cur)
+    Ok(index::IndexResult::Borrowed(cur))
 }
 
 /// `lrange list first last` — the inclusive sublist, clamped.
-pub fn lrange<O: ValueOps>(
+pub fn lrange<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     first: &O::Value,
     last: &O::Value,
 ) -> Result<O::Value, CmdError> {
-    let elems = ops.list_elements(value)?;
-    let len = elems.len();
-    let lo = index::resolve_value(ops, first, len)?.max(0);
-    let hi = index::resolve_value(ops, last, len)?;
-    let Ok(lo) = usize::try_from(lo) else {
-        return Ok(ops.new_list(Vec::new()));
-    };
-    if hi < 0 || lo >= len {
-        return Ok(ops.new_list(Vec::new()));
-    }
-    let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
-    if lo > hi {
-        return Ok(ops.new_list(Vec::new()));
-    }
-    Ok(ops.new_list(elems[lo..=hi].to_vec()))
+    index::run_index_result(ops, |ops| {
+        if let Some(result) = ops.original_c_list_range(value, first, last)? {
+            return Ok(result);
+        }
+        let created = (|| -> Result<O::Value, CmdError> {
+            // Jim_ListRange prepares both originals before the list getter. C's
+            // original ListIndex adapter keeps its independently selected chronology.
+            let indices = index::prepare_jim_indices(ops, &[first, last])?;
+            let elems = ops.index_list_elements(value)?;
+            let len = elems.len();
+            let (lo, hi) = if let Some(indices) = indices {
+                (
+                    index::resolve_jim_encoding(indices[0], len).max(0),
+                    index::resolve_jim_encoding(indices[1], len),
+                )
+            } else {
+                (
+                    index::resolve_value(ops, first, len)?.max(0),
+                    index::resolve_value(ops, last, len)?,
+                )
+            };
+            let Ok(lo) = usize::try_from(lo) else {
+                return Ok(ops.new_list(Vec::new()));
+            };
+            if hi < 0 || lo >= len {
+                return Ok(ops.new_list(Vec::new()));
+            }
+            let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
+            if lo > hi {
+                return Ok(ops.new_list(Vec::new()));
+            }
+            Ok(ops.new_list(elems[lo..=hi].to_vec()))
+        })()?;
+        Ok(index::IndexResult::Created(created))
+    })
 }
 
 /// `lreverse list`.
@@ -196,20 +253,27 @@ pub fn lrepeat<O: ValueOps>(
 /// end c` appends. Resolving against `len + 1` gives `end`/`end±N` that offset.
 /// A bad index spec errors faithfully; an out-of-range result clamps to
 /// `[0, len]`.
-pub fn linsert<O: ValueOps>(
+pub fn linsert<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     index: &O::Value,
     elements: &[O::Value],
 ) -> Result<O::Value, CmdError> {
-    let mut elems = ops.list_elements(value)?;
-    let len = elems.len();
-    let at = index::resolve_value(ops, index, len + 1)?;
-    let at = usize::try_from(at.max(0)).unwrap_or(0).min(len);
-    for (k, e) in elements.iter().enumerate() {
-        elems.insert(at + k, e.clone());
-    }
-    Ok(ops.new_list(elems))
+    index::run_created_index_result(ops, |ops| {
+        // Jim reaches the original coordinate before the container length.
+        let prepared = index::prepare_jim_indices(ops, &[index])?;
+        let mut elems = ops.index_list_elements(value)?;
+        let len = elems.len();
+        let at = match prepared {
+            Some(indices) => index::resolve_jim_encoding(indices[0], len + 1),
+            None => index::resolve_value(ops, index, len + 1)?,
+        };
+        let at = usize::try_from(at.max(0)).unwrap_or(0).min(len);
+        for (k, e) in elements.iter().enumerate() {
+            elems.insert(at + k, e.clone());
+        }
+        Ok(ops.new_list(elems))
+    })
 }
 
 /// `lreplace list first last ?element ...?` — replace the inclusive range
@@ -218,20 +282,31 @@ pub fn linsert<O: ValueOps>(
 /// `first`/`last` are element indices (`end` = `len-1`), clamped to the list;
 /// `last < first` (or both past the end) makes this a pure insertion at `first`.
 /// A bad index spec errors faithfully.
-pub fn lreplace<O: ValueOps>(
+pub fn lreplace<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     first: &O::Value,
     last: &O::Value,
     elements: &[O::Value],
 ) -> Result<O::Value, CmdError> {
-    let mut elems = ops.list_elements(value)?;
-    let len = elems.len();
-    let first = index::resolve_value(ops, first, len)?;
-    let last = index::resolve_value(ops, last, len)?;
-    let (lo, end) = replace_range(first, last, len);
-    elems.splice(lo..end, elements.iter().cloned());
-    Ok(ops.new_list(elems))
+    index::run_created_index_result(ops, |ops| {
+        let prepared = index::prepare_jim_indices(ops, &[first, last])?;
+        let mut elems = ops.index_list_elements(value)?;
+        let len = elems.len();
+        let (first, last) = match prepared {
+            Some(indices) => (
+                index::resolve_jim_encoding(indices[0], len),
+                index::resolve_jim_encoding(indices[1], len),
+            ),
+            None => (
+                index::resolve_value(ops, first, len)?,
+                index::resolve_value(ops, last, len)?,
+            ),
+        };
+        let (lo, end) = replace_range(first, last, len);
+        elems.splice(lo..end, elements.iter().cloned());
+        Ok(ops.new_list(elems))
+    })
 }
 
 /// The `bad index` error `release` raises for `spec`: 8.4 words the grammar
@@ -253,7 +328,7 @@ fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
 
 /// `spec` read as one index of a level of `len` elements under `release`; a
 /// reading the host's `long` decides takes `ops`'s answer.
-fn index_under<O: ValueOps>(
+fn index_under<O: NativeIndexOps>(
     ops: &mut O,
     spec: &str,
     len: usize,
@@ -274,20 +349,39 @@ fn index_under<O: ValueOps>(
     }
 }
 
+enum UpdateIndex<'a, V> {
+    Original(&'a V),
+    Text(String),
+}
+fn update_index_bytes<O: NativeIndexOps>(
+    ops: &mut O,
+    spec: &UpdateIndex<'_, O::Value>,
+) -> Result<std::rc::Rc<[u8]>, CmdError> {
+    match spec {
+        UpdateIndex::Original(original) => ops.index_operand_bytes(original),
+        UpdateIndex::Text(text) => Ok(std::rc::Rc::from(text.as_bytes())),
+    }
+}
+
 /// The element `spec` names at a level of `len` elements for `lset`, which
 /// from 8.6 may also name `len` itself, the element it appends; anything else
 /// is out of range, worded as `release` words it.
-fn lset_level<O: ValueOps>(
+fn lset_level<O: NativeIndexOps>(
     ops: &mut O,
-    spec: &str,
+    spec: &UpdateIndex<'_, O::Value>,
     len: usize,
     release: TclVersion,
     final_level: bool,
+    prepared: Option<i32>,
 ) -> Result<usize, CmdError> {
-    let index = index_under(ops, spec, len, release)?;
     let jim = ops
         .index_syntax()
         .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim);
+    let index = match (spec, prepared) {
+        (_, Some(encoded)) => index::resolve_jim_encoding(encoded, len),
+        (UpdateIndex::Original(original), None) => index::resolve_value(ops, original, len)?,
+        (UpdateIndex::Text(text), None) => index_under(ops, text, len, release)?,
+    };
     let limit = if !jim && release >= TclVersion::V8_6 {
         len + 1
     } else {
@@ -298,9 +392,18 @@ fn lset_level<O: ValueOps>(
         // Jim_ListSetIndex names an intermediate index; its final
         // ListSetIndex reports the list bound. Neither grants C errorCode.
         _ if jim && final_level => Err(CmdError::new("list index out of range")),
-        _ if jim => Err(CmdError::new(format!("index \"{spec}\" out of range"))),
+        _ if jim => {
+            let bytes = update_index_bytes(ops, spec)?;
+            let mut message = b"index \"".to_vec();
+            message.extend_from_slice(tcl_core_types::c_string_extent(&bytes));
+            message.extend_from_slice(b"\" out of range");
+            Err(CmdError::new_bytes(message))
+        }
         _ if release >= TclVersion::V9_0 => Err(CmdError::with_error_code(
-            format!("index \"{spec}\" out of range"),
+            format!(
+                "index \"{}\" out of range",
+                String::from_utf8_lossy(&update_index_bytes(ops, spec)?)
+            ),
             "TCL VALUE INDEX OUTOFRANGE",
         )),
         _ if release >= TclVersion::V8_6 => Err(CmdError::with_error_code(
@@ -326,65 +429,83 @@ fn lset_level<O: ValueOps>(
 ///
 /// A level that is not a list, a bad index, or an index out of range, as
 /// `release` words each.
-pub fn lset<O: ValueOps>(
+pub fn lset<O: NativeIndexOps>(
     ops: &mut O,
     list: &O::Value,
     indices: &[O::Value],
     value: O::Value,
     release: TclVersion,
 ) -> Result<O::Value, CmdError> {
-    let path: Vec<String> = match indices {
-        [] => Vec::new(),
-        [only] => {
-            let text = ops.try_as_str(only)?.to_string();
-            if ops
-                .index_syntax()
-                .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
-            {
-                vec![text]
-            } else if index::read_under(&text, 0, release) == IndexReading::Bad {
-                match tcl_syntax::list::split_list(&text) {
-                    Ok(parts) => parts.iter().map(|part| part.as_ref().to_owned()).collect(),
-                    Err(_) => vec![text],
-                }
-            } else {
-                vec![text]
-            }
-        }
-        many => many
-            .iter()
-            .map(|spec| ops.try_as_str(spec).map(|text| text.to_string()))
-            .collect::<Result<_, _>>()?,
-    };
-    // Walk down without recursing, so a long path costs no native stack; a
-    // level past an appended element is empty, and builds no value of its own.
-    let mut levels: Vec<(Vec<O::Value>, usize)> = Vec::with_capacity(path.len());
-    let mut current = Some(list.clone());
-    for (ordinal, spec) in path.iter().enumerate() {
-        let elements = match &current {
-            Some(level) => ops.list_elements(level)?,
-            None => Vec::new(),
-        };
-        let at = lset_level(
-            ops,
-            spec,
-            elements.len(),
-            release,
-            ordinal + 1 == path.len(),
-        )?;
-        current = elements.get(at).cloned();
-        levels.push((elements, at));
-    }
-    let mut rebuilt = value;
-    for (mut elements, at) in levels.into_iter().rev() {
-        if at == elements.len() {
-            elements.push(rebuilt);
+    index::run_index_result(ops, |ops| {
+        let jim = ops
+            .index_syntax()
+            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim);
+        let path: Vec<UpdateIndex<'_, O::Value>> = if jim {
+            indices.iter().map(UpdateIndex::Original).collect()
         } else {
-            elements[at] = rebuilt;
+            let path: Vec<String> = match indices {
+                [] => Vec::new(),
+                [only] => {
+                    let text = ops.index_unicode(only)?.to_string();
+                    if index::read_under(&text, 0, release) == IndexReading::Bad {
+                        match tcl_syntax::list::split_list(&text) {
+                            Ok(parts) => {
+                                parts.iter().map(|part| part.as_ref().to_owned()).collect()
+                            }
+                            Err(_) => vec![text],
+                        }
+                    } else {
+                        vec![text]
+                    }
+                }
+                many => many
+                    .iter()
+                    .map(|spec| ops.index_unicode(spec).map(|text| text.to_string()))
+                    .collect::<Result<_, _>>()?,
+            };
+            path.into_iter().map(UpdateIndex::Text).collect()
+        };
+        // Walk down without recursing, so a long path costs no native stack; a
+        // level past an appended element is empty, and builds no value of its own.
+        let mut levels: Vec<(Vec<O::Value>, usize)> = Vec::with_capacity(path.len());
+        let mut current = Some(list.clone());
+        for (ordinal, spec) in path.iter().enumerate() {
+            // Jim_ListSetIndex prepares this original coordinate before this level.
+            let prepared = match spec {
+                UpdateIndex::Original(original) => ops.original_jim_index(original)?,
+                UpdateIndex::Text(_) => None,
+            };
+            let elements = match &current {
+                Some(level) => ops.index_list_elements(level)?,
+                None => Vec::new(),
+            };
+            let at = lset_level(
+                ops,
+                spec,
+                elements.len(),
+                release,
+                ordinal + 1 == path.len(),
+                prepared,
+            )?;
+            current = elements.get(at).cloned();
+            levels.push((elements, at));
         }
-        rebuilt = ops.new_list(elements);
-    }
-    Ok(rebuilt)
+        let created = !levels.is_empty();
+        let mut rebuilt = value;
+        for (mut elements, at) in levels.into_iter().rev() {
+            if at == elements.len() {
+                elements.push(rebuilt);
+            } else {
+                elements[at] = rebuilt;
+            }
+            rebuilt = ops.new_list(elements);
+        }
+        Ok(if created {
+            index::IndexResult::Created(rebuilt)
+        } else {
+            index::IndexResult::Borrowed(rebuilt)
+        })
+    })
 }
 
 /// `lpop listVar ?index …?`'s removed element and the list without it (from
@@ -395,45 +516,74 @@ pub fn lset<O: ValueOps>(
 /// # Errors
 ///
 /// A level that is not a list, a bad index, or `index "X" out of range`.
-pub fn lpop<O: ValueOps>(
+pub fn lpop<O: NativeIndexOps>(
     ops: &mut O,
     list: &O::Value,
     indices: &[O::Value],
     release: TclVersion,
 ) -> Result<(O::Value, O::Value), CmdError> {
-    let path: Vec<String> = if indices.is_empty() {
-        vec!["end".to_owned()]
-    } else {
-        indices
-            .iter()
-            .map(|spec| ops.try_as_str(spec).map(|text| text.to_string()))
-            .collect::<Result<_, _>>()?
-    };
-    let mut levels: Vec<(Vec<O::Value>, usize)> = Vec::with_capacity(path.len());
-    let mut current = list.clone();
-    for spec in &path {
-        let elements = ops.list_elements(&current)?;
-        let index = index_under(ops, spec, elements.len(), release)?;
-        let at = usize::try_from(index)
-            .ok()
-            .filter(|&at| at < elements.len())
-            .ok_or_else(|| {
-                CmdError::with_error_code(
-                    format!("index \"{spec}\" out of range"),
-                    "TCL VALUE INDEX OUTOFRANGE",
-                )
-            })?;
-        current = elements[at].clone();
-        levels.push((elements, at));
+    let original = ops.enter_index_operation()?;
+    let reached = (|ops: &mut O| {
+        let path: Vec<UpdateIndex<'_, O::Value>> = if indices.is_empty() {
+            vec![UpdateIndex::Text("end".to_owned())]
+        } else if ops
+            .index_syntax()
+            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+        {
+            indices.iter().map(UpdateIndex::Original).collect()
+        } else {
+            indices
+                .iter()
+                .map(|spec| {
+                    ops.index_unicode(spec)
+                        .map(|text| UpdateIndex::Text(text.to_string()))
+                })
+                .collect::<Result<_, _>>()?
+        };
+        let mut levels: Vec<(Vec<O::Value>, usize)> = Vec::with_capacity(path.len());
+        let mut current = list.clone();
+        for spec in &path {
+            let elements = ops.index_list_elements(&current)?;
+            let index = match spec {
+                UpdateIndex::Original(original) => {
+                    index::resolve_value(ops, original, elements.len())?
+                }
+                UpdateIndex::Text(text) => index_under(ops, text, elements.len(), release)?,
+            };
+            let Some(at) = usize::try_from(index)
+                .ok()
+                .filter(|&at| at < elements.len())
+            else {
+                let bytes = update_index_bytes(ops, spec)?;
+                let mut message = b"index \"".to_vec();
+                message.extend_from_slice(&bytes);
+                message.extend_from_slice(b"\" out of range");
+                return Err(CmdError::with_error_code_bytes(
+                    message,
+                    b"TCL VALUE INDEX OUTOFRANGE".to_vec(),
+                ));
+            };
+            current = elements[at].clone();
+            levels.push((elements, at));
+        }
+        let (mut innermost, at) = levels.pop().expect("the path has at least one index");
+        let removed = innermost.remove(at);
+        let mut rebuilt = ops.new_list(innermost);
+        for (mut elements, at) in levels.into_iter().rev() {
+            elements[at] = rebuilt;
+            rebuilt = ops.new_list(elements);
+        }
+        Ok((removed, rebuilt))
+    })(ops);
+    if let Err(first) = ops.check_index_operation(&original) {
+        if let Ok((removed, rebuilt)) = reached {
+            drop(removed);
+            ops.discard_owned_index_result(rebuilt);
+        }
+        let _ = ops.check_index_operation(&original);
+        return Err(first);
     }
-    let (mut innermost, at) = levels.pop().expect("the path has at least one index");
-    let removed = innermost.remove(at);
-    let mut rebuilt = ops.new_list(innermost);
-    for (mut elements, at) in levels.into_iter().rev() {
-        elements[at] = rebuilt;
-        rebuilt = ops.new_list(elements);
-    }
-    Ok((removed, rebuilt))
+    reached
 }
 
 /// `ledit listVar first last ?element …?`'s new list (from 9.0): the
@@ -442,7 +592,7 @@ pub fn lpop<O: ValueOps>(
 /// # Errors
 ///
 /// The list's parse error, or a bad index.
-pub fn ledit<O: ValueOps>(
+pub fn ledit<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
     first: &O::Value,
@@ -450,14 +600,28 @@ pub fn ledit<O: ValueOps>(
     elements: &[O::Value],
     release: TclVersion,
 ) -> Result<O::Value, CmdError> {
-    let mut items = ops.list_elements(value)?;
-    let len = items.len();
-    let (first, last) = (ops.try_as_str(first)?, ops.try_as_str(last)?);
-    let first = index_under(ops, &first, len, release)?;
-    let last = index_under(ops, &last, len, release)?;
-    let (lo, end) = replace_range(first, last, len);
-    items.splice(lo..end, elements.iter().cloned());
-    Ok(ops.new_list(items))
+    index::run_created_index_result(ops, |ops| {
+        let mut items = ops.index_list_elements(value)?;
+        let len = items.len();
+        let (first, last) = if ops
+            .index_syntax()
+            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+        {
+            (
+                index::resolve_value(ops, first, len)?,
+                index::resolve_value(ops, last, len)?,
+            )
+        } else {
+            let (first, last) = (ops.index_unicode(first)?, ops.index_unicode(last)?);
+            (
+                index_under(ops, &first, len, release)?,
+                index_under(ops, &last, len, release)?,
+            )
+        };
+        let (lo, end) = replace_range(first, last, len);
+        items.splice(lo..end, elements.iter().cloned());
+        Ok(ops.new_list(items))
+    })
 }
 
 /// The `lo..end` element range `lreplace` and `ledit` replace for `first` and
@@ -567,6 +731,67 @@ mod tests {
     /// Unicode-only fixture values whose lists use the shared list formatter.
     /// Byte construction requires the same bounded Unicode input domain.
     struct TextOps;
+
+    impl crate::index::NativeIndexOps for TextOps {
+        type IndexOperation = ();
+        type IndexKeyOwner = Self::Value;
+        fn index_borrowed_key(
+            &mut self,
+            value: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value.clone())
+        }
+        fn index_created_key(
+            &mut self,
+            value: Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(value)
+        }
+        fn index_key_value(owner: &Self::Value) -> &Self::Value {
+            owner
+        }
+        fn index_hold_key_result(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_finish_held_key_result(
+            &mut self,
+            held: Self::Value,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(crate::index::IndexResult::Detached(held))
+        }
+        fn index_key_argument(
+            &mut self,
+            owner: &Self::Value,
+        ) -> Result<Self::Value, crate::CmdError> {
+            Ok(owner.clone())
+        }
+        fn index_key_result(
+            &mut self,
+            owner: &Self::Value,
+            created: bool,
+            ancestor: bool,
+        ) -> Result<crate::index::IndexResult<Self::Value>, crate::CmdError> {
+            Ok(if created {
+                crate::index::IndexResult::Created(owner.clone())
+            } else if ancestor {
+                crate::index::IndexResult::Detached(owner.clone())
+            } else {
+                crate::index::IndexResult::Borrowed(owner.clone())
+            })
+        }
+        fn enter_index_operation(&mut self) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn check_index_operation(&mut self, _: &()) -> Result<(), crate::CmdError> {
+            Ok(())
+        }
+        fn discard_owned_index_result(&mut self, created: Self::Value) {
+            drop(created);
+        }
+    }
 
     impl ValueOps for TextOps {
         type Value = String;

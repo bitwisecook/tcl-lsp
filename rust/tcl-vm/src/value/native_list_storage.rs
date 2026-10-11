@@ -44,11 +44,41 @@ impl Value {
         self.native_list_selected_range(NativeListRangeSelection::Command { first, last }, protocol)
     }
 
+    pub(crate) fn native_list_command_range_checked<E: From<ValueError>>(
+        &self,
+        first: i64,
+        last: i64,
+        protocol: NativeStringProtocol,
+        check: &mut dyn FnMut() -> Result<(), E>,
+        strings: &mut dyn FnMut(&Value) -> Result<std::rc::Rc<[u8]>, E>,
+    ) -> Result<Self, E> {
+        self.native_list_selected_range_using(
+            NativeListRangeSelection::Command { first, last },
+            protocol,
+            &mut Some(check),
+            &mut Some(strings),
+        )
+    }
+
     fn native_list_selected_range(
         &self,
         selection: NativeListRangeSelection,
         protocol: NativeStringProtocol,
     ) -> Result<Self, ValueError> {
+        self.native_list_selected_range_using(selection, protocol, &mut None, &mut None)
+    }
+
+    fn native_list_selected_range_using<E: From<ValueError>>(
+        &self,
+        selection: NativeListRangeSelection,
+        protocol: NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<std::rc::Rc<[u8]>, E>>,
+    ) -> Result<Self, E> {
+        Self::native_stage_check(check)?;
+        if check.is_some() {
+            self.check_native_header()?;
+        }
         let version = protocol
             .tcl_version()
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -61,15 +91,26 @@ impl Value {
         {
             return Ok(self.clone());
         }
-        drop(self.native_object_list_elements(protocol)?);
+        drop(self.native_object_list_elements_using(protocol, check, strings)?);
+        Self::native_stage_check(check)?;
         let shared = self.native_object_is_shared();
-        let mut primary = self.0.intrep.borrow_mut();
-        let IntRep::List { items, .. } = &mut *primary else {
-            unreachable!("original List getter installed its storage")
-        };
-        if version >= TclVersion::V9_0 && !shared {
-            items.collect_unreferenced()?;
+        {
+            let mut primary = self.0.intrep.borrow_mut();
+            let IntRep::List { items, .. } = &mut *primary else {
+                unreachable!("original List getter installed its storage")
+            };
+            if version >= TclVersion::V9_0 && !shared {
+                items.collect_unreferenced()?;
+            }
         }
+        Self::native_stage_check(check)?;
+        if check.is_some() {
+            self.check_native_header()?;
+        }
+        let primary = self.0.intrep.borrow_mut();
+        let IntRep::List { items, .. } = &*primary else {
+            unreachable!("original checked List getter installed its storage")
+        };
         let action = selection.action(
             version,
             NativeListRangeStorage {
@@ -88,17 +129,21 @@ impl Value {
                 ),
             },
         )?;
-        self.apply_native_list_range(action, primary, shared, version, protocol)
+        let reached =
+            self.apply_native_list_range_using(action, primary, shared, version, protocol, check);
+        Self::native_stage_check(check)?;
+        reached
     }
 
-    fn apply_native_list_range(
+    fn apply_native_list_range_using<E: From<ValueError>>(
         &self,
         action: NativeListRangeAction,
         mut primary: std::cell::RefMut<'_, IntRep>,
         shared: bool,
         version: TclVersion,
         protocol: NativeStringProtocol,
-    ) -> Result<Self, ValueError> {
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<Self, E> {
         let IntRep::List {
             items, canonical, ..
         } = &mut *primary
@@ -119,9 +164,22 @@ impl Value {
                         },
                     ))
                 } else {
-                    *canonical = result.canonical_state();
-                    *items = result;
-                    drop(primary);
+                    if check.is_some() {
+                        drop(primary);
+                        self.replace_primary_using(
+                            IntRep::List {
+                                canonical: result.canonical_state(),
+                                items: result,
+                                string_protocol: std::cell::Cell::new(Some(protocol)),
+                            },
+                            check,
+                        )?;
+                    } else {
+                        *canonical = result.canonical_state();
+                        *items = result;
+                        drop(primary);
+                    }
+                    Self::native_stage_check(check)?;
                     self.invalidate_native_list_string();
                     Ok(self.clone())
                 }
@@ -132,9 +190,22 @@ impl Value {
             NativeListRangeAction::FreshMembers(range) => {
                 let result = crate::NativeListItems::new(items.elements()?[range].to_vec(), false);
                 if version >= TclVersion::V9_0 && !shared {
-                    *canonical = result.canonical_state();
-                    *items = result;
-                    drop(primary);
+                    if check.is_some() {
+                        drop(primary);
+                        self.replace_primary_using(
+                            IntRep::List {
+                                canonical: result.canonical_state(),
+                                items: result,
+                                string_protocol: std::cell::Cell::new(Some(protocol)),
+                            },
+                            check,
+                        )?;
+                    } else {
+                        *canonical = result.canonical_state();
+                        *items = result;
+                        drop(primary);
+                    }
+                    Self::native_stage_check(check)?;
                     self.invalidate_native_list_string();
                     Ok(self.clone())
                 } else {
@@ -172,6 +243,10 @@ impl Value {
                 } else {
                     let previous = canonical.get();
                     items.select_window(range, span)?;
+                    Self::native_stage_check(check)?;
+                    if check.is_some() {
+                        self.check_native_header()?;
+                    }
                     if version < TclVersion::V9_0 {
                         items.canonical_state().set(previous);
                     }

@@ -49,16 +49,50 @@ pub(crate) fn native_list_command_range(
     )
 }
 
+/// Original command range with the same checked conversion, mutation and
+/// returned-owner stages. The checker grants no native header reference.
+pub(crate) fn native_list_command_range_using<E>(
+    original: *mut TclObj,
+    first: i64,
+    last: i64,
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    native_list_selected_range_using(
+        original,
+        NativeListRangeSelection::Command { first, last },
+        protocol,
+        Some(check),
+        refuse,
+    )
+}
+
 fn native_list_selected_range(
     original: *mut TclObj,
     selection: NativeListRangeSelection,
     protocol: NativeStringProtocol,
 ) -> Result<obj::Owned, ValueError> {
-    let version = protocol
-        .tcl_version()
-        .ok_or(ValueError::CommandProtocolUnavailable(
+    native_list_selected_range_using(original, selection, protocol, None, &std::convert::identity)
+}
+
+fn native_list_selected_range_using<E>(
+    original: *mut TclObj,
+    selection: NativeListRangeSelection,
+    protocol: NativeStringProtocol,
+    check: Option<&dyn Fn() -> Result<(), E>>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    let stage = || match check {
+        Some(check) => check(),
+        None => Ok(()),
+    };
+    stage()?;
+    let version = protocol.tcl_version().ok_or_else(|| {
+        refuse(ValueError::CommandProtocolUnavailable(
             "native compiled List range release",
-        ))?;
+        ))
+    })?;
     if selection.is_immediate()
         && version >= TclVersion::V9_0
         && obj::has_canonical_empty_string(original)
@@ -66,43 +100,64 @@ fn native_list_selected_range(
         return Ok(obj::Owned::retain(original));
     }
     if version >= TclVersion::V9_0 && crate::native_arithseries::is_series(original) {
-        return Err(ValueError::CommandProtocolUnavailable(
+        return Err(refuse(ValueError::CommandProtocolUnavailable(
             "native abstract List slice provider",
-        ));
+        )));
     }
-    prepare_native_list_mutation(original, protocol)?;
+    if check.is_some() {
+        prepare_native_list_mutation_using(original, protocol, &stage, refuse)?;
+    } else {
+        prepare_native_list_mutation(original, protocol).map_err(refuse)?;
+    }
+    stage()?;
     let shared = obj::is_shared(original);
-    // SAFETY: the original getter installed this live header. No result hold
-    // is acquired before sampling the original header's sharing.
-    let list = unsafe { list_mut(original) };
     if version >= TclVersion::V9_0 && !shared {
-        list.elems.collect_unreferenced();
+        if check.is_some() {
+            collect_replacement_unreferenced(original, &stage, refuse)?;
+        } else {
+            unsafe { list_mut(original) }.elems.collect_unreferenced();
+        }
     }
-    let action = selection.action(
-        version,
-        NativeListRangeStorage {
-            length: list.elems.len(),
-            header_shared: shared,
-            store_shared: list.elems.native_is_shared(),
-            has_span: list.elems.span,
-            used: list.elems.backing.elements.borrow().0.len(),
-            allocated: list.elems.backing.capacity.get(),
-            string: tcl_cmd_core::native_list_storage::NativeListStringState::from_empty(
-                !obj::has_string_rep(original) || obj::bytes_of(original).is_empty(),
-            ),
-        },
-    )?;
-    apply_native_list_range(original, list, action, shared, version, protocol)
+    stage()?;
+    let action = {
+        let list = unsafe { list_ref(original) };
+        selection
+            .action(
+                version,
+                NativeListRangeStorage {
+                    length: list.elems.len(),
+                    header_shared: shared,
+                    store_shared: list.elems.native_is_shared(),
+                    has_span: list.elems.span,
+                    used: list.elems.backing.elements.borrow().0.len(),
+                    allocated: list.elems.backing.capacity.get(),
+                    string: tcl_cmd_core::native_list_storage::NativeListStringState::from_empty(
+                        !obj::has_string_rep(original) || obj::bytes_of(original).is_empty(),
+                    ),
+                },
+            )
+            .map_err(refuse)?
+    };
+    let reached =
+        apply_native_list_range_using(original, action, shared, version, protocol, check, refuse);
+    stage()?;
+    reached
 }
 
-fn apply_native_list_range(
+fn apply_native_list_range_using<E>(
     original: *mut TclObj,
-    list: &mut TclList,
     action: NativeListRangeAction,
     shared: bool,
     version: TclVersion,
     protocol: NativeStringProtocol,
-) -> Result<obj::Owned, ValueError> {
+    check: Option<&dyn Fn() -> Result<(), E>>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    let stage = || match check {
+        Some(check) => check(),
+        None => Ok(()),
+    };
+    stage()?;
     match action {
         NativeListRangeAction::OriginalEmpty => Ok(obj::Owned::retain(original)),
         NativeListRangeAction::FreshEmpty => Ok(obj::Owned::fresh(obj::new_obj())),
@@ -118,19 +173,31 @@ fn apply_native_list_range(
                     Box::into_raw(Box::new(backing)) as usize as u64,
                 )))
             } else {
-                *list = backing;
+                if check.is_some() {
+                    replace_storage(original, backing.elems, &stage, refuse)?;
+                    let list = unsafe { list_mut(original) };
+                    list.canonical = backing.canonical;
+                    list.string_protocol.set(Some(protocol));
+                } else {
+                    *unsafe { list_mut(original) } = backing;
+                }
                 obj::invalidate_string(original);
                 Ok(obj::Owned::retain(original))
             }
         }
         NativeListRangeAction::FreshMembers(range) => {
-            let elements = list.elems.elements()[range].to_vec();
+            let elements = unsafe { list_ref(original) }.elems.elements()[range].to_vec();
             if version >= TclVersion::V9_0 && !shared {
                 for &element in &elements {
                     unsafe { obj::incr_ref_count(element) };
                 }
-                list.elems = NativeListStorage::new(elements);
-                list.canonical = Rc::new(Cell::new(false));
+                let replacement = NativeListStorage::new(elements);
+                if check.is_some() {
+                    replace_storage(original, replacement, &stage, refuse)?;
+                } else {
+                    unsafe { list_mut(original) }.elems = replacement;
+                }
+                unsafe { list_mut(original) }.canonical = Rc::new(Cell::new(false));
                 obj::invalidate_string(original);
                 Ok(obj::Owned::retain(original))
             } else {
@@ -139,7 +206,11 @@ fn apply_native_list_range(
         }
         NativeListRangeAction::Whole => {
             if shared {
-                native_list_copy(original, protocol)
+                if check.is_some() {
+                    native_list_copy_using(original, protocol, &stage, refuse)
+                } else {
+                    native_list_copy(original, protocol).map_err(refuse)
+                }
             } else {
                 obj::invalidate_string(original);
                 Ok(obj::Owned::retain(original))
@@ -147,6 +218,7 @@ fn apply_native_list_range(
         }
         NativeListRangeAction::Window { range, span } => {
             if shared {
+                let list = unsafe { list_ref(original) };
                 let backing = Box::new(TclList {
                     elems: list.elems.range_header(range),
                     canonical: Rc::clone(&list.canonical),
@@ -157,9 +229,15 @@ fn apply_native_list_range(
                     Box::into_raw(backing) as usize as u64,
                 )))
             } else {
-                list.elems.select_window(range, span);
+                if check.is_some() {
+                    select_replacement_window(original, range, span, &stage, refuse)?;
+                } else {
+                    unsafe { list_mut(original) }
+                        .elems
+                        .select_window(range, span);
+                }
                 if version >= TclVersion::V9_0 && !span {
-                    list.canonical.set(false);
+                    unsafe { list_mut(original) }.canonical.set(false);
                 }
                 obj::invalidate_string(original);
                 Ok(obj::Owned::retain(original))
@@ -361,7 +439,7 @@ fn replace_selected_native_storage<E>(
     refuse: &impl Fn(ValueError) -> E,
 ) -> Result<bool, E> {
     use tcl_cmd_core::native_list_storage::{
-        range_storage_action, replace_layout, NativeListReplaceStorage,
+        NativeListReplaceStorage, range_storage_action, replace_layout,
     };
     unsafe { list_ref(original) }
         .elems
@@ -649,6 +727,120 @@ mod tests {
                 drop(alias);
                 assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
             }
+        }
+    }
+}
+
+#[cfg(all(test, have_tommath))]
+mod original_range_retirement_controls {
+    use super::*;
+    use crate::interp::{Interp, native_arguments::OriginalArguments};
+    use std::cell::{Cell, RefCell};
+    thread_local! {
+        static MODE: Cell<u8> = const { Cell::new(0) };
+        static FREES: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+        static HEADER: Cell<*mut TclObj> = const { Cell::new(core::ptr::null_mut()) };
+        static REFERENCES: RefCell<Vec<obj::TclSize>> = const { RefCell::new(Vec::new()) };
+    }
+    extern "C" fn free_member(value: *mut TclObj) {
+        let id = obj::internal_rep(value);
+        FREES.with(|calls| calls.borrow_mut().push(id));
+        REFERENCES.with(|references| {
+            references
+                .borrow_mut()
+                .push(unsafe { (*HEADER.with(Cell::get)).ref_count })
+        });
+        let mut interpreter = unsafe { crate::codegen_abi::current_interp().as_ref() }
+            .unwrap()
+            .clone();
+        match MODE.with(Cell::get) {
+            1 => {
+                interpreter.refuse_host_command(if id == 1 {
+                    "first original range retirement"
+                } else {
+                    "later original range retirement"
+                });
+            }
+            2 if id == 1 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("range-retirement-context".to_owned(), "1".to_owned())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+    }
+    static MEMBER: obj::TclObjType = obj::TclObjType {
+        name: c"originalRangeMemberControl".as_ptr(),
+        free_int_rep_proc: Some(free_member),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    struct Current;
+    impl Drop for Current {
+        fn drop(&mut self) {
+            crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
+        }
+    }
+    #[test]
+    fn original_range_retirement_checks_first_cause_without_working_header_reference() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software member-free callbacks exercise the shared storage
+        // retirement owner. This is no C/Jim native callback chronology claim.
+        for mode in [0, 1, 2] {
+            let mut interpreter = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("tcl9.0"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let members = (1..=3)
+                .map(|id| obj::alloc_typed(&MEMBER, id))
+                .collect::<Vec<_>>();
+            let original = obj::Owned::fresh(new_list_obj_native(
+                &members,
+                NativeStringProtocol::C(TclVersion::V9_0),
+            ));
+            let arguments = OriginalArguments::enter(&interpreter, &[original.as_ptr()]).unwrap();
+            interpreter.set_result_bytes(b"PRIOR");
+            let prior = interpreter.get_obj_result();
+            crate::codegen_abi::tcl_runtime_set_current_interp(&mut interpreter);
+            let _current = Current;
+            MODE.with(|selected| selected.set(mode));
+            FREES.with(|calls| calls.borrow_mut().clear());
+            REFERENCES.with(|references| references.borrow_mut().clear());
+            HEADER.with(|header| header.set(original.as_ptr()));
+            let reached = native_list_command_range_using(
+                original.as_ptr(),
+                99,
+                0,
+                NativeStringProtocol::C(TclVersion::V9_0),
+                &|| arguments.check_original_for(&interpreter, 0, original.as_ptr()),
+                &|error| arguments.retain_refusal(error.into()),
+            );
+            if mode == 0 {
+                assert_eq!(reached.unwrap().as_ptr(), original.as_ptr());
+            } else {
+                let first = match reached {
+                    Err(first) => first,
+                    Ok(_) => panic!("retirement refusal"),
+                };
+                assert_eq!(
+                    first.native_execution_refusal(),
+                    interpreter.native_execution_refusal().as_ref()
+                );
+            }
+            assert_eq!(FREES.with(|calls| calls.borrow().clone()), [1, 2, 3]);
+            assert_eq!(
+                REFERENCES.with(|references| references.borrow().clone()),
+                [1, 1, 1]
+            );
+            assert_eq!(interpreter.get_obj_result(), prior);
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
+            MODE.with(|selected| selected.set(0));
         }
     }
 }

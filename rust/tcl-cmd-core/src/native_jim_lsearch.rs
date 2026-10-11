@@ -133,78 +133,87 @@ pub fn lsearch<O, E>(
 where
     O: NativeJimLsearchObjects,
 {
-    if ops.jim_regex_recipe()?.is_none() {
-        return Err(ValueError::CommandProtocolUnavailable("Jim lsearch issuer").into());
-    }
-    let SearchArguments {
-        source,
-        pattern,
-        command,
-        index,
-        mode,
-        flags,
-        all,
-        stride,
-    } = search_arguments(ops, args)?;
-    let length = ops.jim_search_elements(source)?.len();
-    if length % stride != 0 {
-        return Err(
-            null_error(b"list size must be a multiple of the stride length".to_vec()).into(),
-        );
-    }
-    let mut result = all.then(|| ops.jim_search_begin());
-    let fresh_command = (mode == 5).then(|| ops.jim_search_regexp_command());
-    let command = if mode == 5 {
-        fresh_command.as_ref()
-    } else {
-        command
-    };
-    let _command_hold = command.map(|head| ops.jim_search_hold(head)).transpose()?;
-    let selection = Selection {
-        pattern,
-        command,
-        mode,
-        flags,
-        stride,
-    };
-    for offset in (0..length).step_by(stride) {
-        // Native loops reconvert the original List after callbacks. The fixed
-        // initial extent must still be backed by actual current storage.
-        let members = ops.jim_search_elements(source)?;
-        let Some(group) = members.get(offset..offset + stride) else {
-            return Err(
-                ValueError::CommandProtocolUnavailable("Jim lsearch List changed extent").into(),
-            );
-        };
-        if let Some(value) = search_group(
-            ops,
-            &selection,
-            &SearchGroup {
+    crate::index::run_index_output(
+        ops,
+        |ops| {
+            if ops.jim_regex_recipe()?.is_none() {
+                return Err(ValueError::CommandProtocolUnavailable("Jim lsearch issuer").into());
+            }
+            let SearchArguments {
                 source,
-                members: group,
+                pattern,
+                command,
                 index,
-                offset,
-            },
-            &mut result,
-            &mut command_match,
-        )? {
-            return Ok(value);
-        }
-    }
-    if let Some(result) = result {
-        return Ok(ops.jim_search_finish(result)?);
-    }
-    if flags.contains(SearchFlags::INLINE) {
-        return Ok(ops.jim_search_current_result()?);
-    }
-    let value = if flags.contains(SearchFlags::BOOLEAN) {
-        // Jim_NewIntObj, including the -bool no-match path, owns an integer
-        // primary rather than the backend's abstract Boolean representation.
-        ops.new_int(i64::from(flags.contains(SearchFlags::INVERTED)))
-    } else {
-        ops.new_int(-1)
-    };
-    Ok(ops.jim_search_publish(&value)?)
+                mode,
+                flags,
+                all,
+                stride,
+            } = search_arguments(ops, args)?;
+            let length = ops.jim_search_elements(source)?.len();
+            if length % stride != 0 {
+                return Err(null_error(
+                    b"list size must be a multiple of the stride length".to_vec(),
+                )
+                .into());
+            }
+            let mut result = all.then(|| ops.jim_search_begin());
+            let fresh_command = (mode == 5).then(|| ops.jim_search_regexp_command());
+            let command = if mode == 5 {
+                fresh_command.as_ref()
+            } else {
+                command
+            };
+            let _command_hold = command.map(|head| ops.jim_search_hold(head)).transpose()?;
+            let selection = Selection {
+                pattern,
+                command,
+                mode,
+                flags,
+                stride,
+            };
+            for offset in (0..length).step_by(stride) {
+                // Native loops reconvert the original List after callbacks. The fixed
+                // initial extent must still be backed by actual current storage.
+                let members = ops.jim_search_elements(source)?;
+                let Some(group) = members.get(offset..offset + stride) else {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "Jim lsearch List changed extent",
+                    )
+                    .into());
+                };
+                if let Some(value) = search_group(
+                    ops,
+                    &selection,
+                    &SearchGroup {
+                        source,
+                        members: group,
+                        index,
+                        offset,
+                    },
+                    &mut result,
+                    &mut command_match,
+                )? {
+                    return Ok(value);
+                }
+            }
+            if let Some(result) = result {
+                return Ok(ops.jim_search_finish(result)?);
+            }
+            if flags.contains(SearchFlags::INLINE) {
+                return Ok(ops.jim_search_current_result()?);
+            }
+            let value = if flags.contains(SearchFlags::BOOLEAN) {
+                // Jim_NewIntObj, including the -bool no-match path, owns an integer
+                // primary rather than the backend's abstract Boolean representation.
+                ops.new_int(i64::from(flags.contains(SearchFlags::INVERTED)))
+            } else {
+                ops.new_int(-1)
+            };
+            Ok(ops.jim_search_publish(&value)?)
+        },
+        |_, published| drop(published),
+        JimLsearchError::Command,
+    )
 }
 
 struct SearchArguments<'a, V> {

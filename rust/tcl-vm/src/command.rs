@@ -1941,28 +1941,6 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// Resolve a Tcl index spec against a length, returning a possibly out-of-range
-/// signed index (callers clamp/empty as needed). Delegates to the canonical
-/// `tcl_cmd_core::index` parser so the inline `lindex`/`string index` opcodes
-/// accept every form the commands do — including the arithmetic
-/// `integer?[+-]integer?` (`2+0`, `end-1+2`), which a bare `parse::<isize>` does
-/// not (the inline `LIST_INDEX` opcode otherwise returned the empty string for
-/// `lindex $l $i+1`).
-pub(crate) fn resolve_index(vm: &mut Vm, spec: &str, len: usize) -> Option<isize> {
-    tcl_cmd_core::index::resolve_for_ops(vm, spec, len)
-        .ok()
-        .and_then(|i| isize::try_from(i).ok())
-}
-
-pub(crate) fn bad_index(vm: &Vm, spec: &str) -> Completion<Value> {
-    match vm.native_invocation_dialect().index_syntax() {
-        Some(syntax) => err(tcl_cmd_core::index::bad_index_in(spec, syntax)
-            .into_message()
-            .expect("Unicode index produces a Unicode diagnostic")),
-        None => err("container index dialect is not selected"),
-    }
-}
-
 /// Parse a proc parameter spec (`"a b {c 1} args"`) into params + `has_args`.
 #[cfg(test)]
 pub(crate) fn parse_params(spec: &str) -> Result<(Vec<Param>, bool), String> {

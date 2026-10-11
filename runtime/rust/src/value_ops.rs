@@ -43,9 +43,14 @@ mod native_concat;
 #[cfg(test)]
 #[path = "value_ops/native_concat_tests.rs"]
 mod native_concat_tests;
+#[path = "value_ops/native_indexed_append.rs"]
+mod native_indexed_append;
 #[cfg(test)]
 #[path = "value_ops/native_integer_refusal_tests.rs"]
 mod native_integer_refusal_tests;
+#[path = "value_ops/native_jim_index.rs"]
+mod native_jim_index;
+pub(crate) use native_jim_index::list_length_using;
 #[path = "value_ops/native_list_index.rs"]
 pub(crate) mod native_list_index;
 #[cfg(test)]
@@ -783,6 +788,23 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for RuntimeAppendObjects {
     ) -> Result<Rc<[u32]>, ValueError> {
         obj::native_unicode_units(value.as_ptr(), protocol)
     }
+    fn decode_unicode_source(
+        &self,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        bytes: &[u8],
+    ) -> Result<Rc<[u32]>, ValueError> {
+        let version = protocol
+            .tcl_version()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original append C Unicode source units",
+            ))?;
+        Ok(Rc::from(
+            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).decode_storage_units(
+                bytes,
+                tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+            ),
+        ))
+    }
     fn set_string(
         &self,
         value: &Self::Value,
@@ -1478,42 +1500,12 @@ impl ValueOps for Interp {
     }
 
     fn list_len(&mut self, value: &Self::Value) -> Result<usize, ValueError> {
-        obj::check_native_liveness(*value)?;
-        if crate::native_arithseries::is_series(*value) {
-            let protocol = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "abstract native Length",
-                ))?;
-            return crate::native_arithseries::length_in(*value, protocol)?.ok_or(
-                ValueError::CommandProtocolUnavailable("abstract native Length"),
-            );
-        }
-        use tcl_registry::native_stock_list::{
-            LogicalListLengthProvider, NativeObjectLengthAction,
-        };
-        let protocol = self
-            .native_invocation_dialect()
-            .object_length_protocol(Some(LogicalListLengthProvider::Tcl84CoreSimulation))
-            .ok_or(ValueError::CommandProtocolUnavailable("object list length"))?;
-        let action = protocol
-            .action(
-                obj::stock_list_input_class(*value),
-                obj::has_canonical_empty_string(*value),
-            )
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "object list length storage",
-            ))?;
-        match action {
-            NativeObjectLengthAction::CachedList => list::cached_length(*value).ok_or(
-                ValueError::CommandProtocolUnavailable("object list length storage"),
-            ),
-            NativeObjectLengthAction::Constant(length) => Ok(length),
-            NativeObjectLengthAction::ConvertToList => {
-                self.list_elements(value).map(|elements| elements.len())
-            }
-        }
+        native_jim_index::list_length_using(
+            self,
+            value,
+            &mut |_, _| Ok(()),
+            |interpreter, original| interpreter.list_elements(original),
+        )
     }
 
     fn list_index(
