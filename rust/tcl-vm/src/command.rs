@@ -5170,9 +5170,8 @@ mod tests {
                 "syntax error in expression: \"abs\": function requires parentheses",
             ),
         ] {
-            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
-            let mut vm = crate::Vm::new();
-            vm.set_dialect_profile(profile);
+            let profile = crate::environment::profile_for_dialect(dialect);
+            let mut vm = crate::native_fixture::core(profile);
             let completion = vm.try_eval_expr(source).unwrap();
             assert_eq!(completion.code, tcl_runtime_api::Code::Error);
             assert_eq!(completion.result.to_str().as_ref(), expected);
@@ -5186,27 +5185,41 @@ mod tests {
         }
     }
 
-    fn vm_without_expression_provider() -> (crate::Vm, &'static tcl_dialect::DialectProfile) {
-        let profile = tcl_dialect::DialectProfile::irules();
-        let host = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let mut vm = crate::Vm::new();
-        vm.set_dialect_profile(profile);
-        assert!(vm.set_native_engine_profile(host));
-        assert!(vm.set_command_surface_profile(host));
-        assert!(vm.set_logical_name_provider(
-            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
-        ));
-        assert!(vm.set_logical_numeric_provider(
-            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
-        ));
-        assert!(vm.set_logical_compiled_variable_provider(tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation));
-        assert!(vm.set_logical_source_word_provider(
-            tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation
-        ));
-        vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
-        (vm, profile)
+    #[test]
+    fn original_legacy_bareword_profile_labels_do_not_issue_native_function_or_error_owners() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for dialect in ["tcl8.4", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
+            let mut vm = crate::Vm::new();
+            vm.set_dialect_profile(profile);
+            assert!(
+                vm.actual_native_invocation_dialect()
+                    .execution_point()
+                    .is_none()
+            );
+            assert!(
+                vm.actual_native_invocation_dialect()
+                    .native_error_objects_protocol()
+                    .is_none()
+            );
+            assert!(
+                tcl_registry::native_expression_program::expression_function_dispatch(
+                    vm.expression_evaluation_policy().as_ref(),
+                    vm.actual_native_invocation_dialect(),
+                )
+                .is_none()
+            );
+        }
+    }
+
+    // The actual C9 source/Catch surface is supported. The unchanged @
+    // expression is outside the checked presentation window; no absent F5
+    // parser or eval-object provider is used to manufacture that refusal.
+    fn vm_with_supported_source_and_unsupported_expression_window()
+    -> (crate::Vm, &'static tcl_dialect::DialectProfile) {
+        let profile = crate::environment::profile_for_dialect("tcl9.0");
+        (crate::native_fixture::interpreter(profile), profile)
     }
 
     #[test]
@@ -5219,7 +5232,7 @@ mod tests {
             "proc p {} {set local 1; trace add variable local unset observe; expr $::source; set ::late 1}; p",
         ];
         for body in cases {
-            let (mut vm, profile) = vm_without_expression_provider();
+            let (mut vm, profile) = vm_with_supported_source_and_unsupported_expression_window();
             let setup = "set early 0; set late 0; set handler 0; set cleanup 0; set observer 0; set caught ORIGINAL; set options ORIGINAL; set target ORIGINAL; set errorInfo ORIGINAL; set errorCode ORIGINAL; set source {1 @ 2}; proc observe args {set ::observer 1}; trace add execution expr leave observe";
             let result = vm.try_eval_source(&format!("{setup}; set ::early 1; {body}"));
             let refusal = result.unwrap_err();
@@ -5269,7 +5282,7 @@ mod tests {
     #[test]
     fn unsupported_expression_refusal_survives_child_interpreter_switches() {
         use tcl_runtime_api::{NativeExecutionError, NativeExpressionRefusal};
-        let (mut vm, _) = vm_without_expression_provider();
+        let (mut vm, _) = vm_with_supported_source_and_unsupported_expression_window();
         let result = vm.try_eval_source(
             "set parentLate 0; set child [interp create]; interp eval $child {set early 1; set late 0; set source {1 @ 2}; catch {expr $source} result; set late 1}; set parentLate 1",
         );
@@ -5287,6 +5300,25 @@ mod tests {
             .try_eval_source("interp eval $child {list $early $late [info exists result]}")
             .unwrap();
         assert_eq!(resumed.result.to_str().as_ref(), "1 0 0");
+    }
+
+    #[test]
+    fn original_absent_f5_expression_and_eval_providers_do_not_borrow_native_core_receipts() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let actual = crate::environment::profile_for_dialect("tcl9.0");
+        let source = tcl_dialect::DialectProfile::irules();
+        let mut vm = crate::native_fixture::interpreter(actual);
+        vm.set_dialect_profile(source);
+        assert_eq!(
+            vm.actual_native_execution_profile().cache_key(),
+            actual.cache_key()
+        );
+        assert_eq!(vm.source_profile().cache_key(), source.cache_key());
+        assert!(vm.expression_evaluation_policy().is_none());
+        assert!(vm.eval_object_protocol().is_none());
+        assert!(vm.try_eval_source("set original_f5_unentered 1").is_err());
+        assert!(vm.get_var("original_f5_unentered").is_none());
     }
 
     #[test]

@@ -142,9 +142,24 @@ fn c84_normalization_matches_six_original_float_error_windows() {
 #[test]
 fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
     let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
-    let environment = Rc::new(RecordedNumericEnvironment::new(Err(
-        NumericEnvironmentUnavailable::Target,
-    )));
+    let mut vm =
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.4"));
+    let actual = vm.host_rc();
+    // Cached conversion still needs the actual ABI receipt. This provider
+    // refuses fresh primitives; queries() counts only reached state reads.
+    let abi = actual
+        .numeric_environment()
+        .unwrap()
+        .c_integer_abi()
+        .unwrap();
+    let environment = Rc::new(RecordedNumericEnvironment::with_c_integer_abi(
+        Err(NumericEnvironmentUnavailable::Target),
+        abi,
+    ));
+    vm.set_host(Rc::new(RecordedHost {
+        actual,
+        numeric: Rc::clone(&environment),
+    }));
     let original = Value::from_native_scalar_cache(
         NativeScalarCache::Number(Number::Double(1.0)),
         None,
@@ -153,11 +168,7 @@ fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
     .unwrap();
     let protocol = dialect.native_string_protocol().unwrap();
     let resident = original.native_string_bytes(protocol).unwrap();
-    let result = normalize_numeric_instruction_for_vm(
-        &mut recorded_native_vm(Rc::clone(&environment)),
-        &original.clone(),
-    )
-    .unwrap();
+    let result = normalize_numeric_instruction_for_vm(&mut vm, &original.clone()).unwrap();
     assert!(!result.is_same_object(&original));
     assert_eq!(result.double_representation(), Some(1.0));
     assert_eq!(result.resident_string_bytes(), None);
