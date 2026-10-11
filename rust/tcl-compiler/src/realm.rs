@@ -793,6 +793,24 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
     realm_from_source_bindings(bindings, context.commands())
 }
 
+/// Project the original positioned Lowerer inventory under the complete
+/// retained Module inputs. Missing or changed ownership returns no realm;
+/// this query never rebuilds an independent interpretation or refreshes Native
+/// compiler, frame, observer or provider currency.
+#[must_use]
+pub(crate) fn document_realm_bindings_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+) -> Option<CommandBindingRealm> {
+    // naming.source.retained-positioned-command-realm
+    // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+    let retained = module.retained_source_bindings.as_deref()?;
+    let bindings = retained.positioned_for_module(module, registry)?;
+    let mut realm = realm_from_source_bindings(bindings.clone(), registry);
+    realm.source_input = module.source_metadata_input.clone();
+    Some(realm)
+}
+
 /// Build a document realm from explicit driver execution provenance.
 #[must_use]
 pub fn document_realm_bindings_with_source_entry(
@@ -835,6 +853,90 @@ fn realm_from_source_bindings(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_module_realm_reuses_positioned_inventory_across_native_engine_profiles() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        let source = "namespace eval N {proc p {} {return OK}}; interp alias {} forwarding {} N::p; rename forwarding moved; moved";
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+            let module = crate::lowering::lower_to_ir_with_config(
+                source,
+                registry,
+                tcl_lexer::LexerConfig::default(),
+            );
+            let retained = module.retained_source_bindings.as_ref().unwrap();
+            let bindings = retained.positioned_for_module(&module, registry).unwrap();
+            let projected = document_realm_bindings_for_module(&module, registry).unwrap();
+            assert!(
+                std::sync::Arc::ptr_eq(
+                    projected.bindings.source_origin().unwrap(),
+                    bindings.source_origin().unwrap(),
+                ),
+                "{engine}"
+            );
+            assert_eq!(&projected.bindings, bindings, "{engine}");
+            let independent = document_realm_bindings_with_source_entry(
+                source,
+                module.lexer_config,
+                registry,
+                &module.source_entry,
+            );
+            assert_eq!(projected, independent, "{engine}");
+        }
+    }
+
+    #[test]
+    fn original_module_realm_refuses_missing_and_same_store_foreign_availability() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(current.commands())),
+        );
+        assert!(std::sync::Arc::ptr_eq(current.commands(), older.commands()));
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            config,
+        );
+        let source = "proc retained {} {set original VALUE}; retained";
+        let original = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(current.commands(), config)
+                .with_resolved_analysis_input(input.clone()),
+            source,
+        );
+        let realm = document_realm_bindings_for_module(&original, current.commands()).unwrap();
+        assert!(realm.matches_resolved_analysis_input(&input));
+        let mut missing = original.clone();
+        missing.retained_source_bindings = None;
+        assert!(document_realm_bindings_for_module(&missing, current.commands()).is_none());
+        missing = original.clone();
+        missing.source_metadata_input = None;
+        assert!(document_realm_bindings_for_module(&missing, current.commands()).is_none());
+        let old_input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, older, config);
+        let mut changed = original.clone();
+        changed.source_metadata_input = Some(old_input.clone());
+        assert!(document_realm_bindings_for_module(&changed, current.commands()).is_none());
+        changed.source_entry.logical_source_input = Some(old_input.clone());
+        changed.source_entry.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &old_input,
+            ));
+        assert!(document_realm_bindings_for_module(&changed, current.commands()).is_none());
+        assert!(
+            document_realm_bindings_for_module(&original, current.commands())
+                .unwrap()
+                .matches_resolved_analysis_input(&input)
+        );
+    }
 
     #[test]
     fn resolved_input_preserves_math_policy_without_catalogue_default() {

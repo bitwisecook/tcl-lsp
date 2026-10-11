@@ -40,6 +40,7 @@ pub struct RetainedSourceModuleBindings {
     kind: TopLevelKind,
     registry: RegistrySemanticKey,
     observed: ModuleCommandBindings,
+    positioned: Arc<SourceCommandBindings>,
     procedures: std::collections::BTreeMap<String, OriginalProcedureSource>,
 }
 
@@ -120,6 +121,7 @@ impl RetainedSourceModuleBindings {
             kind: module.top_level_kind,
             registry: registry.snapshot().semantic_key(),
             observed: bindings.module_projection(module),
+            positioned: Arc::new(bindings.clone()),
             procedures: module
                 .procedures
                 .iter()
@@ -141,6 +143,27 @@ impl RetainedSourceModuleBindings {
             && self.namespace_context == module.top_level_namespace_context
             && self.kind == module.top_level_kind
             && self.registry == registry.snapshot().semantic_key()
+    }
+
+    /// Borrow the exact positioned interpretation from the original Lowerer.
+    /// An absent or changed Module input is terminal for this projection;
+    /// independent source interpretation has its own explicit ingress.
+    pub(crate) fn positioned_for_module(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+    ) -> Option<&SourceCommandBindings> {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        if !self.matches_module(module, registry)
+            || module.registry_snapshot.as_ref()?.semantic_key() != self.registry
+            || !self
+                .positioned
+                .matches_original_source_image(&module.source, self.grammar)
+        {
+            return None;
+        }
+        Some(&self.positioned)
     }
 
     /// Retain an original procedure header, body coordinates and direct
@@ -285,6 +308,96 @@ mod tests {
             registry,
             tcl_lexer::LexerConfig::default(),
         )
+    }
+
+    #[test]
+    fn positioned_module_projection_shares_the_actual_producer_and_detaches_writes() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let module = lowered(registry);
+        let retained = module.retained_source_bindings.as_ref().unwrap();
+        let original = retained.positioned_for_module(&module, registry).unwrap();
+        assert!(std::ptr::eq(original, retained.positioned.as_ref()));
+        let sibling = module.clone();
+        assert!(Arc::ptr_eq(
+            &retained.positioned,
+            &sibling
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .positioned,
+        ));
+        let mut mutable = original.clone();
+        assert!(Arc::ptr_eq(&mutable.final_state, &original.final_state));
+        assert!(mutable.points.shares_storage(&original.points));
+        assert!(
+            mutable
+                .declaration_layouts
+                .shares_storage(&original.declaration_layouts)
+        );
+        Arc::make_mut(&mut mutable.final_state).mark_opaque_binding_mutation();
+        assert!(mutable.final_state.opaque_binding_mutation);
+        assert!(!original.final_state.opaque_binding_mutation);
+        assert!(!Arc::ptr_eq(&mutable.final_state, &original.final_state));
+        assert!(std::ptr::eq(
+            original,
+            retained.positioned_for_module(&module, registry).unwrap(),
+        ));
+    }
+
+    #[test]
+    fn positioned_module_projection_refuses_each_changed_original_input() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let original = lowered(registry);
+        let retained = original.retained_source_bindings.as_ref().unwrap();
+        assert!(
+            retained
+                .positioned_for_module(&original, registry)
+                .is_some()
+        );
+        let mutations: &[fn(&mut Module)] = &[
+            |module| module.source = tcl_lexer::SourceImage::document("return OTHER"),
+            |module| module.source = tcl_lexer::SourceImage::native(module.source.bytes()),
+            |module| module.lexer_config.strict_quoting = !module.lexer_config.strict_quoting,
+            |module| module.top_level_namespace = "::Other".to_owned(),
+            |module| {
+                module.native_namespace = Some(tcl_core_types::ByteNamespacePath::from_segments([
+                    b"Other".as_slice(),
+                ]))
+            },
+            |module| {
+                module.top_level_namespace_context =
+                    Some(super::super::SourceNamespaceKey::authored("::Different"))
+            },
+            |module| module.top_level_kind = TopLevelKind::ProcedureBody,
+            |module| module.source_entry.unknown_entry = !module.source_entry.unknown_entry,
+            |module| {
+                module.source_entry.compilation_scope =
+                    tcl_runtime_api::SourceCompilationScope::EnteredSource
+            },
+            |module| module.source_entry.native_compilation.loop_depth += 1,
+            |module| module.registry_snapshot = None,
+        ];
+        for (index, mutate) in mutations.iter().enumerate() {
+            let mut changed = original.clone();
+            mutate(&mut changed);
+            assert!(
+                retained.positioned_for_module(&changed, registry).is_none(),
+                "input {index}"
+            );
+        }
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl8.4").commands();
+        assert!(retained.positioned_for_module(&original, foreign).is_none());
+        let mut replaced_snapshot = original.clone();
+        replaced_snapshot.registry_snapshot = Some(foreign.snapshot());
+        assert!(
+            retained
+                .positioned_for_module(&replaced_snapshot, registry)
+                .is_none()
+        );
     }
 
     #[test]

@@ -2402,36 +2402,33 @@ fn resolve_unit_scope(
     // Collect call-site literal arg values per user proc so each callee's SCCP
     // can fold a param every caller passes the same literal for
     // (interprocedural constant propagation).
-    let identities = crate::realm::document_realm_bindings_with_source_entry(
-        std::str::from_utf8(ir_module.source.bytes()).unwrap_or(""),
-        ir_module.lexer_config,
-        registry,
-        &ir_module.source_entry,
-    );
-    let identities = ir_module.source_metadata_input.as_ref().map_or_else(
-        || identities.clone(),
-        |input| {
-            identities
-                .clone()
-                .with_resolved_analysis_input(input.clone())
-        },
-    );
-    let mut call_sites = collect_call_site_constants(
-        cfg_module,
-        &extra_callers,
-        &ir_module.procedures,
-        &ir_module.future_call_sites,
-        crate::unit_scope::CallSiteSourceContext {
-            registry,
-            module: ir_module,
-            declared: options.declared_commands,
-            dialect: options
-                .dialect
-                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-            input: module_source_metadata_input(ir_module, registry),
-            identities: &identities,
-        },
-    );
+    let mut call_sites = if let Some(identities) =
+        crate::realm::document_realm_bindings_for_module(ir_module, registry)
+    {
+        collect_call_site_constants(
+            cfg_module,
+            &extra_callers,
+            &ir_module.procedures,
+            &ir_module.future_call_sites,
+            crate::unit_scope::CallSiteSourceContext {
+                registry,
+                module: ir_module,
+                declared: options.declared_commands,
+                dialect: options
+                    .dialect
+                    .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+                input: module_source_metadata_input(ir_module, registry),
+                identities: &identities,
+            },
+        )
+    } else {
+        // A missing retained interpretation cannot become an unchanged-name
+        // realm or fresh source replay. Every possible local caller is opaque.
+        let mut evidence = crate::unit_scope::CallSiteEvidence::default();
+        let reachable = ir_module.procedures.keys().cloned().collect::<Vec<_>>();
+        evidence.record_unenumerable_caller(&reachable);
+        evidence
+    };
     // Fold in the call sites a host with a cross-file view supplied — callers
     // in *other* files, which this single-source unit can never see for itself
     // Merging is monotone: extra evidence can retract a fold,
@@ -3540,25 +3537,17 @@ impl CompilationUnit {
         }
         // Object-handle → class map (SSA/VTA-derived) so a `$g walk … -command
         // cb` instance-method callback becomes a call-graph / reachability edge.
+        let Some(identities) =
+            crate::realm::document_realm_bindings_for_module(&self.ir_module, registry)
+        else {
+            self.interproc = None;
+            return self;
+        };
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
         // classifies a rebound head as the command it is.
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase("object-types");
-        let identities = crate::realm::document_realm_bindings_with_source_entry(
-            &self.source,
-            self.ir_module.lexer_config,
-            registry,
-            &self.ir_module.source_entry,
-        );
-        let identities = self.ir_module.source_metadata_input.as_ref().map_or_else(
-            || identities.clone(),
-            |input| {
-                identities
-                    .clone()
-                    .with_resolved_analysis_input(input.clone())
-            },
-        );
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase("original-realm");
         let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
@@ -3652,23 +3641,15 @@ impl CompilationUnit {
         dialect: Option<&'static tcl_dialect::DialectProfile>,
         taint_cb: &mut TaintCascadeCallback<'_>,
     ) -> Self {
+        let Some(identities) =
+            crate::realm::document_realm_bindings_for_module(&self.ir_module, registry)
+        else {
+            self.interproc = None;
+            return self;
+        };
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
         // classifies a rebound head as the command it is.
-        let identities = crate::realm::document_realm_bindings_with_source_entry(
-            &self.source,
-            self.ir_module.lexer_config,
-            registry,
-            &self.ir_module.source_entry,
-        );
-        let identities = self.ir_module.source_metadata_input.as_ref().map_or_else(
-            || identities.clone(),
-            |input| {
-                identities
-                    .clone()
-                    .with_resolved_analysis_input(input.clone())
-            },
-        );
         let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
             &self,
             registry,
@@ -4199,6 +4180,62 @@ mod tests {
             missing.source_metadata_input = None;
             assert!(missing.invocation_metadata_context(&registry).is_none());
         }
+    }
+
+    #[test]
+    fn module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results() {
+        // naming.source.retained-positioned-command-realm
+        // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let source = "proc retained {x} {list $x}; retained VALUE";
+        let options = UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let (module, cfg, _, prepared) =
+            lower_and_build_cfg(source, options, None, None, None, None);
+        assert!(crate::realm::document_realm_bindings_for_module(&module, registry).is_some());
+        let (actual, _, _) = resolve_unit_scope(&module, &cfg, Some(&prepared), options);
+        assert_eq!(
+            actual.get("::retained").unwrap().uniform_literal_at(0),
+            Some("VALUE")
+        );
+        let mut missing = module.clone();
+        missing.retained_source_bindings = None;
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document("proc other {} {};");
+        let mut missing_snapshot = module;
+        missing_snapshot.registry_snapshot = None;
+        for refused in [missing, changed, missing_snapshot] {
+            let (unknown, _, _) = resolve_unit_scope(&refused, &cfg, Some(&prepared), options);
+            let caller = unknown.get("::retained").unwrap();
+            assert!(caller.opaque_caller);
+            assert_eq!(caller.uniform_literal_at(0), None);
+        }
+        let completed = CompilationUnit::build_for_profile(source, registry, false, profile)
+            .with_interprocedural(registry, Some(profile));
+        assert!(completed.interproc.is_some());
+        let mut missing = completed.clone();
+        missing.ir_module.retained_source_bindings = None;
+        let ordinary = missing
+            .clone()
+            .with_interprocedural(registry, Some(profile));
+        assert!(ordinary.interproc.is_none());
+        let mut callbacks = 0;
+        let mut callback = |_: &str, _: &InterproceduralAnalysis| {
+            callbacks += 1;
+            None
+        };
+        let memoised =
+            missing.with_interprocedural_memoized(registry, Some(profile), &mut callback);
+        assert!(memoised.interproc.is_none());
+        assert_eq!(callbacks, 0);
     }
 
     fn semantic_bundle_has_selected_invocation(

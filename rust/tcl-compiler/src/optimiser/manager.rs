@@ -884,12 +884,11 @@ pub fn optimise_raw_for_profile(
         |profile| CompilationUnit::build_for_profile(source, registry, false, profile),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
-    let identities = crate::realm::document_realm_bindings_with_source_entry(
-        &cu.source,
-        cu.ir_module.lexer_config,
-        registry,
-        &cu.ir_module.source_entry,
-    );
+    let Some(identities) =
+        crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
+    else {
+        return Vec::new();
+    };
     let ia = crate::interprocedural::build_interprocedural_analysis_for_unit(
         &cu,
         registry,
