@@ -2008,9 +2008,8 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
         return None;
     }
     let retained = realm.invocation_at_source("", site.offset);
-    if retained.invocation_site() != Some(site)
-        || retained.original_recorded_command_tokens()?.words() != tokens.words()
-    {
+    let (_, retained_tokens) = retained.original_recorded_command()?;
+    if retained.invocation_site() != Some(site) || retained_tokens.words() != tokens.words() {
         return None;
     }
     let native = super::original_native_compiler_words(image, tokens.words(), site.offset, config)?;
