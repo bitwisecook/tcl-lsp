@@ -888,7 +888,7 @@ fn record_call_site_evidence(
             .is_some_and(|input| {
                 tokens.source_binding.as_ref().is_some_and(|binding| {
                     binding
-                        .original_logical_procedure_call_targets(tokens, input)
+                        .original_source_procedure_argument_roles(tokens, input, ctx.registry)
                         .is_some()
                 })
             })
@@ -2304,10 +2304,9 @@ fn record_original_lifted_call_sites(
         let binding = tokens.source_binding.as_ref()?;
         let config = binding.original_lexer_config_for_tokens(tokens)?;
         let input = metadata.source_analysis_input()?;
-        if metadata.permits_logical_source_names()
-            && binding
-                .original_logical_procedure_call_targets(tokens, input)
-                .is_some()
+        if binding
+            .original_source_procedure_argument_roles(tokens, input, ctx.registry)
+            .is_some()
         {
             // An authenticated original procedure call evaluates lexical
             // argument substitutions; braces cannot become expression roles.
@@ -5305,5 +5304,43 @@ mod tests {
             Some(&residual),
         );
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn original_native_procedure_argv_roles_do_not_invent_registry_body_callers() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual held Vm entry and source call inventory, not a successful native call.
+        let (_, unit) = native_argument_caller_unit(
+            "proc selected {value} {}; selected {[inert CHILD]}; selected {[inert CHILD]}",
+        );
+        let evidence = unit.caller_scope.call_sites.get("::selected").unwrap();
+        assert!(!evidence.opaque_caller, "{evidence:?}");
+        assert_eq!(evidence.arg_counts, BTreeSet::from([1]));
+        assert_eq!(evidence.uniform_literal_at(0), Some("[inert CHILD]"));
+        let (_, unavailable) =
+            native_argument_caller_unit("proc selected {value} {}; unknown; selected FIXED");
+        assert!(
+            unavailable
+                .caller_scope
+                .call_sites
+                .get("::selected")
+                .unwrap()
+                .opaque_caller
+        );
+    }
+
+    #[test]
+    fn original_native_procedure_argv_roles_keep_authentic_alias_prefix_counts() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let (_, unit) = native_argument_caller_unit(
+            "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded FIXED; selected PREFIX FIXED",
+        );
+        let evidence = unit.caller_scope.call_sites.get("::selected").unwrap();
+        assert!(!evidence.opaque_caller, "{evidence:?}");
+        assert_eq!(evidence.arg_counts, BTreeSet::from([2]));
+        assert_eq!(evidence.uniform_literal_at(0), Some("PREFIX"));
+        assert_eq!(evidence.uniform_literal_at(1), Some("FIXED"));
     }
 }
