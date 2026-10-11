@@ -2110,10 +2110,10 @@ fn original_site_layout_advice(
             input.lexer_config() == config
                 && source_analysis_entry::source_input_dialect(input) == dialect
         });
-    if matches!(
-        purpose,
-        OriginalOperandLayoutPurpose::LogicalDeclarationTargets
-    ) && !logical_source
+    // Logical declaration targets and Native formal allocations consume distinct
+    // purposes, even when the readonly model retains an internal source allocation.
+    if (matches!(purpose, OriginalOperandLayoutPurpose::LogicalDeclarationTargets) && !logical_source)
+        || (matches!(purpose, OriginalOperandLayoutPurpose::DeclarationTargets) && logical_source)
     {
         return None;
     }

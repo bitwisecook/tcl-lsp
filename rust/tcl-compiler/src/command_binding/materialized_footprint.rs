@@ -85,7 +85,7 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        let advice = self.original_declared_layout_advice(tokens, true)?;
+        let advice = self.original_logical_declaration_layout_advice(tokens)?;
         if !advice.closed_logical_source_lookup()
             || advice.targets().iter().any(|target| {
                 target.kind != super::BindingKind::Proc
@@ -3175,4 +3175,71 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn original_logical_procedure_roles_keep_declaration_layout_separate_from_allocation_advice() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        // naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/source-original-point-operand-projection.md
+        let context = logical_script_context();
+        for source in [
+            "proc selected {value} {}; selected VALUE",
+            "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded VALUE",
+            "proc selected {value} {}; return DONE; selected {[inert CHILD]}",
+        ] {
+            let (analysis, tokens) = logical_original_tokens(source, &context);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            assert!(input.has_logical_source_name_context());
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.declaration_call_layout_advice(&tokens).is_none());
+            let declared = binding.original_logical_declaration_call_targets(
+                &tokens, input, context.commands(),
+            ).expect("complete Logical source declaration");
+            assert!(!declared.is_empty());
+            assert!(declared.iter().all(|target| !target.registry_backed
+                && target.kind == super::super::BindingKind::Proc
+                && target.implementation_allocation.is_none()));
+            assert!(binding.original_source_procedure_argument_roles(
+                &tokens, input, context.commands(),
+            ).is_some());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.native_compilation_admission.is_none());
+            let mut changed = tokens.clone();
+            changed.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedArguments);
+            assert!(binding.original_source_procedure_argument_roles(
+                &changed, input, context.commands(),
+            ).is_none());
+            let mut altered_config = input.lexer_config();
+            altered_config.strict_quoting = !altered_config.strict_quoting;
+            let altered = ResolvedAnalysisInput::new(
+                input.analyser_profile(), input.unit_profile(), input.context_registry(), altered_config,
+            );
+            assert!(binding.original_source_procedure_argument_roles(
+                &tokens, &altered, context.commands(),
+            ).is_none());
+        }
+    }
+
+    #[test]
+    fn original_native_source_procedure_roles_keep_the_genuine_allocation_purpose() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        // The actual held software Native entry remains distinct from the
+        // positive Logical source model. No external Native execution is observed.
+        let (_owner, context, input, tokens) = original_native_procedure_argument_tokens(
+            "proc selected {value} {}; selected VALUE",
+        );
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(!input.has_logical_source_name_context());
+        let advice = binding.declaration_call_layout_advice(&tokens).unwrap();
+        assert!(advice.targets().iter().all(|target| target.implementation_allocation.is_some()));
+        assert!(binding.original_logical_declaration_call_targets(
+            &tokens, &input, context.commands(),
+        ).is_none());
+        assert!(binding.original_source_procedure_argument_roles(
+            &tokens, &input, context.commands(),
+        ).is_some());
+    }
+
 }

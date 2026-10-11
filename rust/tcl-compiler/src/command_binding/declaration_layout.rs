@@ -2303,10 +2303,7 @@ impl super::SourceInvocationBinding {
         self.original_invocation_metadata_for_input(tokens, input, registry)?
             .permits_logical_source_names()
             .then_some(())?;
-        let advice = self.original_unanimous_declared_layout_advice(
-            tokens,
-            super::original_logical_declaration_call_layout_advice,
-        )?;
+        let advice = self.original_logical_declaration_layout_advice(tokens)?;
         advice.closed_logical_source_lookup().then_some(())?;
         // A closed pre-operand source row cannot revive a target withdrawn
         // by the same invocation's arguments or its retained source join.
@@ -2318,6 +2315,19 @@ impl super::SourceInvocationBinding {
             target.implementation_allocation = None;
         }
         Some(targets)
+    }
+
+    /// Complete Logical declaration layout in its original source world.
+    /// Internal source allocations serve lexical correspondence only; callers
+    /// cannot use this purpose for Native formal storage or actual activation.
+    pub(super) fn original_logical_declaration_layout_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        self.original_unanimous_declared_layout_advice(
+            tokens,
+            super::original_logical_declaration_call_layout_advice,
+        )
     }
 
     fn original_unanimous_declared_layout_advice(
