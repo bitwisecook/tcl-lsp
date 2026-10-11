@@ -1,0 +1,2101 @@
+{
+  "status": "verified",
+  "output_existed_before": false,
+  "executable_produced": {
+    "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/probe.elf",
+    "sha256": "777299b311741913917bdb9936bf9618c3fad9d97cce05f7a341f6b9a50a9e17",
+    "size": 1871032,
+    "device": 27,
+    "inode": 1270955,
+    "mtime_ns": 1791715531829117323,
+    "ctime_ns": 1791715531829137679
+  },
+  "link_map": {
+    "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/link.map",
+    "resolved_path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/link.map",
+    "sha256": "a56c68760f8354b74f275bd341927215690fe21b263d47e660d5224548e43c10",
+    "size": 343516,
+    "device": 27,
+    "inode": 1270954,
+    "mtime_ns": 1791715531829137679,
+    "ctime_ns": 1791715531829137679
+  },
+  "header_dependency_file": {
+    "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/compile.d",
+    "resolved_path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/compile.d",
+    "sha256": "aecf294cd8f14f782dbd8caa36e07646fd78e763856d7d4185fd8e734d7ffee9",
+    "size": 8368,
+    "device": 27,
+    "inode": 1270953,
+    "mtime_ns": 1791715531778892738,
+    "ctime_ns": 1791715531778892738
+  },
+  "actual_header_and_source_dependencies": [
+    {
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c",
+      "resolved_path": "/workspace/.proofs/native-reset-result-error-header-retirement618/probe.c",
+      "sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+      "size": 10697,
+      "device": 27,
+      "inode": 1269778,
+      "mtime_ns": 1791714560853287980,
+      "ctime_ns": 1791714560853287980
+    },
+    {
+      "path": "/usr/include/stdc-predef.h",
+      "resolved_path": "/usr/include/stdc-predef.h",
+      "sha256": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b",
+      "size": 2462,
+      "device": 27,
+      "inode": 9223372036855108456,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h",
+      "sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "size": 174090,
+      "device": 27,
+      "inode": 275265,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991533873416
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPort.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPort.h",
+      "sha256": "b79fd3ba585ea82ad991ccc994a2bb2f284720ef055560936aa6cbab7b9e9e25",
+      "size": 1198,
+      "device": 27,
+      "inode": 275300,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991537873385
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclUnixPort.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclUnixPort.h",
+      "sha256": "0300e104246ebd03de5c71347860f73ab00d66633644c469cf10ba1ca77cf9ad",
+      "size": 20449,
+      "device": 27,
+      "inode": 276644,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991645872533
+    },
+    {
+      "path": "/usr/include/errno.h",
+      "resolved_path": "/usr/include/errno.h",
+      "sha256": "2b170be13aeb5a0ec9443803cea7fc4ce31ceae6708e0405b1afdae9300ac278",
+      "size": 1679,
+      "device": 27,
+      "inode": 9223372036855107963,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/features.h",
+      "resolved_path": "/usr/include/features.h",
+      "sha256": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280",
+      "size": 19214,
+      "device": 27,
+      "inode": 9223372036855107990,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/features-time64.h",
+      "resolved_path": "/usr/include/features-time64.h",
+      "sha256": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63",
+      "size": 1532,
+      "device": 27,
+      "inode": 9223372036855107987,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/wordsize.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/wordsize.h",
+      "sha256": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+      "size": 398,
+      "device": 27,
+      "inode": 9223372036855122285,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+      "sha256": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2",
+      "size": 1109,
+      "device": 27,
+      "inode": 9223372036855122182,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+      "sha256": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68",
+      "size": 34638,
+      "device": 27,
+      "inode": 9223372036855122735,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/long-double.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/long-double.h",
+      "sha256": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56",
+      "size": 970,
+      "device": 27,
+      "inode": 9223372036855121850,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+      "sha256": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+      "size": 384,
+      "device": 27,
+      "inode": 9223372036855122717,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h",
+      "sha256": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+      "size": 481,
+      "device": 27,
+      "inode": 9223372036855122714,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/errno.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/errno.h",
+      "sha256": "d6875c7a15ed169ab16e706bf2af52bd8d48ea067f02adbdb34e8bb9198fb014",
+      "size": 1426,
+      "device": 27,
+      "inode": 9223372036855121751,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/linux/errno.h",
+      "resolved_path": "/usr/include/linux/errno.h",
+      "sha256": "a47fb2f49bce0546a1e88805cec954338abb1b2ac87de042166e8e3a74b23261",
+      "size": 23,
+      "device": 27,
+      "inode": 9223372036855114199,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/lib/linux/uapi/x86/asm/errno.h",
+      "resolved_path": "/usr/lib/linux/uapi/x86/asm/errno.h",
+      "sha256": "4ee384515a4325315992e61dd957f0fa91f3858fe7c079de59f56edded51de86",
+      "size": 31,
+      "device": 27,
+      "inode": 9223372036855130395,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/asm-generic/errno.h",
+      "resolved_path": "/usr/include/asm-generic/errno.h",
+      "sha256": "fb7b5a504015f3a9074c641e7371b250d867d751d90e4a22a8ac17fced3d50af",
+      "size": 5648,
+      "device": 27,
+      "inode": 9223372036855109719,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/asm-generic/errno-base.h",
+      "resolved_path": "/usr/include/asm-generic/errno-base.h",
+      "sha256": "2c148e92b8318deeb767fabd60822113e575ee664ff09a1873aed8f7a495793c",
+      "size": 1612,
+      "device": 27,
+      "inode": 9223372036855109716,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/fcntl.h",
+      "resolved_path": "/usr/include/fcntl.h",
+      "sha256": "6ec7f899b9cbb06442afef4934fae7906fa8a53d2387de774770525d1fbfcb49",
+      "size": 11417,
+      "device": 27,
+      "inode": 9223372036855107984,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types.h",
+      "sha256": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0",
+      "size": 8806,
+      "device": 27,
+      "inode": 9223372036855122231,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/typesizes.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/typesizes.h",
+      "sha256": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a",
+      "size": 3737,
+      "device": 27,
+      "inode": 9223372036855122234,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/time64.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/time64.h",
+      "sha256": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a",
+      "size": 1340,
+      "device": 27,
+      "inode": 9223372036855122176,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/fcntl.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/fcntl.h",
+      "sha256": "252bf5adc70ddfc09e059adac0acd4dea7694d3714ad47208c9f51ece0a4e43d",
+      "size": 2246,
+      "device": 27,
+      "inode": 9223372036855121766,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/fcntl-linux.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/fcntl-linux.h",
+      "sha256": "baf689c717312a204955009a86614c818c5d3355a6a181722e5e085d80dbc0c2",
+      "size": 14632,
+      "device": 27,
+      "inode": 9223372036855121763,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h",
+      "sha256": "798e773d0c7f3796033c043910db2b093d1e43116c4b3d2cf3be85f8c4304cf1",
+      "size": 877,
+      "device": 27,
+      "inode": 9223372036855122552,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/endian.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/endian.h",
+      "sha256": "f559fd70d8a24202805d1d8a3546e28c427f6ce7808296002687cb6c636fd21f",
+      "size": 1905,
+      "device": 27,
+      "inode": 9223372036855121736,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/endianness.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/endianness.h",
+      "sha256": "659a7060004eda113671a38852c4d1e9cb97a35932bcd1d8540f98c09c180747",
+      "size": 273,
+      "device": 27,
+      "inode": 9223372036855121739,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/time_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/time_t.h",
+      "sha256": "d1cc45e24a80009117f61ee4ae9cae5d12f69f38d691e0a933f989f7a1d27bb0",
+      "size": 208,
+      "device": 27,
+      "inode": 9223372036855122563,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stat.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stat.h",
+      "sha256": "b9bad094f74412615c3c9f05397e44f44874c23666a6e30b8aabaafcd7610f33",
+      "size": 2231,
+      "device": 27,
+      "inode": 9223372036855122053,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/struct_stat.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/struct_stat.h",
+      "sha256": "c2fc9fb4ff5a18c254ab08219b019aff42190b0136e2ea626b4b3c6af8275c77",
+      "size": 6210,
+      "device": 27,
+      "inode": 9223372036855122116,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/pwd.h",
+      "resolved_path": "/usr/include/pwd.h",
+      "sha256": "e73dead6b390968655dbead9c26b4263fb72be4469d68e7d4d39f777121a493a",
+      "size": 6317,
+      "device": 27,
+      "inode": 9223372036855108308,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h",
+      "sha256": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada",
+      "size": 13735,
+      "device": 27,
+      "inode": 9223372036855126343,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/FILE.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/FILE.h",
+      "sha256": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+      "size": 180,
+      "device": 27,
+      "inode": 9223372036855122297,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/signal.h",
+      "resolved_path": "/usr/include/signal.h",
+      "sha256": "ab20e3d313b445b427e1766041496331cff40b51afb08ce4ef2a1ed8d16a844a",
+      "size": 13045,
+      "device": 27,
+      "inode": 9223372036855108423,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/signum-generic.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/signum-generic.h",
+      "sha256": "89c3c172493baf2b2fba4fe8608cbd5747d286d76a44216f9b17e083ccc873a1",
+      "size": 3313,
+      "device": 27,
+      "inode": 9223372036855122017,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/signum-arch.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/signum-arch.h",
+      "sha256": "3399513a53bddef01aef249ac6f34394651a2afeed59fb1bc9544f5eb93eca8a",
+      "size": 2580,
+      "device": 27,
+      "inode": 9223372036855122014,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/sig_atomic_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/sig_atomic_t.h",
+      "sha256": "8c44b91c2eb6e509905e1becec6b98f8ac006709bfa5d85d86e34a46eb9013cc",
+      "size": 272,
+      "device": 27,
+      "inode": 9223372036855122474,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h",
+      "sha256": "3db5ded9d98a694e8c7196a06690b2e816ec6bb82689940d281f6504533f37e1",
+      "size": 195,
+      "device": 27,
+      "inode": 9223372036855122483,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h",
+      "sha256": "05291a7d38bb1d0da1ed01c09fe85fa2b1f4d5bc708e06bb930efec672db08d5",
+      "size": 206,
+      "device": 27,
+      "inode": 9223372036855122444,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/siginfo_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/siginfo_t.h",
+      "sha256": "88b1392b88af3a08d908866f4e9c5650c5cddb0c8e021b0a3f8293cef6616feb",
+      "size": 3892,
+      "device": 27,
+      "inode": 9223372036855122480,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__sigval_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/__sigval_t.h",
+      "sha256": "0be9303ad86bd2360e5dfba93fd1af1dcc27ef5d700a104de91bbc9b37daeee1",
+      "size": 1148,
+      "device": 27,
+      "inode": 9223372036855122447,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/siginfo-arch.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/siginfo-arch.h",
+      "sha256": "0839bdc7af291182ff9822a7b6419659fb26a49af5e4264857a71af4ccb12213",
+      "size": 729,
+      "device": 27,
+      "inode": 9223372036855121999,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/siginfo-consts.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/siginfo-consts.h",
+      "sha256": "65690c00d7656e17e101524c3067ae66be7e9276c3fd6cd164b2fa1a251ca29a",
+      "size": 7117,
+      "device": 27,
+      "inode": 9223372036855122005,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/sigval_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/sigval_t.h",
+      "sha256": "7d94a894bed0b9490967e8dbcd53725c0f2af9559e58d4b19bd14d3707974ee3",
+      "size": 599,
+      "device": 27,
+      "inode": 9223372036855122486,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/sigevent_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/sigevent_t.h",
+      "sha256": "7125083b8096dd146e6498a61f38bf3bc7215c1c9237e92469550bb355545bab",
+      "size": 1204,
+      "device": 27,
+      "inode": 9223372036855122477,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sigevent-consts.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sigevent-consts.h",
+      "sha256": "c2827b165464f28b688fd7ed823bcc4735907267378243b52eef8d937b6259d5",
+      "size": 1471,
+      "device": 27,
+      "inode": 9223372036855121996,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sigaction.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sigaction.h",
+      "sha256": "d7d31baca03d2da11199313903b127204bb40450d37e8a2062bfe9c4aa65d5d2",
+      "size": 2935,
+      "device": 27,
+      "inode": 9223372036855121990,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sigcontext.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sigcontext.h",
+      "sha256": "9822b478837f159e309dd8012b3ecde2a1486370dbfa4ead29caf6c893a2715e",
+      "size": 4266,
+      "device": 27,
+      "inode": 9223372036855121993,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/stack_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/stack_t.h",
+      "sha256": "29fc81e78247a26bf10cea29c1d77af66031d65e578ccc7bce4515a10dc2f957",
+      "size": 1062,
+      "device": 27,
+      "inode": 9223372036855122489,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/ucontext.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/ucontext.h",
+      "sha256": "1a901fa6c81a730a5c30b9986f64ac048d4fc831dbe9af6a78ba342fdca8577f",
+      "size": 5842,
+      "device": 27,
+      "inode": 9223372036855122943,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sigstack.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sigstack.h",
+      "sha256": "05d7e4a19254ab3b437e8f6c1308081572df7e34c92b00cc6f570125e9b4379e",
+      "size": 1168,
+      "device": 27,
+      "inode": 9223372036855122020,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sigstksz.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sigstksz.h",
+      "sha256": "bd347f5c6b28e26d04be2f7b43e99b3abba186c80b42478f48aa1050c6adc9d4",
+      "size": 1283,
+      "device": 27,
+      "inode": 9223372036855122023,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/ss_flags.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/ss_flags.h",
+      "sha256": "c5857b7363e8e57be526deb08c7c86c0861dc9a941eaaa7ec58637180b1e3bc0",
+      "size": 1188,
+      "device": 27,
+      "inode": 9223372036855122047,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_sigstack.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_sigstack.h",
+      "sha256": "bc494ea691e3dd70d6c24b82e3af65b69ea2413bd286e3e8a5778bacb06521f5",
+      "size": 1073,
+      "device": 27,
+      "inode": 9223372036855122540,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h",
+      "sha256": "acad99a6a3ef489327e806c8d29b25797ca2126cd5489233837e5c9c01516cd1",
+      "size": 3072,
+      "device": 27,
+      "inode": 9223372036855121948,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h",
+      "sha256": "f16fd912b0b1e8a222af4acb11dbbc9c68ba485c381a0dcf49be60b38e581c37",
+      "size": 3962,
+      "device": 27,
+      "inode": 9223372036855122170,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h",
+      "sha256": "c838de98779156e73b927940c1db8d3e385624980d2c4ca37c352ad69955074b",
+      "size": 1838,
+      "device": 27,
+      "inode": 9223372036855121945,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h",
+      "sha256": "05531d0ae2a64ce741fe96a6c992190ef77eff1dc72e9e8f9bd0ff3b6bd7ff57",
+      "size": 1283,
+      "device": 27,
+      "inode": 9223372036855121706,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/struct_mutex.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/struct_mutex.h",
+      "sha256": "700e77ca8b5d27b19649358abe229e64b238cb4ce79474fc1194d7831dc3a34f",
+      "size": 1816,
+      "device": 27,
+      "inode": 9223372036855122110,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/struct_rwlock.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/struct_rwlock.h",
+      "sha256": "7d1b998c8def8d264af5114e869bcb37c484daa23ec8ac54a2110dbdd9c05a95",
+      "size": 2027,
+      "device": 27,
+      "inode": 9223372036855122113,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sigthread.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sigthread.h",
+      "sha256": "88e1a50a3258bc3aa83b2d132d0706f828cec14c8998903948aa43344241e704",
+      "size": 1692,
+      "device": 27,
+      "inode": 9223372036855122026,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/signal_ext.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/signal_ext.h",
+      "sha256": "3533828933fd3e55b95e70a09b30f0fb3e423993e7dfded548d1e14d344c2412",
+      "size": 1285,
+      "device": 27,
+      "inode": 9223372036855122008,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/param.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/param.h",
+      "sha256": "8fc64c13234b3bbfcdce1eb1915bc97d6112b1eb67ec1e91a37e3476f41a67e2",
+      "size": 3149,
+      "device": 27,
+      "inode": 9223372036855122804,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/types.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/types.h",
+      "sha256": "3134ee1a8359f7d4d69e40db42b70f94c10f1e9e40b9925454bccbf7608d5ced",
+      "size": 5713,
+      "device": 27,
+      "inode": 9223372036855122940,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/clock_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/clock_t.h",
+      "sha256": "81e60e8a8d99b28bc723c14b156d7f7fc8ff663d98a857a3f5aea90431f577e3",
+      "size": 143,
+      "device": 27,
+      "inode": 9223372036855122450,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/clockid_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/clockid_t.h",
+      "sha256": "dcd64d184855b245e5c7acf21910a0aaca590f1faf094e400da5d30551d11eb0",
+      "size": 174,
+      "device": 27,
+      "inode": 9223372036855122453,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/timer_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/timer_t.h",
+      "sha256": "d96a2452da0d933941273d11d1048ea525f033306892835b0a7a0999b13853aa",
+      "size": 159,
+      "device": 27,
+      "inode": 9223372036855122566,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdint-intn.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stdint-intn.h",
+      "sha256": "88f639a4e588077b6edfad36b3bb045f0cc052b5f9d194f8e706ee27cd846f67",
+      "size": 1037,
+      "device": 27,
+      "inode": 9223372036855122068,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/endian.h",
+      "resolved_path": "/usr/include/endian.h",
+      "sha256": "537adf5fc94e17547d825a375723b666e89ff1f0a3c29fb7a78e223d22e0e210",
+      "size": 2299,
+      "device": 27,
+      "inode": 9223372036855107954,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/byteswap.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/byteswap.h",
+      "sha256": "07044d37a88f3a088ecf65df86a5d4a2c03e2966747b680ae8e0a01753cf97a1",
+      "size": 2450,
+      "device": 27,
+      "inode": 9223372036855121709,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/uintn-identity.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/uintn-identity.h",
+      "sha256": "f2854176fc9476ed0d2f52241b4911861bdc41a133f4bd2a3e9fd1073278086f",
+      "size": 1542,
+      "device": 27,
+      "inode": 9223372036855122237,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/select.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/select.h",
+      "sha256": "0e36149f12e27b0d38e28e25dd392c4a3c75c06a3cf85c3d906bc9fef4a45e4b",
+      "size": 5049,
+      "device": 27,
+      "inode": 9223372036855122862,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/select.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/select.h",
+      "sha256": "576acd13d6fba6206bdf24b1f9b6567e46da81bcf20fb2f5529434c59cfb9c3e",
+      "size": 1505,
+      "device": 27,
+      "inode": 9223372036855121966,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h",
+      "sha256": "6585bf0dcd3d5a780d6246da841031f9b314ceb7400a3210f34815f5da93b1fa",
+      "size": 416,
+      "device": 27,
+      "inode": 9223372036855122555,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/limits.h",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/limits.h",
+      "sha256": "bc572350077d8caa24f82d5439119aa2dc184e72cc4ea325b4cd0137db51580f",
+      "size": 6507,
+      "device": 27,
+      "inode": 9223372036855126230,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h",
+      "sha256": "22dd0ab81baadd5a8d455b445855f341d419c7b0267beca235de00b7ec78e529",
+      "size": 330,
+      "device": 27,
+      "inode": 9223372036855126358,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000
+    },
+    {
+      "path": "/usr/include/limits.h",
+      "resolved_path": "/usr/include/limits.h",
+      "sha256": "59dccd0e0f84037a0be75a01efe840b7b1ebe8502cdfb49742697c49290ce18f",
+      "size": 5706,
+      "device": 27,
+      "inode": 9223372036855108191,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+      "sha256": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f",
+      "size": 4286,
+      "device": 27,
+      "inode": 9223372036855121832,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/posix1_lim.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/posix1_lim.h",
+      "sha256": "ea4252c4bb02abfad2e734c657d9f323e98f406b35be6377f43c7eb78699b8d6",
+      "size": 5198,
+      "device": 27,
+      "inode": 9223372036855121915,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/local_lim.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/local_lim.h",
+      "sha256": "b38fad51045d65239da3868ea94c4f31850901ec1f7e56349452fca45f70717e",
+      "size": 3175,
+      "device": 27,
+      "inode": 9223372036855121844,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/linux/limits.h",
+      "resolved_path": "/usr/include/linux/limits.h",
+      "sha256": "567dbb4893d20bb986996f0a8b8f774b02ca6cb7df8e4b642895eade7e7ffcd9",
+      "size": 937,
+      "device": 27,
+      "inode": 9223372036855114650,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h",
+      "sha256": "aa07727cdcd5a7d9e2159e03b2db63f0e9ab75efd5332b565b5c8623ab9b714f",
+      "size": 1214,
+      "device": 27,
+      "inode": 9223372036855121939,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/pthread_stack_min.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/pthread_stack_min.h",
+      "sha256": "d91d2b37f8e1d47a8d2da1960ff67873f8a1e5ee069905ab4dee9adb5321b2f9",
+      "size": 951,
+      "device": 27,
+      "inode": 9223372036855121942,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/posix2_lim.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/posix2_lim.h",
+      "sha256": "53647564016cc8ecba361bd9cb7c706b9755ef604213ece31a1307ebc4cd08d1",
+      "size": 2867,
+      "device": 27,
+      "inode": 9223372036855121918,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/param.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/param.h",
+      "sha256": "dbf57c96b7da6edf900346e15eb17f715853e7e4460d044187c808231df09857",
+      "size": 1433,
+      "device": 27,
+      "inode": 9223372036855121901,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/linux/param.h",
+      "resolved_path": "/usr/include/linux/param.h",
+      "sha256": "75c3c810ab5732ae2bca3d5947821db5e61d203ba3b00f658472232295d66849",
+      "size": 141,
+      "device": 27,
+      "inode": 9223372036855115570,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/lib/linux/uapi/x86/asm/param.h",
+      "resolved_path": "/usr/lib/linux/uapi/x86/asm/param.h",
+      "sha256": "6bf1865f0ddba5c80877463ad6650d7fee66931486956a07884f53deaa13e2b8",
+      "size": 31,
+      "device": 27,
+      "inode": 9223372036855130446,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/asm-generic/param.h",
+      "resolved_path": "/usr/include/asm-generic/param.h",
+      "sha256": "9d3d4f3912ec8f1ee67dcb00c63d6f7f9afb11b7ceb56785e8d97ebf794f307f",
+      "size": 353,
+      "device": 27,
+      "inode": 9223372036855109755,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/dirent.h",
+      "resolved_path": "/usr/include/dirent.h",
+      "sha256": "8b931a7b63fa2c3678c8bf7b6d95c34abd20e2f17a9256c53a6ad6995d789f8a",
+      "size": 12617,
+      "device": 27,
+      "inode": 9223372036855107921,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/dirent.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/dirent.h",
+      "sha256": "e158236e9f2f9607f6af9e7bde91eebed33fc92710bf24ca634d9fe4ce2162ec",
+      "size": 1771,
+      "device": 27,
+      "inode": 9223372036855121721,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/dirent_ext.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/dirent_ext.h",
+      "sha256": "057fe50e15bd081268a1daa808d873729219d536824b3296ba946303a8b1e01e",
+      "size": 1275,
+      "device": 27,
+      "inode": 9223372036855121724,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/file.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/file.h",
+      "sha256": "13cb8befa184e04778e36c44122b68c0beacb8d944a5e9be331cd22b53eb9e60",
+      "size": 1675,
+      "device": 27,
+      "inode": 9223372036855122762,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/stat.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/stat.h",
+      "sha256": "b6c1b2671782f771d8b377f507e34852e10d3df824bd1b1fa90454132331b372",
+      "size": 13793,
+      "device": 27,
+      "inode": 9223372036855122892,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/time.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/time.h",
+      "sha256": "e1a8a0f3c2b3824f537f691dafbd3be9fabf3a5c82bb4577df7e32157d96e18c",
+      "size": 9164,
+      "device": 27,
+      "inode": 9223372036855122919,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/time.h",
+      "resolved_path": "/usr/include/time.h",
+      "sha256": "502077dfa1b92bb9d166d69ab07ba536afbc5188ff0ed4e55308845e7ef9752a",
+      "size": 15115,
+      "device": 27,
+      "inode": 9223372036855108504,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/time.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/time.h",
+      "sha256": "9b34f004f183bea846379580cb3d2f19588d96b4c7faafb3ebb7c9ffd9bafd59",
+      "size": 3331,
+      "device": 27,
+      "inode": 9223372036855122173,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_tm.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_tm.h",
+      "sha256": "e7bdda3f42eb0633850ed150fef0a0cf6193cbba8fa740e7505925424a595566",
+      "size": 760,
+      "device": 27,
+      "inode": 9223372036855122560,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h",
+      "sha256": "d6299fbc46fc57e7d14635cd5cf69125710ed021ab7305586c84644a03a39f8e",
+      "size": 288,
+      "device": 27,
+      "inode": 9223372036855122501,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/locale_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/locale_t.h",
+      "sha256": "aee0f473e9900ae9c3f9845cfabce44fb4d60ddf2706a30f802ea89bc6411d4c",
+      "size": 983,
+      "device": 27,
+      "inode": 9223372036855122465,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h",
+      "sha256": "d2513e510029ea0f2fc3868e9f1c990173b2df593d40bb8957b63c8035a1eb35",
+      "size": 1661,
+      "device": 27,
+      "inode": 9223372036855122438,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/wait.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/wait.h",
+      "sha256": "45606a4b0812e0f03554967bc7248978cbb1546f4fd080fb5975c1e2eecc9107",
+      "size": 6116,
+      "device": 27,
+      "inode": 9223372036855122973,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/waitflags.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/waitflags.h",
+      "sha256": "fe55139021b16f8d4a2b00309ce9818b679626ba2d685a63ea527414d852d7b3",
+      "size": 1697,
+      "device": 27,
+      "inode": 9223372036855122264,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/waitstatus.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/waitstatus.h",
+      "sha256": "af2b2a279b806c772f9dafe54473029d42a06d3c9547a76718745a29565fdbbb",
+      "size": 2287,
+      "device": 27,
+      "inode": 9223372036855122267,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/idtype_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/idtype_t.h",
+      "sha256": "749f4d26f0d851e1fa4056d28c57e9fa8c664a99ee852857e530f1c4e60148cf",
+      "size": 369,
+      "device": 27,
+      "inode": 9223372036855122462,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/inttypes.h",
+      "resolved_path": "/usr/include/inttypes.h",
+      "sha256": "551dfff797d3f445de7045e134e5e7b057320febea176f9e5e0fb33ece1b8d69",
+      "size": 11309,
+      "device": 27,
+      "inode": 9223372036855108099,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdint.h",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdint.h",
+      "sha256": "86a7914ab7d6a18465a6fb9a7b54f945cad604fdbf3ca0d10e4e0254e0037911",
+      "size": 328,
+      "device": 27,
+      "inode": 9223372036855126352,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000
+    },
+    {
+      "path": "/usr/include/stdint.h",
+      "resolved_path": "/usr/include/stdint.h",
+      "sha256": "38751c3803361248b73bba3d8b48aa7015ccb94c2c31f247f587b157c4ee344a",
+      "size": 8155,
+      "device": 27,
+      "inode": 9223372036855108459,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/wchar.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/wchar.h",
+      "sha256": "169453a3eb0c5e504b513fb3bad0bda7780bb84c7139c501e3deeb75ac731f35",
+      "size": 1906,
+      "device": 27,
+      "inode": 9223372036855122273,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h",
+      "sha256": "8ce3858074e8073db1eed4d25d69b3c14d41e826fa2351c5fc5246bb546161f8",
+      "size": 1049,
+      "device": 27,
+      "inode": 9223372036855122074,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdint-least.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stdint-least.h",
+      "sha256": "f2f6cc431ef00e9182f7367cd06fb1130740c41a1f4dd1c61f146a1e761a4474",
+      "size": 1305,
+      "device": 27,
+      "inode": 9223372036855122071,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/unistd.h",
+      "resolved_path": "/usr/include/unistd.h",
+      "sha256": "aee91ddee895a880d42e86506a7da85f8766690003f3c66eb1895d13de10d1ba",
+      "size": 45053,
+      "device": 27,
+      "inode": 9223372036855108519,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/posix_opt.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/posix_opt.h",
+      "sha256": "578156ff9f7525a65a01c40ff99e143612ef626acaa329b13721473387642bbb",
+      "size": 5913,
+      "device": 27,
+      "inode": 9223372036855121921,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/environments.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/environments.h",
+      "sha256": "443741b2af4b0669bb9dae4ad09f5c713e7dc2ebb02eb32c48c4f6fdf2d1f436",
+      "size": 3791,
+      "device": 27,
+      "inode": 9223372036855121742,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/confname.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/confname.h",
+      "sha256": "6ce8f12a1e5f43905079b49528ab4a0b26cf6bdac64cee572e7e3be9b9d6d0e1",
+      "size": 23828,
+      "device": 27,
+      "inode": 9223372036855121715,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/getopt_posix.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/getopt_posix.h",
+      "sha256": "73f792a9876b4505701e8f5cb569b76d8a6fcef873c5659fb0c58674499b65e4",
+      "size": 1810,
+      "device": 27,
+      "inode": 9223372036855121796,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/getopt_core.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/getopt_core.h",
+      "sha256": "8ad97c20671f0ca03f8bb35412a5b69699ca4c641744bd66cac4943e30088df5",
+      "size": 3667,
+      "device": 27,
+      "inode": 9223372036855121790,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/unistd_ext.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/unistd_ext.h",
+      "sha256": "bd6de799b64036885d60171cd13b9dbb760451090176855ab2fe19499e5092e6",
+      "size": 2035,
+      "device": 27,
+      "inode": 9223372036855122252,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/utime.h",
+      "resolved_path": "/usr/include/utime.h",
+      "sha256": "e0172aa6080833d9cdbe8b79bef8b44b1f33cea0479a180feeb5abe275c0d0e9",
+      "size": 1915,
+      "device": 27,
+      "inode": 9223372036855108522,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/socket.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/socket.h",
+      "sha256": "83cb65658f6285eb4cfa947d36de830d432609f11be940261318fb751e9a5324",
+      "size": 12417,
+      "device": 27,
+      "inode": 9223372036855122883,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h",
+      "sha256": "d18c1892d58c3a8f342ea51e8e3aa6d93d25cdf0b05973bce04249fd7e1df2ad",
+      "size": 1066,
+      "device": 27,
+      "inode": 9223372036855122498,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/socket.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/socket.h",
+      "sha256": "54658ef138fe725785e8458253497fe894ec17456324b1731e75fe80fd20b856",
+      "size": 13919,
+      "device": 27,
+      "inode": 9223372036855122035,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/socket_type.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/socket_type.h",
+      "sha256": "4a7bdfd2df4cca0a6aae7fc85d211d74a5fb20c095a2d3f19905ec2824621b6c",
+      "size": 2216,
+      "device": 27,
+      "inode": 9223372036855122041,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sockaddr.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sockaddr.h",
+      "sha256": "2a9173a32830aabdcdd8a70b6bb521ede8ce6093ccf97b5932e96a5fd9710a7f",
+      "size": 1514,
+      "device": 27,
+      "inode": 9223372036855122029,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/lib/linux/uapi/x86/asm/socket.h",
+      "resolved_path": "/usr/lib/linux/uapi/x86/asm/socket.h",
+      "sha256": "48e0940e8a6e8861eaaaf90853a685fa803c4e039166060a3c921c8d79001e3c",
+      "size": 32,
+      "device": 27,
+      "inode": 9223372036855130509,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/asm-generic/socket.h",
+      "resolved_path": "/usr/include/asm-generic/socket.h",
+      "sha256": "80e77b47229a4327a7445c9f747274627ad2fc0b282647c79ba72da932f6eaae",
+      "size": 3956,
+      "device": 27,
+      "inode": 9223372036855109785,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/linux/posix_types.h",
+      "resolved_path": "/usr/include/linux/posix_types.h",
+      "sha256": "bc68636a383418f235d3457e4b21cf27cefc7c7f3edea4c1f6706f1018db196f",
+      "size": 1098,
+      "device": 27,
+      "inode": 9223372036855115633,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/linux/stddef.h",
+      "resolved_path": "/usr/include/linux/stddef.h",
+      "sha256": "d9d06920429953d634a7a1870c26c08fba34cc526403c9e63dee1e37091c646c",
+      "size": 2108,
+      "device": 27,
+      "inode": 9223372036855115876,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/lib/linux/uapi/x86/asm/posix_types.h",
+      "resolved_path": "/usr/lib/linux/uapi/x86/asm/posix_types.h",
+      "sha256": "983090c7e5e7eaff27114ec216889a8ad26e40ad8fbb78b8ae6c09391dc61543",
+      "size": 224,
+      "device": 27,
+      "inode": 9223372036855130455,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/lib/linux/uapi/x86/asm/posix_types_64.h",
+      "resolved_path": "/usr/lib/linux/uapi/x86/asm/posix_types_64.h",
+      "sha256": "5cdabc01dac0a3e9731ac16353210a615ca44e85b6ec9eafd2e79206e0b26c76",
+      "size": 609,
+      "device": 27,
+      "inode": 9223372036855130461,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/asm-generic/posix_types.h",
+      "resolved_path": "/usr/include/asm-generic/posix_types.h",
+      "sha256": "8d273280f282bf9e810f00ad9905977161dec3f103ef789892ceec8c453e1398",
+      "size": 2376,
+      "device": 27,
+      "inode": 9223372036855109761,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/lib/linux/uapi/x86/asm/bitsperlong.h",
+      "resolved_path": "/usr/lib/linux/uapi/x86/asm/bitsperlong.h",
+      "sha256": "8ef5efeb3f25ae47ce03ba892f5caf77631b1257715fc12de72c21e61db17e43",
+      "size": 321,
+      "device": 27,
+      "inode": 9223372036855130371,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/asm-generic/bitsperlong.h",
+      "resolved_path": "/usr/include/asm-generic/bitsperlong.h",
+      "sha256": "3a8e58cc67210c5a2b3bf24c84a96328e974dfe94206c74e5478d3142c991cf7",
+      "size": 1092,
+      "device": 27,
+      "inode": 9223372036855109710,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/lib/linux/uapi/x86/asm/sockios.h",
+      "resolved_path": "/usr/lib/linux/uapi/x86/asm/sockios.h",
+      "sha256": "ac496b3bcc37452f0caa104b2205a8a19dde0196a7791988b3b74e23c2174c1e",
+      "size": 33,
+      "device": 27,
+      "inode": 9223372036855130512,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/asm-generic/sockios.h",
+      "resolved_path": "/usr/include/asm-generic/sockios.h",
+      "sha256": "3e46cdcb281f87f1b532901e6388eed77fa687c3c5c56f72aceb8640696a4ef9",
+      "size": 447,
+      "device": 27,
+      "inode": 9223372036855109788,
+      "mtime_ns": 1787601950000000000,
+      "ctime_ns": 1787601950000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_osockaddr.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_osockaddr.h",
+      "sha256": "63619500aa6095b881f62d7a255bd31eeeab9a829cf34ec40e20a62729323efc",
+      "size": 274,
+      "device": 27,
+      "inode": 9223372036855122513,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/utsname.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/sys/utsname.h",
+      "sha256": "61c2ab241152a2c3b73263a6df34617a73c83cc71d8788a9df9e1863ae7fee25",
+      "size": 2481,
+      "device": 27,
+      "inode": 9223372036855122958,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/utsname.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/utsname.h",
+      "sha256": "51261dcea954ce4481ee706836ddf3225f5a357d26902d3d377e54ec92118664",
+      "size": 1213,
+      "device": 27,
+      "inode": 9223372036855122261,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/netinet/in.h",
+      "resolved_path": "/usr/include/netinet/in.h",
+      "sha256": "ef3842907071cbbf9e76691de8aa28baea3911ed26c0080992ec6aa4ad186d4e",
+      "size": 22633,
+      "device": 27,
+      "inode": 9223372036855118595,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/in.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/in.h",
+      "sha256": "253da38a59f2332dd2fc9540ccb31d20aac2e9567edbb237a6f4d3cbd867ebbe",
+      "size": 9366,
+      "device": 27,
+      "inode": 9223372036855121802,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/arpa/inet.h",
+      "resolved_path": "/usr/include/arpa/inet.h",
+      "sha256": "cc8c928e6d45558ef4ad28425fc31888c237ef5868ee09081c43e7373154b42c",
+      "size": 4333,
+      "device": 27,
+      "inode": 9223372036855109692,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/netdb.h",
+      "resolved_path": "/usr/include/netdb.h",
+      "sha256": "2e1cdd2081d1555b292fa3bc6d912c433107ae9c9ad8ff38365095a59eee0fbf",
+      "size": 28466,
+      "device": 27,
+      "inode": 9223372036855108695,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/rpc/netdb.h",
+      "resolved_path": "/usr/include/rpc/netdb.h",
+      "sha256": "b0473919bb466a7376b3ebd778c0b9c10f7e1855804630809bcfa7640eb7f864",
+      "size": 2897,
+      "device": 27,
+      "inode": 9223372036855120253,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/netdb.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/netdb.h",
+      "sha256": "27fe790819068c205a51307b772c3555c70ba4b13235a7937f3d338cd3ed6993",
+      "size": 1264,
+      "device": 27,
+      "inode": 9223372036855121898,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/float.h",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/float.h",
+      "sha256": "0924f0708449d918e3152d00087efdf18e3f26c92030c464a6b4a77da1439f57",
+      "size": 20749,
+      "device": 27,
+      "inode": 9223372036855126197,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000
+    },
+    {
+      "path": "/usr/include/pthread.h",
+      "resolved_path": "/usr/include/pthread.h",
+      "sha256": "512a6c8b07a201b4e8b5b8644744c3f4c1a9e3c76c58708cf9a958f29d124d52",
+      "size": 48422,
+      "device": 27,
+      "inode": 9223372036855108302,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/sched.h",
+      "resolved_path": "/usr/include/sched.h",
+      "sha256": "e7f62b1566aa210bf65da19d44c1b0a516fdb1089d0d79995f7ce26898560209",
+      "size": 5043,
+      "device": 27,
+      "inode": 9223372036855108390,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/sched.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/sched.h",
+      "sha256": "2fb6537fb0cbaf6712115cb6241c043e2ccdaf80dddacdbeced8ade2d90a2dea",
+      "size": 5952,
+      "device": 27,
+      "inode": 9223372036855121960,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h",
+      "sha256": "f302ecf26419064eacddd110ed6fd8758c2e390d7958af69ceae3177f616e1b4",
+      "size": 1073,
+      "device": 27,
+      "inode": 9223372036855122519,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/cpu-set.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/cpu-set.h",
+      "sha256": "df8b69ed158512eec73529d91f4e3e5b9d2633a7606a38b521993b87064e54b0",
+      "size": 4516,
+      "device": 27,
+      "inode": 9223372036855121718,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/setjmp.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/setjmp.h",
+      "sha256": "2c953ac477ba1060a84f7fbad27dffd2f4fe5e8b5847b382ec19bff1270ef5ef",
+      "size": 1287,
+      "device": 27,
+      "inode": 9223372036855121978,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h",
+      "sha256": "05e69f8d10ee12c3ad50204ff9e55926d9b57d3a24634c04b2c718547573f735",
+      "size": 1467,
+      "device": 27,
+      "inode": 9223372036855122495,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/grp.h",
+      "resolved_path": "/usr/include/grp.h",
+      "sha256": "5a2f256b5f9822bfff84c34ac984e5a3f15693aeb7135da4a4c794652a7d3c9c",
+      "size": 6847,
+      "device": 27,
+      "inode": 9223372036855108049,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "size": 94296,
+      "device": 27,
+      "inode": 275220,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991509873605
+    },
+    {
+      "path": "/usr/include/stdio.h",
+      "resolved_path": "/usr/include/stdio.h",
+      "sha256": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1",
+      "size": 34172,
+      "device": 27,
+      "inode": 9223372036855108462,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h",
+      "sha256": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7",
+      "size": 4303,
+      "device": 27,
+      "inode": 9223372036855126331,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h",
+      "sha256": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+      "size": 381,
+      "device": 27,
+      "inode": 9223372036855122435,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h",
+      "sha256": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+      "size": 564,
+      "device": 27,
+      "inode": 9223372036855122441,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h",
+      "sha256": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+      "size": 410,
+      "device": 27,
+      "inode": 9223372036855122432,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h",
+      "sha256": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+      "size": 110,
+      "device": 27,
+      "inode": 9223372036855122300,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+      "sha256": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53",
+      "size": 4239,
+      "device": 27,
+      "inode": 9223372036855122492,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h",
+      "sha256": "f3a731752c167e53c1786b20e5460ec3696e1a35521f883d5ca84da85d983d9f",
+      "size": 2725,
+      "device": 27,
+      "inode": 9223372036855122456,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h",
+      "sha256": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654",
+      "size": 1059,
+      "device": 27,
+      "inode": 9223372036855122089,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+      "sha256": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451",
+      "size": 4929,
+      "device": 27,
+      "inode": 9223372036855121778,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+      "sha256": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00",
+      "size": 10325,
+      "device": 27,
+      "inode": 9223372036855121775,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdio.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stdio.h",
+      "sha256": "182891bcd563185c52e7c01f4fdbd885f943f70682dd758ceab319eeaf917c08",
+      "size": 5599,
+      "device": 27,
+      "inode": 9223372036855122080,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclDecls.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclDecls.h",
+      "sha256": "b4072e658d9026bd81a0706e9ff02bf40f8f1f137bcd882d2a23dd25b335a144",
+      "size": 175389,
+      "device": 27,
+      "inode": 275240,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991521873511
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPlatDecls.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPlatDecls.h",
+      "sha256": "9498557f03c1a6fa8b6f6c3b16988cba9efda86bbed8d1c6b4851b09db0da7de",
+      "size": 4099,
+      "device": 27,
+      "inode": 275299,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991537873385
+    },
+    {
+      "path": "/usr/include/ctype.h",
+      "resolved_path": "/usr/include/ctype.h",
+      "sha256": "21c99631e2d75b93e87bca3f26cfe24586895bf9505717f680a1751b1605b05e",
+      "size": 10969,
+      "device": 27,
+      "inode": 9223372036855107918,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/stdlib.h",
+      "resolved_path": "/usr/include/stdlib.h",
+      "sha256": "999cb2acafbb64984f99ee410a42dfd79815de184a0312d7c136e31795a952d2",
+      "size": 41039,
+      "device": 27,
+      "inode": 9223372036855108468,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/alloca.h",
+      "resolved_path": "/usr/include/alloca.h",
+      "sha256": "8655ed58a5aedda99207d636aba00cbbf9842cfed6722593876a083700b4d138",
+      "size": 1203,
+      "device": 27,
+      "inode": 9223372036855106294,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h",
+      "sha256": "231afa57a5d88ab4ede48d5d0808f7343986405ee89f85505dd06e1d31971a88",
+      "size": 1516,
+      "device": 27,
+      "inode": 9223372036855122092,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdlib-float.h",
+      "resolved_path": "/usr/include/x86_64-linux-gnu/bits/stdlib-float.h",
+      "sha256": "fdd6c94e471e2aa2e03bae449f993392a6593044490fc82601b77d7116381201",
+      "size": 1115,
+      "device": 27,
+      "inode": 9223372036855122095,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/string.h",
+      "resolved_path": "/usr/include/string.h",
+      "sha256": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a",
+      "size": 19969,
+      "device": 27,
+      "inode": 9223372036855108471,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/usr/include/strings.h",
+      "resolved_path": "/usr/include/strings.h",
+      "sha256": "c337c6ee3a39d2465795897080331e7bc7c385d91bbbbbb5c7dfb0094dcdf804",
+      "size": 4753,
+      "device": 27,
+      "inode": 9223372036855108474,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntDecls.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntDecls.h",
+      "sha256": "dd303cab02a101f96109c96f626eb91fa5576fe21294a9d80816b06a8014ca26",
+      "size": 56969,
+      "device": 27,
+      "inode": 275266,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991533873416
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntPlatDecls.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntPlatDecls.h",
+      "sha256": "94469685c0c8bbb6cf1c63bfa50af29b66a8801096c4e18a760a50e76f779d00",
+      "size": 23256,
+      "device": 27,
+      "inode": 275267,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991533873416
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTomMathDecls.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTomMathDecls.h",
+      "sha256": "385be9640cd9ecb085ce3fad840047a2aef54df464f815090e560536f04c8c9d",
+      "size": 27416,
+      "device": 27,
+      "inode": 275327,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991545873321
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTomMath.h",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclTomMath.h",
+      "sha256": "31101dcbfb0f8943f4286f3ed2b3cc3dfe837573eca267aec3486951f89b5ac7",
+      "size": 30944,
+      "device": 27,
+      "inode": 275326,
+      "mtime_ns": 1778261475000000000,
+      "ctime_ns": 1791468991545873321
+    }
+  ],
+  "actual_link_inputs": [
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/Scrt1.o",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/Scrt1.o",
+      "sha256": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+      "size": 1640,
+      "device": 27,
+      "inode": 9223372036855333294,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crti.o",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/crti.o",
+      "sha256": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+      "size": 1072,
+      "device": 27,
+      "inode": 9223372036855339283,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o",
+      "sha256": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+      "size": 2736,
+      "device": 27,
+      "inode": 9223372036855125731,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/tmp/ccdKeNse.o",
+      "status": "compiler-produced-ephemeral-object-not-retained",
+      "sha256": null,
+      "digest_limit": "The actual link map retains the path; no unobserved ephemeral object digest is invented."
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+      "size": 3244104,
+      "device": 27,
+      "inode": 286644,
+      "mtime_ns": 1791469173900433406,
+      "ctime_ns": 1791469173900433406,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libdl.a",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libdl.a",
+      "sha256": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "size": 8,
+      "device": 27,
+      "inode": 9223372036855335172,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libz.so",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376,
+      "device": 27,
+      "inode": 9223372036855338875,
+      "mtime_ns": 1730197958000000000,
+      "ctime_ns": 1730197958000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libpthread.a",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libpthread.a",
+      "sha256": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "size": 8,
+      "device": 27,
+      "inode": 9223372036855343009,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so",
+      "sha256": "55de4a3e12e17c3e2b18eb95ee21b3f46a8893ea6cab68c0a1c3a5caaf32e6cf",
+      "size": 140,
+      "device": 27,
+      "inode": 9223372036855342422,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libmvec.so.1",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libmvec.so.1",
+      "sha256": "cd2f99df70ed0fa44f79bd6322396180d19eaa1fb527b1b6e2aec9cdfc034d9d",
+      "size": 1018072,
+      "device": 27,
+      "inode": 9223372036855336328,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+      "size": 3243220,
+      "device": 27,
+      "inode": 9223372036855125903,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so",
+      "sha256": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+      "size": 132,
+      "device": 27,
+      "inode": 9223372036855125909,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+      "size": 182856,
+      "device": 27,
+      "inode": 9223372036855341684,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+      "size": 3243220,
+      "device": 27,
+      "inode": 9223372036855125903,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libc.so",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so",
+      "sha256": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+      "size": 283,
+      "device": 27,
+      "inode": 9223372036855341326,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/x86_64-linux-gnu/libc_nonshared.a",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc_nonshared.a",
+      "sha256": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+      "size": 5098,
+      "device": 27,
+      "inode": 9223372036855341338,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+      "size": 3243220,
+      "device": 27,
+      "inode": 9223372036855125903,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so",
+      "sha256": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+      "size": 132,
+      "device": 27,
+      "inode": 9223372036855125909,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libgcc_s.so.1",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+      "size": 182856,
+      "device": 27,
+      "inode": 9223372036855341684,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+      "size": 3243220,
+      "device": 27,
+      "inode": 9223372036855125903,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o",
+      "resolved_path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o",
+      "sha256": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+      "size": 1152,
+      "device": 27,
+      "inode": 9223372036855125740,
+      "mtime_ns": 1742003262000000000,
+      "ctime_ns": 1742003262000000000,
+      "status": "retained-pinned-original-link-input"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/crtn.o",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/crtn.o",
+      "sha256": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101",
+      "size": 648,
+      "device": 27,
+      "inode": 9223372036855339286,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000,
+      "status": "retained-pinned-original-link-input"
+    }
+  ],
+  "process_receipt": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/compile.receipt.json",
+  "process_receipt_sha256": "c1b9724b3da879851ede70dd84b2ce292e78dc44e753a2817efd82c85efae6e1",
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536"
+}

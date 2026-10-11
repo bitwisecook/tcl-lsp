@@ -1,0 +1,26 @@
+{
+  "status": "bounded static source/request acceptance; no compilation or execution",
+  "manifest_sha256": "d87cc25b1fb6ad6795266b191160b08998e9be0a55dad525f5fcaf0038d6324f",
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "probe_sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+  "launcher_sha256": "6fd2374ef054b2d0c4615dbf59a1a9f8a189ac4f0565c1da65c09f1cc2ab32d5",
+  "all15_files_verified": 15,
+  "all_current_input_pins_verified": 7995,
+  "physical_LF_source_windows_verified": 10,
+  "launcher_ast_parse": true,
+  "fresh_output_root_absent": true,
+  "selectedSDK_build_commands_exact614c_except_fresh_paths": true,
+  "source_review": [
+    "five prepared C cases preserve caller/result/private/global distinct holds and authentic direct-field compatibility fixture labels",
+    "case4 one C header has caller+code+info holds, independent R; no I header issued",
+    "pure free/trace observers dereference passed callback header only; original record pointers with reached freeIntRep are not dereferenced later",
+    "caller String getters require actual caller hold and no prior free; compatibility global String/setter stages remain separate",
+    "observers disabled before interpreter teardown and all records live through cleanup",
+    "durable actual receipt+streams before postverification; strict actual header/link/runtime inputs and own executable before/after; ephemeral compiler.o path retained with null digest, no invented pin"
+  ],
+  "limits": [
+    "no actual process or semantic verdict",
+    "no Host/ABA/mutating reentry/public lazy-errorInfo-producer/Jim/Rust/VM parity",
+    "selected SDK configure/build replay unavailable; fixed SDK provenance stays explicit"
+  ]
+}

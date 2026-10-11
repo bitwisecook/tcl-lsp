@@ -8381,6 +8381,28 @@
       "candidate": false
     },
     {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/receiver-crossreview/interpretation.json",
+      "sha256": "c1078bb9f228b3cab60dd72c6e33305ca66479e1641ceb3a7db7634263becf68",
+      "bytes": 7500,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/receiver-crossreview/manifest.json",
+      "sha256": "919f70a56a80eb750493378ab9b74b5436903590f51e92a704e74f802dacf0e0",
+      "bytes": 273,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-explicit-error-code-header-setter"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
       "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/request.json",
       "sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3",
       "bytes": 2431921,
@@ -19563,6 +19585,851 @@
       "sha256": "b89d686e08219aae25cecb5de11dde12e93dfe49a57bafe78c0f4ecd70d90f36",
       "bytes": 1324,
       "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/closure.json",
+      "sha256": "e0e0dbacb79e1812d97fd7c35103d8b5a7220fe7c855c22dee61fd2a04c571b8",
+      "bytes": 5494,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/compiler-version.receipt.json",
+      "sha256": "4018693cb72cf5325a1250daf8c076af441dbf996b844e7396724808df8196ff",
+      "bytes": 1194,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/independent-interpretation/interpretation.json",
+      "sha256": "a753f58b3127f9aa66fd8e099fc71f0dcbb4ebef1ef11338fd64b2be6e76c99f",
+      "bytes": 295832,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/independent-interpretation/manifest.json",
+      "sha256": "25da551b00347c359dfb126c92ade34ad441df84ab257d8e9331b2d0f0e2e9dc",
+      "bytes": 557,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/launch.py",
+      "sha256": "6fd2374ef054b2d0c4615dbf59a1a9f8a189ac4f0565c1da65c09f1cc2ab32d5",
+      "bytes": 13063,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/manifest.json",
+      "sha256": "d87cc25b1fb6ad6795266b191160b08998e9be0a55dad525f5fcaf0038d6324f",
+      "bytes": 4221,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/outer-launch.log",
+      "sha256": "66baaee6d7175a5af98436f48f263ddc8cd3422e186427be690711ef0373651b",
+      "bytes": 88,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/prepare.py",
+      "sha256": "62a0683ac4d1f8eb7ad4805acd179f5ed05ffc37c562e6f359ec9ec9d64e34f8",
+      "bytes": 10205,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/probe.c",
+      "sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+      "bytes": 10697,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/compile.d",
+      "sha256": "b48eed9ef11497a2a6329f0fcde4e6ed3d071ae2fc23b5a8e68a2988a9dafef1",
+      "bytes": 5146,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/compile.receipt.json",
+      "sha256": "7f7c062424b1905b6824814ab18ee6c061b9d96f39939be1d0a2937fd4808ea6",
+      "bytes": 3460,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/compile.verification.json",
+      "sha256": "fec57c152e4067d9e52846ed5a5071f45ca90d2175d77c587a124fe2233e9560",
+      "bytes": 51483,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "1a3502fce0dede081abb021356fe3b82521eb14c1c60db3d8d143bdb8ef71c01",
+      "bytes": 1250,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/dependencies.stdout",
+      "sha256": "33cd504cd3e7a02d25d2fa32fea1083946d9b3aa3c550017b64b5f642262cfea",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/dependencies.verification.json",
+      "sha256": "d47e1289ee4c964527970d47bc0b8f1bd684e718bdfad2e9a55407d12e80d6d9",
+      "bytes": 2419,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/execute.receipt.json",
+      "sha256": "7d3d14899bd6de3f53f1f5ed100dfb39e1ee1d04b7684c78601a356adae807a5",
+      "bytes": 1289,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/execute.stdout",
+      "sha256": "f4a4254098a5e27d1f514b639a38dc5dba02f602d792aa895bcc22508a257725",
+      "bytes": 14933,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/execute.verification.json",
+      "sha256": "c78a76074484bd012dd3a01403c16b52db1db46c841a72e36957b4d05fb7805d",
+      "bytes": 5769,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/link.map",
+      "sha256": "5068f5663a61e985fae1c719e1f94ed35ebf6992f847361eaf9b6fe5c0ed6335",
+      "bytes": 195721,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.4.20/probe.elf.gz",
+      "sha256": "de2fd1506f18cfb1cd988b85d5b2ef008cddc130f6872c417d201a2226f04c5b",
+      "bytes": 389046,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/compile.d",
+      "sha256": "ea5176afbb4ab38c3294a950804a787c36dba55a1500d60bc406986d33661d4a",
+      "bytes": 8378,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/compile.receipt.json",
+      "sha256": "208dbee5d99071ab1480252ab7d83a0933163461ffcb177314c9b5f21feec866",
+      "bytes": 4200,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/compile.verification.json",
+      "sha256": "7d2b56ceb45512ebc4b6cb53970ee78c84ba60b35961d768aacbc96d120a7955",
+      "bytes": 79838,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "7da420be4d58101d3bf3ec426b4f587e2b27b8206b706e771477094a998a85fc",
+      "bytes": 1250,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/dependencies.stdout",
+      "sha256": "f96f8124f7a8bef9f6b9ff59d84e6a388da7ad67f867652635d5598eda715b09",
+      "bytes": 222,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/dependencies.verification.json",
+      "sha256": "911f0cf9f603c1d4dc9d148b7612b33e4b94c7c95b2af4694dee0e8b3801ba3f",
+      "bytes": 2421,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/execute.receipt.json",
+      "sha256": "68ad156d4bbb3cfeef781cb68d3fd1a823118878d2da0900cb488f1965b91f9d",
+      "bytes": 1288,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/execute.stdout",
+      "sha256": "7dd86d36f04c9885588b65742dce12e3a890d0712b9bef07aca115a5d7652215",
+      "bytes": 16353,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/execute.verification.json",
+      "sha256": "997db719b9ed68bb5209969aed343a2f7fbadfc0f49078fb4ea49a74cf54bad2",
+      "bytes": 5771,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/link.map",
+      "sha256": "064e7286c07fc12a4097813a8a773c023a0e296ae4b0942b296fab5247d9e18d",
+      "bytes": 297187,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.5.19/probe.elf.gz",
+      "sha256": "06413828c6bc4026266ecbf848abf12a183aa3fe636a723137db482bf7b19ba7",
+      "bytes": 568975,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/compile.d",
+      "sha256": "aecf294cd8f14f782dbd8caa36e07646fd78e763856d7d4185fd8e734d7ffee9",
+      "bytes": 8368,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/compile.receipt.json",
+      "sha256": "c1b9724b3da879851ede70dd84b2ce292e78dc44e753a2817efd82c85efae6e1",
+      "bytes": 4559,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/compile.verification.json",
+      "sha256": "f90ef830d18c5a4c5cea6d04212eac7e9aec9fc170305aa0c4e0ef52948ceffb",
+      "bytes": 80684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "a4694980d66cc6f8110d0acea34ee25da415061d2bbd40d45948d679d15c206b",
+      "bytes": 1250,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/dependencies.stdout",
+      "sha256": "8ccba5b0e86a449dc63cece3a779587aaff9a176cb6e50a79bc8ffd8884a8a7e",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/dependencies.verification.json",
+      "sha256": "55d986e8f66ebd6e45c2c919daf63389f448a4406d89bd403565e92753b772a8",
+      "bytes": 2788,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/execute.receipt.json",
+      "sha256": "1bea664b6cd54a169b74a34ce5b01be031d44f84f807f0a995082556279dc10f",
+      "bytes": 1287,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/execute.stdout",
+      "sha256": "66179b8d1a93fcab8532f7df63031c4b307ff5428004eac8b87425112e103d7a",
+      "bytes": 16353,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/execute.verification.json",
+      "sha256": "236ea724a834baca5f133ebf052e2463fca7e52f8d047552ea109a6b90d0d32e",
+      "bytes": 6504,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/link.map",
+      "sha256": "a56c68760f8354b74f275bd341927215690fe21b263d47e660d5224548e43c10",
+      "bytes": 343516,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/8.6.18/probe.elf.gz",
+      "sha256": "6af450b1da6128abd33b76f6777f089b70c26a6740ba9fc735a09242b28fc328",
+      "bytes": 810971,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/compile.d",
+      "sha256": "fe6cd5c082a8f5e8905a5e284bd17822f6e46d719df8ce5a9eaeaa81def56dd2",
+      "bytes": 8389,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/compile.receipt.json",
+      "sha256": "f4ce69d66269b8449a714289da63841901868d5407cf12d58be6d27104d4dee0",
+      "bytes": 4806,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/compile.stderr",
+      "sha256": "2403c201bc65df1cf927ce1240018198e05b36111d3c771e91f3e103e7e3de28",
+      "bytes": 1582,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/compile.verification.json",
+      "sha256": "39cfd78a34a6e32f1fa63c3ee9de08c9f2dbd442e9cda5d9cc6eb58c9401ef92",
+      "bytes": 81320,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "a49a6516d39769cfb9303781101ad657566418650d530f46995dbe83be34d371",
+      "bytes": 1248,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/dependencies.stdout",
+      "sha256": "770492ccc9862804e8fab9d9b3d605825ae30cac65da92da566a3e3293d19877",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/dependencies.verification.json",
+      "sha256": "7a2c57d8046694cfb934b04369cc68d7f9cbf4e67e826e862ad36b4a84664879",
+      "bytes": 2783,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/execute.receipt.json",
+      "sha256": "e9db9a9a8e20a603bf6989a858527920a76a5cfb1c01c2e4100e77de304dd6a5",
+      "bytes": 1285,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/execute.stdout",
+      "sha256": "45aa20658e38d94adf3f72f6136b108a07f19f632ebc18eb45ac6d4efbb449a4",
+      "bytes": 16352,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/execute.verification.json",
+      "sha256": "516941f1ba84b7f858c7b66d1404d31671c6b3512b9287094f7f7acd5bdbefc6",
+      "bytes": 6494,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/link.map",
+      "sha256": "6e269298af893cfc2a5dcb4ae0de205070378e8d99610a4799c0322816dcfc9a",
+      "bytes": 369613,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.0.4/probe.elf.gz",
+      "sha256": "345db2034a29d4eb04e1b5bb99c327e2b703be8c5aa77be554e643c77b964132",
+      "bytes": 960284,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/compile.d",
+      "sha256": "1215bd77533e58ff0a1d4552a0812abb673ab493b862e0976212a4d7ef627d64",
+      "bytes": 8389,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/compile.receipt.json",
+      "sha256": "c9b07b70260597ddefcb7708025c50ce1ca65952f511f97e3c0932588e179a92",
+      "bytes": 4873,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/compile.stderr",
+      "sha256": "1f1e78c47d5a27cc411568d96312bd01771f22426f8ca86e68f6d4292624a834",
+      "bytes": 1582,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/compile.verification.json",
+      "sha256": "2441948668456b7f3fb885c1402d1414aef8c4477f73aa1f352958aaed8e6d91",
+      "bytes": 81765,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "7daba5e70a4ac50122226724448e6b3b8c764860cb3eb58c6e78904fb1f8cb9b",
+      "bytes": 1248,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/dependencies.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/dependencies.stdout",
+      "sha256": "3b3c9dcc7da4e87947b3d5babe84163e112c2f46ae9982cc467075fb29a37544",
+      "bytes": 289,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/dependencies.verification.json",
+      "sha256": "d96a3dee295b63b1a6dcdfafa5ca7106836f024a3ef7642b67bdc283a1cb7747",
+      "bytes": 2783,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/execute.receipt.json",
+      "sha256": "528863a71a49a11fc5acb906f26345b23a50e3327c72b3ba43cdbfc1b47c2331",
+      "bytes": 1285,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/execute.stdout",
+      "sha256": "e966266941ed99aafc9c903e83732b0d23280201dda97119744f769a43cf2373",
+      "bytes": 16352,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/execute.verification.json",
+      "sha256": "d8c6d8460fbd8d44c86eda7044299e3ee4b571ab3aab4bcb7ed67d62b7eb869c",
+      "bytes": 6494,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/link.map",
+      "sha256": "72b2ba0660b7efd50a2c343e8837cc688302831a999d947ad692d81a25978af9",
+      "bytes": 380839,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/providers/9.1.0/probe.elf.gz",
+      "sha256": "9fef702813aa418289e3056cddec65d5eb8b4cfaa2f50222c2818b369c776161",
+      "bytes": 1029377,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/receiver-crossreview/case-observations.json",
+      "sha256": "7a86467f85784e5894a2fd061ce4e09097b185870099d4fa4f7eed8d2e6f6192",
+      "bytes": 186887,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/receiver-crossreview/interpretation.json",
+      "sha256": "4c883635ae1aebc2be79eb069a22cf65ab7493b812cfcedf7cba886bf93ce786",
+      "bytes": 47668,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/receiver-crossreview/manifest.json",
+      "sha256": "ab558f00bebfd75508424832247c525e9159c7126edbe26804978d72c0062d71",
+      "bytes": 938,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/receiver-crossreview/verify.py",
+      "sha256": "da615653cf595d4d4a3a1c0c6f2a8184726b63e07bb7a85872f761bfb67dcc02",
+      "bytes": 18522,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/request.json",
+      "sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+      "bytes": 1048864,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/selected-makefile-builds-original614c.json",
+      "sha256": "383384caf469fb6f7bc8566fe66ad3331fb9feada85d8a5ec1f3c05302d31295",
+      "bytes": 44246,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows.json",
+      "sha256": "47abf47504805131060db5b11a8a9754e8d5e4ba1e3f04b0a1f46e76eda0be4d",
+      "bytes": 6784,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/8.4.20/ResetObjResult.c",
+      "sha256": "e542ec39d7a9a480ce555ae6ec80fb8c21012432f72bdd833c20843e9bc8426f",
+      "bytes": 787,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/8.4.20/Tcl_ResetResult.c",
+      "sha256": "8199b4f1feb3f7cbf6c1ddde58cf74c163eba23e3b58bb06b84495abd0149a6a",
+      "bytes": 502,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/8.5.19/ResetObjResult.c",
+      "sha256": "feed8d109d1e069fa84773d574d1385f58adcdf7d96b27114471d206c0e15c3e",
+      "bytes": 634,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/8.5.19/Tcl_ResetResult.c",
+      "sha256": "df05c1e9f61e9150fb3a6010117555156b7114c9e38530a60d614b9bd3819218",
+      "bytes": 1122,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/8.6.18/ResetObjResult.c",
+      "sha256": "a06d6032f455f2281260e2c1d1a27e0d8a3debd5fd5ea0d01fb2b3fd1eec1891",
+      "bytes": 577,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/8.6.18/Tcl_ResetResult.c",
+      "sha256": "440321d5a507e5679703d0e05a05f5a6afcd980a1adaa4f7d48e3badb57568c1",
+      "bytes": 1134,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/9.0.4/ResetObjResult.c",
+      "sha256": "b7358ed71467cd9ee344373d3b33fcbfba56d5b47a2684bc11e5d05bbbdd0bd0",
+      "bytes": 580,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/9.0.4/Tcl_ResetResult.c",
+      "sha256": "4097cc4f75a9bb24fc5ae9f3b376118a3204fd30a9b0e28595bc73ffea4e6306",
+      "bytes": 892,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/9.1.0/ResetObjResult.c",
+      "sha256": "b7358ed71467cd9ee344373d3b33fcbfba56d5b47a2684bc11e5d05bbbdd0bd0",
+      "bytes": 580,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/source-windows/9.1.0/Tcl_ResetResult.c",
+      "sha256": "4097cc4f75a9bb24fc5ae9f3b376118a3204fd30a9b0e28595bc73ffea4e6306",
+      "bytes": 892,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/618/static-review/receiver.json",
+      "sha256": "e9e90ab8b26f1a66ca8431bdc12275dfb97d4bd960735a85f7c781729e178b58",
+      "bytes": 1763,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_reset_result_error_header_retirement_original/recorded-path-map.json",
+      "sha256": "83a79ce06d0c0e0e170f99b28156c4a9f06930018837fe5759738092f1878c5d",
+      "bytes": 222028,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.error.original-reset-result-error-header-retirement"
+      ],
+      "reason": "Exact original native request/source/process/verification/retention or derived independent review. Actual finite reached phases and process statuses remain separate from source labels, unmeasured callback modes and Rust outcomes."
     },
     {
       "path": "runtime/rust/tests/data/native_return_instructions/manifest.json",

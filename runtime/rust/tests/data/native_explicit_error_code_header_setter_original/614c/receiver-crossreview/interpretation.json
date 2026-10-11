@@ -1,0 +1,193 @@
+{
+  "status": "Independent bounded actual capture cross-review accepted",
+  "request_sha256": "f12d6c65ddf19995cba44ef55dd6f0768a935a95fe773879e1faecbe5db3fcd3",
+  "closure_sha256": "013adbdb4648f75408761e26fd231575293122d66c2b14fa1e3929fe99e7249c",
+  "publisher_interpretation": "/tmp/native-error-code-interpretation614c/interpretation.json",
+  "publisher_interpretation_sha256": "9dad92ca07eec6a5b5b155f0193cb57a9bbc392216bb45eb8591fe297218e34b",
+  "exact_saved_receipts": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "receipt_sha256": "020e0a200bffd3c8f7e0ab3fab7a0db38e7ae15d9f9e5298eb53d9fac8e92eb5",
+      "returncode": 0
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "receipt_sha256": "a1f7fb20ff588b67ea5d09fb472e6e99c42c38d0af1c7985dda2df58d39d8fe1",
+      "returncode": 0
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "receipt_sha256": "d778fa0995995c24537973656364c63352db4f7ee4f77d91092be16f497c516f",
+      "returncode": 0
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "receipt_sha256": "21064e5115256f69644bc261f68f3cce948bf516d50d2ef93876e3dae4fe387c",
+      "returncode": 0
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "receipt_sha256": "c7621cfed3060c334f70b315a6c710cfc2538d228fcf5a3d2e409fb465dc9e72",
+      "returncode": 0
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "receipt_sha256": "107340652b745aebdb483c20d1b45de8efae3b0edfbdc6c0b5d0ccd510015adf",
+      "returncode": 0
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "receipt_sha256": "c7df7bcf833187d4e90ad3a19aec7ec66354f6febb67c5bf5f96959f3963427a",
+      "returncode": 0
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "receipt_sha256": "019e12b544d17592cc5a679df619e27d770bb3de09d9582b7a271eb4989b61fe",
+      "returncode": 0
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "receipt_sha256": "c71ae6d24d9f455f748cafc26e4af70072d311f7be2f061809ef060975bed3bc",
+      "returncode": 0
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "receipt_sha256": "5f8b538dd92ea5837a5da8c904336f86f1bcb943ac433c37ac48feaf1e7ba1e4",
+      "returncode": 0
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "receipt_sha256": "98307ee2880ed7b841708d1c9c20ae3713fa4e6f80e0bf66b0e93885dcb6aaa9",
+      "returncode": 0
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "receipt_sha256": "58e501f8b6d8460c379f4f4cfd994f10e63fdadbbae032796e0098b69764e33f",
+      "returncode": 0
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "receipt_sha256": "3ae4e0f24ce806d62e874431e913b65cec26ba862f97524d70d6340b3c8c7777",
+      "returncode": 0
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "receipt_sha256": "882a39a5384e4080ee9d2313459df41dbaacf08eb2edbae6cd9e77eb5c3e85b8",
+      "returncode": 0
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "receipt_sha256": "653d7e43c5e1bdcea6a58fea0bbd6336aca40bb996a9a782a42091c9324f30bc",
+      "returncode": 0
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "receipt_sha256": "cc367c3d7df2761a70a43acc7f72cb5863a5b98a7f3a47d9fadc7124f2c1bbd0",
+      "returncode": 0
+    }
+  ],
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "own_compile": 0,
+      "actual_header_dependencies": 102,
+      "actual_link_inputs": 24,
+      "actual_runtime_dependencies": 3,
+      "execution": 0,
+      "rows": 14,
+      "getters": 4,
+      "events": 7,
+      "own_elf_sha256": "c70e89f7860076dfe803318bf88beb044928a39e0620483f95a1a44c6b170644",
+      "execute_stdout_sha256": "66077a10e52572371c83dde5d52310c5e0c46369eb3fb36d3c11f33f8781b950"
+    },
+    {
+      "provider": "8.5.19",
+      "own_compile": 0,
+      "actual_header_dependencies": 178,
+      "actual_link_inputs": 24,
+      "actual_runtime_dependencies": 3,
+      "execution": 0,
+      "rows": 14,
+      "getters": 4,
+      "events": 6,
+      "own_elf_sha256": "e99cb6605b68d99b5a7528b917c3bad9406276c8a94991248cbfa3aa7fc34be0",
+      "execute_stdout_sha256": "b36604420d4dc4e3dcffa11328c6ffa1c6eb886fba3b94099ee489cd2b5fa1a1"
+    },
+    {
+      "provider": "8.6.18",
+      "own_compile": 0,
+      "actual_header_dependencies": 179,
+      "actual_link_inputs": 25,
+      "actual_runtime_dependencies": 4,
+      "execution": 0,
+      "rows": 14,
+      "getters": 4,
+      "events": 6,
+      "own_elf_sha256": "332608583edc0279ccc43db524f3c98c793ac9c2294cf02896c761e593486c58",
+      "execute_stdout_sha256": "897114bac92a6b7b30fc4a58e143101b03ed4899df66847e52deb8e229146124"
+    },
+    {
+      "provider": "9.0.4",
+      "own_compile": 0,
+      "actual_header_dependencies": 181,
+      "actual_link_inputs": 25,
+      "actual_runtime_dependencies": 4,
+      "execution": 0,
+      "rows": 14,
+      "getters": 4,
+      "events": 6,
+      "own_elf_sha256": "74313e11b8f0ec8520eccf5fb638b9602f9d383059bd3e0568ea39b01de3fe87",
+      "execute_stdout_sha256": "b943735978c207eb754ccf73288e176dbc8f1d4f07ef9f16aeb9cae65f398ef9"
+    },
+    {
+      "provider": "9.1.0",
+      "own_compile": 0,
+      "actual_header_dependencies": 181,
+      "actual_link_inputs": 26,
+      "actual_runtime_dependencies": 4,
+      "execution": 0,
+      "rows": 14,
+      "getters": 4,
+      "events": 6,
+      "own_elf_sha256": "07943156b475079f98aaaa55435befeb2376287b40c1adab210db35fafefe988",
+      "execute_stdout_sha256": "83c56543c27bb85651273a3b4464baa6eeb83640bbb4bdd1ec7feb80d2b388f3"
+    }
+  ],
+  "totals": {
+    "closed_processes": 16,
+    "provider_executions": 5,
+    "cases": 20,
+    "rows": 70,
+    "getters": 20,
+    "events": 31
+  },
+  "observations": [
+    "C8.4 replacement free hook observes actual newly stored B; trace case old-free and global write trace observe B while explicit flag is0, public setter return observes flag1.",
+    "C8.5/C8.6/C9.0/C9.1 old-private-A free hook observes selected A; public setter return observes B. Their registered global trace is not reached by private setter.",
+    "Every incoming B remains exact selected lazy header with caller+1 and actual storage+1, no duplication/String updater before the explicitly bounded counted getter. Getter returns exact15 bytes including embedded NUL and FF.",
+    "Callback case selected setter preserves reached callback result; later public EvalObjv returns TCL_ERROR without reaching B String. Ordinary setter cases preserve actual prior result header."
+  ],
+  "limits": [
+    "Pure free/String/write observers do not mutate interpreter or self-set errorCode; no reentry/ABA or callback safety equivalence inferred.",
+    "C84 global Var versus modern private Interp field are distinct physical storage purposes. Pointer equality is bounded to each live case and gives no generation identity.",
+    "Each actual compiler link map records one ephemeral compiler object without a retained digest; no post-process byte pin is claimed for that intermediate. The final own ELF, source/header inputs, selected libraries and retained maps are verified independently.",
+    "Teardown hooks are deliberately unobserved; no final retirement chronology or Jim Tcl API availability conclusion.",
+    "Original614/614b partial refusals remain distinct from full614c; no Rust build/assertion or aggregate OO parity credit."
+  ]
+}

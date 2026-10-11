@@ -1,0 +1,124 @@
+{
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "records": [
+    {
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/compiler-version.receipt.json",
+      "sha256": "4018693cb72cf5325a1250daf8c076af441dbf996b844e7396724808df8196ff"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/compile.receipt.json",
+      "sha256": "7f7c062424b1905b6824814ab18ee6c061b9d96f39939be1d0a2937fd4808ea6"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/dependencies.receipt.json",
+      "sha256": "1a3502fce0dede081abb021356fe3b82521eb14c1c60db3d8d143bdb8ef71c01"
+    },
+    {
+      "provider": "8.4.20",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/execute.receipt.json",
+      "sha256": "7d3d14899bd6de3f53f1f5ed100dfb39e1ee1d04b7684c78601a356adae807a5"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.5.19/compile.receipt.json",
+      "sha256": "208dbee5d99071ab1480252ab7d83a0933163461ffcb177314c9b5f21feec866"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.5.19/dependencies.receipt.json",
+      "sha256": "7da420be4d58101d3bf3ec426b4f587e2b27b8206b706e771477094a998a85fc"
+    },
+    {
+      "provider": "8.5.19",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.5.19/execute.receipt.json",
+      "sha256": "68ad156d4bbb3cfeef781cb68d3fd1a823118878d2da0900cb488f1965b91f9d"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/compile.receipt.json",
+      "sha256": "c1b9724b3da879851ede70dd84b2ce292e78dc44e753a2817efd82c85efae6e1"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/dependencies.receipt.json",
+      "sha256": "a4694980d66cc6f8110d0acea34ee25da415061d2bbd40d45948d679d15c206b"
+    },
+    {
+      "provider": "8.6.18",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.6.18/execute.receipt.json",
+      "sha256": "1bea664b6cd54a169b74a34ce5b01be031d44f84f807f0a995082556279dc10f"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/9.0.4/compile.receipt.json",
+      "sha256": "f4ce69d66269b8449a714289da63841901868d5407cf12d58be6d27104d4dee0"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/9.0.4/dependencies.receipt.json",
+      "sha256": "a49a6516d39769cfb9303781101ad657566418650d530f46995dbe83be34d371"
+    },
+    {
+      "provider": "9.0.4",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/9.0.4/execute.receipt.json",
+      "sha256": "e9db9a9a8e20a603bf6989a858527920a76a5cfb1c01c2e4100e77de304dd6a5"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "compile",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/9.1.0/compile.receipt.json",
+      "sha256": "c9b07b70260597ddefcb7708025c50ce1ca65952f511f97e3c0932588e179a92"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/9.1.0/dependencies.receipt.json",
+      "sha256": "7daba5e70a4ac50122226724448e6b3b8c764860cb3eb58c6e78904fb1f8cb9b"
+    },
+    {
+      "provider": "9.1.0",
+      "channel": "execute",
+      "status": "closed",
+      "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/9.1.0/execute.receipt.json",
+      "sha256": "528863a71a49a11fc5acb906f26345b23a50e3327c72b3ba43cdbfc1b47c2331"
+    }
+  ],
+  "verification_status": "verified",
+  "harness_refusal": null,
+  "required_inputs_unchanged": true,
+  "fresh_output_root": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers",
+  "all_capture_processes_closed": true,
+  "completed_verified_provider_executions": 5,
+  "scope": "Actual source/producer/dependency/process closure only. Original selected reset, free, compatibility trace, caller release and counted-getter phases remain bounded by their exact rows. Jim Tcl API execution and all Rust assertion outcomes are unmeasured."
+}

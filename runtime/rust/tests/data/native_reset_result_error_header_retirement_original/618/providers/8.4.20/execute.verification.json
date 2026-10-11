@@ -1,0 +1,142 @@
+{
+  "provider": "8.4.20",
+  "channel": "execute",
+  "status": "verified",
+  "command": [
+    "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-reset-result-error-header-retirement618",
+  "selected_environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "removed_inherited_lookup_variables": [
+      "COMPILER_PATH",
+      "LIBRARY_PATH",
+      "GCC_EXEC_PREFIX",
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "CPATH",
+      "C_INCLUDE_PATH",
+      "CPLUS_INCLUDE_PATH",
+      "OBJC_INCLUDE_PATH",
+      "BASH_ENV",
+      "ENV"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "request_sha256": "82e4ccd978c28f3d3af6385aebd481aad5e88065e4fff59dba1bf00e37ed7536",
+  "source_sha256": "b1117a8046f729e83a8d15df8c5292378724e35aaf9dfe3c9c1ecd1694ae4588",
+  "returncode": 0,
+  "timeout": false,
+  "seconds": 0.0038330490060616285,
+  "stdout_sha256": "f4a4254098a5e27d1f514b639a38dc5dba02f602d792aa895bcc22508a257725",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "verification_scope": "Actual process/streams only. Header, link, runtime, own-executable and final input verification are separate records.",
+  "executable_before": {
+    "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/probe.elf",
+    "sha256": "0960236bcb400fb83d5be95e7f8757f85935187c634d62a0c3d86ff3351deccb",
+    "size": 867408,
+    "device": 27,
+    "inode": 1270839,
+    "mtime_ns": 1791715528179375662,
+    "ctime_ns": 1791715528179394274
+  },
+  "executable_after": {
+    "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/probe.elf",
+    "sha256": "0960236bcb400fb83d5be95e7f8757f85935187c634d62a0c3d86ff3351deccb",
+    "size": 867408,
+    "device": 27,
+    "inode": 1270839,
+    "mtime_ns": 1791715528179375662,
+    "ctime_ns": 1791715528179394274
+  },
+  "executable_unchanged": true,
+  "compile_receipt_sha256": "7f7c062424b1905b6824814ab18ee6c061b9d96f39939be1d0a2937fd4808ea6",
+  "compile_verification_sha256": "fec57c152e4067d9e52846ed5a5071f45ca90d2175d77c587a124fe2233e9560",
+  "dependency_receipt_sha256": "1a3502fce0dede081abb021356fe3b82521eb14c1c60db3d8d143bdb8ef71c01",
+  "dependency_verification_sha256": "d47e1289ee4c964527970d47bc0b8f1bd684e718bdfad2e9a55407d12e80d6d9",
+  "own_successful_compile_producer": {
+    "path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/probe.elf",
+    "resolved_path": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/probe.elf",
+    "sha256": "0960236bcb400fb83d5be95e7f8757f85935187c634d62a0c3d86ff3351deccb",
+    "size": 867408,
+    "device": 27,
+    "inode": 1270839,
+    "mtime_ns": 1791715528179375662,
+    "ctime_ns": 1791715528179394274
+  },
+  "dependencies_before": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "dependencies_after": [
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112,
+      "device": 27,
+      "inode": 9223372036855342425,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216,
+      "device": 27,
+      "inode": 9223372036855341329,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "resolved_path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672,
+      "device": 27,
+      "inode": 9223372036855339413,
+      "mtime_ns": 1777320562000000000,
+      "ctime_ns": 1777320562000000000
+    }
+  ],
+  "closed_cases": 5,
+  "closed_marker": true,
+  "actual_version_rows": [
+    "VERSION|8.4.20|release_type=2|header_major=8|header_minor=4"
+  ],
+  "process_receipt": "/workspace/.proofs/native-reset-result-error-header-retirement618/providers/8.4.20/execute.receipt.json",
+  "process_receipt_sha256": "7d3d14899bd6de3f53f1f5ed100dfb39e1ee1d04b7684c78601a356adae807a5"
+}
