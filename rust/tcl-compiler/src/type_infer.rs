@@ -1458,50 +1458,87 @@ fn type_of_read_contents<S: std::hash::BuildHasher>(
     }
 }
 
-/// Read an empty class declaration through registry manufacturer descriptors.
+/// Account for an empty declaration through its actual original source schema.
+/// The descriptive roster checks inclusion only; it cannot select a factory.
 fn empty_source_class(
-    command: &str,
-    args: &[String],
+    metadata: TypePropagationMetadata<'_>,
     tokens: &crate::ir::CommandTokens,
-    registry: &CommandRegistry,
 ) -> Option<String> {
-    let spec = registry.get(command)?;
+    let context = metadata.context?;
+    let selected =
+        crate::registry_invocation::original_structured_invocation_with_metadata_context(
+            metadata.registry,
+            context,
+            tokens,
+        )?;
+    let spec = context
+        .context()
+        .resolve_spec(metadata.registry, selected.canonical_command())?;
     if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
         || spec.definition_body?.family != tcl_registry::definer::DefinerFamily::TclOo
     {
         return None;
     }
-    let method = spec
-        .manufacturer_methods
-        .iter()
-        .find(|method| args.first().is_some_and(|arg| arg == method.keyword))?;
+    let selector =
+        crate::registry_invocation::invocation_word(selected.effective.words.get(1)?).literal()?;
+    let method = CommandRegistry::manufacturer_method_for_descriptor(spec, selector)?;
     let body_index = usize::from(method.definition_body_at?);
     let name_index = usize::from(method.names_instance_at?);
+    let name_word = selected.effective.written_argument(name_index)?;
+    let body_word = selected.effective.written_argument(body_index)?;
     let words = tokens.words();
-    let class =
-        crate::registry_invocation::invocation_word(words.get(name_index + 1)?).literal()?;
-    let body = crate::registry_invocation::invocation_word(words.get(body_index + 1)?).literal()?;
-    (body.trim().is_empty() && args.len() == body_index + 1)
+    let class = crate::registry_invocation::invocation_word(words.get(name_word + 1)?).literal()?;
+    let body = crate::registry_invocation::invocation_word(words.get(body_word + 1)?).literal()?;
+    (body.trim().is_empty() && selected.effective.words.len() == body_index + 2)
         .then(|| crate::naming::normalise_qualified_name(class))
 }
 
 fn caller_safe_factory_invocation(
     metadata: TypePropagationMetadata<'_>,
+    tokens: &crate::ir::CommandTokens,
     head: &str,
     args: &[&str],
-    classes: &HashSet<String>,
 ) -> bool {
     let registry = metadata.registry;
-    let grammar = &tcl_registry::definer::TCLOO_GRAMMAR;
-    if classes.contains(&crate::naming::normalise_qualified_name(head)) {
-        return args
-            .first()
-            .and_then(|word| grammar.manufacturer(word))
-            .is_some_and(|method| {
-                method.names_instance_at.is_none()
-                    && method.visibility == tcl_registry::definer::MemberVisibility::Exported
-                    && args.len() == usize::from(method.constructor_args_from)
-            });
+    let Some(context) = metadata
+        .context
+        .filter(|context| context.matches_registry(registry))
+    else {
+        return false;
+    };
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    let Some(original_config) = binding.original_lexer_config_for_tokens(tokens) else {
+        return false;
+    };
+    if original_config.nested().normalized() != metadata.config.nested().normalized() {
+        return false;
+    }
+    if let Some(input) = context.source_analysis_input() {
+        if metadata.config.normalized() != input.lexer_config().normalized()
+            || binding
+                .original_invocation_metadata_for_input(tokens, input, registry)
+                .is_none()
+        {
+            return false;
+        }
+    } else if !context.is_standalone()
+        || binding
+            .original_invocation_metadata_at_point(tokens, registry)
+            .is_err()
+    {
+        return false;
+    }
+    if let Some(shape) = binding.original_default_manufacture_shape(tokens, registry) {
+        return shape.is_argument_free_anonymous_shape();
+    }
+    // An actual class target lacking the default owner cannot be repaired
+    // through its reporting name or an ordinary TclOO default grammar.
+    if binding.proved_target().is_some_and(|target| {
+        target.kind == crate::command_binding::BindingKind::Class || !target.registry_backed
+    }) {
+        return false;
     }
     let Some(resolved) = tcl_registry::model::resolve_invocation_in_context(
         registry,
@@ -1528,7 +1565,6 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
     metadata: TypePropagationMetadata<'_>,
     known_classes: &HashSet<String, S>,
 ) -> bool {
-    let registry = metadata.registry;
     if cfg.name != "::top"
         || known_classes.is_empty()
         || !cfg.exception_edges.is_empty()
@@ -1582,7 +1618,7 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
                 {
                     return false;
                 }
-                let empty_class = empty_source_class(command, args, tokens, registry);
+                let empty_class = empty_source_class(metadata, tokens);
                 if let Some(class) = empty_class {
                     if !known_classes.contains(&class) || !classes.insert(class) {
                         return false;
@@ -1591,9 +1627,9 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
                 }
                 if !caller_safe_factory_invocation(
                     metadata,
+                    tokens,
                     command,
                     &args.iter().map(String::as_str).collect::<Vec<_>>(),
-                    &classes,
                 ) {
                     return false;
                 }
@@ -1601,46 +1637,61 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
             Statement::AssignConst { .. } | Statement::AssignValue { .. } => {}
             _ => return false,
         }
-        if !substitutions_have_only_caller_safe_factories(stmt, metadata, &classes) {
+        if !substitutions_have_only_caller_safe_factories(stmt, metadata) {
             return false;
         }
     }
     !classes.is_empty()
 }
 
-/// Check nested operands without selecting a fresh context or lexer policy.
+/// Check authentic nested operands without replacing their source owner.
 fn substitutions_have_only_caller_safe_factories(
     stmt: &Statement,
     metadata: TypePropagationMetadata<'_>,
-    classes: &HashSet<String>,
 ) -> bool {
-    let registry = metadata.registry;
-    let embedded = crate::ir_helpers::evaluated_command_substitutions_with_metadata_context(
-        stmt,
-        registry,
-        metadata.context,
-        metadata.config,
-    );
-    if embedded.opaque {
+    let Some(tokens) = stmt.tokens() else {
+        // A typed statement without substitutions needs no nested factory
+        // query. Recovered commands without original tokens cannot supply one.
+        let inventory = crate::ir_helpers::evaluated_command_substitutions_with_metadata_context(
+            stmt,
+            metadata.registry,
+            metadata.context,
+            metadata.config,
+        );
+        return !inventory.opaque && inventory.all_commands().next().is_none();
+    };
+    let Some(context) = metadata
+        .context
+        .filter(|context| context.matches_registry(metadata.registry))
+    else {
         return false;
-    }
-    for words in embedded.all_commands() {
-        let Some(head) = words
-            .first()
-            .and_then(crate::ir_helpers::CommandWord::literal)
-        else {
+    };
+    let calls = if context.source_analysis_input().is_some() {
+        crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            tokens,
+            metadata.config,
+            metadata.registry,
+            context,
+        )
+    } else if context.is_standalone() {
+        crate::word_subst::checked_lifted_calls(tokens, metadata.config)
+    } else {
+        None
+    };
+    let Some(calls) = calls else {
+        return false;
+    };
+    calls.into_iter().all(|call| {
+        let Some(tokens) = call.tokens.as_ref() else {
             return false;
         };
-        let args: Vec<_> = words
-            .iter()
-            .skip(1)
-            .map(|word| word.literal().unwrap_or("<dynamic>"))
-            .collect();
-        if !caller_safe_factory_invocation(metadata, head, &args, classes) {
-            return false;
-        }
-    }
-    true
+        caller_safe_factory_invocation(
+            metadata,
+            tokens,
+            &call.command,
+            &call.args.iter().map(String::as_str).collect::<Vec<_>>(),
+        )
+    })
 }
 
 /// How one statement types the variable(s) it defines.
@@ -2734,6 +2785,243 @@ mod tests {
     use crate::ssa::{Phi, SsaBlock, SsaFunction, SsaStatement};
     use std::collections::HashSet;
     use tcl_lexer::Span;
+
+    fn original_factory_tokens(
+        source: &str,
+        version: tcl_dialect::TclVersion,
+        marker: &str,
+        head: &str,
+    ) -> crate::ir::CommandTokens {
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let registry =
+            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            registry,
+            crate::command_binding::SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                ..Default::default()
+            },
+        );
+        let offset = u32::try_from(source.rfind(marker).expect("original invocation")).unwrap();
+        let point = bindings.invocation_at_source(head, offset);
+        let mut tokens = point
+            .original_recorded_command_tokens()
+            .expect("original retained invocation vector");
+        bindings.stamp_original_tokens(&mut tokens);
+        tokens
+    }
+
+    fn standalone_factory_metadata(
+        version: tcl_dialect::TclVersion,
+    ) -> TypePropagationMetadata<'static> {
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let context = tcl_registry::model::SemanticContext::for_environment(version.dialect_name());
+        let registry =
+            tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+        TypePropagationMetadata {
+            registry,
+            context: Some(context.into()),
+            config: tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            numbers: registry.numbers(),
+        }
+    }
+
+    #[test]
+    fn original_caller_safe_factory_keeps_selected_layout_and_withdraws_changed_owners() {
+        // naming.tcloo.original-default-manufacture-source-shape
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-default-manufacture-source-shape.md
+        // This checks source layout and the TypeInfer precision gate only. The
+        // explicit standalone source carrier supplies no actual Native frame,
+        // successful allocation, Normal result or execution equivalence.
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let metadata = standalone_factory_metadata(version);
+            let source = "oo::class create C {}; C new";
+            let tokens = original_factory_tokens(source, version, "C new", "C");
+            assert!(caller_safe_factory_invocation(
+                metadata,
+                &tokens,
+                "C",
+                &["new"]
+            ));
+            let mut missing = tokens.clone();
+            missing.source_binding = None;
+            assert!(!caller_safe_factory_invocation(
+                metadata,
+                &missing,
+                "C",
+                &["new"]
+            ));
+            let mut changed = tokens.clone();
+            changed.argv_texts[1] = "create".to_owned();
+            assert!(!caller_safe_factory_invocation(
+                metadata,
+                &changed,
+                "C",
+                &["new"]
+            ));
+            let mut changed_config = metadata.config;
+            changed_config.strict_quoting = !changed_config.strict_quoting;
+            assert!(!caller_safe_factory_invocation(
+                TypePropagationMetadata {
+                    config: changed_config,
+                    ..metadata
+                },
+                &tokens,
+                "C",
+                &["new"],
+            ));
+            assert!(!caller_safe_factory_invocation(
+                TypePropagationMetadata {
+                    context: None,
+                    ..metadata
+                },
+                &tokens,
+                "C",
+                &["new"],
+            ));
+            // Actual availability without complete source input does not become
+            // the explicitly tagged standalone carrier used above.
+            let availability =
+                tcl_registry::model::ingress::static_context_for(version.dialect_name());
+            assert!(!caller_safe_factory_invocation(
+                TypePropagationMetadata {
+                    context: Some(availability.into()),
+                    ..metadata
+                },
+                &tokens,
+                "C",
+                &["new"],
+            ));
+            let mut foreign = CommandRegistry::build_default();
+            let mut changed_spec = foreign.get("set").unwrap().clone();
+            changed_spec.return_type = Some(TclType::List);
+            foreign.insert(changed_spec);
+            assert!(!caller_safe_factory_invocation(
+                TypePropagationMetadata {
+                    registry: &foreign,
+                    ..metadata
+                },
+                &tokens,
+                "C",
+                &["new"],
+            ));
+            for (source, args) in [
+                (
+                    "oo::class create C {}; C create object",
+                    vec!["create", "object"],
+                ),
+                ("oo::class create C {}; C new value", vec!["new", "value"]),
+                (
+                    "oo::class create C {constructor {} {return}}; C new",
+                    vec!["new"],
+                ),
+                (
+                    "oo::class create C {self method new args {return}}; C new",
+                    vec!["new"],
+                ),
+                (
+                    "oo::class create C {method observe args {}; filter observe}; C new",
+                    vec!["new"],
+                ),
+                (
+                    "oo::class create C {}; rename C retired; proc C args {}; C new",
+                    vec!["new"],
+                ),
+            ] {
+                let tokens = original_factory_tokens(source, version, "C ", "C");
+                assert!(
+                    !caller_safe_factory_invocation(metadata, &tokens, "C", &args),
+                    "{version:?}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_caller_safe_factory_does_not_promote_abstract_exports_or_custom_metaclasses() {
+        // naming.tcloo.original-abstract-manufacturer-public-visibility
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-abstract-manufacturer-public-visibility.md
+        // The C9 public-call proof permits explicit export of Abstract new.
+        // That does not issue the ordinary Native default recipe required by
+        // this separate precision gate, or establish a completed allocation.
+        for version in [tcl_dialect::TclVersion::V9_0, tcl_dialect::TclVersion::V9_1] {
+            let metadata = standalone_factory_metadata(version);
+            for source in [
+                "oo::abstract create C {}; C new",
+                "oo::abstract create C {}; oo::objdefine C export new; C new",
+                "oo::class create Meta {superclass oo::class}; Meta create C {}; C new",
+            ] {
+                let tokens = original_factory_tokens(source, version, "C new", "C");
+                assert!(
+                    !caller_safe_factory_invocation(metadata, &tokens, "C", &["new"]),
+                    "this source lacks the ordinary default manufacture owner: {source}"
+                );
+            }
+            let source = "oo::class create C {}; C new";
+            let tokens = original_factory_tokens(source, version, "oo::class create", "oo::class");
+            assert_eq!(
+                empty_source_class(metadata, &tokens),
+                Some("::C".to_owned())
+            );
+            let source = "oo::abstract create C {}; C new";
+            let tokens =
+                original_factory_tokens(source, version, "oo::abstract create", "oo::abstract");
+            assert_eq!(
+                empty_source_class(metadata, &tokens),
+                Some("::C".to_owned()),
+                "factory own public create is separate from the manufactured class defaults"
+            );
+            let mut missing = tokens.clone();
+            missing.source_binding = None;
+            assert!(empty_source_class(metadata, &missing).is_none());
+        }
+    }
+
+    #[test]
+    fn original_nested_factory_precision_requires_actual_child_tokens() {
+        // naming.tcloo.original-default-manufacture-source-shape
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-default-manufacture-source-shape.md
+        let version = tcl_dialect::TclVersion::V9_1;
+        let metadata = standalone_factory_metadata(version);
+        let source = "oo::class create C {}; set made [C new]";
+        let parent = original_factory_tokens(source, version, "set made", "set");
+        let calls = crate::word_subst::checked_lifted_calls(&parent, metadata.config)
+            .expect("complete original child inventory");
+        assert_eq!(calls.len(), 1);
+        let child = calls[0].tokens.as_ref().expect("actual child tokens");
+        assert!(caller_safe_factory_invocation(
+            metadata,
+            child,
+            "C",
+            &["new"]
+        ));
+        let statement = Statement::AssignValue {
+            span: parent.words()[0].source().span,
+            name: "made".to_owned(),
+            name_braced: false,
+            value: "[C new]".to_owned(),
+            value_needs_backsubst: false,
+            tokens: Some(parent.clone()),
+        };
+        assert!(substitutions_have_only_caller_safe_factories(
+            &statement, metadata
+        ));
+        let mut missing = parent;
+        missing.source_binding = None;
+        let mut statement = statement;
+        if let Statement::AssignValue { tokens, .. } = &mut statement {
+            *tokens = Some(missing);
+        }
+        assert!(!substitutions_have_only_caller_safe_factories(
+            &statement, metadata
+        ));
+    }
 
     #[test]
     fn original_literal_contents_keep_point_grammar_and_withdraw_stale_owners() {

@@ -23,6 +23,7 @@ pub struct OriginalDefaultManufactureShape {
     site: CommandAllocationSite,
     config: tcl_lexer::LexerConfig,
     inputs: Vec<SignatureSourceNameInput>,
+    manufacturer_layout: (Option<u8>, u8),
 }
 
 impl OriginalDefaultManufactureShape {
@@ -30,6 +31,14 @@ impl OriginalDefaultManufactureShape {
     #[must_use]
     pub const fn class_definition(&self) -> &SourceCommandDefinition {
         &self.definition
+    }
+
+    /// Captured default-manufacturer argument shape, without Normal completion
+    /// or permission to enter a constructor. Only the actual selected row and
+    /// complete original input count answer this readonly source query.
+    pub(crate) fn is_argument_free_anonymous_shape(&self) -> bool {
+        self.manufacturer_layout.0.is_none()
+            && self.inputs.len().checked_sub(1) == Some(usize::from(self.manufacturer_layout.1))
     }
 }
 
@@ -138,6 +147,10 @@ impl SourceInvocationBinding {
             site: site.clone(),
             config,
             inputs,
+            manufacturer_layout: (
+                manufacturer.names_instance_at,
+                manufacturer.constructor_args_from,
+            ),
         })
     }
     fn original_default_manufacture_definition(
@@ -249,6 +262,51 @@ mod tests {
                         .original_default_manufacture_shape(&tokens, registry)
                         .is_none(),
                     "{version:?}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_default_manufacture_layout_comes_from_the_selected_row_and_full_vector() {
+        // naming.tcloo.original-default-manufacture-source-shape
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-default-manufacture-source-shape.md
+        // These are retained source shapes. No constructor completion or
+        // Native frame is issued by the layout projection.
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let registry =
+                tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+            for (source, marker, expected) in [
+                ("oo::class create C {}; C new", "C new", true),
+                ("oo::class create C {}; C new value", "C new", false),
+                ("oo::class create C {}; C create object", "C create", false),
+            ] {
+                let bindings = analyse(source, version);
+                let offset = u32::try_from(source.rfind(marker).unwrap()).unwrap();
+                let point = bindings.invocation_at_source("C", offset);
+                let mut tokens = point.original_recorded_command_tokens().unwrap();
+                bindings.stamp_original_tokens(&mut tokens);
+                let shape = tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_default_manufacture_shape(&tokens, registry)
+                    .expect("actual ordinary source factory shape");
+                assert_eq!(
+                    shape.is_argument_free_anonymous_shape(),
+                    expected,
+                    "{version:?}: {source}"
+                );
+                let mut missing = tokens.clone();
+                missing.word_exprs.pop();
+                assert!(
+                    point
+                        .original_default_manufacture_shape(&missing, registry)
+                        .is_none()
                 );
             }
         }
