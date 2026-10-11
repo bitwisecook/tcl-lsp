@@ -1,0 +1,1180 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "actual_invoked_executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "whole_executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "whole_executable_bytes": 907648,
+      "canonical_existing_payload": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/84/executable.elf.gz",
+      "payload_sha256": "0ef35bc55b478afbee73fdeaad303290df5449989182a55e9535b339d8ed1f28",
+      "full_executable_roundtrip_verified": true,
+      "library_files": [
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/auto.tcl",
+          "whole_sha256": "a04176d99af9264972f25f115bf3a354a47d6791b0fb65dc956698147454fd13",
+          "whole_bytes": 20841,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a04176d99af9264972f25f115bf3a354a47d6791b0fb65dc956698147454fd13.tcl.gz",
+          "payload_sha256": "f9b266cb17bdf92ba91ab45555945d4859a8fc9bbacef18b44337d2dec3f6d86",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/dde/pkgIndex.tcl",
+          "whole_sha256": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd",
+          "whole_bytes": 315,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd.tcl.gz",
+          "payload_sha256": "d340e65cb7d4d610f079de6f83e6790ebacbd2060fe1809127efe4ed43c15715",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/history.tcl",
+          "whole_sha256": "6c7262b1ed5b376d84776d347e1d3ade7d565fabf1ac956a61649b95318a5d5b",
+          "whole_bytes": 8958,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6c7262b1ed5b376d84776d347e1d3ade7d565fabf1ac956a61649b95318a5d5b.tcl.gz",
+          "payload_sha256": "df701c52d6c82ef5535d718f29d1597b1045a98fa41ea8572d540f8fad6847ca",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/http.tcl",
+          "whole_sha256": "d9ce3119271af29ac600a3cbec9866be750a306c01c3d28897f655e3e9b35c46",
+          "whole_bytes": 29080,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/d9ce3119271af29ac600a3cbec9866be750a306c01c3d28897f655e3e9b35c46.tcl.gz",
+          "payload_sha256": "667e6442cdd669dccab05c5e6336ae8756a856188516aef9b3e9c9fcc522763f",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/pkgIndex.tcl",
+          "whole_sha256": "0e8c796d23795489ca9f710ee963f685a67ce6a0052ebcde4eefe40295221779",
+          "whole_bytes": 743,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0e8c796d23795489ca9f710ee963f685a67ce6a0052ebcde4eefe40295221779.tcl.gz",
+          "payload_sha256": "4438f7939744c9fe50e63f3f978d68cb67c40168824640316536fcdf707d4331",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/http.tcl",
+          "whole_sha256": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094",
+          "whole_bytes": 9693,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094.tcl.gz",
+          "payload_sha256": "8cef485a173a2358410bc7eb759c9eadbbd092af50e5cbc34b9533c95ca384f2",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/pkgIndex.tcl",
+          "whole_sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+          "whole_bytes": 735,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c.tcl.gz",
+          "payload_sha256": "2be552877ff083a561e8a6d38672e77c861871b71d5f5b34c0dfc00f681aebc2",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+          "whole_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+          "whole_bytes": 22434,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b.tcl.gz",
+          "payload_sha256": "60370fb94f9db2a2ac39a57e44d2f4d20292bc89d67389daee188a1ace978b4b",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/ldAout.tcl",
+          "whole_sha256": "695157c85d3a27c435abd2998ba06fb24cad7b1e7ecb280fc1c60986749634f0",
+          "whole_bytes": 6736,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/695157c85d3a27c435abd2998ba06fb24cad7b1e7ecb280fc1c60986749634f0.tcl.gz",
+          "payload_sha256": "fed09a452cf22be3130fe9138ad3f62e539999fc54d8aeee9c32362bc0c6bdf3",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/msgcat.tcl",
+          "whole_sha256": "21ed0584bad0589bad98c5684cea7c113ef0d0339599ee20fa45d835683eb64e",
+          "whole_bytes": 12992,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/21ed0584bad0589bad98c5684cea7c113ef0d0339599ee20fa45d835683eb64e.tcl.gz",
+          "payload_sha256": "11aec3ee0a82c2bf6b21dc25267c4ece16609f0b42f057882c3cad282d650030",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/pkgIndex.tcl",
+          "whole_sha256": "df9750e9a99622ca48727f45f32db3313d1d6487c3f92de60d730209708622c7",
+          "whole_bytes": 134,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/df9750e9a99622ca48727f45f32db3313d1d6487c3f92de60d730209708622c7.tcl.gz",
+          "payload_sha256": "3a10875d509496e5bad35b1b74cc9e030751f7ec6006179f0ebb829f1c4eb36d",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/optparse.tcl",
+          "whole_sha256": "a7665fe9abcc7340f34e6470b94001c67d6c68824f214ed736dd27e8d62a8d32",
+          "whole_bytes": 32950,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a7665fe9abcc7340f34e6470b94001c67d6c68824f214ed736dd27e8d62a8d32.tcl.gz",
+          "payload_sha256": "6c4b29ddee603dbb7ea05d6a45f1fe5dcd02e9ad37aba6850b6090351ae9e37e",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/pkgIndex.tcl",
+          "whole_sha256": "c4a5c0dc93486d7ac086313410983f34717e431128212a4e2c4dec82ae834f77",
+          "whole_bytes": 609,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c4a5c0dc93486d7ac086313410983f34717e431128212a4e2c4dec82ae834f77.tcl.gz",
+          "payload_sha256": "de6015503ea0b7a1a4e8abeb0a640b878301281cea6555db4155cd757e6af9b5",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl",
+          "whole_sha256": "3373e053b6b698e9aaf66542b97be199b59beb9a7eb73878238c0915a844343f",
+          "whole_bytes": 25560,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3373e053b6b698e9aaf66542b97be199b59beb9a7eb73878238c0915a844343f.tcl.gz",
+          "payload_sha256": "c05d4d4d60436268d35b804d27f2ce70a9e601a3099a5440ea642095e9d6d0fd",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/parray.tcl",
+          "whole_sha256": "cff00c9471fa6941bca5a934ea331cc63ecf750c93c320f3cb378cd27c77b89a",
+          "whole_bytes": 812,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/cff00c9471fa6941bca5a934ea331cc63ecf750c93c320f3cb378cd27c77b89a.tcl.gz",
+          "payload_sha256": "b19396a9716fa1afe3e307e44048c92335f1b232651060810d6bb179af87847f",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/pkgIndex.tcl",
+          "whole_sha256": "fbb2ece354ab60a262509773cc9c28b77940e26af005963ea1402547d43fae8a",
+          "whole_bytes": 165,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/fbb2ece354ab60a262509773cc9c28b77940e26af005963ea1402547d43fae8a.tcl.gz",
+          "payload_sha256": "0b18315a7ae5fa34547e0b7a27b401d589a6a6fe32104c2c9d897335c4661d00",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/platform.tcl",
+          "whole_sha256": "d2c0e68e0b9d53faf7d9a34ecc49560b14eaae108eb25681335f51e231755c6e",
+          "whole_bytes": 9863,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/d2c0e68e0b9d53faf7d9a34ecc49560b14eaae108eb25681335f51e231755c6e.tcl.gz",
+          "payload_sha256": "d0e1a69966ffb9ab6d0fff01744ccfcfde8b68e0515b8ed91bd07c5020d5a83d",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/shell.tcl",
+          "whole_sha256": "6611d96f69fff00d09b625786298b001c7b794147057a1f57163d910cf2b5d0a",
+          "whole_bytes": 5977,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6611d96f69fff00d09b625786298b001c7b794147057a1f57163d910cf2b5d0a.tcl.gz",
+          "payload_sha256": "3a37871acdb2aac5696c4e09d714a9b3ad1a20994039e38ed9da74e1d191dfca",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/reg/pkgIndex.tcl",
+          "whole_sha256": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df",
+          "whole_bytes": 363,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df.tcl.gz",
+          "payload_sha256": "14003a8aa035046512fe049df6b5ab48b3fc23b852dd1b280c83c490eabe34f4",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/safe.tcl",
+          "whole_sha256": "c975b8db8a368d4eee415eaa2d9cfca0cf98445c314772f82a64ebde07bce906",
+          "whole_bytes": 27591,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c975b8db8a368d4eee415eaa2d9cfca0cf98445c314772f82a64ebde07bce906.tcl.gz",
+          "payload_sha256": "b7ee9fb30b469c6ec0bdbce96af354cf91c86a1451e17985bab97521fd85c6c0",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+          "whole_sha256": "30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de",
+          "whole_bytes": 611,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de.tcl.gz",
+          "payload_sha256": "27cf1f8329c766e645a4250c3de2e96f54fb2459f5093fe1c81b790f945717a5",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+          "whole_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+          "whole_bytes": 98952,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587.tcl.gz",
+          "payload_sha256": "4f9495439edc3890499f44c757fa8cb43249909edd45bdabee7bafdbe67f5cea",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/word.tcl",
+          "whole_sha256": "c4b31e1a407db7566ab0f0b1e36eecc5e5d72dd9eac1916c5d69304e0df4c26e",
+          "whole_bytes": 4266,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c4b31e1a407db7566ab0f0b1e36eecc5e5d72dd9eac1916c5d69304e0df4c26e.tcl.gz",
+          "payload_sha256": "8ad016626fe03f17e451ca4fb7fb7ebe9c6800b8a1a9707fe8759e21d4ef5429",
+          "roundtrip_verified": true
+        }
+      ],
+      "limits": "The shared canonical payload joins only the entire actual invoked ELF bytes. No prior experiment supplies this capture a new build, source, shared-library or loaded-address closure.",
+      "exact_capture_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/receipt.json",
+      "exact_capture_receipt_sha256": "573c0fcd67329814502c02264d814bc9489dc948a04c55019f989f3bb930ee40",
+      "all_original_before_pins_equal_existing_payloads": true,
+      "original_all_after_pins_match": true,
+      "source_pin_scope": "Invoked executable, this probe and all .tcl inputs under the selected Tcl library tree; implementation C/Jim source, shared-library load graph, configure/compiler/link commands and full platform state were not pinned by this runner.",
+      "version": "8.4.20",
+      "version_attribution": "Exact original VERSION line in this process stdout."
+    },
+    {
+      "provider": "8.5.19",
+      "actual_invoked_executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "whole_executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "whole_executable_bytes": 1294480,
+      "canonical_existing_payload": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/85/executable.elf.gz",
+      "payload_sha256": "47cba54ad641a54ba11e204d74a5ce4232e847fc198142f5a4846078ec5c6c58",
+      "full_executable_roundtrip_verified": true,
+      "library_files": [
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/auto.tcl",
+          "whole_sha256": "f33b4e6ca8ac8a86ace39ad57628d7588ef04ec3d8d86c700f54ccba77b242fc",
+          "whole_bytes": 20613,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f33b4e6ca8ac8a86ace39ad57628d7588ef04ec3d8d86c700f54ccba77b242fc.tcl.gz",
+          "payload_sha256": "f0af9f32ae28b69919aeed657a3cd26d20b0f5088500fac757a07a5f492552bf",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/clock.tcl",
+          "whole_sha256": "71966a6cecd4d718b8b6286573bf50539c1d4bffad26a1126d056a5da48a66e4",
+          "whole_bytes": 130093,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/71966a6cecd4d718b8b6286573bf50539c1d4bffad26a1126d056a5da48a66e4.tcl.gz",
+          "payload_sha256": "d173d7268dab490a5e7642c498804edb6a36a000f0c2c09742cc2e12b2a07deb",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/dde/pkgIndex.tcl",
+          "whole_sha256": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd",
+          "whole_bytes": 315,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd.tcl.gz",
+          "payload_sha256": "d340e65cb7d4d610f079de6f83e6790ebacbd2060fe1809127efe4ed43c15715",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/history.tcl",
+          "whole_sha256": "f136e0db9e71468e4d9d93200cd2d04e6915d5546681bfeca6cb9a620ba648ba",
+          "whole_bytes": 8965,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f136e0db9e71468e4d9d93200cd2d04e6915d5546681bfeca6cb9a620ba648ba.tcl.gz",
+          "payload_sha256": "381c2c39a73537b168a59d1cdd9f58335ef0cf6248c877c6283e7096d6bacb89",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/http.tcl",
+          "whole_sha256": "425f41cbee04fe48b5803a77f1649257e4dcb475491c01f6d58704c3af4399c1",
+          "whole_bytes": 40562,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/425f41cbee04fe48b5803a77f1649257e4dcb475491c01f6d58704c3af4399c1.tcl.gz",
+          "payload_sha256": "2cb14cdd4465e9b1bbfbd4da39abd6f0d69228fd69b1228cfc6b1f122dbee9fd",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/pkgIndex.tcl",
+          "whole_sha256": "f33a19dafa35af4765cd1a6dd8557047a73a21b2b8a7288d52cec6bdf7cea6cc",
+          "whole_bytes": 318,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f33a19dafa35af4765cd1a6dd8557047a73a21b2b8a7288d52cec6bdf7cea6cc.tcl.gz",
+          "payload_sha256": "a9d7a5d80e561b9007c4bdbf5428777142609e2932ccedb7eff0f6b9ba1f3d91",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/http.tcl",
+          "whole_sha256": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094",
+          "whole_bytes": 9693,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094.tcl.gz",
+          "payload_sha256": "8cef485a173a2358410bc7eb759c9eadbbd092af50e5cbc34b9533c95ca384f2",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/pkgIndex.tcl",
+          "whole_sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+          "whole_bytes": 735,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c.tcl.gz",
+          "payload_sha256": "2be552877ff083a561e8a6d38672e77c861871b71d5f5b34c0dfc00f681aebc2",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+          "whole_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+          "whole_bytes": 24873,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1.tcl.gz",
+          "payload_sha256": "f6babceec025cb80b55e115752ec6edcb8ae3abd07ba90184b9336a145e30426",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/msgcat.tcl",
+          "whole_sha256": "2efa43679969abd5748f6e7d64408617396300b469e1ec9d0b6c1a7764c886e5",
+          "whole_bytes": 16406,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/2efa43679969abd5748f6e7d64408617396300b469e1ec9d0b6c1a7764c886e5.tcl.gz",
+          "payload_sha256": "4099773628c239d953d7c103b1e31cc91504aa644bf1bec8de71ae923bdbfec0",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/pkgIndex.tcl",
+          "whole_sha256": "8989f8e8d7f96da5fd51f5271cd32aadc4fa5c23d7c4010838378d921c3d8d1e",
+          "whole_bytes": 134,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/8989f8e8d7f96da5fd51f5271cd32aadc4fa5c23d7c4010838378d921c3d8d1e.tcl.gz",
+          "payload_sha256": "fc312aa42e98f2ffcc2689f2b663b0477b9544e4db9601dab3cf10602e27f8ec",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/optparse.tcl",
+          "whole_sha256": "217074e45fc877ceddb0eb10fca94fcf43dc235dd8dc4bd1c9b6ec3121ae726c",
+          "whole_bytes": 32944,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/217074e45fc877ceddb0eb10fca94fcf43dc235dd8dc4bd1c9b6ec3121ae726c.tcl.gz",
+          "payload_sha256": "5425dcc85297d15a7dc8887689b180c1994f1049c3be9790d1794e7ca8f6cade",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/pkgIndex.tcl",
+          "whole_sha256": "a088e549d18ade683273e31c004daa7e614642fe801afb3861eb85445250186b",
+          "whole_bytes": 607,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a088e549d18ade683273e31c004daa7e614642fe801afb3861eb85445250186b.tcl.gz",
+          "payload_sha256": "8050b9d0f9c196a7c84a19f5b146f367f3a27d2e11b6c3cb416a4456621a28b6",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl",
+          "whole_sha256": "be3df25f0cf653c20b69784aee0fd719634d5421746b5b1141bc0592a59841c9",
+          "whole_bytes": 23329,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/be3df25f0cf653c20b69784aee0fd719634d5421746b5b1141bc0592a59841c9.tcl.gz",
+          "payload_sha256": "3ec1c931a48706aa9a86902b98d10ffe2cd7555a760198ab136ac783cafdd8e5",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/parray.tcl",
+          "whole_sha256": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014",
+          "whole_bytes": 816,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014.tcl.gz",
+          "payload_sha256": "1bbc8aeaa782941f8c90f3928aff6e19edb57f7354d2481f551a522a8f9c6246",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/pkgIndex.tcl",
+          "whole_sha256": "1d808c59aaf46b7a24ea360246a5fa3824a510d703750eb234b702f8106c708c",
+          "whole_bytes": 165,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/1d808c59aaf46b7a24ea360246a5fa3824a510d703750eb234b702f8106c708c.tcl.gz",
+          "payload_sha256": "9a5231d829443eec78fa2a6349d2d5ab088c4522d4cda973194ea33cab2d5fc7",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/platform.tcl",
+          "whole_sha256": "d4b3d9601454ea4828dff3be426c33fb845d005e98d2cc139dbb0d69cad3168b",
+          "whole_bytes": 10012,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/d4b3d9601454ea4828dff3be426c33fb845d005e98d2cc139dbb0d69cad3168b.tcl.gz",
+          "payload_sha256": "a6ac1924ad84f77a955e5e648bfc924ecf0388db4d83dc1bc37ccb32eb0bc159",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/shell.tcl",
+          "whole_sha256": "2f812a0550716b88930174a8ca245698427cd286680c0968558ae269ab52440d",
+          "whole_bytes": 5977,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/2f812a0550716b88930174a8ca245698427cd286680c0968558ae269ab52440d.tcl.gz",
+          "payload_sha256": "97ea63eab177dbfbebb85e854cc27fdc435ac3de10c70dcd0736a6119f7628c4",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/reg/pkgIndex.tcl",
+          "whole_sha256": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df",
+          "whole_bytes": 363,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df.tcl.gz",
+          "payload_sha256": "14003a8aa035046512fe049df6b5ab48b3fc23b852dd1b280c83c490eabe34f4",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/safe.tcl",
+          "whole_sha256": "953bc6cbf03a7ff492de59828c6d31a12d80b45873d85c03cb62a6099fed976c",
+          "whole_bytes": 33155,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/953bc6cbf03a7ff492de59828c6d31a12d80b45873d85c03cb62a6099fed976c.tcl.gz",
+          "payload_sha256": "ece755cd957146eee8c57e9b77bfc80f2e903b712e5c08be02ac52e23a90cbb6",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl",
+          "whole_sha256": "29c57ad6fe369a9fed7d378471aec5a7bdd5bd153c57222f83485245a3f23e44",
+          "whole_bytes": 610,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/29c57ad6fe369a9fed7d378471aec5a7bdd5bd153c57222f83485245a3f23e44.tcl.gz",
+          "payload_sha256": "13b8111b318df5a9809f118ecafd70d6e1e965726dd679260056b388ad29dcf5",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+          "whole_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+          "whole_bytes": 99905,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d.tcl.gz",
+          "payload_sha256": "7a155102f9daa3de9e9e72baf783e3a7f8163d9306b546b6ca4da1be2cfc11eb",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl",
+          "whole_sha256": "5d86054b2ce7ecb7ad39a6a2ee7afc98816a837e9819ce7b7c31c19ba0b123cf",
+          "whole_bytes": 11739,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5d86054b2ce7ecb7ad39a6a2ee7afc98816a837e9819ce7b7c31c19ba0b123cf.tcl.gz",
+          "payload_sha256": "cecb0e674d468b37323d4c0037a30ce66fd82ee2556df2c8499dd11f9bde2df9",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/word.tcl",
+          "whole_sha256": "64585c5327b0710d31bff61c14564ff289acaad8743174f95544d8c04306d8c7",
+          "whole_bytes": 4674,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/64585c5327b0710d31bff61c14564ff289acaad8743174f95544d8c04306d8c7.tcl.gz",
+          "payload_sha256": "858108134acdadb81aa3902f769d69c27e2e06c79302c89f47dc7fa6814e0989",
+          "roundtrip_verified": true
+        }
+      ],
+      "limits": "The shared canonical payload joins only the entire actual invoked ELF bytes. No prior experiment supplies this capture a new build, source, shared-library or loaded-address closure.",
+      "exact_capture_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/receipt.json",
+      "exact_capture_receipt_sha256": "21c10b1c08ded9eb9f06747e02cbabd8b164740c291f0f12ea2e4bcb8a379f20",
+      "all_original_before_pins_equal_existing_payloads": true,
+      "original_all_after_pins_match": true,
+      "source_pin_scope": "Invoked executable, this probe and all .tcl inputs under the selected Tcl library tree; implementation C/Jim source, shared-library load graph, configure/compiler/link commands and full platform state were not pinned by this runner.",
+      "version": "8.5.19",
+      "version_attribution": "Exact original VERSION line in this process stdout."
+    },
+    {
+      "provider": "8.6.18",
+      "actual_invoked_executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "whole_executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "whole_executable_bytes": 1915376,
+      "canonical_existing_payload": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/86/executable.elf.gz",
+      "payload_sha256": "7f604661926c1c5237e7423365f39c9ffda3bd849441190a130d903f046a8ba8",
+      "full_executable_roundtrip_verified": true,
+      "library_files": [
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/auto.tcl",
+          "whole_sha256": "67be04b5aa4c0845f8c5143171acf31ad6b3f23eb1a0be98133133e8abc9822b",
+          "whole_bytes": 20929,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/67be04b5aa4c0845f8c5143171acf31ad6b3f23eb1a0be98133133e8abc9822b.tcl.gz",
+          "payload_sha256": "973a6fcfb383cd9106953068845165fa9f03bd4da64aa89552f1fa6e2198feeb",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl",
+          "whole_sha256": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+          "whole_bytes": 129006,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75.tcl.gz",
+          "payload_sha256": "f093b543ea47ae099db1e50183952e04dea5bf0a45990740db347c45e8751888",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/dde/pkgIndex.tcl",
+          "whole_sha256": "c2e7fd1110cf83cf9b8c5dcc823e02955576615dd67d8f912c151ced735c0d8f",
+          "whole_bytes": 410,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c2e7fd1110cf83cf9b8c5dcc823e02955576615dd67d8f912c151ced735c0d8f.tcl.gz",
+          "payload_sha256": "7fecee0d01d912bf1d17a41c60a6ed2d3e8f0e7d02687b1310e6deda05bca0dc",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/history.tcl",
+          "whole_sha256": "e2eb8bdf39732ca48173e61d9ada4f0d095ddaa3ed1fcce21c0a520c75493d8f",
+          "whole_bytes": 7901,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/e2eb8bdf39732ca48173e61d9ada4f0d095ddaa3ed1fcce21c0a520c75493d8f.tcl.gz",
+          "payload_sha256": "0f105a2770774817ed08f51aadaa7439342fcf32e7a4bb60d618a97a57fa6f26",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/http.tcl",
+          "whole_sha256": "803ca646b09304bc21b79f3c5618ac1359a0bc34a2762d40dea933c23e4f7ae6",
+          "whole_bytes": 114673,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/803ca646b09304bc21b79f3c5618ac1359a0bc34a2762d40dea933c23e4f7ae6.tcl.gz",
+          "payload_sha256": "04ab8c22d6973ec745f4e0cc7de3204352cb2986cf860136d62d7c7378b77c45",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/pkgIndex.tcl",
+          "whole_sha256": "0345d47af9786eb20eab98519140306b924f32cd7c685d34bc40d3b6f1f6f27e",
+          "whole_bytes": 278,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0345d47af9786eb20eab98519140306b924f32cd7c685d34bc40d3b6f1f6f27e.tcl.gz",
+          "payload_sha256": "219c1b08c9daf7eb07693494cf2ff3852b5d19dfb1f37231da1bebaab8d6093a",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/http.tcl",
+          "whole_sha256": "f115d9d2be5886175fe610484eaac8e17d9feb1c71d419af66c6e31b0c215523",
+          "whole_bytes": 9675,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f115d9d2be5886175fe610484eaac8e17d9feb1c71d419af66c6e31b0c215523.tcl.gz",
+          "payload_sha256": "4d89708e3ddf92f4a52c1212174eb621377b03217c892d3819260359d1745667",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/pkgIndex.tcl",
+          "whole_sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+          "whole_bytes": 735,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c.tcl.gz",
+          "payload_sha256": "2be552877ff083a561e8a6d38672e77c861871b71d5f5b34c0dfc00f681aebc2",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+          "whole_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+          "whole_bytes": 25023,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35.tcl.gz",
+          "payload_sha256": "be90f127175b0d9230a2881811123d2ebbe560355049b350652087e1b60bdb0c",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/msgcat.tcl",
+          "whole_sha256": "5732951b02b45c3702c2f9ee7c43deabfcfe0aaae893f89bcc59e32bd9444ce3",
+          "whole_bytes": 33910,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5732951b02b45c3702c2f9ee7c43deabfcfe0aaae893f89bcc59e32bd9444ce3.tcl.gz",
+          "payload_sha256": "ca2814d56a2395d0ca6d7d7f2d62676329e009fe24071bdd474515e946385c94",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/pkgIndex.tcl",
+          "whole_sha256": "3d391b5c9219666880499e6e5c87edb05e64c5d25fe2c0e66874fb0271f2e3d1",
+          "whole_bytes": 151,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3d391b5c9219666880499e6e5c87edb05e64c5d25fe2c0e66874fb0271f2e3d1.tcl.gz",
+          "payload_sha256": "7ef49f92169a5c05176da21b26a82adaa95cddfb10a016e9b1bdc41f6f8fe5a9",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/optparse.tcl",
+          "whole_sha256": "04f4b2f34d959cff47c6502a137d15ac9dc4f54d4a6e78478f64c8c7e14849a8",
+          "whole_bytes": 32709,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/04f4b2f34d959cff47c6502a137d15ac9dc4f54d4a6e78478f64c8c7e14849a8.tcl.gz",
+          "payload_sha256": "2f5866148e8c5c39134cd1694205ac0962fa91776514a41e2eebc3cb9a06f76f",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/pkgIndex.tcl",
+          "whole_sha256": "c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745",
+          "whole_bytes": 624,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745.tcl.gz",
+          "payload_sha256": "5d2512e6875f03f1d72f424389a54e44e60ec432610c2f214dd46dfd25771c55",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl",
+          "whole_sha256": "0227624ef7ab99d60f0aa76e74419c34267a322db36cf945e66ed705525eedc0",
+          "whole_bytes": 23564,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0227624ef7ab99d60f0aa76e74419c34267a322db36cf945e66ed705525eedc0.tcl.gz",
+          "payload_sha256": "2da297a6041dbbf70371dd4800e851a67c7ba4aa3036b9881cc26e66e84b0e64",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/parray.tcl",
+          "whole_sha256": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014",
+          "whole_bytes": 816,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014.tcl.gz",
+          "payload_sha256": "1bbc8aeaa782941f8c90f3928aff6e19edb57f7354d2481f551a522a8f9c6246",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/pkgIndex.tcl",
+          "whole_sha256": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad",
+          "whole_bytes": 258,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad.tcl.gz",
+          "payload_sha256": "dc2375115e51408e583cd2cfc99173eeee06cbfa2258e783bc70eb0738f98756",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/platform.tcl",
+          "whole_sha256": "ec8cca09e045ecc3d61d7aa2a336f4c6366a5bc0e8207feca37eab38fc0cd292",
+          "whole_bytes": 11053,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ec8cca09e045ecc3d61d7aa2a336f4c6366a5bc0e8207feca37eab38fc0cd292.tcl.gz",
+          "payload_sha256": "f013421a3b6fb821c8124f3ac9fddaa33e80a2b28d0d4d9c7cc0d8de192fb548",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/shell.tcl",
+          "whole_sha256": "3e9a139b7d2d768a8b94327feb402c4fc7afeda156e46ab2d22e8c40266142a5",
+          "whole_bytes": 6001,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3e9a139b7d2d768a8b94327feb402c4fc7afeda156e46ab2d22e8c40266142a5.tcl.gz",
+          "payload_sha256": "6ed8604de109466a1d1b92823f875cde72953a2fe44959061444d557924678cc",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/reg/pkgIndex.tcl",
+          "whole_sha256": "5a3a93234a418f3a8e1814dd8e6d95344045a6d3a4e62af6a8fad2c48d2aa1ce",
+          "whole_bytes": 284,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5a3a93234a418f3a8e1814dd8e6d95344045a6d3a4e62af6a8fad2c48d2aa1ce.tcl.gz",
+          "payload_sha256": "3a7570d156329cd9d78b219737a12fcaa0e536c4f41295bcd3064264d8a780ba",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/safe.tcl",
+          "whole_sha256": "bd70548ea2090135918f2e61a39bfdd6163ec8cef82f400ce220a1edc4bedd6c",
+          "whole_bytes": 41035,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/bd70548ea2090135918f2e61a39bfdd6163ec8cef82f400ce220a1edc4bedd6c.tcl.gz",
+          "payload_sha256": "e1c70e30afd6a93e0a85c20cf31b69eb09057c6ae8363f2121039ea4aa6a5b81",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl",
+          "whole_sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199",
+          "whole_bytes": 628,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199.tcl.gz",
+          "payload_sha256": "dcde28ff80462b68dc36e2efca7ec2410282bce10d8eee6d11585d40850e5bc3",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+          "whole_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+          "whole_bytes": 105217,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67.tcl.gz",
+          "payload_sha256": "70f72d2963568ba039f022f0ea742c60327a4a32def8d769e1453fb3f996d862",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl",
+          "whole_sha256": "0b102f22297356a9873a81224962fde4cbd4b59889c54b1d0632695701eb10fe",
+          "whole_bytes": 11789,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0b102f22297356a9873a81224962fde4cbd4b59889c54b1d0632695701eb10fe.tcl.gz",
+          "payload_sha256": "d0edb6f9d148d7a85e752db1c324f42f1d748efcaf2c67259afe20728ed60525",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/word.tcl",
+          "whole_sha256": "f18e8ae29aa8ed2be2cbb5568b4243f654f7fb0aa2066e16977863ee1415b9bc",
+          "whole_bytes": 4897,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f18e8ae29aa8ed2be2cbb5568b4243f654f7fb0aa2066e16977863ee1415b9bc.tcl.gz",
+          "payload_sha256": "b9abc8c530546fac0fe24583cef470e536d6429026b17b48c3cd388092f67e1c",
+          "roundtrip_verified": true
+        }
+      ],
+      "limits": "The shared canonical payload joins only the entire actual invoked ELF bytes. No prior experiment supplies this capture a new build, source, shared-library or loaded-address closure.",
+      "exact_capture_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/receipt.json",
+      "exact_capture_receipt_sha256": "e4e203f75e071dc162d97cdeaa284d3cba2d702097d30b520a8bb54a5c76f7e9",
+      "all_original_before_pins_equal_existing_payloads": true,
+      "original_all_after_pins_match": true,
+      "source_pin_scope": "Invoked executable, this probe and all .tcl inputs under the selected Tcl library tree; implementation C/Jim source, shared-library load graph, configure/compiler/link commands and full platform state were not pinned by this runner.",
+      "version": "8.6.18",
+      "version_attribution": "Exact original VERSION line in this process stdout."
+    },
+    {
+      "provider": "9.0.4",
+      "actual_invoked_executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "whole_executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "whole_executable_bytes": 3471033,
+      "canonical_existing_payload": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/90/executable.elf.gz",
+      "payload_sha256": "efd77c98ed7007ad21ec1b50feb70b2533301fa372379cc17f17ce85333cea3a",
+      "full_executable_roundtrip_verified": true,
+      "library_files": [
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/auto.tcl",
+          "whole_sha256": "629dc86958aa1c5f8697a638f296c706458e7a3418d2d81a2e81ce945f3828c6",
+          "whole_bytes": 22931,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/629dc86958aa1c5f8697a638f296c706458e7a3418d2d81a2e81ce945f3828c6.tcl.gz",
+          "payload_sha256": "6d3b7e08232bc980fec4da365dd5e0ceeddfe663af8e7c29abd394a07d32409d",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl",
+          "whole_sha256": "6b286804649120c7c249d8c2941cee8e1da59211132d985ad97b8ab196073546",
+          "whole_bytes": 60997,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6b286804649120c7c249d8c2941cee8e1da59211132d985ad97b8ab196073546.tcl.gz",
+          "payload_sha256": "54b93ff8a97f3d52ffa2998bc2108413e6138181a8e39c3b57b5cecc6653fffb",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/cookiejar.tcl",
+          "whole_sha256": "9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a",
+          "whole_bytes": 21330,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a.tcl.gz",
+          "payload_sha256": "cb9da302677a4af52e10161f6ccdaa6684bc84d93c22305fac265d183c2ca1ac",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/idna.tcl",
+          "whole_sha256": "fa329853cd186ea405f4bec122913f1e4286c54488d0ffd445f7f120c71583fe",
+          "whole_bytes": 7453,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/fa329853cd186ea405f4bec122913f1e4286c54488d0ffd445f7f120c71583fe.tcl.gz",
+          "payload_sha256": "5ea19b8751604e9b009b5ed0cf8a834ef3244a4662d6b0de52c32284b5dab3b7",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/pkgIndex.tcl",
+          "whole_sha256": "7d6f5e0236fad3b60cf5b7b10fa5629effcebead382083a7d9543c9526095d1f",
+          "whole_bytes": 214,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/7d6f5e0236fad3b60cf5b7b10fa5629effcebead382083a7d9543c9526095d1f.tcl.gz",
+          "payload_sha256": "44f4a1bcf1d8ec007d439cc0c8565737bc007bd4b5aa62816c1c1f4c206e83d5",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/dde/pkgIndex.tcl",
+          "whole_sha256": "f140827f677c522b3dce28b61609142da79c565e43ce176141c36766bc95265e",
+          "whole_bytes": 508,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f140827f677c522b3dce28b61609142da79c565e43ce176141c36766bc95265e.tcl.gz",
+          "payload_sha256": "c5ada874a03eb3c0cf75d47599eb4621f1d390b2179001e89943cf0bd137ad19",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/foreachline.tcl",
+          "whole_sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8",
+          "whole_bytes": 608,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8.tcl.gz",
+          "payload_sha256": "3dd79a5320778d78a2ee0b0031f7523dcb2fb84eff765c30acde51d1972792ac",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/history.tcl",
+          "whole_sha256": "ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007",
+          "whole_bytes": 7899,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007.tcl.gz",
+          "payload_sha256": "b76d0a18b8c125b7572fde69ffff98af263ed800f1bdb05a5dbb2949f0ce05f0",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/http.tcl",
+          "whole_sha256": "56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9",
+          "whole_bytes": 180243,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9.tcl.gz",
+          "payload_sha256": "6507d80787ff777f97daa0ece0833f642f7a0486926ef0d06da6a1c2787dd1c8",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/pkgIndex.tcl",
+          "whole_sha256": "83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742",
+          "whole_bytes": 280,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742.tcl.gz",
+          "payload_sha256": "7a6ff1114c5d8a6dce12df5f5638930cef5dc9570848d4e8f1d89b572a1a13ea",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/icu.tcl",
+          "whole_sha256": "bc125ef0732af6e67367e324c0b3de87e03f04f48c72c42fbb8f77b7b5849a8d",
+          "whole_bytes": 3861,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/bc125ef0732af6e67367e324c0b3de87e03f04f48c72c42fbb8f77b7b5849a8d.tcl.gz",
+          "payload_sha256": "1e55dc8e2cbfb348bee906a46f355fbf88bc571bb967ecb2bf3e2d8e3b94ed03",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+          "whole_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+          "whole_bytes": 23574,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a.tcl.gz",
+          "payload_sha256": "c596ffc1dae211375522a96353ab40fee74dd1c4e8d0fdf781b557f8422f8f6c",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/install.tcl",
+          "whole_sha256": "5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012",
+          "whole_bytes": 7312,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012.tcl.gz",
+          "payload_sha256": "e7a03a30eca2702e704c41e2577e3309d81513012d1e0b71b3d7303327bb94d9",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/msgcat.tcl",
+          "whole_sha256": "80301481addb70362ffd4eb1c301471a41e59987d39dbbc2a6096ddfb415071e",
+          "whole_bytes": 37407,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/80301481addb70362ffd4eb1c301471a41e59987d39dbbc2a6096ddfb415071e.tcl.gz",
+          "payload_sha256": "7e51d5d3e44cff7408ca6fb65af54b0e9c29910fb209e02e3fac9a0777098cfc",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/pkgIndex.tcl",
+          "whole_sha256": "6b7f3bf260c40ecf823f6fb7246ef3b833597e97bfd0e6963aa117ae196cd602",
+          "whole_bytes": 151,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/6b7f3bf260c40ecf823f6fb7246ef3b833597e97bfd0e6963aa117ae196cd602.tcl.gz",
+          "payload_sha256": "86ce113de6f24b4d40abe01c6d302b4e7bd127de5afc2fd67830e24f504a488c",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/optparse.tcl",
+          "whole_sha256": "3d14ecf300f9fdd21875e22ce348988f852c177c4bf25fb6a7f37ba4be9fca73",
+          "whole_bytes": 30413,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3d14ecf300f9fdd21875e22ce348988f852c177c4bf25fb6a7f37ba4be9fca73.tcl.gz",
+          "payload_sha256": "449128bfcd103a566480605af932eb65192e1dd88a3300cb03c2707634e5959e",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/pkgIndex.tcl",
+          "whole_sha256": "9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846",
+          "whole_bytes": 625,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846.tcl.gz",
+          "payload_sha256": "089666e7ad32616ac18b19ae4423cc4a716ecab6c8d3bbe124d3d83dfbe3f2ea",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl",
+          "whole_sha256": "473bf551d3156a144d6483ce730c72add640168a3ab426b3ee0b122f6d06a96e",
+          "whole_bytes": 24081,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/473bf551d3156a144d6483ce730c72add640168a3ab426b3ee0b122f6d06a96e.tcl.gz",
+          "payload_sha256": "8bb93c863667dc101939377ae21172230b1d92fa66188699623823aa103e75c2",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/parray.tcl",
+          "whole_sha256": "b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a",
+          "whole_bytes": 814,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a.tcl.gz",
+          "payload_sha256": "2761f825258baf7e7e1d73dc59f136146837fce4646c8d4ed31b39e1eabcf79b",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/pkgIndex.tcl",
+          "whole_sha256": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad",
+          "whole_bytes": 258,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad.tcl.gz",
+          "payload_sha256": "dc2375115e51408e583cd2cfc99173eeee06cbfa2258e783bc70eb0738f98756",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/platform.tcl",
+          "whole_sha256": "4af798475ffe6a0af32f0202a7cbc7b07b59de5ddcd7f89fcbdd1b07ffe5f6e1",
+          "whole_bytes": 11052,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/4af798475ffe6a0af32f0202a7cbc7b07b59de5ddcd7f89fcbdd1b07ffe5f6e1.tcl.gz",
+          "payload_sha256": "b2c21b3084cc5c25800e3593a27b451bef41b7e18e280fd17ad21d76cfd97361",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/shell.tcl",
+          "whole_sha256": "54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6",
+          "whole_bytes": 5975,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6.tcl.gz",
+          "payload_sha256": "b389ceebd4d0c52eff562516dd87249a009b728f30a89975be3f46ea0f96f262",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/readfile.tcl",
+          "whole_sha256": "eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414",
+          "whole_bytes": 599,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414.tcl.gz",
+          "payload_sha256": "3b9979a3390defdec5f77390254285e98085c77ec93f0418de716b2382e6d9b8",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/registry/pkgIndex.tcl",
+          "whole_sha256": "f485327543f043f62c1ad12416d3c959b98aa2b77320503cb2db0e16e773fb78",
+          "whole_bytes": 473,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f485327543f043f62c1ad12416d3c959b98aa2b77320503cb2db0e16e773fb78.tcl.gz",
+          "payload_sha256": "bb2f19a7f16e60ccaa92f1ff95301339debe31ba56bf9c1af67b4932d8df60e6",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/safe.tcl",
+          "whole_sha256": "0d3e8ddb147d713206139b7c4c915f11d0a53aebeee3a5ca3e7aebf26854e238",
+          "whole_bytes": 46995,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0d3e8ddb147d713206139b7c4c915f11d0a53aebeee3a5ca3e7aebf26854e238.tcl.gz",
+          "payload_sha256": "e3ed0e8805ab7f71af8e5f043cdcce75da2517904de813033cd472ca5aea3c8f",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl",
+          "whole_sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199",
+          "whole_bytes": 628,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199.tcl.gz",
+          "payload_sha256": "dcde28ff80462b68dc36e2efca7ec2410282bce10d8eee6d11585d40850e5bc3",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+          "whole_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+          "whole_bytes": 105217,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67.tcl.gz",
+          "payload_sha256": "70f72d2963568ba039f022f0ea742c60327a4a32def8d769e1453fb3f996d862",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl",
+          "whole_sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786",
+          "whole_bytes": 11904,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786.tcl.gz",
+          "payload_sha256": "09a5edd866238706ad9efc076b63a179989384fbf6b00513cce5773db60d0e52",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/word.tcl",
+          "whole_sha256": "3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e",
+          "whole_bytes": 4764,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e.tcl.gz",
+          "payload_sha256": "098e29beb5eca0bbaa493dcefa90d20484da55b7942584101667478dc7e19bcf",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/writefile.tcl",
+          "whole_sha256": "b454723873db2e587ac1323bcebff2e8929f5dc98a6fe001ed34fcaf0c2aa320",
+          "whole_bytes": 911,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/b454723873db2e587ac1323bcebff2e8929f5dc98a6fe001ed34fcaf0c2aa320.tcl.gz",
+          "payload_sha256": "9b0aba4875625af1c387b3e47700f9a2efd878441d4cfc6f11eaf7000266bf60",
+          "roundtrip_verified": true
+        }
+      ],
+      "limits": "The shared canonical payload joins only the entire actual invoked ELF bytes. No prior experiment supplies this capture a new build, source, shared-library or loaded-address closure.",
+      "exact_capture_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/receipt.json",
+      "exact_capture_receipt_sha256": "a4769a664d2ff1d9ca3c412485ddcbc29d7fd930d22ccde4a2bc4a227eb579b1",
+      "all_original_before_pins_equal_existing_payloads": true,
+      "original_all_after_pins_match": true,
+      "source_pin_scope": "Invoked executable, this probe and all .tcl inputs under the selected Tcl library tree; implementation C/Jim source, shared-library load graph, configure/compiler/link commands and full platform state were not pinned by this runner.",
+      "version": "9.0.4",
+      "version_attribution": "Exact original VERSION line in this process stdout."
+    },
+    {
+      "provider": "9.1.0",
+      "actual_invoked_executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "whole_executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "whole_executable_bytes": 3717328,
+      "canonical_existing_payload": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/91/executable.elf.gz",
+      "payload_sha256": "fc6c12552b3f4c0e1e5d023322046330cecaafa80f3fb45d46727cf1261262a2",
+      "full_executable_roundtrip_verified": true,
+      "library_files": [
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/auto.tcl",
+          "whole_sha256": "1953e3830f90106aa322cfc66644cc36ae39f8350bf214f07fa4d75afd80da02",
+          "whole_bytes": 22909,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/1953e3830f90106aa322cfc66644cc36ae39f8350bf214f07fa4d75afd80da02.tcl.gz",
+          "payload_sha256": "5d7d093aa618983ae99f2a82124979bc87a1be2376bb78117d26dfe39d4087e4",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/autoexecok.tcl",
+          "whole_sha256": "92c9f7d88e023844fd51d400c41144ad8d71f99099c896044d5693b190e3e3fa",
+          "whole_bytes": 8588,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/92c9f7d88e023844fd51d400c41144ad8d71f99099c896044d5693b190e3e3fa.tcl.gz",
+          "payload_sha256": "f63876dad3c7f9f7d00aaec187a43263b0eac25d88ba4c5acf044dbeaf2b9a00",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl",
+          "whole_sha256": "f1dc4c6b3bdac23e08b34af6a0fb4b04103d875d2698064d7490151617275d59",
+          "whole_bytes": 60895,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/f1dc4c6b3bdac23e08b34af6a0fb4b04103d875d2698064d7490151617275d59.tcl.gz",
+          "payload_sha256": "e5e825f0dc41ef4f8614b60d049fc2210c31400c086908fa2f07c1906d7aeeaa",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/cookiejar.tcl",
+          "whole_sha256": "9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a",
+          "whole_bytes": 21330,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a.tcl.gz",
+          "payload_sha256": "cb9da302677a4af52e10161f6ccdaa6684bc84d93c22305fac265d183c2ca1ac",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/idna.tcl",
+          "whole_sha256": "c0a3df8e2d0f4681be9e4078e56d294406073131d2be0cd3d0b63b20fa0c4feb",
+          "whole_bytes": 7426,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c0a3df8e2d0f4681be9e4078e56d294406073131d2be0cd3d0b63b20fa0c4feb.tcl.gz",
+          "payload_sha256": "8303233e6e29b1d96552d0599659be99d86212af4d740a625fbcc982e6d65a78",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/pkgIndex.tcl",
+          "whole_sha256": "9a13ce96018100685b26aa450f5a8cbce925ac70d5c1bdb2b323259c9956a5f7",
+          "whole_bytes": 214,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9a13ce96018100685b26aa450f5a8cbce925ac70d5c1bdb2b323259c9956a5f7.tcl.gz",
+          "payload_sha256": "366d3f5fc5e2788b7b502de0d2889bee0764d2bb7326dcfeeeb0f7036c582e0d",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/dde/pkgIndex.tcl",
+          "whole_sha256": "c3a195332dd743956eb38ebc22f1873eeea06501c2cd3ba91cee3838eb62da5f",
+          "whole_bytes": 279,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c3a195332dd743956eb38ebc22f1873eeea06501c2cd3ba91cee3838eb62da5f.tcl.gz",
+          "payload_sha256": "52fe7ed4b1abbdf271a5e39fd1a41fd659799ed291a3e48e7ffa4008866cd217",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/foreachline.tcl",
+          "whole_sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8",
+          "whole_bytes": 608,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8.tcl.gz",
+          "payload_sha256": "3dd79a5320778d78a2ee0b0031f7523dcb2fb84eff765c30acde51d1972792ac",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/history.tcl",
+          "whole_sha256": "ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007",
+          "whole_bytes": 7899,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007.tcl.gz",
+          "payload_sha256": "b76d0a18b8c125b7572fde69ffff98af263ed800f1bdb05a5dbb2949f0ce05f0",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/http.tcl",
+          "whole_sha256": "56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9",
+          "whole_bytes": 180243,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9.tcl.gz",
+          "payload_sha256": "6507d80787ff777f97daa0ece0833f642f7a0486926ef0d06da6a1c2787dd1c8",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/pkgIndex.tcl",
+          "whole_sha256": "83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742",
+          "whole_bytes": 280,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742.tcl.gz",
+          "payload_sha256": "7a6ff1114c5d8a6dce12df5f5638930cef5dc9570848d4e8f1d89b572a1a13ea",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/icu.tcl",
+          "whole_sha256": "4ef7e224231e5430270ae03eebf54d3d0e8ca6b976cb8d8b2e7e6bf9147eaefe",
+          "whole_bytes": 4033,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/4ef7e224231e5430270ae03eebf54d3d0e8ca6b976cb8d8b2e7e6bf9147eaefe.tcl.gz",
+          "payload_sha256": "758ce0f4e8e18062e7ac4a290dec253e18077b62a48f3b427b4040113ed44e74",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+          "whole_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+          "whole_bytes": 18886,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f.tcl.gz",
+          "payload_sha256": "43d2ed2e9dad44534e23a9ebe1ba702da3ddad90ff6345c7f197d4d03da44358",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/install.tcl",
+          "whole_sha256": "5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012",
+          "whole_bytes": 7312,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012.tcl.gz",
+          "payload_sha256": "e7a03a30eca2702e704c41e2577e3309d81513012d1e0b71b3d7303327bb94d9",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/msgcat.tcl",
+          "whole_sha256": "446a2dad2b197c17cd6ff4b638b1fbc5f93a5337548330c6bc6ac6886058b7eb",
+          "whole_bytes": 37407,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/446a2dad2b197c17cd6ff4b638b1fbc5f93a5337548330c6bc6ac6886058b7eb.tcl.gz",
+          "payload_sha256": "7865dc420f7b576c1ba1b9fec5bf94b4c6c9db8420564534a234a4b8a7cff489",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/pkgIndex.tcl",
+          "whole_sha256": "17c82510641fa0048bc1e8b3cc47e2f18cac46e594f0171bdc3100c6c09a5221",
+          "whole_bytes": 151,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/17c82510641fa0048bc1e8b3cc47e2f18cac46e594f0171bdc3100c6c09a5221.tcl.gz",
+          "payload_sha256": "5c4c8dcb8ea9274b0476ec3e1eb943743b68378ebfc69efb012e29e2300c1fb4",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/optparse.tcl",
+          "whole_sha256": "49a8824f7d1d44e1ae5f1a0b9f3e8c363d89014e2e31bcdf1ae7045d698ff512",
+          "whole_bytes": 30425,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/49a8824f7d1d44e1ae5f1a0b9f3e8c363d89014e2e31bcdf1ae7045d698ff512.tcl.gz",
+          "payload_sha256": "7473f753b8ac8ffd862bbf140ca2dc3f432daa82c7408870f2b4ff2e49f8730d",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/pkgIndex.tcl",
+          "whole_sha256": "9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846",
+          "whole_bytes": 625,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846.tcl.gz",
+          "payload_sha256": "089666e7ad32616ac18b19ae4423cc4a716ecab6c8d3bbe124d3d83dfbe3f2ea",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl",
+          "whole_sha256": "a1b01ef4a09299dc30efcf3cfd647a3b99efc945bf8f1980a43d9fc43f075b26",
+          "whole_bytes": 23293,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/a1b01ef4a09299dc30efcf3cfd647a3b99efc945bf8f1980a43d9fc43f075b26.tcl.gz",
+          "payload_sha256": "3fe7a404dcb13682cf306e9c785948542a0756e0dc466f9575ced9422b65593d",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/parray.tcl",
+          "whole_sha256": "b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a",
+          "whole_bytes": 814,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a.tcl.gz",
+          "payload_sha256": "2761f825258baf7e7e1d73dc59f136146837fce4646c8d4ed31b39e1eabcf79b",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/pkgIndex.tcl",
+          "whole_sha256": "8dd8f2d040863b062283f9e569502e014cac14a0989175e553ad5bc181fd9361",
+          "whole_bytes": 258,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/8dd8f2d040863b062283f9e569502e014cac14a0989175e553ad5bc181fd9361.tcl.gz",
+          "payload_sha256": "edd1866367abda81c8d53f1a7c6b79841c1bb525116133e85119ba90e9859a83",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/platform.tcl",
+          "whole_sha256": "c1a9ceabcd60f33cd80a1187916ded8df6e319ded07347bbc7c7255f08c87442",
+          "whole_bytes": 8690,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c1a9ceabcd60f33cd80a1187916ded8df6e319ded07347bbc7c7255f08c87442.tcl.gz",
+          "payload_sha256": "de8731762395a95491de1253a496035b811b18e6ee7ec2845d069ae8c0c88316",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/shell.tcl",
+          "whole_sha256": "54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6",
+          "whole_bytes": 5975,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6.tcl.gz",
+          "payload_sha256": "b389ceebd4d0c52eff562516dd87249a009b728f30a89975be3f46ea0f96f262",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/readfile.tcl",
+          "whole_sha256": "eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414",
+          "whole_bytes": 599,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414.tcl.gz",
+          "payload_sha256": "3b9979a3390defdec5f77390254285e98085c77ec93f0418de716b2382e6d9b8",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/registry/pkgIndex.tcl",
+          "whole_sha256": "c61f803073c3183a49d5524221c05f295dee6cbef57272ceacc8ee5cc0d54c2c",
+          "whole_bytes": 280,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/c61f803073c3183a49d5524221c05f295dee6cbef57272ceacc8ee5cc0d54c2c.tcl.gz",
+          "payload_sha256": "8d362391b3e06455cdabdd46564eb882cc52052987910d8cabbfb2acb7705541",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/safe.tcl",
+          "whole_sha256": "02af9afd6f876e6432bd67084b2e8983213ba33cba036bb4d78cca9072b3de96",
+          "whole_bytes": 46500,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/02af9afd6f876e6432bd67084b2e8983213ba33cba036bb4d78cca9072b3de96.tcl.gz",
+          "payload_sha256": "ef0ba3d4dbefd8daa4b4eea846f30d4aa3c21310ff4d857f0d0ab031ccf2f030",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl",
+          "whole_sha256": "7372fd028e8165994e6c1e0ee2e3f3f7551ff75def535a414443e9e6c0138c65",
+          "whole_bytes": 627,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/7372fd028e8165994e6c1e0ee2e3f3f7551ff75def535a414443e9e6c0138c65.tcl.gz",
+          "payload_sha256": "c42215a07b2ba3d1d5663ef4b770c089e199c3a30f787016885b2e22833e4912",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+          "whole_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311",
+          "whole_bytes": 105632,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311.tcl.gz",
+          "payload_sha256": "e004312c1416f9de0f0ff0b8d1f6bfa4f2fff5ce4cf1bbba06006f6c75bfcc37",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl",
+          "whole_sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786",
+          "whole_bytes": 11904,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786.tcl.gz",
+          "payload_sha256": "09a5edd866238706ad9efc076b63a179989384fbf6b00513cce5773db60d0e52",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/word.tcl",
+          "whole_sha256": "3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e",
+          "whole_bytes": 4764,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e.tcl.gz",
+          "payload_sha256": "098e29beb5eca0bbaa493dcefa90d20484da55b7942584101667478dc7e19bcf",
+          "roundtrip_verified": true
+        },
+        {
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/writefile.tcl",
+          "whole_sha256": "b5e9def32c99ee9b2199b46d3e37e7d075091d7e3c42921c754ee9e18cfff233",
+          "whole_bytes": 923,
+          "canonical_payload": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/library-inputs/b5e9def32c99ee9b2199b46d3e37e7d075091d7e3c42921c754ee9e18cfff233.tcl.gz",
+          "payload_sha256": "b10c3ebc81f1f22f05fa7be44ed8929fe8583415d7995d3491b7f7816e803bdb",
+          "roundtrip_verified": true
+        }
+      ],
+      "limits": "The shared canonical payload joins only the entire actual invoked ELF bytes. No prior experiment supplies this capture a new build, source, shared-library or loaded-address closure.",
+      "exact_capture_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/receipt.json",
+      "exact_capture_receipt_sha256": "dd648785bfe36e0aabd9cbb25b73ac56428560ff8d0fea1bbe2012decdfc6f34",
+      "all_original_before_pins_equal_existing_payloads": true,
+      "original_all_after_pins_match": true,
+      "source_pin_scope": "Invoked executable, this probe and all .tcl inputs under the selected Tcl library tree; implementation C/Jim source, shared-library load graph, configure/compiler/link commands and full platform state were not pinned by this runner.",
+      "version": "9.1.0",
+      "version_attribution": "Exact original VERSION line in this process stdout."
+    },
+    {
+      "provider": "Jim",
+      "actual_invoked_executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "whole_executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "whole_executable_bytes": 438632,
+      "canonical_existing_payload": "runtime/rust/tests/data/native_property_configure_retained_table_read_snapshot_original/335/provider-files/jim/executable.elf.gz",
+      "payload_sha256": "4bb1e19e71a50cfeaf339019c06cb10c52ce4110a385229e99c95f89e92be8ea",
+      "full_executable_roundtrip_verified": true,
+      "library_files": [],
+      "limits": "The shared canonical payload joins only the entire actual invoked ELF bytes. No prior experiment supplies this capture a new build, source, shared-library or loaded-address closure.",
+      "exact_capture_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/receipt.json",
+      "exact_capture_receipt_sha256": "b90fe1a5adee90b5421126d89e616aa13920fd7562b5afd67463cef31b1d7377",
+      "all_original_before_pins_equal_existing_payloads": true,
+      "original_all_after_pins_match": true,
+      "source_pin_scope": "Invoked executable, this probe and all .tcl inputs under the selected Tcl library tree; implementation C/Jim source, shared-library load graph, configure/compiler/link commands and full platform state were not pinned by this runner.",
+      "version": "0.84-9-g5bac7c9",
+      "version_attribution": "Exact original VERSION line in this process stdout."
+    }
+  ],
+  "canonical_reuse_authority": "Exact full payload and roundtrip hash equality only; reusing retained bytes supplies no provider build or loaded-library identity.",
+  "original_probe_sha256": "480e296d4e54c2c7cb5114859fd891e954f5f166a7d9c528560f6b82aa7680a7",
+  "original_retention_catalogue": {
+    "path": "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/provider-retention.json",
+    "sha256": "34bd7d3a2a3b6decd4cb88616b42f50a530254c25fe55ab0c03cf0314a4a95e6"
+  },
+  "limits": "No original implementation-source before/after pin, source build closure, SDK/header attestation or loaded shared-library identity is recorded."
+}

@@ -1,0 +1,1209 @@
+{
+  "kind": "Read-only exact original public stream projection",
+  "original_result_sha256": "786a330e7d50a8c393f597dda7ee0c8310d0beeb69860cef6667e5c16121030a",
+  "actual_processes": 6,
+  "actual_rows": 42,
+  "providers": [
+    {
+      "provider": "tcl8.4",
+      "version": "8.4.20",
+      "original_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/receipt.json",
+      "original_receipt_sha256": "573c0fcd67329814502c02264d814bc9489dc948a04c55019f989f3bb930ee40",
+      "original_stdout": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/stdout",
+      "original_stdout_sha256": "2528d1c7807116dd4aeb5a9c5f9b8ec9749cff7a1412f874745fbe3e4ccc5c90",
+      "original_process_exit": 0,
+      "rows": [
+        {
+          "label": "terminal_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 15,
+          "raw_end_byte": 222
+        },
+        {
+          "label": "terminal_child_prefix",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 222,
+          "raw_end_byte": 436
+        },
+        {
+          "label": "terminal_quoted_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 436,
+          "raw_end_byte": 650
+        },
+        {
+          "label": "terminal_index_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 650,
+          "raw_end_byte": 863
+        },
+        {
+          "label": "missing_child_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 863,
+          "raw_end_byte": 1045
+        },
+        {
+          "label": "missing_child_variable_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 1045,
+          "raw_end_byte": 1272
+        },
+        {
+          "label": "bare_child_open_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 0,
+          "script_result_hex": "32",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "PRESENT",
+              "value_hex": "785c7b"
+            },
+            "after": {
+              "state": "PRESENT",
+              "value_hex": "32"
+            }
+          },
+          "raw_start_byte": 1272,
+          "raw_end_byte": 1430
+        }
+      ]
+    },
+    {
+      "provider": "tcl8.5",
+      "version": "8.5.19",
+      "original_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/receipt.json",
+      "original_receipt_sha256": "21c10b1c08ded9eb9f06747e02cbabd8b164740c291f0f12ea2e4bcb8a379f20",
+      "original_stdout": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/stdout",
+      "original_stdout_sha256": "3bf2dec40e197dbe5699de2ce85d500c265b6c51456ffbb43cba20a725269f03",
+      "original_process_exit": 0,
+      "rows": [
+        {
+          "label": "terminal_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 15,
+          "raw_end_byte": 222
+        },
+        {
+          "label": "terminal_child_prefix",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 222,
+          "raw_end_byte": 436
+        },
+        {
+          "label": "terminal_quoted_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 436,
+          "raw_end_byte": 650
+        },
+        {
+          "label": "terminal_index_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 650,
+          "raw_end_byte": 863
+        },
+        {
+          "label": "missing_child_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 863,
+          "raw_end_byte": 1045
+        },
+        {
+          "label": "missing_child_variable_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 1045,
+          "raw_end_byte": 1272
+        },
+        {
+          "label": "bare_child_open_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 0,
+          "script_result_hex": "32",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "PRESENT",
+              "value_hex": "785c7b"
+            },
+            "after": {
+              "state": "PRESENT",
+              "value_hex": "32"
+            }
+          },
+          "raw_start_byte": 1272,
+          "raw_end_byte": 1430
+        }
+      ]
+    },
+    {
+      "provider": "tcl8.6",
+      "version": "8.6.18",
+      "original_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/receipt.json",
+      "original_receipt_sha256": "e4e203f75e071dc162d97cdeaa284d3cba2d702097d30b520a8bb54a5c76f7e9",
+      "original_stdout": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/stdout",
+      "original_stdout_sha256": "5d762605e7e716362d163f401ffea2fa2ff25f7b763fed2361bf76132d51ded8",
+      "original_process_exit": 0,
+      "rows": [
+        {
+          "label": "terminal_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 15,
+          "raw_end_byte": 222
+        },
+        {
+          "label": "terminal_child_prefix",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 222,
+          "raw_end_byte": 436
+        },
+        {
+          "label": "terminal_quoted_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 436,
+          "raw_end_byte": 650
+        },
+        {
+          "label": "terminal_index_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 650,
+          "raw_end_byte": 863
+        },
+        {
+          "label": "missing_child_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 863,
+          "raw_end_byte": 1045
+        },
+        {
+          "label": "missing_child_variable_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 1045,
+          "raw_end_byte": 1272
+        },
+        {
+          "label": "bare_child_open_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 0,
+          "script_result_hex": "32",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "PRESENT",
+              "value_hex": "785c7b"
+            },
+            "after": {
+              "state": "PRESENT",
+              "value_hex": "32"
+            }
+          },
+          "raw_start_byte": 1272,
+          "raw_end_byte": 1430
+        }
+      ]
+    },
+    {
+      "provider": "tcl9.0",
+      "version": "9.0.4",
+      "original_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/receipt.json",
+      "original_receipt_sha256": "a4769a664d2ff1d9ca3c412485ddcbc29d7fd930d22ccde4a2bc4a227eb579b1",
+      "original_stdout": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/stdout",
+      "original_stdout_sha256": "5659049736fbd1e45c0af4f330d51d8a0b2d2775a12c38d36c726191179d55e2",
+      "original_process_exit": 0,
+      "rows": [
+        {
+          "label": "terminal_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 14,
+          "raw_end_byte": 221
+        },
+        {
+          "label": "terminal_child_prefix",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 221,
+          "raw_end_byte": 435
+        },
+        {
+          "label": "terminal_quoted_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 435,
+          "raw_end_byte": 649
+        },
+        {
+          "label": "terminal_index_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 649,
+          "raw_end_byte": 862
+        },
+        {
+          "label": "missing_child_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 862,
+          "raw_end_byte": 1044
+        },
+        {
+          "label": "missing_child_variable_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 1044,
+          "raw_end_byte": 1271
+        },
+        {
+          "label": "bare_child_open_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 0,
+          "script_result_hex": "32",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "PRESENT",
+              "value_hex": "785c7b"
+            },
+            "after": {
+              "state": "PRESENT",
+              "value_hex": "32"
+            }
+          },
+          "raw_start_byte": 1271,
+          "raw_end_byte": 1429
+        }
+      ]
+    },
+    {
+      "provider": "tcl9.1",
+      "version": "9.1.0",
+      "original_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/receipt.json",
+      "original_receipt_sha256": "dd648785bfe36e0aabd9cbb25b73ac56428560ff8d0fea1bbe2012decdfc6f34",
+      "original_stdout": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/stdout",
+      "original_stdout_sha256": "23769e55db64ee959dc5a58c6ec020e7201d5ad460799a5c00769eaaf91720d2",
+      "original_process_exit": 0,
+      "rows": [
+        {
+          "label": "terminal_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 14,
+          "raw_end_byte": 221
+        },
+        {
+          "label": "terminal_child_prefix",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 221,
+          "raw_end_byte": 435
+        },
+        {
+          "label": "terminal_quoted_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 435,
+          "raw_end_byte": 649
+        },
+        {
+          "label": "terminal_index_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 649,
+          "raw_end_byte": 862
+        },
+        {
+          "label": "missing_child_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 862,
+          "raw_end_byte": 1044
+        },
+        {
+          "label": "missing_child_variable_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "6d697373696e6720636c6f73652d627261636520666f72207661726961626c65206e616d65",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 1044,
+          "raw_end_byte": 1271
+        },
+        {
+          "label": "bare_child_open_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 0,
+          "script_result_hex": "32",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "PRESENT",
+              "value_hex": "785c7b"
+            },
+            "after": {
+              "state": "PRESENT",
+              "value_hex": "32"
+            }
+          },
+          "raw_start_byte": 1271,
+          "raw_end_byte": 1429
+        }
+      ]
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "original_receipt": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/receipt.json",
+      "original_receipt_sha256": "b90fe1a5adee90b5421126d89e616aa13920fd7562b5afd67463cef31b1d7377",
+      "original_stdout": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stdout",
+      "original_stdout_sha256": "623215ab0012099acbfa8d3bafa451a93e3df9df0839105eac8bf54df64f19a7",
+      "original_process_exit": 0,
+      "rows": [
+        {
+          "label": "terminal_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 24,
+          "raw_end_byte": 231
+        },
+        {
+          "label": "terminal_child_prefix",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 231,
+          "raw_end_byte": 445
+        },
+        {
+          "label": "terminal_quoted_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 445,
+          "raw_end_byte": 659
+        },
+        {
+          "label": "terminal_index_child",
+          "complete_catch_code": 0,
+          "complete_result_hex": "31",
+          "script_catch_code": 1,
+          "script_result_hex": "6578747261206368617261637465727320616674657220636c6f73652d6272616365",
+          "effects": {
+            "before": {
+              "state": "PRESENT",
+              "value_hex": "31"
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 659,
+          "raw_end_byte": 872
+        },
+        {
+          "label": "missing_child_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "756e6d61746368656420225b22",
+          "effects": {
+            "before": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 872,
+          "raw_end_byte": 1039
+        },
+        {
+          "label": "missing_child_variable_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "756e6d61746368656420225b22",
+          "effects": {
+            "before": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 1039,
+          "raw_end_byte": 1215
+        },
+        {
+          "label": "bare_child_open_brace",
+          "complete_catch_code": 0,
+          "complete_result_hex": "30",
+          "script_catch_code": 1,
+          "script_result_hex": "756e6d61746368656420225b22",
+          "effects": {
+            "before": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "inner": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "sink": {
+              "state": "MISSING",
+              "value_hex": null
+            },
+            "after": {
+              "state": "MISSING",
+              "value_hex": null
+            }
+          },
+          "raw_start_byte": 1215,
+          "raw_end_byte": 1384
+        }
+      ]
+    }
+  ],
+  "limits": "Parsing only the fixed original capture protocol creates no subprocess, Rust assertion, internal worker chronology or new source authority. Debug BEFORE/AFTER constants are not state measurements; state queries remain separate. Unsupported workers remain unavailable for their intended conversion."
+}

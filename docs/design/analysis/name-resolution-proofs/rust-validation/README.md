@@ -4296,3 +4296,10 @@ The original source349 map contains 39,666 leaves at head `80617625e8cbdc42724fb
 Three required `#[cfg(not(have_tommath))]` controls are absent from this image and remain unadmitted and untested. The `engine` feature does not substitute for that build capability. Each isolated outcome derives from its exact child receipt and anchored raw harness output; summary strings printed inside the outer driver JSON are not harness rows.
 
 [Full original receipts, streams, requests, source maps and owned executable retention](frozen349/experiment-index.json) preserve these exact experiments. [Original body/question/document correspondence](frozen349/question-body-outcomes.json) bounds each per-question software result. Later source definitions and Native Tcl/Jim/BIG-IP scopes remain independent.
+
+
+## Owning Core source350 experiments
+
+The exact source350 map contains 39,795 leaves at head `6f64baff44ce87fd2f2ecc4cd747424b73b517ba`. The actual owning Core `tcl_lsp_core` executable has SHA256 `1110a8023621cf852c8ee8b68cd8e20a70bca24bde6a8acf5591111bcaf813f0` and lists 2,967 tests. Its exact 14 selected source-context comparisons pass, with 0 failures, 0 ignored tests and 2,953 filtered out. Producer and inventory operations run no assertions. The separately retained mixed compiler/Core producer exits 101 and grants no image/assertion authority.
+
+[Full receipts, streams, selection requests, immutable source and owned executable](frozen350/experiment-index.json) retain these bounded operations. [Exact question/body/document joins](frozen350/question-body-outcomes.json) identify the supported per-question software results. No compiler, Runtime, Server, external-provider or different-source result is implied.

@@ -187305,6 +187305,394 @@
       "sha256": "38ae02388d270cef083244f2556e2040c82356aae54c39053433852c6e5edca8",
       "bytes": 4389,
       "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/probe.tcl",
+      "sha256": "480e296d4e54c2c7cb5114859fd891e954f5f166a7d9c528560f6b82aa7680a7",
+      "bytes": 1623,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/cases.json",
+      "sha256": "de7dce9b194a2b5ad2413ce289bee7a87a4fb2e1438f78944a60e0a23055c460",
+      "bytes": 2262,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original input declaration; request text is not execution evidence."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/run.py",
+      "sha256": "63e7e231854f497fa47213b7223e5f4d51583779fdfa4a1364fcb995c6ac9658",
+      "bytes": 2564,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/results.json",
+      "sha256": "786a330e7d50a8c393f597dda7ee0c8310d0beeb69860cef6667e5c16121030a",
+      "bytes": 10156,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/receipt.json",
+      "sha256": "573c0fcd67329814502c02264d814bc9489dc948a04c55019f989f3bb930ee40",
+      "bytes": 4180,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/stdout",
+      "sha256": "2528d1c7807116dd4aeb5a9c5f9b8ec9749cff7a1412f874745fbe3e4ccc5c90",
+      "bytes": 1430,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/receipt.json",
+      "sha256": "21c10b1c08ded9eb9f06747e02cbabd8b164740c291f0f12ea2e4bcb8a379f20",
+      "bytes": 4301,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/stdout",
+      "sha256": "3bf2dec40e197dbe5699de2ce85d500c265b6c51456ffbb43cba20a725269f03",
+      "bytes": 1430,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/receipt.json",
+      "sha256": "e4e203f75e071dc162d97cdeaa284d3cba2d702097d30b520a8bb54a5c76f7e9",
+      "bytes": 4301,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/stdout",
+      "sha256": "5d762605e7e716362d163f401ffea2fa2ff25f7b763fed2361bf76132d51ded8",
+      "bytes": 1430,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/receipt.json",
+      "sha256": "a4769a664d2ff1d9ca3c412485ddcbc29d7fd930d22ccde4a2bc4a227eb579b1",
+      "bytes": 5059,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/stdout",
+      "sha256": "5659049736fbd1e45c0af4f330d51d8a0b2d2775a12c38d36c726191179d55e2",
+      "bytes": 1429,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/receipt.json",
+      "sha256": "dd648785bfe36e0aabd9cbb25b73ac56428560ff8d0fea1bbe2012decdfc6f34",
+      "bytes": 5189,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/stdout",
+      "sha256": "23769e55db64ee959dc5a58c6ec020e7201d5ad460799a5c00769eaaf91720d2",
+      "bytes": 1429,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/receipt.json",
+      "sha256": "b90fe1a5adee90b5421126d89e616aa13920fd7562b5afd67463cef31b1d7377",
+      "bytes": 1093,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stdout",
+      "sha256": "623215ab0012099acbfa8d3bafa451a93e3df9df0839105eac8bf54df64f19a7",
+      "bytes": 1384,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/provider-retention.json",
+      "sha256": "f00da0043cbde42fb19513f70aaa16cd5a9876b93c35ec10def529e63e18429a",
+      "bytes": 86719,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Whole original invoked ELF/library byte joins reuse existing retained payloads only; no source/build/load closure."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/interpretation.json",
+      "sha256": "74382a47fa271409eabed761a9e3f7438098882078d60e3a0fd987d9397d4c78",
+      "bytes": 36706,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.jim-nested-direct-entry-and-prefix-effects"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/probe.tcl",
+      "sha256": "f46db0596af9b10a373d08ac9444037b4931a8805a03b32a1b43a9e1f3d911dd",
+      "bytes": 2078,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/cases.json",
+      "sha256": "f183e8739222e26bed9bbedf73d02257f444e13e5ad093dba7fd280ac490ea3f",
+      "bytes": 1310,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original input declaration; request text is not execution evidence."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/run.py",
+      "sha256": "acc7203634cd41a63c6b8bb17c5f17f5f080b28d3b07c8786ea743e705477a4d",
+      "bytes": 2539,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/results.json",
+      "sha256": "3e3e7da175df05fe90f62a05ab2f57937e50a5076d7491d23601ffa87ff90aa9",
+      "bytes": 43021,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/receipt.json",
+      "sha256": "cb55745205ef8522fe9d12e2f5280f7f3434326c965a19c5882d79ddd403eb66",
+      "bytes": 4260,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/stdout",
+      "sha256": "60c781681b3cc208e7f29c5d3f20aef62dbfc2c30d6881172ab69a895095cadc",
+      "bytes": 10316,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/receipt.json",
+      "sha256": "1f8a021aebec174d9dcffe20ceb2be8c2ae1797bda3c95df6fcd4702f2d3aebb",
+      "bytes": 4383,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/stdout",
+      "sha256": "60be339bc23ae42924266d1d282ef352d2d5c1a6d8bb230ab4d92d1bbe55236c",
+      "bytes": 6800,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/receipt.json",
+      "sha256": "4e5e922a0c2cba2cb2ebbe5d9ad3224f296c20add78a54cc3653eb9e8315b455",
+      "bytes": 4383,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/stdout",
+      "sha256": "2167e76ddd00011a21c954ca8589c32d1e72fdcd9f69bc8057a60f481494a243",
+      "bytes": 6508,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/receipt.json",
+      "sha256": "700aad576066f5a9a2553f0b7ba33106a4b144daee80177be8e8051cb7b009af",
+      "bytes": 5140,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/stdout",
+      "sha256": "e027923261d8129b9f0f0196a22003906cd8b2a96bca8440436701f1dfe47843",
+      "bytes": 6504,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/receipt.json",
+      "sha256": "cffd99291be74b91b7d4e6403822851b8e8069c3126185ad8aea9c5718c4ea57",
+      "bytes": 5269,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/stdout",
+      "sha256": "e027923261d8129b9f0f0196a22003906cd8b2a96bca8440436701f1dfe47843",
+      "bytes": 6504,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/receipt.json",
+      "sha256": "35f5993ae5bb82c24c12860fd8e56b5bbd8dd6cc384fb5491eaf6324f4f7beb5",
+      "bytes": 1173,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stdout",
+      "sha256": "b2f396a1742b51845746cfcbf8f3f5b30ee79a62914c8b53248a325c88b5e4a1",
+      "bytes": 4639,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/provider-retention.json",
+      "sha256": "d34ecbe00ef936c6da5ec69b2de39567486ee28e0b538962f8607e35e81c1252",
+      "bytes": 88502,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Whole original invoked ELF/library byte joins reuse existing retained payloads only; no source/build/load closure."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/interpretation.json",
+      "sha256": "0598ee7176a46ff51d54abfdb2663f702ababa58de8593bc4392717ac7b4427c",
+      "bytes": 124162,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "reason": "Exact original closed public process capture or read-only fixed-protocol raw-row association; unsupported intended workers remain unavailable."
     }
   ]
 }

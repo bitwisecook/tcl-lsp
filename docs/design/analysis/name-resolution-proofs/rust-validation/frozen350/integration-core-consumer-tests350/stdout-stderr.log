@@ -1,0 +1,19 @@
+
+running 14 tests
+test caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes ... ok
+test code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry ... ok
+test declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry ... ok
+test executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates ... ok
+test formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config ... ok
+test formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose ... ok
+test formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias ... ok
+test formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry ... ok
+test minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config ... ok
+test package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom ... ok
+test package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue ... ok
+test package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry ... ok
+test refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence ... ok
+test references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 2953 filtered out; finished in 10.84s
+

@@ -1,0 +1,119 @@
+# naming.numeric.io-debug-public-conversion-and-side-effect-order
+
+Kind: `native-observation`
+
+## Problem statement
+
+A failed numeric conversion must not silently select a default read count, seek offset, wrapping length or debug Boolean. Public workers may use different release-specific converters and option grammars, and an unavailable worker cannot establish conversion behaviour. Cursor changes, debug state queries and errorCode updates distinguish actual command effects from conversion errors.
+
+## Question
+
+For the exact invalid, negative, zero, positive and oversized operands, what public read/seek/base64 maxlen/debug results, errorCode values and cursor or debug-state effects occur on each measured C Tcl release and Jim build?
+
+## Conclusion
+
+Every measured provider rejects read bad, 1.5, -1 and 18446744073709551616 without moving the cursor from 3; read 0 leaves it at 3 and read 2 returns de and moves it to 5. Invalid seek offsets leave the cursor at 3; relative -1 succeeds at 2. The C providers reject bad offset before invalid origin, while Jim returns its handle seek argument error for that combined input. Jim accepts oversized relative seek and reaches 2, so the C overflow results cannot be donated to Jim. Base64 maxlen is available only on the measured C 8.6/9.0/9.1 workers: negative length returns line length out of range, 0 yields unwrapped YWJjZGVm and 2 yields YW\nJj\nZG\nVm. Debug frame accepts 1.5 as true on C 8.5–9.1 and rejects bad while the separate state query stays false. C 8.4 debug and C 8.4/8.5/Jim base64 workers are unavailable; Jim child creation is unavailable for this probe. Exact release-specific messages and errorCode bytes remain in the raw captures. BIG-IP is not tested.
+
+## Scope
+
+One unchanged ASCII probe with physical LF creates a distinct owned per-provider disposable file whose runtime bytes are abcdef followed by LF. Public operations are read(channel,count), seek(channel,offset[,origin]), binary encode base64 -maxlen and interp debug child -frame. Each case seeds errorCode as R2286 SEEDED, records catch result/errorCode as hexadecimal, and reads tell(channel) where applicable. Debug BEFORE/AFTER 0 are supplied constants, not measurements; the separate debug-frame-state query measures debug state. Five C processes supply 43 rows each and Jim supplies 32 rows, totalling 247 rows, with process exit0 and empty stderr. The retained cases.json is a request-only declaration; actual receipts and streams supply results. Version comes from the independently captured same-ELF 627 VERSION stream. Original implementation C/Jim source, internal conversion/cleanup chronology, callbacks, Native operands, full build/load closure, current Rust outcomes and F5/TMM are unmeasured.
+
+## Provider answers
+
+### tcl8.4
+
+Status: `observed`. Version: 8.4.20. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Independent original 627 VERSION stream joined through the same whole invoked ELF hash; 628 prints no VERSION line.. Channel: CLI unchanged probe.tcl, distinct R2286_IO_PROBE_FILE, exact written abcdef\n escape, public worker calls and hexadecimal results/errorCode; tell and separate debug state queries.. Dialect: tcl8.4.
+
+Read bad/1.5/-1/oversized errors preserve cursor 3; read 0 stays at 3 and read 2 returns de at 5. Relative seek -1 reaches 2. Bad/oversized seek errors preserve cursor 3 and bad offset wins over invalid origin. Base64 encode and interp debug are unavailable. Read bad/-1 follow this release's nonewline option error and overflow reports ARITH IOVERFLOW; other exact errorCode and messages remain in the raw stream. Successful cases retain the seeded errorCode. Version is attributed by the independent same-ELF 627 VERSION capture; this process prints no version.
+
+### tcl8.5
+
+Status: `observed`. Version: 8.5.19. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Independent original 627 VERSION stream joined through the same whole invoked ELF hash; 628 prints no VERSION line.. Channel: CLI unchanged probe.tcl, distinct R2286_IO_PROBE_FILE, exact written abcdef\n escape, public worker calls and hexadecimal results/errorCode; tell and separate debug state queries.. Dialect: tcl8.5.
+
+Read bad/1.5/-1/oversized errors preserve cursor 3; read 0 stays at 3 and read 2 returns de at 5. Relative seek -1 reaches 2. Bad/oversized seek errors preserve cursor 3 and bad offset wins over invalid origin. Base64 encode is unavailable. Debug bad errors and the separate state query remains 0; debug 1.5 succeeds and the state query becomes 1. Successful cases retain seeded errorCode. Exact release-specific messages/errorCode bytes remain in the raw stream. Version is attributed by the independent same-ELF 627 VERSION capture; this process prints no version.
+
+### tcl8.6
+
+Status: `observed`. Version: 8.6.18. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Independent original 627 VERSION stream joined through the same whole invoked ELF hash; 628 prints no VERSION line.. Channel: CLI unchanged probe.tcl, distinct R2286_IO_PROBE_FILE, exact written abcdef\n escape, public worker calls and hexadecimal results/errorCode; tell and separate debug state queries.. Dialect: tcl8.6.
+
+Read bad/1.5/-1/oversized errors preserve cursor 3; read 0 stays at 3 and read 2 returns de at 5. Relative seek -1 reaches 2. Bad/oversized seek errors preserve cursor 3 and bad offset wins over invalid origin. Base64 maxlen bad/1.5/oversized error; -1 returns line length out of range, 0 returns unwrapped YWJjZGVm and 2 returns YW\nJj\nZG\nVm. Debug bad errors and the separate state query remains 0; debug 1.5 succeeds and the state query becomes 1. Successful cases retain seeded errorCode. Exact release-specific messages/errorCode bytes remain in the raw stream. Version is attributed by the independent same-ELF 627 VERSION capture; this process prints no version.
+
+### tcl9.0
+
+Status: `observed`. Version: 9.0.4. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Independent original 627 VERSION stream joined through the same whole invoked ELF hash; 628 prints no VERSION line.. Channel: CLI unchanged probe.tcl, distinct R2286_IO_PROBE_FILE, exact written abcdef\n escape, public worker calls and hexadecimal results/errorCode; tell and separate debug state queries.. Dialect: tcl9.0.
+
+Read bad/1.5/-1/oversized errors preserve cursor 3; read 0 stays at 3 and read 2 returns de at 5. Relative seek -1 reaches 2. Bad/oversized seek errors preserve cursor 3 and bad offset wins over invalid origin. Base64 maxlen bad/1.5/oversized error; -1 returns line length out of range, 0 returns unwrapped YWJjZGVm and 2 returns YW\nJj\nZG\nVm. Debug bad errors and the separate state query remains 0; debug 1.5 succeeds and the state query becomes 1. Successful cases retain seeded errorCode. Exact release-specific messages/errorCode bytes remain in the raw stream. Version is attributed by the independent same-ELF 627 VERSION capture; this process prints no version.
+
+### tcl9.1
+
+Status: `observed`. Version: 9.1.0. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Independent original 627 VERSION stream joined through the same whole invoked ELF hash; 628 prints no VERSION line.. Channel: CLI unchanged probe.tcl, distinct R2286_IO_PROBE_FILE, exact written abcdef\n escape, public worker calls and hexadecimal results/errorCode; tell and separate debug state queries.. Dialect: tcl9.1.
+
+Read bad/1.5/-1/oversized errors preserve cursor 3; read 0 stays at 3 and read 2 returns de at 5. Relative seek -1 reaches 2. Bad/oversized seek errors preserve cursor 3 and bad offset wins over invalid origin. Base64 maxlen bad/1.5/oversized error; -1 returns line length out of range, 0 returns unwrapped YWJjZGVm and 2 returns YW\nJj\nZG\nVm. Debug bad errors and the separate state query remains 0; debug 1.5 succeeds and the state query becomes 1. Successful cases retain seeded errorCode. Exact release-specific messages/errorCode bytes remain in the raw stream. Version is attributed by the independent same-ELF 627 VERSION capture; this process prints no version.
+
+### jim
+
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Independent original 627 VERSION stream joined through the same whole invoked ELF hash; 628 prints no VERSION line.. Channel: CLI unchanged probe.tcl, distinct R2286_IO_PROBE_FILE, exact written abcdef\n escape, public worker calls and hexadecimal results/errorCode; tell and separate debug state queries.. Dialect: jim.
+
+Read bad/1.5/-1/oversized errors preserve cursor 3; read 0 stays at 3 and read 2 returns de at 5. Relative seek -1 reaches 2. Bad offset with invalid origin reports the handle seek argument error; oversized relative seek succeeds at 2. Base64 encode and child-interpreter creation are unavailable for the intended workers. Observed errorCode is NONE, including successful calls. Version is attributed by the independent same-ELF 627 VERSION capture; this process prints no version.
+
+### bigip
+
+Status: `not-tested`. Version: not tested. Build: No actual BIG-IP process for these exact operands. Channel: No appliance capture for this question. Dialect: F5 iRules.
+
+No actual BIG-IP response to these exact inputs is retained. Local C Tcl/Jim outcomes establish no BIG-IP or TMM behaviour.
+
+## Exact evidence
+
+- `original-probe` (input): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/probe.tcl](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/probe.tcl). SHA-256 `f46db0596af9b10a373d08ac9444037b4931a8805a03b32a1b43a9e1f3d911dd`. Exact original public command and post-command observation script; preserved physical source bytes.
+- `original-cases` (input): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/cases.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/cases.json). SHA-256 `f183e8739222e26bed9bbedf73d02257f444e13e5ad093dba7fd280ac490ea3f`. Exact original input declarations. The request-only status in the 628 declaration describes that retained request and supplies no outcome.
+- `original-run` (provider): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/run.py](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/run.py). SHA-256 `acc7203634cd41a63c6b8bb17c5f17f5f080b28d3b07c8786ea743e705477a4d`. Exact original invocation, environment, per-provider isolated file and before/after byte pin capture protocol. Its retained bytes do not supply build or loaded-library closure.
+- `original-results` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/results.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/results.json). SHA-256 `3e3e7da175df05fe90f62a05ab2f57937e50a5076d7491d23601ffa87ff90aa9`. Exact six independently closed original subprocess/result associations. Script catch codes remain distinct from the process exit.
+- `tcl8.4-receipt-json` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/receipt.json). SHA-256 `cb55745205ef8522fe9d12e2f5280f7f3434326c965a19c5882d79ddd403eb66`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.4-stdout` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/stdout](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/stdout). SHA-256 `60c781681b3cc208e7f29c5d3f20aef62dbfc2c30d6881172ab69a895095cadc`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.4-stderr` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/stderr](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.4.20/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.5-receipt-json` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/receipt.json). SHA-256 `1f8a021aebec174d9dcffe20ceb2be8c2ae1797bda3c95df6fcd4702f2d3aebb`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.5-stdout` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/stdout](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/stdout). SHA-256 `60be339bc23ae42924266d1d282ef352d2d5c1a6d8bb230ab4d92d1bbe55236c`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.5-stderr` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/stderr](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.5.19/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.6-receipt-json` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/receipt.json). SHA-256 `4e5e922a0c2cba2cb2ebbe5d9ad3224f296c20add78a54cc3653eb9e8315b455`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.6-stdout` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/stdout](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/stdout). SHA-256 `2167e76ddd00011a21c954ca8589c32d1e72fdcd9f69bc8057a60f481494a243`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl8.6-stderr` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/stderr](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/8.6.18/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl9.0-receipt-json` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/receipt.json). SHA-256 `700aad576066f5a9a2553f0b7ba33106a4b144daee80177be8e8051cb7b009af`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl9.0-stdout` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/stdout](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/stdout). SHA-256 `e027923261d8129b9f0f0196a22003906cd8b2a96bca8440436701f1dfe47843`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl9.0-stderr` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/stderr](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.0.4/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl9.1-receipt-json` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/receipt.json). SHA-256 `cffd99291be74b91b7d4e6403822851b8e8069c3126185ad8aea9c5718c4ea57`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl9.1-stdout` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/stdout](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/stdout). SHA-256 `e027923261d8129b9f0f0196a22003906cd8b2a96bca8440436701f1dfe47843`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `tcl9.1-stderr` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/stderr](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/9.1.0/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `jim-receipt-json` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/receipt.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/receipt.json). SHA-256 `35f5993ae5bb82c24c12860fd8e56b5bbd8dd6cc384fb5491eaf6324f4f7beb5`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `jim-stdout` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stdout](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stdout). SHA-256 `b2f396a1742b51845746cfcbf8f3f5b30ee79a62914c8b53248a325c88b5e4a1`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `jim-stderr` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stderr](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
+- `exact-provider-input-retention` (provider): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/provider-retention.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/provider-retention.json). SHA-256 `d34ecbe00ef936c6da5ec69b2de39567486ee28e0b538962f8607e35e81c1252`. Each original before/after executable/probe/library pin joins exact existing full payload bytes. Version-source provenance remains explicit; no C/Jim source or loaded-library closure is implied.
+- `independent-projection` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/interpretation.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/interpretation.json). SHA-256 `0598ee7176a46ff51d54abfdb2663f702ababa58de8593bc4392717ac7b4427c`. Exact counted raw-line byte joins and separate public result/effect fields, reviewed without executing a provider.
+
+## Source inspection
+
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+
+## Consumer bindings
+
+No implementation binding is claimed by this observation record.
+
+A named test is a coverage binding, not a claim that it executed.
+
+## Replay
+
+Recorded argument vector:
+
+```json
+[
+  "python3",
+  "runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/run.py"
+]
+```
+
+The exact original runner refuses to replace results.json and expects its original absolute provider/library paths. Restore and verify the declared payload bytes, use a separate fresh output root, and retain any new process evidence separately. For 628 supply a distinct owned disposable R2286_IO_PROBE_FILE for each provider; it is deleted by the unchanged probe. Version attribution must retain its explicit capture source. Full provider build and loaded-library replay are unrecorded. The preserved runner has no implementation-source build closure or original Native object authority.
+
+## Input and observation geometry
+
+The probe file is ASCII with physical LF line endings. Its quoted `"abcdef\n"` contains a written backslash followed by `n`, and produces a runtime LF; the data file bytes are `6162636465660a`. Count, offset and maxlen operands are exactly `bad`, `1.5`, `-1`, `0`, `2` and `18446744073709551616`. Seek origins are omitted, `start` and `current`; the combined error case is offset `bad` with `invalid-origin`. Debug operands are `bad`, `1.5`, `false`, `true`, `0` and `1`, each with a fresh child interpreter where that public child API is available.
+
+Every operation resets `errorCode` to `R2286 SEEDED` before catch. An unchanged seeded value on success is an observation of this probe, not a new error. Jim reports `NONE` even for successful read/seek calls. Channel-dependent names and Jim file paths in errors are retained exactly; they are not normalised into provider-independent messages. The debug report's `BEFORE 0 AFTER 0` fields come from supplied constants and establish no state transition. Only the following `debug-frame-state` row reports actual debug state.

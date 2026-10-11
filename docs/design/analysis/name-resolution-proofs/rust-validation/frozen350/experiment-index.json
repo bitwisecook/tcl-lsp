@@ -1,0 +1,2366 @@
+{
+  "kind": "Actual owning Core350 producer, inventory and exact 14 software selections",
+  "frozen_source_head": "6f64baff44ce87fd2f2ecc4cd747424b73b517ba",
+  "frozen_source_snapshot_sha256": "f9e60240446b4c79ee2e63ff66bc608d6b4136df7132d46e42e9cef4981f15e4",
+  "source_leaf_count": 39795,
+  "owned_image": {
+    "original_pin": {
+      "executable": "/workspace/.pins/naming-owned350/pinned-core350.elf",
+      "sha256": "1110a8023621cf852c8ee8b68cd8e20a70bca24bde6a8acf5591111bcaf813f0",
+      "size": 174861280,
+      "package": "tcl-lsp-core",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_lsp_core",
+        "src_path": "/workspace/.checkpoints/naming-current-validation350/rust/tcl-lsp-core/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "features": [],
+      "cargo_artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/.checkpoints/naming-current-validation350/rust/tcl-lsp-core#0.1.0",
+        "manifest_path": "/workspace/.checkpoints/naming-current-validation350/rust/tcl-lsp-core/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_lsp_core",
+          "src_path": "/workspace/.checkpoints/naming-current-validation350/rust/tcl-lsp-core/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": true
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_lsp_core-ff8efa1ff2b55103"
+        ],
+        "executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "fresh": false
+      },
+      "original_path": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+      "original_stat": {
+        "st_dev": 27,
+        "st_ino": 552717,
+        "st_mode": 33216,
+        "st_size": 174861280,
+        "st_nlink": 1,
+        "st_mtime_ns": 1791731729485656985,
+        "st_ctime_ns": 1791731729505656831
+      },
+      "sealed_stat": {
+        "st_dev": 27,
+        "st_ino": 552717,
+        "st_mode": 33216,
+        "st_size": 174861280,
+        "st_nlink": 1,
+        "st_mtime_ns": 1791731729485656985,
+        "st_ctime_ns": 1791731806862931033
+      },
+      "build_receipt": "/workspace/.proofs/integration-core-own-test-build350b.json",
+      "build_receipt_sha256": "754ded9743aa13e6ad1f0330e1b7630a37f701e47d5ce7e67b65c91aadf85842",
+      "source_snapshot": "/workspace/.checkpoints/naming350/snapshot.json",
+      "source_snapshot_sha256": "f9e60240446b4c79ee2e63ff66bc608d6b4136df7132d46e42e9cef4981f15e4",
+      "storage_rule": "The exact own-target Cargo-emitted ELF is sealed by same-filesystem rename retaining its inode and all full bytes. Permission mode is set to 0700. No dependency executable or stale/list-only target supplies ownership or assertion credit."
+    },
+    "retention": {
+      "original_path": "/workspace/.pins/naming-owned350/pinned-core350.elf",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/sealed-own-images/pinned-core350.elf.gz",
+      "whole_original_sha256": "1110a8023621cf852c8ee8b68cd8e20a70bca24bde6a8acf5591111bcaf813f0",
+      "whole_original_bytes": 174861280,
+      "retained_sha256": "3e31d8fafb9675c27fe515769f717627d9c81f7d0656e29d7ba3f19ee3a7f7b2",
+      "retained_bytes": 31872304,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 448,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 552717,
+        "device": 27,
+        "mtime_ns": 1791731729485656985
+      },
+      "original_bytes_unchanged": true
+    }
+  },
+  "operations": [
+    {
+      "label": "integration-compiler-core-own-test-build350",
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "/workspace/.checkpoints/naming-current-validation350/Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-lsp-core",
+        "--lib",
+        "--no-run",
+        "--locked",
+        "--offline",
+        "--message-format=json",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean"
+      ],
+      "exit": 101,
+      "seconds": 255.3280786559917,
+      "uniform_source_reported": true,
+      "source_snapshot_sha256": "f9e60240446b4c79ee2e63ff66bc608d6b4136df7132d46e42e9cef4981f15e4",
+      "receipt": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-compiler-core-own-test-build350/receipt.json.gz",
+      "receipt_sha256": "27dbb720f145dba18c30e41b1b9419028861c4add8bc7b84ef43d6b7b45c9367",
+      "whole_receipt_sha256": "bf6fc85e05373a83ffefd2f42c2860507b78f9ab3ae7cc30432e2edfa0303075",
+      "log": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-compiler-core-own-test-build350/stdout-stderr.log",
+      "log_sha256": "10531fe7d989238e7a3a14cf1fde2e689fb3b5c1bc7cdabde670d17803efe396",
+      "receipt_summaries": []
+    },
+    {
+      "label": "integration-core-own-test-build350b",
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "/workspace/.checkpoints/naming-current-validation350/Cargo.toml",
+        "-p",
+        "tcl-lsp-core",
+        "--lib",
+        "--no-run",
+        "--locked",
+        "--offline",
+        "--message-format=json",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean"
+      ],
+      "exit": 0,
+      "seconds": 141.07444472803036,
+      "uniform_source_reported": true,
+      "source_snapshot_sha256": "f9e60240446b4c79ee2e63ff66bc608d6b4136df7132d46e42e9cef4981f15e4",
+      "receipt": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-test-build350b/receipt.json.gz",
+      "receipt_sha256": "14f1078a415cfd66624f65e831e676a2c63536f0d72b414e971d6d2385a1a725",
+      "whole_receipt_sha256": "754ded9743aa13e6ad1f0330e1b7630a37f701e47d5ce7e67b65c91aadf85842",
+      "log": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-test-build350b/stdout-stderr.log",
+      "log_sha256": "10691e890bcd857ec9baf271e67770110aada32e54ad752ab8eb82a5dec90a23",
+      "receipt_summaries": []
+    },
+    {
+      "label": "integration-core-own-list350",
+      "command": [
+        "/workspace/.pins/naming-owned350/pinned-core350.elf",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "exit": 0,
+      "seconds": 0.01910653500817716,
+      "uniform_source_reported": true,
+      "source_snapshot_sha256": "f9e60240446b4c79ee2e63ff66bc608d6b4136df7132d46e42e9cef4981f15e4",
+      "receipt": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-list350/receipt.json.gz",
+      "receipt_sha256": "6c08166dfcbf094efdd1363bdc72e342a94a107eb99bfcec4b8e02503f7cd251",
+      "whole_receipt_sha256": "700354fbb8d7e0e6b90d9bb06e62940a120408a228fe3a7844975df5abc377cd",
+      "log": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-list350/stdout-stderr.log",
+      "log_sha256": "e28ccec6ae64504f1d2ad20e17cc833b678d034de4be905c200c8dc3b215092b",
+      "receipt_summaries": []
+    },
+    {
+      "label": "integration-core-consumer-tests350",
+      "command": [
+        "/workspace/.pins/naming-owned350/pinned-core350.elf",
+        "--test-threads=1",
+        "--nocapture",
+        "--exact",
+        "caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes",
+        "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
+        "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+        "executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates",
+        "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+        "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+        "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+        "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+        "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+        "package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom",
+        "package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue",
+        "package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry",
+        "refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence",
+        "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config"
+      ],
+      "exit": 0,
+      "seconds": 11.093641012033913,
+      "uniform_source_reported": true,
+      "source_snapshot_sha256": "f9e60240446b4c79ee2e63ff66bc608d6b4136df7132d46e42e9cef4981f15e4",
+      "receipt": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-consumer-tests350/receipt.json.gz",
+      "receipt_sha256": "4bf3d2ce6dde70d7f97fd7f10814e73339ee7ebc130f6c903063eebdb7c1802f",
+      "whole_receipt_sha256": "1eba6c70f2b86e8aa820b3208e63a8afd0a389c1fa2a32e75364da84c636fe9b",
+      "log": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-consumer-tests350/stdout-stderr.log",
+      "log_sha256": "0b06ffd862ca3f381a6578b523ec0a2d71babb43ae4d077ac9c91dac1f131408",
+      "receipt_summaries": [
+        "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 2953 filtered out; finished in 10.84s"
+      ]
+    }
+  ],
+  "inventory_count": 2967,
+  "admission": {
+    "original_path": "/workspace/.proofs/core-consumer-admission350.json",
+    "sha256": "7c5862289d67f2a000c9bf4636166aae4b4f10f815e9cf5891fb71a429de5b24",
+    "selected_count": 14,
+    "request_retention": [
+      {
+        "original_path": "/workspace/.proofs/grammar-owner-validation-current525-final/tcl-lsp-core-lib.json",
+        "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selections/original-request.json",
+        "whole_original_sha256": "9139c605c90aef36e2fb8a123af1c3dd82fcc55cfc8d9043d8f8fd1a486139d6",
+        "whole_original_bytes": 12991,
+        "retained_sha256": "9139c605c90aef36e2fb8a123af1c3dd82fcc55cfc8d9043d8f8fd1a486139d6",
+        "retained_bytes": 12991,
+        "encoding": "unchanged bytes",
+        "full_roundtrip": true,
+        "observed_original_stat": {
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "nlink": 1,
+          "inode": 548766,
+          "device": 27,
+          "mtime_ns": 1791724078104246352
+        },
+        "original_bytes_unchanged": true
+      },
+      {
+        "original_path": "/workspace/.proofs/root-editor-name-consumers400/manifest.json",
+        "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selections/original-additional-root-editor-packet.json",
+        "whole_original_sha256": "f138c45bb8e0396de736f402f2bdb82b6dfd9611fbcda9e1f5662c00bd2caaf8",
+        "whole_original_bytes": 1788,
+        "retained_sha256": "f138c45bb8e0396de736f402f2bdb82b6dfd9611fbcda9e1f5662c00bd2caaf8",
+        "retained_bytes": 1788,
+        "encoding": "unchanged bytes",
+        "full_roundtrip": true,
+        "observed_original_stat": {
+          "mode": 384,
+          "uid": 1000,
+          "gid": 1000,
+          "nlink": 1,
+          "inode": 548113,
+          "device": 27,
+          "mtime_ns": 1791722650654522081
+        },
+        "original_bytes_unchanged": true
+      }
+    ]
+  },
+  "assertions": {
+    "process_exit": 0,
+    "selected": 14,
+    "passed": 14,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 2953,
+    "harness_summary": "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 2953 filtered out; finished in 10.84s",
+    "outcomes": [
+      {
+        "selector": "caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes",
+        "outcome": "passed",
+        "raw_start_byte": 18,
+        "raw_end_byte": 156
+      },
+      {
+        "selector": "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
+        "outcome": "passed",
+        "raw_start_byte": 157,
+        "raw_end_byte": 246
+      },
+      {
+        "selector": "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+        "outcome": "passed",
+        "raw_start_byte": 247,
+        "raw_end_byte": 393
+      },
+      {
+        "selector": "executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates",
+        "outcome": "passed",
+        "raw_start_byte": 394,
+        "raw_end_byte": 547
+      },
+      {
+        "selector": "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+        "outcome": "passed",
+        "raw_start_byte": 548,
+        "raw_end_byte": 663
+      },
+      {
+        "selector": "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+        "outcome": "passed",
+        "raw_start_byte": 664,
+        "raw_end_byte": 769
+      },
+      {
+        "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+        "outcome": "passed",
+        "raw_start_byte": 770,
+        "raw_end_byte": 874
+      },
+      {
+        "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+        "outcome": "passed",
+        "raw_start_byte": 875,
+        "raw_end_byte": 974
+      },
+      {
+        "selector": "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+        "outcome": "passed",
+        "raw_start_byte": 975,
+        "raw_end_byte": 1077
+      },
+      {
+        "selector": "package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom",
+        "outcome": "passed",
+        "raw_start_byte": 1078,
+        "raw_end_byte": 1238
+      },
+      {
+        "selector": "package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue",
+        "outcome": "passed",
+        "raw_start_byte": 1239,
+        "raw_end_byte": 1396
+      },
+      {
+        "selector": "package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry",
+        "outcome": "passed",
+        "raw_start_byte": 1397,
+        "raw_end_byte": 1559
+      },
+      {
+        "selector": "refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence",
+        "outcome": "passed",
+        "raw_start_byte": 1560,
+        "raw_end_byte": 1701
+      },
+      {
+        "selector": "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config",
+        "outcome": "passed",
+        "raw_start_byte": 1702,
+        "raw_end_byte": 1836
+      }
+    ]
+  },
+  "source_body_correspondence": [
+    {
+      "selector": "caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes",
+      "outcome": "passed",
+      "raw_start_byte": 18,
+      "raw_end_byte": 156,
+      "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_sha256": "9acf761b630c8aab84b7232f998b276f1f11f8867542c8d03954b8b38a498cb0",
+      "source_definition_line": 2263,
+      "body_sha256": "66b24b0c46e3fce7d728503d0286009dc8847476ce7e41d62106a21a9af20b0b",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 48,
+          "module": "caller_frame",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/caller_frame.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+          "line": 2259,
+          "module": "original_binding_region_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/caller_frame.rs.gz",
+        "compressed_sha256": "fb25d695b7bc8bcca4e84fde6bbc8f425c77130be10678afc9de0771dee0e9e4",
+        "whole_source_sha256": "f27182baa0464af6955e2686feefecbc818f1e09b60db65241a38e2ec383ebd0",
+        "body_sha256": "66b24b0c46e3fce7d728503d0286009dc8847476ce7e41d62106a21a9af20b0b",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 157,
+      "raw_end_byte": 246,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "source_sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+      "source_definition_line": 3389,
+      "body_sha256": "6ee280b5eff259b053b51efa184434ed1c8409e0d02d3e2bdcbc65f6ba19adef",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.core.original-package-source-action-context",
+          "document": "docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 49,
+          "module": "code_actions",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/code_actions.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "line": 2672,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/code_actions.rs.gz",
+        "compressed_sha256": "1c394ebcd9e5dc753b74a730141c9ac8f917be89d9baf8983d9151fff0f17076",
+        "whole_source_sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+        "body_sha256": "6ee280b5eff259b053b51efa184434ed1c8409e0d02d3e2bdcbc65f6ba19adef",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 247,
+      "raw_end_byte": 393,
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_sha256": "cfc433a74bf3edd1fcfcda8a6bc8e9f28e7dd71cad4e8dd31707591449835fda",
+      "source_definition_line": 1144,
+      "body_sha256": "90b2654f8acfa529c0981ba4aa62e7c6279ea78ce671e69656bd534bb7a68061",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 53,
+          "module": "declaration",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/declaration.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/declaration.rs",
+          "line": 1140,
+          "module": "original_declaration_region_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/declaration.rs.gz",
+        "compressed_sha256": "b4eac56b04674f31547c31346496923dee6ec3ffd7632fd9e201137ecde00bae",
+        "whole_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+        "body_sha256": "90b2654f8acfa529c0981ba4aa62e7c6279ea78ce671e69656bd534bb7a68061",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates",
+      "outcome": "passed",
+      "raw_start_byte": 394,
+      "raw_end_byte": 547,
+      "path": "rust/tcl-lsp-core/src/executable_regions.rs",
+      "source_sha256": "6ad6d645f56077e0c40bfc9cb3fb82e37a07d9519eed247f629bed2911526d3e",
+      "source_definition_line": 1121,
+      "body_sha256": "a66ef75a31eab801c182256dc18d3062c55966ad23c9c3159f2eb9fe82cb55ef",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.core.original-executable-region-context",
+          "document": "docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 62,
+          "module": "executable_regions",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/executable_regions.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/executable_regions.rs",
+          "line": 1117,
+          "module": "original_compound_region_parser_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/executable_regions.rs.gz",
+        "compressed_sha256": "12a80797d9622db94e22612e050012499c6876ec3a43f578296636960981333b",
+        "whole_source_sha256": "6ad6d645f56077e0c40bfc9cb3fb82e37a07d9519eed247f629bed2911526d3e",
+        "body_sha256": "a66ef75a31eab801c182256dc18d3062c55966ad23c9c3159f2eb9fe82cb55ef",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "outcome": "passed",
+      "raw_start_byte": 548,
+      "raw_end_byte": 663,
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+      "source_definition_line": 2480,
+      "body_sha256": "f0898b6530eaf76476cae01fdfc22d1c17ee9b68989f338f81426015b050b844",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 51,
+          "module": "engine",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/engine.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+          "line": 2476,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/engine.rs.gz",
+        "compressed_sha256": "0fb9f9a5a4e97c0b435b0e0547d384ed1360f3767d1b6e2d83829affdec4ac94",
+        "whole_source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "body_sha256": "f0898b6530eaf76476cae01fdfc22d1c17ee9b68989f338f81426015b050b844",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+      "outcome": "passed",
+      "raw_start_byte": 664,
+      "raw_end_byte": 769,
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+      "source_definition_line": 2533,
+      "body_sha256": "55e4129af4711a7a77c5d3320a8de97de2ca086fa3973346a4b62a16c0eac974",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.editor.original-source-whitespace-geometry",
+          "document": "docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 51,
+          "module": "engine",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/engine.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+          "line": 2476,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/engine.rs.gz",
+        "compressed_sha256": "0fb9f9a5a4e97c0b435b0e0547d384ed1360f3767d1b6e2d83829affdec4ac94",
+        "whole_source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "body_sha256": "55e4129af4711a7a77c5d3320a8de97de2ca086fa3973346a4b62a16c0eac974",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+      "outcome": "passed",
+      "raw_start_byte": 770,
+      "raw_end_byte": 874,
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "source_definition_line": 589,
+      "body_sha256": "4e005c3c3e30cd872b9cedcaab95f46f3ec3b2edacf847c1b889b74692ac04f4",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.editor.original-source-formatting",
+          "document": "docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 420,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/mod.rs.gz",
+        "compressed_sha256": "7b15ceea0c7fb0a3c960559297b9b94f3894b886293e6930280bd3dd8c4173b0",
+        "whole_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+        "body_sha256": "4e005c3c3e30cd872b9cedcaab95f46f3ec3b2edacf847c1b889b74692ac04f4",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 875,
+      "raw_end_byte": 974,
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "source_definition_line": 568,
+      "body_sha256": "af1f9ed355b8d126671151f11e1f600017f588b35756e24a7740514e7177b53e",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.editor.original-source-formatting",
+          "document": "docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 420,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/mod.rs.gz",
+        "compressed_sha256": "7b15ceea0c7fb0a3c960559297b9b94f3894b886293e6930280bd3dd8c4173b0",
+        "whole_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+        "body_sha256": "af1f9ed355b8d126671151f11e1f600017f588b35756e24a7740514e7177b53e",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "outcome": "passed",
+      "raw_start_byte": 975,
+      "raw_end_byte": 1077,
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "source_sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+      "source_definition_line": 3565,
+      "body_sha256": "31a04791f50e9fd2ec497fd776ef5a490e3ad832723286e7923f440b8bcd247c",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 78,
+          "module": "minify",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/minify.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "line": 3561,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/minify.rs.gz",
+        "compressed_sha256": "91a9a84bae1b99353440096a4fc932e756939a302f49d1b684c296d0f7c6d95d",
+        "whole_source_sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+        "body_sha256": "31a04791f50e9fd2ec497fd776ef5a490e3ad832723286e7923f440b8bcd247c",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom",
+      "outcome": "passed",
+      "raw_start_byte": 1078,
+      "raw_end_byte": 1238,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+      "source_definition_line": 1219,
+      "body_sha256": "4c07de37572cb55ddc261acaeaa72e545ce78aa39d80f9154ffb0dc41a3e64db",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.package.original-reachability-source-controls",
+          "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 93,
+          "module": "package_resolver",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+          "line": 1307,
+          "module": "original_names",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 1215,
+          "module": "original_filename_parser_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/original_names.rs.gz",
+        "compressed_sha256": "933a38892d0016e0e1b4605ea001d40682ffa959482c6ecdf50fa13f4f1e09e6",
+        "whole_source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+        "body_sha256": "4c07de37572cb55ddc261acaeaa72e545ce78aa39d80f9154ffb0dc41a3e64db",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue",
+      "outcome": "passed",
+      "raw_start_byte": 1239,
+      "raw_end_byte": 1396,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+      "source_definition_line": 1175,
+      "body_sha256": "6c98e1137daedd32960d690d4db2af8709bd4ae57405196a253b9b8476934fd0",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.package.original-reachability-source-controls",
+          "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 93,
+          "module": "package_resolver",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+          "line": 1307,
+          "module": "original_names",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 1171,
+          "module": "original_index_body_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/original_names.rs.gz",
+        "compressed_sha256": "933a38892d0016e0e1b4605ea001d40682ffa959482c6ecdf50fa13f4f1e09e6",
+        "whole_source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+        "body_sha256": "6c98e1137daedd32960d690d4db2af8709bd4ae57405196a253b9b8476934fd0",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 1397,
+      "raw_end_byte": 1559,
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "source_sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+      "source_definition_line": 450,
+      "body_sha256": "ddbf955339e640b58ebddd01981e0db0822c63006dea00105fc534bcfa53de26",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.package.original-reachability-source-controls",
+          "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 93,
+          "module": "package_resolver",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+          "line": 1308,
+          "module": "reachability",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "line": 121,
+          "module": "original",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 446,
+          "module": "original_package_region_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/reachability/original.rs.gz",
+        "compressed_sha256": "cb7f3494700c4ec9bf501ec9693ac03f31e3a1af680ef484a7b28ae0cae182a6",
+        "whole_source_sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+        "body_sha256": "ddbf955339e640b58ebddd01981e0db0822c63006dea00105fc534bcfa53de26",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence",
+      "outcome": "passed",
+      "raw_start_byte": 1560,
+      "raw_end_byte": 1701,
+      "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "source_sha256": "d073ddf8eb73d95abd3cd4c6308b2004193ba94e1246afc4f1a151951c74e4a6",
+      "source_definition_line": 1529,
+      "body_sha256": "2a624d97f4cfbda724836095293c90470185d7f7848c08933aa5e0b2489d2ffb",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.refactor.original-procedure-inline-binding",
+          "document": "docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 96,
+          "module": "refactor",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/refactor/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/mod.rs",
+          "line": 58,
+          "module": "inline_proc",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+          "line": 1525,
+          "module": "original_inline_body_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/refactor/inline_proc.rs.gz",
+        "compressed_sha256": "75e88658d54cb2e77c956e95c06b98a449c989583778a18fe84156bd70b297c3",
+        "whole_source_sha256": "d073ddf8eb73d95abd3cd4c6308b2004193ba94e1246afc4f1a151951c74e4a6",
+        "body_sha256": "2a624d97f4cfbda724836095293c90470185d7f7848c08933aa5e0b2489d2ffb",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    },
+    {
+      "selector": "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config",
+      "outcome": "passed",
+      "raw_start_byte": 1702,
+      "raw_end_byte": 1836,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "source_sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+      "source_definition_line": 8129,
+      "body_sha256": "3996f5bf63a7a8965216753e7335e2ffcf823a009d4786ad4ff6cab9b7b42aa5",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.core.original-dispatch-region-context",
+          "document": "docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 97,
+          "module": "references",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/references.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "line": 8125,
+          "module": "original_dispatch_parser_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/references.rs.gz",
+        "compressed_sha256": "2afd36f467d96a01eb0dd20f06287f7eea61f921a89da0827668c2c219f6e463",
+        "whole_source_sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+        "body_sha256": "3996f5bf63a7a8965216753e7335e2ffcf823a009d4786ad4ff6cab9b7b42aa5",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      }
+    }
+  ],
+  "exact_question_body_pairs": [
+    {
+      "selector": "caller_frame::original_binding_region_purpose_tests::original_binding_regions_keep_selected_frame_body_and_whole_file_purposes",
+      "outcome": "passed",
+      "raw_start_byte": 18,
+      "raw_end_byte": 156,
+      "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "source_sha256": "9acf761b630c8aab84b7232f998b276f1f11f8867542c8d03954b8b38a498cb0",
+      "source_definition_line": 2263,
+      "body_sha256": "66b24b0c46e3fce7d728503d0286009dc8847476ce7e41d62106a21a9af20b0b",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 48,
+          "module": "caller_frame",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/caller_frame.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+          "line": 2259,
+          "module": "original_binding_region_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/caller_frame.rs.gz",
+        "compressed_sha256": "fb25d695b7bc8bcca4e84fde6bbc8f425c77130be10678afc9de0771dee0e9e4",
+        "whole_source_sha256": "f27182baa0464af6955e2686feefecbc818f1e09b60db65241a38e2ec383ebd0",
+        "body_sha256": "66b24b0c46e3fce7d728503d0286009dc8847476ce7e41d62106a21a9af20b0b",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.source.original-configured-script-completeness",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+    },
+    {
+      "selector": "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 157,
+      "raw_end_byte": 246,
+      "path": "rust/tcl-lsp-core/src/code_actions.rs",
+      "source_sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+      "source_definition_line": 3389,
+      "body_sha256": "6ee280b5eff259b053b51efa184434ed1c8409e0d02d3e2bdcbc65f6ba19adef",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.core.original-package-source-action-context",
+          "document": "docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 49,
+          "module": "code_actions",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/code_actions.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "line": 2672,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/code_actions.rs.gz",
+        "compressed_sha256": "1c394ebcd9e5dc753b74a730141c9ac8f917be89d9baf8983d9151fff0f17076",
+        "whole_source_sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+        "body_sha256": "6ee280b5eff259b053b51efa184434ed1c8409e0d02d3e2bdcbc65f6ba19adef",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.core.original-package-source-action-context",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md"
+    },
+    {
+      "selector": "declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 247,
+      "raw_end_byte": 393,
+      "path": "rust/tcl-lsp-core/src/declaration.rs",
+      "source_sha256": "cfc433a74bf3edd1fcfcda8a6bc8e9f28e7dd71cad4e8dd31707591449835fda",
+      "source_definition_line": 1144,
+      "body_sha256": "90b2654f8acfa529c0981ba4aa62e7c6279ea78ce671e69656bd534bb7a68061",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 53,
+          "module": "declaration",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/declaration.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/declaration.rs",
+          "line": 1140,
+          "module": "original_declaration_region_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/declaration.rs.gz",
+        "compressed_sha256": "b4eac56b04674f31547c31346496923dee6ec3ffd7632fd9e201137ecde00bae",
+        "whole_source_sha256": "015b2f41a443ab7b91fda07ef054516316d355ec16411cbd38f0ec50b0f62134",
+        "body_sha256": "90b2654f8acfa529c0981ba4aa62e7c6279ea78ce671e69656bd534bb7a68061",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.source.original-configured-script-completeness",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+    },
+    {
+      "selector": "executable_regions::original_compound_region_parser_purpose_tests::original_compound_operand_keeps_bom_comment_boundary_and_child_coordinates",
+      "outcome": "passed",
+      "raw_start_byte": 394,
+      "raw_end_byte": 547,
+      "path": "rust/tcl-lsp-core/src/executable_regions.rs",
+      "source_sha256": "6ad6d645f56077e0c40bfc9cb3fb82e37a07d9519eed247f629bed2911526d3e",
+      "source_definition_line": 1121,
+      "body_sha256": "a66ef75a31eab801c182256dc18d3062c55966ad23c9c3159f2eb9fe82cb55ef",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.core.original-executable-region-context",
+          "document": "docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 62,
+          "module": "executable_regions",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/executable_regions.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/executable_regions.rs",
+          "line": 1117,
+          "module": "original_compound_region_parser_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/executable_regions.rs.gz",
+        "compressed_sha256": "12a80797d9622db94e22612e050012499c6876ec3a43f578296636960981333b",
+        "whole_source_sha256": "6ad6d645f56077e0c40bfc9cb3fb82e37a07d9519eed247f629bed2911526d3e",
+        "body_sha256": "a66ef75a31eab801c182256dc18d3062c55966ad23c9c3159f2eb9fe82cb55ef",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.core.original-executable-region-context",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-executable-region-context.md"
+    },
+    {
+      "selector": "formatting::engine::tests::original_formatter_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "outcome": "passed",
+      "raw_start_byte": 548,
+      "raw_end_byte": 663,
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+      "source_definition_line": 2480,
+      "body_sha256": "f0898b6530eaf76476cae01fdfc22d1c17ee9b68989f338f81426015b050b844",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 51,
+          "module": "engine",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/engine.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+          "line": 2476,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/engine.rs.gz",
+        "compressed_sha256": "0fb9f9a5a4e97c0b435b0e0547d384ed1360f3767d1b6e2d83829affdec4ac94",
+        "whole_source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "body_sha256": "f0898b6530eaf76476cae01fdfc22d1c17ee9b68989f338f81426015b050b844",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.source.original-configured-script-completeness",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+    },
+    {
+      "selector": "formatting::engine::tests::original_formatter_range_uses_the_selected_script_prologue_purpose",
+      "outcome": "passed",
+      "raw_start_byte": 664,
+      "raw_end_byte": 769,
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+      "source_definition_line": 2533,
+      "body_sha256": "55e4129af4711a7a77c5d3320a8de97de2ca086fa3973346a4b62a16c0eac974",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.editor.original-source-whitespace-geometry",
+          "document": "docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 51,
+          "module": "engine",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/engine.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+          "line": 2476,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/engine.rs.gz",
+        "compressed_sha256": "0fb9f9a5a4e97c0b435b0e0547d384ed1360f3767d1b6e2d83829affdec4ac94",
+        "whole_source_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+        "body_sha256": "55e4129af4711a7a77c5d3320a8de97de2ca086fa3973346a4b62a16c0eac974",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.editor.original-source-whitespace-geometry",
+      "document": "docs/design/analysis/name-resolution-proofs/original-source-whitespace-geometry.md"
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias",
+      "outcome": "passed",
+      "raw_start_byte": 770,
+      "raw_end_byte": 874,
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "source_definition_line": 589,
+      "body_sha256": "4e005c3c3e30cd872b9cedcaab95f46f3ec3b2edacf847c1b889b74692ac04f4",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.editor.original-source-formatting",
+          "document": "docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 420,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/mod.rs.gz",
+        "compressed_sha256": "7b15ceea0c7fb0a3c960559297b9b94f3894b886293e6930280bd3dd8c4173b0",
+        "whole_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+        "body_sha256": "4e005c3c3e30cd872b9cedcaab95f46f3ec3b2edacf847c1b889b74692ac04f4",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.editor.original-source-formatting",
+      "document": "docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md"
+    },
+    {
+      "selector": "formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 875,
+      "raw_end_byte": 974,
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "source_definition_line": 568,
+      "body_sha256": "af1f9ed355b8d126671151f11e1f600017f588b35756e24a7740514e7177b53e",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.editor.original-source-formatting",
+          "document": "docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 66,
+          "module": "formatting",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/formatting/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+          "line": 420,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/formatting/mod.rs.gz",
+        "compressed_sha256": "7b15ceea0c7fb0a3c960559297b9b94f3894b886293e6930280bd3dd8c4173b0",
+        "whole_source_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+        "body_sha256": "af1f9ed355b8d126671151f11e1f600017f588b35756e24a7740514e7177b53e",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.editor.original-source-formatting",
+      "document": "docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md"
+    },
+    {
+      "selector": "minify::tests::original_minifier_body_parsing_keeps_bom_content_and_complete_parent_config",
+      "outcome": "passed",
+      "raw_start_byte": 975,
+      "raw_end_byte": 1077,
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "source_sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+      "source_definition_line": 3565,
+      "body_sha256": "31a04791f50e9fd2ec497fd776ef5a490e3ad832723286e7923f440b8bcd247c",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.source.original-configured-script-completeness",
+          "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 78,
+          "module": "minify",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/minify.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "line": 3561,
+          "module": "tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/minify.rs.gz",
+        "compressed_sha256": "91a9a84bae1b99353440096a4fc932e756939a302f49d1b684c296d0f7c6d95d",
+        "whole_source_sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+        "body_sha256": "31a04791f50e9fd2ec497fd776ef5a490e3ad832723286e7923f440b8bcd247c",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.source.original-configured-script-completeness",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md"
+    },
+    {
+      "selector": "package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom",
+      "outcome": "passed",
+      "raw_start_byte": 1078,
+      "raw_end_byte": 1238,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+      "source_definition_line": 1219,
+      "body_sha256": "4c07de37572cb55ddc261acaeaa72e545ce78aa39d80f9154ffb0dc41a3e64db",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.package.original-reachability-source-controls",
+          "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 93,
+          "module": "package_resolver",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+          "line": 1307,
+          "module": "original_names",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 1215,
+          "module": "original_filename_parser_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/original_names.rs.gz",
+        "compressed_sha256": "933a38892d0016e0e1b4605ea001d40682ffa959482c6ecdf50fa13f4f1e09e6",
+        "whole_source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+        "body_sha256": "4c07de37572cb55ddc261acaeaa72e545ce78aa39d80f9154ffb0dc41a3e64db",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.package.original-reachability-source-controls",
+      "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+    },
+    {
+      "selector": "package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue",
+      "outcome": "passed",
+      "raw_start_byte": 1239,
+      "raw_end_byte": 1396,
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+      "source_definition_line": 1175,
+      "body_sha256": "6c98e1137daedd32960d690d4db2af8709bd4ae57405196a253b9b8476934fd0",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.package.original-reachability-source-controls",
+          "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 93,
+          "module": "package_resolver",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+          "line": 1307,
+          "module": "original_names",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 1171,
+          "module": "original_index_body_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/original_names.rs.gz",
+        "compressed_sha256": "933a38892d0016e0e1b4605ea001d40682ffa959482c6ecdf50fa13f4f1e09e6",
+        "whole_source_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+        "body_sha256": "6c98e1137daedd32960d690d4db2af8709bd4ae57405196a253b9b8476934fd0",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.package.original-reachability-source-controls",
+      "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+    },
+    {
+      "selector": "package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry",
+      "outcome": "passed",
+      "raw_start_byte": 1397,
+      "raw_end_byte": 1559,
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "source_sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+      "source_definition_line": 450,
+      "body_sha256": "ddbf955339e640b58ebddd01981e0db0822c63006dea00105fc534bcfa53de26",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.package.original-reachability-source-controls",
+          "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 93,
+          "module": "package_resolver",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+          "line": 1308,
+          "module": "reachability",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "line": 121,
+          "module": "original",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 446,
+          "module": "original_package_region_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/reachability/original.rs.gz",
+        "compressed_sha256": "cb7f3494700c4ec9bf501ec9693ac03f31e3a1af680ef484a7b28ae0cae182a6",
+        "whole_source_sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+        "body_sha256": "ddbf955339e640b58ebddd01981e0db0822c63006dea00105fc534bcfa53de26",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.package.original-reachability-source-controls",
+      "document": "docs/design/analysis/name-resolution-proofs/original-package-reachability-source-controls.md"
+    },
+    {
+      "selector": "refactor::inline_proc::original_inline_body_purpose_tests::original_inline_body_keeps_bom_head_and_retained_parent_correspondence",
+      "outcome": "passed",
+      "raw_start_byte": 1560,
+      "raw_end_byte": 1701,
+      "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "source_sha256": "d073ddf8eb73d95abd3cd4c6308b2004193ba94e1246afc4f1a151951c74e4a6",
+      "source_definition_line": 1529,
+      "body_sha256": "2a624d97f4cfbda724836095293c90470185d7f7848c08933aa5e0b2489d2ffb",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.refactor.original-procedure-inline-binding",
+          "document": "docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 96,
+          "module": "refactor",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/refactor/mod.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/mod.rs",
+          "line": 58,
+          "module": "inline_proc",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+          "line": 1525,
+          "module": "original_inline_body_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/refactor/inline_proc.rs.gz",
+        "compressed_sha256": "75e88658d54cb2e77c956e95c06b98a449c989583778a18fe84156bd70b297c3",
+        "whole_source_sha256": "d073ddf8eb73d95abd3cd4c6308b2004193ba94e1246afc4f1a151951c74e4a6",
+        "body_sha256": "2a624d97f4cfbda724836095293c90470185d7f7848c08933aa5e0b2489d2ffb",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.refactor.original-procedure-inline-binding",
+      "document": "docs/design/analysis/name-resolution-proofs/refactor-original-procedure-inline-binding.md"
+    },
+    {
+      "selector": "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config",
+      "outcome": "passed",
+      "raw_start_byte": 1702,
+      "raw_end_byte": 1836,
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "source_sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+      "source_definition_line": 8129,
+      "body_sha256": "3996f5bf63a7a8965216753e7335e2ffcf823a009d4786ad4ff6cab9b7b42aa5",
+      "exact_question_document_pairs": [
+        {
+          "question": "naming.core.original-dispatch-region-context",
+          "document": "docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md"
+        }
+      ],
+      "module_declarations": [
+        {
+          "path": "rust/tcl-lsp-core/src/lib.rs",
+          "line": 97,
+          "module": "references",
+          "inline": false,
+          "child_path": "rust/tcl-lsp-core/src/references.rs"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "line": 8125,
+          "module": "original_dispatch_parser_purpose_tests",
+          "inline": true
+        }
+      ],
+      "admitted_to_owned_inventory": true,
+      "independent_exact_body_comparator": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen347/selected-original-sources/rust/tcl-lsp-core/src/references.rs.gz",
+        "compressed_sha256": "2afd36f467d96a01eb0dd20f06287f7eea61f921a89da0827668c2c219f6e463",
+        "whole_source_sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+        "body_sha256": "3996f5bf63a7a8965216753e7335e2ffcf823a009d4786ad4ff6cab9b7b42aa5",
+        "full_body_equal": true,
+        "assertion_outcome_transfer": false
+      },
+      "question": "naming.core.original-dispatch-region-context",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md"
+    }
+  ],
+  "selectors_without_exact_question_body_pair": [],
+  "retained_files": [
+    {
+      "original_path": "/workspace/.checkpoints/naming350/snapshot.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/source-snapshot.json.gz",
+      "whole_original_sha256": "f9e60240446b4c79ee2e63ff66bc608d6b4136df7132d46e42e9cef4981f15e4",
+      "whole_original_bytes": 6652781,
+      "retained_sha256": "facd1a8c1920657f31daca75e60209249be0bfe908e0dfe4d25a864608b8a843",
+      "retained_bytes": 1486163,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 1454887,
+        "device": 27,
+        "mtime_ns": 1791729318920278535
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/pinned-core350.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/sealed-own-images/pinned-core350.json",
+      "whole_original_sha256": "5e75da650f73797919a3d39125903ac39a1b19cfbfa02a5d60706a6e955a4b05",
+      "whole_original_bytes": 2668,
+      "retained_sha256": "5e75da650f73797919a3d39125903ac39a1b19cfbfa02a5d60706a6e955a4b05",
+      "retained_bytes": 2668,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 291567,
+        "device": 27,
+        "mtime_ns": 1791731807014879399
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.pins/naming-owned350/pinned-core350.elf",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/sealed-own-images/pinned-core350.elf.gz",
+      "whole_original_sha256": "1110a8023621cf852c8ee8b68cd8e20a70bca24bde6a8acf5591111bcaf813f0",
+      "whole_original_bytes": 174861280,
+      "retained_sha256": "3e31d8fafb9675c27fe515769f717627d9c81f7d0656e29d7ba3f19ee3a7f7b2",
+      "retained_bytes": 31872304,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 448,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 552717,
+        "device": 27,
+        "mtime_ns": 1791731729485656985
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-compiler-core-own-test-build350.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-compiler-core-own-test-build350/receipt.json.gz",
+      "whole_original_sha256": "bf6fc85e05373a83ffefd2f42c2860507b78f9ab3ae7cc30432e2edfa0303075",
+      "whole_original_bytes": 6733019,
+      "retained_sha256": "27dbb720f145dba18c30e41b1b9419028861c4add8bc7b84ef43d6b7b45c9367",
+      "retained_bytes": 1488042,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 291857,
+        "device": 27,
+        "mtime_ns": 1791729649287421766
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-compiler-core-own-test-build350.log",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-compiler-core-own-test-build350/stdout-stderr.log",
+      "whole_original_sha256": "10531fe7d989238e7a3a14cf1fde2e689fb3b5c1bc7cdabde670d17803efe396",
+      "whole_original_bytes": 148053,
+      "retained_sha256": "10531fe7d989238e7a3a14cf1fde2e689fb3b5c1bc7cdabde670d17803efe396",
+      "retained_bytes": 148053,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 267449,
+        "device": 27,
+        "mtime_ns": 1791729624437908029
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-core-own-test-build350b.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-test-build350b/receipt.json.gz",
+      "whole_original_sha256": "754ded9743aa13e6ad1f0330e1b7630a37f701e47d5ce7e67b65c91aadf85842",
+      "whole_original_bytes": 6732980,
+      "retained_sha256": "14f1078a415cfd66624f65e831e676a2c63536f0d72b414e971d6d2385a1a725",
+      "retained_bytes": 1488036,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 292138,
+        "device": 27,
+        "mtime_ns": 1791731739857733166
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-core-own-test-build350b.log",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-test-build350b/stdout-stderr.log",
+      "whole_original_sha256": "10691e890bcd857ec9baf271e67770110aada32e54ad752ab8eb82a5dec90a23",
+      "whole_original_bytes": 110848,
+      "retained_sha256": "10691e890bcd857ec9baf271e67770110aada32e54ad752ab8eb82a5dec90a23",
+      "retained_bytes": 110848,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 292070,
+        "device": 27,
+        "mtime_ns": 1791731729633655848
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-core-own-list350.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-list350/receipt.json.gz",
+      "whole_original_sha256": "700354fbb8d7e0e6b90d9bb06e62940a120408a228fe3a7844975df5abc377cd",
+      "whole_original_bytes": 6732745,
+      "retained_sha256": "6c08166dfcbf094efdd1363bdc72e342a94a107eb99bfcec4b8e02503f7cd251",
+      "retained_bytes": 1487948,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 292126,
+        "device": 27,
+        "mtime_ns": 1791731847956739147
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-core-own-list350.log",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-own-list350/stdout-stderr.log",
+      "whole_original_sha256": "e28ccec6ae64504f1d2ad20e17cc833b678d034de4be905c200c8dc3b215092b",
+      "whole_original_bytes": 248247,
+      "retained_sha256": "e28ccec6ae64504f1d2ad20e17cc833b678d034de4be905c200c8dc3b215092b",
+      "retained_bytes": 248247,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 291952,
+        "device": 27,
+        "mtime_ns": 1791731838764807076
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-core-consumer-tests350.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-consumer-tests350/receipt.json.gz",
+      "whole_original_sha256": "1eba6c70f2b86e8aa820b3208e63a8afd0a389c1fa2a32e75364da84c636fe9b",
+      "whole_original_bytes": 6734622,
+      "retained_sha256": "4bf3d2ce6dde70d7f97fd7f10814e73339ee7ebc130f6c903063eebdb7c1802f",
+      "retained_bytes": 1488599,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 292525,
+        "device": 27,
+        "mtime_ns": 1791731953199920497
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/integration-core-consumer-tests350.log",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/integration-core-consumer-tests350/stdout-stderr.log",
+      "whole_original_sha256": "0b06ffd862ca3f381a6578b523ec0a2d71babb43ae4d077ac9c91dac1f131408",
+      "whole_original_bytes": 1938,
+      "retained_sha256": "0b06ffd862ca3f381a6578b523ec0a2d71babb43ae4d077ac9c91dac1f131408",
+      "retained_bytes": 1938,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 292272,
+        "device": 27,
+        "mtime_ns": 1791731940520018261
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/core-consumer-admission350.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selections/core-consumer-admission350.json",
+      "whole_original_sha256": "7c5862289d67f2a000c9bf4636166aae4b4f10f815e9cf5891fb71a429de5b24",
+      "whole_original_bytes": 3940,
+      "retained_sha256": "7c5862289d67f2a000c9bf4636166aae4b4f10f815e9cf5891fb71a429de5b24",
+      "retained_bytes": 3940,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 292151,
+        "device": 27,
+        "mtime_ns": 1791731919233207257
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/grammar-owner-validation-current525-final/tcl-lsp-core-lib.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selections/original-request.json",
+      "whole_original_sha256": "9139c605c90aef36e2fb8a123af1c3dd82fcc55cfc8d9043d8f8fd1a486139d6",
+      "whole_original_bytes": 12991,
+      "retained_sha256": "9139c605c90aef36e2fb8a123af1c3dd82fcc55cfc8d9043d8f8fd1a486139d6",
+      "retained_bytes": 12991,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 548766,
+        "device": 27,
+        "mtime_ns": 1791724078104246352
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/root-editor-name-consumers400/manifest.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selections/original-additional-root-editor-packet.json",
+      "whole_original_sha256": "f138c45bb8e0396de736f402f2bdb82b6dfd9611fbcda9e1f5662c00bd2caaf8",
+      "whole_original_bytes": 1788,
+      "retained_sha256": "f138c45bb8e0396de736f402f2bdb82b6dfd9611fbcda9e1f5662c00bd2caaf8",
+      "retained_bytes": 1788,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 548113,
+        "device": 27,
+        "mtime_ns": 1791722650654522081
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/Cargo.lock",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/Cargo.lock.gz",
+      "whole_original_sha256": "0fa3e96e11ffb9d38e1fa3c0d68ff6e25b3dc21e4dbad011b895609854b6a335",
+      "whole_original_bytes": 141057,
+      "retained_sha256": "068218779c4576b8d0038d4193216dd275218e50ade95e2c2ecef385e1a150a0",
+      "retained_bytes": 34293,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 23,
+        "inode": 645676,
+        "device": 27,
+        "mtime_ns": 1791674392996580237
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/Cargo.toml",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/Cargo.toml.gz",
+      "whole_original_sha256": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+      "whole_original_bytes": 10591,
+      "retained_sha256": "0c8ab5c57d4c12830d72ab378518a74a71d4079aa068af10858137dc0170f8a6",
+      "retained_bytes": 4251,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 23,
+        "inode": 617901,
+        "device": 27,
+        "mtime_ns": 1791634902539439444
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/Cargo.toml",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/Cargo.toml.gz",
+      "whole_original_sha256": "d43b2fdd4fde0b21e08f20ecf9683b7f5e5d9f7e90e86b3808405038be838640",
+      "whole_original_bytes": 2416,
+      "retained_sha256": "6f8a35cb65ffb95c2dbe0e0ad34258d915c2115100a84de0dd51af1d233df345",
+      "retained_bytes": 1175,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 23,
+        "inode": 1124989,
+        "device": 27,
+        "mtime_ns": 1791634905277300899
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/caller_frame.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/caller_frame.rs.gz",
+      "whole_original_sha256": "9acf761b630c8aab84b7232f998b276f1f11f8867542c8d03954b8b38a498cb0",
+      "whole_original_bytes": 90831,
+      "retained_sha256": "26cc4c5b4f32fb99c0adccb70a89ad710b4e1f729569a8b5b4afc586d7a0e1ea",
+      "retained_bytes": 20714,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 8,
+        "inode": 131123,
+        "device": 27,
+        "mtime_ns": 1791726829468057411
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/code_actions.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/code_actions.rs.gz",
+      "whole_original_sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+      "whole_original_bytes": 187480,
+      "retained_sha256": "1c394ebcd9e5dc753b74a730141c9ac8f917be89d9baf8983d9151fff0f17076",
+      "retained_bytes": 42148,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 10,
+        "inode": 131075,
+        "device": 27,
+        "mtime_ns": 1791723700305124751
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/declaration.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/declaration.rs.gz",
+      "whole_original_sha256": "cfc433a74bf3edd1fcfcda8a6bc8e9f28e7dd71cad4e8dd31707591449835fda",
+      "whole_original_bytes": 49112,
+      "retained_sha256": "ec0bf1f49c45046d916134392fe49a53abe2cb792f0bd9ac5fbf1fb90f8b4c8e",
+      "retained_bytes": 12168,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 8,
+        "inode": 131124,
+        "device": 27,
+        "mtime_ns": 1791726829473869340
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/executable_regions.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/executable_regions.rs.gz",
+      "whole_original_sha256": "6ad6d645f56077e0c40bfc9cb3fb82e37a07d9519eed247f629bed2911526d3e",
+      "whole_original_bytes": 46253,
+      "retained_sha256": "12a80797d9622db94e22612e050012499c6876ec3a43f578296636960981333b",
+      "retained_bytes": 9677,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 19,
+        "inode": 242103,
+        "device": 27,
+        "mtime_ns": 1791691195262392749
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/formatting/engine.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/formatting/engine.rs.gz",
+      "whole_original_sha256": "0f824bd15a65de6e1bf7967af535f14fd71350b69ac56a6c417a0edba19a8701",
+      "whole_original_bytes": 164073,
+      "retained_sha256": "0fb9f9a5a4e97c0b435b0e0547d384ed1360f3767d1b6e2d83829affdec4ac94",
+      "retained_bytes": 40312,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 19,
+        "inode": 240369,
+        "device": 27,
+        "mtime_ns": 1791686739114869531
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/formatting/mod.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/formatting/mod.rs.gz",
+      "whole_original_sha256": "9a6945ec3a0c4ab9fe6910f3474fbc1553d234fd973033d8d8377ecf7a45ce0f",
+      "whole_original_bytes": 33859,
+      "retained_sha256": "7b15ceea0c7fb0a3c960559297b9b94f3894b886293e6930280bd3dd8c4173b0",
+      "retained_bytes": 8284,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 19,
+        "inode": 240370,
+        "device": 27,
+        "mtime_ns": 1791686739116018785
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/lib.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/lib.rs.gz",
+      "whole_original_sha256": "af601143313ec01d115f4c2f229269056e421cf18d702e33ce124e3266c95db7",
+      "whole_original_bytes": 15117,
+      "retained_sha256": "84c46f954ea1e65d346d53fbac6991fd3fc0d11f05078474dd6c7cbcc26d6526",
+      "retained_bytes": 5148,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 23,
+        "inode": 1127534,
+        "device": 27,
+        "mtime_ns": 1791648015360900763
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/minify.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/minify.rs.gz",
+      "whole_original_sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+      "whole_original_bytes": 184629,
+      "retained_sha256": "91a9a84bae1b99353440096a4fc932e756939a302f49d1b684c296d0f7c6d95d",
+      "retained_bytes": 48757,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 19,
+        "inode": 240371,
+        "device": 27,
+        "mtime_ns": 1791686739120122064
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/package_resolver.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/package_resolver.rs.gz",
+      "whole_original_sha256": "823715b03d1b79fe10e75c8ac4ffb5dc94603bfd9240369df96d0b8ba30a70a7",
+      "whole_original_bytes": 53431,
+      "retained_sha256": "13cec5666fcad27643ba872228c9844c966b4ea192aafea0002975bc36c6ce9c",
+      "retained_bytes": 16424,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 8,
+        "inode": 131125,
+        "device": 27,
+        "mtime_ns": 1791726829495766779
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/original_names.rs.gz",
+      "whole_original_sha256": "5583967a7d764aabbf93d92eb7a365fde4db45bb01689495999b52daf0ba1f63",
+      "whole_original_bytes": 49536,
+      "retained_sha256": "933a38892d0016e0e1b4605ea001d40682ffa959482c6ecdf50fa13f4f1e09e6",
+      "retained_bytes": 10071,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 19,
+        "inode": 242105,
+        "device": 27,
+        "mtime_ns": 1791691195273168820
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/reachability.rs.gz",
+      "whole_original_sha256": "6e321752b28d27b4364a2792f78bec64ff41af314b9abcba6f8b41cb2a66807e",
+      "whole_original_bytes": 37300,
+      "retained_sha256": "63fc2cfd1ca63bae547f578b88d7f56f07afd74e26fec5fa6bd02d4d05933df5",
+      "retained_bytes": 11550,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 23,
+        "inode": 1125361,
+        "device": 27,
+        "mtime_ns": 1791635447968853096
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/package_resolver/reachability/original.rs.gz",
+      "whole_original_sha256": "bca9478b0a8784bbd1eaeb1eee9754f2b2e68ddf8f4c959781f7e441897cf7f7",
+      "whole_original_bytes": 20214,
+      "retained_sha256": "cb7f3494700c4ec9bf501ec9693ac03f31e3a1af680ef484a7b28ae0cae182a6",
+      "retained_bytes": 4958,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 19,
+        "inode": 240373,
+        "device": 27,
+        "mtime_ns": 1791686739124893994
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/refactor/inline_proc.rs.gz",
+      "whole_original_sha256": "d073ddf8eb73d95abd3cd4c6308b2004193ba94e1246afc4f1a151951c74e4a6",
+      "whole_original_bytes": 66951,
+      "retained_sha256": "75e88658d54cb2e77c956e95c06b98a449c989583778a18fe84156bd70b297c3",
+      "retained_bytes": 17251,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 19,
+        "inode": 242106,
+        "device": 27,
+        "mtime_ns": 1791691195276576148
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/refactor/mod.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/refactor/mod.rs.gz",
+      "whole_original_sha256": "48d9eac1fa3a6dbd56fb2d5e39331ad205d93ea4412b067d83fdab34b2979eaa",
+      "whole_original_bytes": 54307,
+      "retained_sha256": "840c2516201d89f84c0c677aa0030b4996968ceea0fef6253a2fbde99842ce53",
+      "retained_bytes": 14856,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 22,
+        "inode": 1040728,
+        "device": 27,
+        "mtime_ns": 1791683045656637966
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.checkpoints/naming350/rust/tcl-lsp-core/src/references.rs",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/selected-original-sources/rust/tcl-lsp-core/src/references.rs.gz",
+      "whole_original_sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+      "whole_original_bytes": 343265,
+      "retained_sha256": "2afd36f467d96a01eb0dd20f06287f7eea61f921a89da0827668c2c219f6e463",
+      "retained_bytes": 69966,
+      "encoding": "gzip",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 17,
+        "inode": 247691,
+        "device": 27,
+        "mtime_ns": 1791707614665160778
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/tmp/consumer-index-tests382.py",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/source-census/maintained-module-census.py",
+      "whole_original_sha256": "1df4b152fd87374ab5804f889df0eeff20975236b693084f76ec256447b6e647",
+      "whole_original_bytes": 5326,
+      "retained_sha256": "1df4b152fd87374ab5804f889df0eeff20975236b693084f76ec256447b6e647",
+      "retained_bytes": 5326,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 735449,
+        "device": 33,
+        "mtime_ns": 1791663328523390924
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/tcl-lsp/scripts/dev/check-name-resolution-proofs.py",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/source-census/maintained-proof-body-boundaries.py",
+      "whole_original_sha256": "7910594539d1d3abea108c9e316573e64ee55bc1952e4049560b0c938fe4c850",
+      "whole_original_bytes": 36662,
+      "retained_sha256": "7910594539d1d3abea108c9e316573e64ee55bc1952e4049560b0c938fe4c850",
+      "retained_bytes": 36662,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 640269,
+        "device": 27,
+        "mtime_ns": 1791694140909407815
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/run350.py",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/protocol/run350.py",
+      "whole_original_sha256": "5684d1fc9215f2acab2a33719a39829451c7b61c2ba73e093e14dd43ec2c0e01",
+      "whole_original_bytes": 1507,
+      "retained_sha256": "5684d1fc9215f2acab2a33719a39829451c7b61c2ba73e093e14dd43ec2c0e01",
+      "retained_bytes": 1507,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 290107,
+        "device": 27,
+        "mtime_ns": 1791729121569833576
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/native-test-env.json",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/protocol/native-test-env.json",
+      "whole_original_sha256": "1630b9459e67feb19f8c4af6826f61306ff875c2b718a69e45bf521c049706fa",
+      "whole_original_bytes": 1829,
+      "retained_sha256": "1630b9459e67feb19f8c4af6826f61306ff875c2b718a69e45bf521c049706fa",
+      "retained_bytes": 1829,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 287328,
+        "device": 27,
+        "mtime_ns": 1791595499835869973
+      },
+      "original_bytes_unchanged": true
+    },
+    {
+      "original_path": "/workspace/.proofs/seal-actual-own-test-image394.py",
+      "canonical_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/protocol/seal-actual-own-test-image394.py",
+      "whole_original_sha256": "075eca8ce6ca6b0602e2009ecb03e78b802a7b8788204204ae227aa7adaa2687",
+      "whole_original_bytes": 2685,
+      "retained_sha256": "075eca8ce6ca6b0602e2009ecb03e78b802a7b8788204204ae227aa7adaa2687",
+      "retained_bytes": 2685,
+      "encoding": "unchanged bytes",
+      "full_roundtrip": true,
+      "observed_original_stat": {
+        "mode": 384,
+        "uid": 1000,
+        "gid": 1000,
+        "nlink": 1,
+        "inode": 295492,
+        "device": 27,
+        "mtime_ns": 1791720121672766312
+      },
+      "original_bytes_unchanged": true
+    }
+  ],
+  "limits": [
+    "Only the actual owned tcl_lsp_core test executable and immutable source350 supply these 14 passing software assertions. No whole-suite, compiler, Runtime, Server or current-source result is supplied.",
+    "The mixed compiler/Core producer exits 101 with no assertions. Its failure supplies no owning Core image authority; the separate actual Core-only producer, own inventory, pin and assertion process are independently retained.",
+    "Producer and inventory operations run no assertions. The owned inventory contains 2967 tests, only 14 are selected, and 2953 are filtered out.",
+    "All 14 selected bodies exactly equal the independently retained comparator bodies. Equality identifies the assertion purpose and retains inputs/assertions; no outcome is transferred between source maps or executable images.",
+    "Every question/body/document correspondence uses genuine original comments and an existing exact catalogue path/selector binding. Current provider answers, implementation hashes and test statuses remain unchanged.",
+    "The original run350 wrapper performs full immutable/actual-source before and after checks. Its receipt retains the actual command and source map, but complete inherited subprocess environment and execution-time wrapper-byte pins are not recorded.",
+    "The explicit native-test-env file is retained unchanged as observed configuration, not an invented full environment receipt or independent native-provider outcome.",
+    "Lossless full-image retention preserves exact original sealed ELF bytes and original same-filesystem/same-inode facts. It supplies no loaded-library/build dependency closure, SDK attestation or execution replay equivalence.",
+    "These are bounded Rust software/source-context comparisons. Native Tcl, Jim, BIG-IP, callback chronology and purpose admission remain independent."
+  ]
+}

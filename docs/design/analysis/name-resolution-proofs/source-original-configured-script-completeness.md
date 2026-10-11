@@ -2924,3 +2924,10 @@ These finite results belong to the original source349 body/question/document pai
 | `isolated` | 1 | 0 | 0 | 0 |
 
 [Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+
+## Exact owning Core source350 software outcomes
+
+The owning Core image executes 4 original selections paired with this question and all pass. These are bounded Rust software assertions for the exact source350 map and executable. The process selects 14 tests and all pass, with no ignored tests and 2,953 other tests filtered out. Producer and inventory operations execute no assertions.
+
+[Exact original body hashes and raw harness outcomes](rust-validation/frozen350/question-body-outcomes.json) join the full unchanged receipts, streams, source map, inventory/admission and owned executable bytes. Native provider answers and other source-image results remain independent.

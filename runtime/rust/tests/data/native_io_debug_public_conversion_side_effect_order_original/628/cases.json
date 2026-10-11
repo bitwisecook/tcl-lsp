@@ -1,0 +1,21 @@
+{
+  "status": "REQUEST ONLY; no runtime execution/admission/results",
+  "script": "/tmp/naming-vm-io-debug-original-owner/native-routing.tcl",
+  "script_sha256": "f46db0596af9b10a373d08ac9444037b4931a8805a03b32a1b43a9e1f3d911dd",
+  "source": "Exact ASCII with physical LF; backslash-n in written abcdef\\n is Tcl source escape, not a physical source LF inside quoted word",
+  "providers": [
+    "C Tcl8.4",
+    "C Tcl8.5",
+    "C Tcl8.6",
+    "C Tcl9.0",
+    "C Tcl9.1",
+    "current JimTcl"
+  ],
+  "configuration": "R2286_IO_PROBE_FILE must be a distinct owned disposable path for each exact provider. Same unchanged script bytes. Retain actual provider ELF/version/build/full output and error/exit. No Native factory/codegen/extension chronology claim. Unsupported public worker outcomes remain measured unavailable, never a pass for its intended worker.",
+  "questions": [
+    "Does invalid/read negative/overflow count error before any cursor change or select a default?",
+    "Does invalid/overflow seek offset error before cursor change; which failure wins when origin is also invalid?",
+    "Does binary maxlen invalid/negative/overflow input preserve numeric error vs line length refusal?",
+    "Does debug generic invalid Boolean error rather than false, and which providers expose the worker?"
+  ]
+}

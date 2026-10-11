@@ -1,0 +1,23 @@
+{
+  "provider": "Jim",
+  "argv": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/workspace/.proofs/root-native-jim-entry627/probe.tcl"
+  ],
+  "cwd": "/workspace/.proofs/root-native-jim-entry627",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C"
+  },
+  "exit": 0,
+  "seconds": 0.009371042251586914,
+  "before_source_and_executable_pins": {
+    "/workspace/.proofs/root-native-jim-entry627/probe.tcl": "480e296d4e54c2c7cb5114859fd891e954f5f166a7d9c528560f6b82aa7680a7",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806"
+  },
+  "all_after_pins_match": true,
+  "stdout_sha256": "623215ab0012099acbfa8d3bafa451a93e3df9df0839105eac8bf54df64f19a7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "limitations": "Measures info complete and actual Direct command-at-time evaluation of these seven counted byte source values only. No bytecode identity, Native lifetime/teardown, current Rust assertions, F5 or opaque-source inference."
+}

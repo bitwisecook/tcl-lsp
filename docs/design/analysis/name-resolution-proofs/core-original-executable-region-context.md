@@ -112,3 +112,10 @@ These results belong only to the retained source347 body/question pairs and thei
 | `integration-core-consumer-tests347` | 1 | 0 |
 
 [Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+
+
+## Exact owning Core source350 software outcomes
+
+The owning Core image executes 1 original selections paired with this question and all pass. These are bounded Rust software assertions for the exact source350 map and executable. The process selects 14 tests and all pass, with no ignored tests and 2,953 other tests filtered out. Producer and inventory operations execute no assertions.
+
+[Exact original body hashes and raw harness outcomes](rust-validation/frozen350/question-body-outcomes.json) join the full unchanged receipts, streams, source map, inventory/admission and owned executable bytes. Native provider answers and other source-image results remain independent.
