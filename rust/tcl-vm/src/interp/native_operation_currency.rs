@@ -157,7 +157,7 @@ mod tests {
             .eval_source("set ordinary VALUE; proc p {} {return RESULT}; rename p q; q")
             .unwrap();
         assert_eq!(result.code, Code::Ok);
-        assert_eq!(result.result.as_bytes(), b"RESULT");
+        assert_eq!(result.result.resident_string_bytes().unwrap().as_ref(), b"RESULT");
         scope.check(&mut vm).unwrap();
         assert!(vm.execution_refusal.is_none());
     }
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(refusal.native_execution_refusal(), Some(&first));
         let original = Value::new_native_string_bytes(b"17".as_slice());
         assert!(original.native_scalar_cache().is_none());
-        let result = crate::expr::native_boolean_truth::boolean_for_vm(
+        let result = crate::expr::boolean_for_vm(
             &mut vm,
             &original,
             tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot,
@@ -285,7 +285,7 @@ mod tests {
                 if cause == first
         ));
         assert!(original.native_scalar_cache().is_none());
-        assert_eq!(original.as_bytes(), b"17");
+        assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"17");
         assert_eq!(vm.execution_refusal, Some(first));
     }
 }

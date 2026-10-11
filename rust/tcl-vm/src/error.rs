@@ -832,7 +832,7 @@ mod checked_projection_tests {
         // Actual getter and host display controls, independent of Native source admission.
         for code in [Code::Ok, Code::Error] {
             let mut vm = native();
-            let original = Value::from_string_bytes(b"DISPLAY\0TAIL");
+            let original = Value::from_string_bytes(b"DISPLAY\0TAIL".as_slice());
             let completion =
                 TclError::from_completion(Completion::new(code, original.clone(), Value::empty()));
             assert_eq!(
@@ -847,7 +847,7 @@ mod checked_projection_tests {
                     .is_same_object(&original)
             );
 
-            let original = Value::from_string_bytes(b"DISPLAY\xffTAIL");
+            let original = Value::from_string_bytes(b"DISPLAY\xffTAIL".as_slice());
             let completion =
                 TclError::from_completion(Completion::new(code, original.clone(), Value::empty()));
             let expected = NativeValueAccessRefusal::from(UnicodeAccessError {

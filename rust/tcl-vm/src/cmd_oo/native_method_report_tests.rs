@@ -9,7 +9,7 @@ struct Observer;
 impl crate::command::NativeCommand for Observer {
     fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         assert_eq!(args.len(), 1);
-        let label = args[0].to_str().to_owned();
+        let label = args[0].to_str().to_string();
         let frame = native_context::current_method(vm).unwrap();
         let role = frame.chain.report_role();
         let special = vm.oo.method_reports.as_ref().unwrap().report(role);
