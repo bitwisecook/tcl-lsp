@@ -1,0 +1,38 @@
+{
+  "question_id": "naming.tcloo.original-operand-string-and-prefix-stages",
+  "request_sha256": "07b205f6258c957ad11d43447fc068722e9e9a5c0eb4ea3a2212b6051126022a",
+  "launcher_sha256": "dbee0c294e338b0db4ff9dee59ee1b4ae74fbec8c4a823897cce0a4d92a54866",
+  "scope": "Each exact original provider independently measures TclOO operand/cache/reference stages or genuine initialized command/API unavailability. C84/C85/Jim receive no C86/C9 object/frame/forward recipe. No application Native purpose or Host equivalence claim.",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "status": "closed",
+      "receipt_sha256": "e6814e4a6c10284e6334f467ed6383cb7066a1a915545591127ca46dfbe51bf8"
+    },
+    {
+      "provider": "8.5.19",
+      "status": "closed",
+      "receipt_sha256": "cea0b768ecf3f8d41a2a9f5606ee693a1fee83eecd8cab225cadaa97e2b6bb61"
+    },
+    {
+      "provider": "8.6.18",
+      "status": "closed",
+      "receipt_sha256": "df3041e90491e2e16518548f20e9a4d0234b2ff7b492fcd20f04834655427d59"
+    },
+    {
+      "provider": "9.0.4",
+      "status": "closed",
+      "receipt_sha256": "9d6945455e54173ea9bdf34740973674b7ec989f1ff9f9a2085f8674aac208bc"
+    },
+    {
+      "provider": "9.1.0",
+      "status": "closed",
+      "receipt_sha256": "662f8074574b092394bf254162f662d8ed7424a4f6c5a2a3f6505ff96853550a"
+    },
+    {
+      "provider": "jim",
+      "status": "closed",
+      "receipt_sha256": "7117b10bdaeee8c5bb5b0e8b6473c0d48680739674e9fb4b2cac9e9e99a8ca34"
+    }
+  ]
+}

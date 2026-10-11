@@ -1,0 +1,357 @@
+Tcl_CreateInterp()
+{
+    Interp *iPtr;
+    Tcl_Interp *interp;
+    Command *cmdPtr;
+    BuiltinFunc *builtinFuncPtr;
+    MathFunc *mathFuncPtr;
+    Tcl_HashEntry *hPtr;
+    CONST CmdInfo *cmdInfoPtr;
+    int i;
+    union {
+	char c[sizeof(short)];
+	short s;
+    } order;
+#ifdef TCL_COMPILE_STATS
+    ByteCodeStats *statsPtr;
+#endif /* TCL_COMPILE_STATS */
+
+    TclInitSubsystems(NULL);
+
+    /*
+     * Panic if someone updated the CallFrame structure without
+     * also updating the Tcl_CallFrame structure (or vice versa).
+     */  
+
+    if (sizeof(Tcl_CallFrame) < sizeof(CallFrame)) {
+	/*NOTREACHED*/
+	panic("Tcl_CallFrame must not be smaller than CallFrame");
+    }
+
+#if defined(_WIN32) && !defined(_WIN64)
+    if (sizeof(time_t) != 4) {
+	/*NOTREACHED*/
+	Tcl_Panic("sys/time.h is not compatible with MSVC");
+    }
+    if (sizeof(Tcl_StatBuf) != 48) {
+	/*NOTREACHED*/
+	Tcl_Panic("sys/stat.h is not compatible with MSVC");
+    }
+#endif
+
+    /*
+     * Initialize support for namespaces and create the global namespace
+     * (whose name is ""; an alias is "::"). This also initializes the
+     * Tcl object type table and other object management code.
+     */
+
+    iPtr = (Interp *) ckalloc(sizeof(Interp));
+    interp = (Tcl_Interp *) iPtr;
+
+    iPtr->result		= iPtr->resultSpace;
+    iPtr->freeProc		= NULL;
+    iPtr->errorLine		= 0;
+    iPtr->objResultPtr		= Tcl_NewObj();
+    Tcl_IncrRefCount(iPtr->objResultPtr);
+    iPtr->handle		= TclHandleCreate(iPtr);
+    iPtr->globalNsPtr		= NULL;
+    iPtr->hiddenCmdTablePtr	= NULL;
+    iPtr->interpInfo		= NULL;
+    Tcl_InitHashTable(&iPtr->mathFuncTable, TCL_STRING_KEYS);
+
+    iPtr->numLevels = 0;
+    iPtr->maxNestingDepth = MAX_NESTING_DEPTH;
+    iPtr->framePtr = NULL;
+    iPtr->varFramePtr = NULL;
+
+#ifdef TCL_TIP280
+    /*
+     * TIP #280 - Initialize the arrays used to extend the ByteCode and
+     * Proc structures.
+     */
+    iPtr->cmdFramePtr  = NULL;
+    iPtr->linePBodyPtr = (Tcl_HashTable*) ckalloc (sizeof (Tcl_HashTable));
+    iPtr->lineBCPtr    = (Tcl_HashTable*) ckalloc (sizeof (Tcl_HashTable));
+    iPtr->lineLAPtr    = (Tcl_HashTable*) ckalloc (sizeof (Tcl_HashTable));
+    iPtr->lineLABCPtr  = (Tcl_HashTable*) ckalloc (sizeof (Tcl_HashTable));
+    Tcl_InitHashTable(iPtr->linePBodyPtr, TCL_ONE_WORD_KEYS);
+    Tcl_InitHashTable(iPtr->lineBCPtr,    TCL_ONE_WORD_KEYS);
+    Tcl_InitHashTable(iPtr->lineLAPtr,    TCL_ONE_WORD_KEYS);
+    Tcl_InitHashTable(iPtr->lineLABCPtr,  TCL_ONE_WORD_KEYS);
+    iPtr->scriptCLLocPtr = NULL;
+#endif
+
+    iPtr->activeVarTracePtr = NULL;
+    iPtr->returnCode = TCL_OK;
+    iPtr->errorInfo = NULL;
+    iPtr->errorCode = NULL;
+
+    iPtr->appendResult = NULL;
+    iPtr->appendAvl = 0;
+    iPtr->appendUsed = 0;
+
+    Tcl_InitHashTable(&iPtr->packageTable, TCL_STRING_KEYS);
+    iPtr->packageUnknown = NULL;
+#ifdef TCL_TIP268
+    /* TIP #268 */
+    iPtr->packagePrefer = (getenv ("TCL_PKG_PREFER_LATEST") == NULL ? 
+			   PKG_PREFER_STABLE   :
+			   PKG_PREFER_LATEST);
+#endif
+    iPtr->cmdCount = 0;
+    iPtr->termOffset = 0;
+    TclInitLiteralTable(&(iPtr->literalTable));
+    iPtr->compileEpoch = 0;
+    iPtr->compiledProcPtr = NULL;
+    iPtr->resolverPtr = NULL;
+    iPtr->evalFlags = 0;
+    iPtr->scriptFile = NULL;
+    iPtr->flags = 0;
+    iPtr->tracePtr = NULL;
+    iPtr->tracesForbiddingInline = 0;
+    iPtr->activeCmdTracePtr = NULL;
+    iPtr->activeInterpTracePtr = NULL;
+    iPtr->assocData = (Tcl_HashTable *) NULL;
+    iPtr->execEnvPtr = NULL;	      /* set after namespaces initialized */
+    iPtr->emptyObjPtr = Tcl_NewObj(); /* another empty object */
+    Tcl_IncrRefCount(iPtr->emptyObjPtr);
+    iPtr->resultSpace[0] = 0;
+    iPtr->threadId = Tcl_GetCurrentThread();
+
+    iPtr->globalNsPtr = NULL;	/* force creation of global ns below */
+    iPtr->globalNsPtr = (Namespace *) Tcl_CreateNamespace(interp, "",
+	    (ClientData) NULL, (Tcl_NamespaceDeleteProc *) NULL);
+    if (iPtr->globalNsPtr == NULL) {
+        panic("Tcl_CreateInterp: can't create global namespace");
+    }
+
+    /*
+     * Initialize support for code compilation and execution. We call
+     * TclCreateExecEnv after initializing namespaces since it tries to
+     * reference a Tcl variable (it links to the Tcl "tcl_traceExec"
+     * variable).
+     */
+
+    iPtr->execEnvPtr = TclCreateExecEnv(interp);
+
+    /*
+     * Initialize the compilation and execution statistics kept for this
+     * interpreter.
+     */
+
+#ifdef TCL_COMPILE_STATS
+    statsPtr = &(iPtr->stats);
+    statsPtr->numExecutions = 0;
+    statsPtr->numCompilations = 0;
+    statsPtr->numByteCodesFreed = 0;
+    (VOID *) memset(statsPtr->instructionCount, 0,
+	    sizeof(statsPtr->instructionCount));
+
+    statsPtr->totalSrcBytes = 0.0;
+    statsPtr->totalByteCodeBytes = 0.0;
+    statsPtr->currentSrcBytes = 0.0;
+    statsPtr->currentByteCodeBytes = 0.0;
+    (VOID *) memset(statsPtr->srcCount, 0, sizeof(statsPtr->srcCount));
+    (VOID *) memset(statsPtr->byteCodeCount, 0,
+	    sizeof(statsPtr->byteCodeCount));
+    (VOID *) memset(statsPtr->lifetimeCount, 0,
+	    sizeof(statsPtr->lifetimeCount));
+    
+    statsPtr->currentInstBytes   = 0.0;
+    statsPtr->currentLitBytes    = 0.0;
+    statsPtr->currentExceptBytes = 0.0;
+    statsPtr->currentAuxBytes    = 0.0;
+    statsPtr->currentCmdMapBytes = 0.0;
+    
+    statsPtr->numLiteralsCreated    = 0;
+    statsPtr->totalLitStringBytes   = 0.0;
+    statsPtr->currentLitStringBytes = 0.0;
+    (VOID *) memset(statsPtr->literalCount, 0,
+            sizeof(statsPtr->literalCount));
+#endif /* TCL_COMPILE_STATS */    
+
+    /*
+     * Initialise the stub table pointer.
+     */
+
+    iPtr->stubTable = &tclStubs;
+
+    
+    /*
+     * Create the core commands. Do it here, rather than calling
+     * Tcl_CreateCommand, because it's faster (there's no need to check for
+     * a pre-existing command by the same name). If a command has a
+     * Tcl_CmdProc but no Tcl_ObjCmdProc, set the Tcl_ObjCmdProc to
+     * TclInvokeStringCommand. This is an object-based wrapper procedure
+     * that extracts strings, calls the string procedure, and creates an
+     * object for the result. Similarly, if a command has a Tcl_ObjCmdProc
+     * but no Tcl_CmdProc, set the Tcl_CmdProc to TclInvokeObjectCommand.
+     */
+
+    for (cmdInfoPtr = builtInCmds;  cmdInfoPtr->name != NULL;
+	    cmdInfoPtr++) {
+	int new;
+	Tcl_HashEntry *hPtr;
+
+	if ((cmdInfoPtr->proc == (Tcl_CmdProc *) NULL)
+	        && (cmdInfoPtr->objProc == (Tcl_ObjCmdProc *) NULL)
+	        && (cmdInfoPtr->compileProc == (CompileProc *) NULL)) {
+	    panic("Tcl_CreateInterp: builtin command with NULL string and object command procs and a NULL compile proc\n");
+	}
+	
+	hPtr = Tcl_CreateHashEntry(&iPtr->globalNsPtr->cmdTable,
+	        cmdInfoPtr->name, &new);
+	if (new) {
+	    cmdPtr = (Command *) ckalloc(sizeof(Command));
+	    cmdPtr->hPtr = hPtr;
+	    cmdPtr->nsPtr = iPtr->globalNsPtr;
+	    cmdPtr->refCount = 1;
+	    cmdPtr->cmdEpoch = 0;
+	    cmdPtr->compileProc = cmdInfoPtr->compileProc;
+	    if (cmdInfoPtr->proc == (Tcl_CmdProc *) NULL) {
+		cmdPtr->proc = TclInvokeObjectCommand;
+		cmdPtr->clientData = (ClientData) cmdPtr;
+	    } else {
+		cmdPtr->proc = cmdInfoPtr->proc;
+		cmdPtr->clientData = (ClientData) NULL;
+	    }
+	    if (cmdInfoPtr->objProc == (Tcl_ObjCmdProc *) NULL) {
+		cmdPtr->objProc = TclInvokeStringCommand;
+		cmdPtr->objClientData = (ClientData) cmdPtr;
+	    } else {
+		cmdPtr->objProc = cmdInfoPtr->objProc;
+		cmdPtr->objClientData = (ClientData) NULL;
+	    }
+	    cmdPtr->deleteProc = NULL;
+	    cmdPtr->deleteData = (ClientData) NULL;
+	    cmdPtr->flags = 0;
+	    cmdPtr->importRefPtr = NULL;
+	    cmdPtr->tracePtr = NULL;
+	    Tcl_SetHashValue(hPtr, cmdPtr);
+	}
+    }
+
+#ifdef USE_DTRACE
+    /*
+     * Register the tcl::dtrace command.
+     */
+
+    Tcl_CreateObjCommand(interp, "::tcl::dtrace", DTraceObjCmd, NULL, NULL);
+#endif /* USE_DTRACE */
+
+    /*
+     * Register the builtin math functions.
+     */
+
+    i = 0;
+    for (builtinFuncPtr = tclBuiltinFuncTable;  builtinFuncPtr->name != NULL;
+	    builtinFuncPtr++) {
+	Tcl_CreateMathFunc((Tcl_Interp *) iPtr, builtinFuncPtr->name,
+		builtinFuncPtr->numArgs, builtinFuncPtr->argTypes,
+		(Tcl_MathProc *) NULL, (ClientData) 0);
+	hPtr = Tcl_FindHashEntry(&iPtr->mathFuncTable,
+		builtinFuncPtr->name);
+	if (hPtr == NULL) {
+	    panic("Tcl_CreateInterp: Tcl_CreateMathFunc incorrectly registered '%s'", builtinFuncPtr->name);
+	    return NULL;
+	}
+	mathFuncPtr = (MathFunc *) Tcl_GetHashValue(hPtr);
+	mathFuncPtr->builtinFuncIndex = i;
+	i++;
+    }
+    iPtr->flags |= EXPR_INITIALIZED;
+
+    /*
+     * Do Multiple/Safe Interps Tcl init stuff
+     */
+
+    TclInterpInit(interp);
+
+    /*
+     * We used to create the "errorInfo" and "errorCode" global vars at this
+     * point because so much of the Tcl implementation assumes they already
+     * exist. This is not quite enough, however, since they can be unset
+     * at any time.
+     *
+     * There are 2 choices:
+     *    + Check every place where a GetVar of those is used 
+     *      and the NULL result is not checked (like in tclLoad.c)
+     *    + Make SetVar,... NULL friendly
+     * We choose the second option because :
+     *    + It is easy and low cost to check for NULL pointer before
+     *      calling strlen()
+     *    + It can be helpfull to other people using those API
+     *    + Passing a NULL value to those closest 'meaning' is empty string
+     *      (specially with the new objects where 0 bytes strings are ok)
+     * So the following init is commented out:              -- dl
+     *
+     * (void) Tcl_SetVar2((Tcl_Interp *)iPtr, "errorInfo", (char *) NULL,
+     *       "", TCL_GLOBAL_ONLY);
+     * (void) Tcl_SetVar2((Tcl_Interp *)iPtr, "errorCode", (char *) NULL,
+     *       "NONE", TCL_GLOBAL_ONLY);
+     */
+
+#ifndef TCL_GENERIC_ONLY
+    TclSetupEnv(interp);
+#endif
+
+    /*
+     * Compute the byte order of this machine.
+     */
+
+    order.s = 1;
+    Tcl_SetVar2(interp, "tcl_platform", "byteOrder",
+	    ((order.c[0] == 1) ? "littleEndian" : "bigEndian"),
+	    TCL_GLOBAL_ONLY);
+
+    Tcl_SetVar2Ex(interp, "tcl_platform", "wordSize",
+	    Tcl_NewLongObj((long) sizeof(long)), TCL_GLOBAL_ONLY);
+
+    /*
+     * Set up other variables such as tcl_version and tcl_library
+     */
+
+    Tcl_SetVar(interp, "tcl_patchLevel", TCL_PATCH_LEVEL, TCL_GLOBAL_ONLY);
+    Tcl_SetVar(interp, "tcl_version", TCL_VERSION, TCL_GLOBAL_ONLY);
+    Tcl_TraceVar2(interp, "tcl_precision", (char *) NULL,
+	    TCL_GLOBAL_ONLY|TCL_TRACE_READS|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,
+	    TclPrecTraceProc, (ClientData) NULL);
+    TclpSetVariables(interp);
+
+#ifdef TCL_THREADS
+    /*
+     * The existence of the "threaded" element of the tcl_platform array indicates
+     * that this particular Tcl shell has been compiled with threads turned on.
+     * Using "info exists tcl_platform(threaded)" a Tcl script can introspect on the 
+     * interpreter level of thread safety.
+     */
+
+
+    Tcl_SetVar2(interp, "tcl_platform", "threaded", "1",
+	    TCL_GLOBAL_ONLY);
+#endif
+
+    /*
+     * Register Tcl's version number.
+     * TIP#268: Expose information about its status,
+     *          for runtime switches in the core library
+     *          and tests.
+     */
+
+    Tcl_PkgProvideEx(interp, "Tcl", TCL_VERSION, (ClientData) &tclStubs);
+
+#ifdef TCL_TIP268
+    Tcl_SetVar2(interp, "tcl_platform", "tip,268", "1",
+	    TCL_GLOBAL_ONLY);
+#endif
+#ifdef TCL_TIP280
+    Tcl_SetVar2(interp, "tcl_platform", "tip,280", "1",
+	    TCL_GLOBAL_ONLY);
+#endif
+#ifdef Tcl_InitStubs
+#undef Tcl_InitStubs
+#endif
+    Tcl_InitStubs(interp, TCL_VERSION, 1);
+
+    return interp;
+}

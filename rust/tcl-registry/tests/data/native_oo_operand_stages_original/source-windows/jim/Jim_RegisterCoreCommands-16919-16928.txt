@@ -1,0 +1,10 @@
+void Jim_RegisterCoreCommands(Jim_Interp *interp)
+{
+    const struct jim_core_cmd_def_t *c;
+
+    for (c = Jim_CoreCommandsTable; c->name; c++) {
+        /* All core commands must have usage */
+        assert(c->usage);
+        Jim_RegisterCmd(interp, c->name, c->usage, c->minargs, c->maxargs, c->cmdProc, NULL, NULL, c->flags);
+    }
+}

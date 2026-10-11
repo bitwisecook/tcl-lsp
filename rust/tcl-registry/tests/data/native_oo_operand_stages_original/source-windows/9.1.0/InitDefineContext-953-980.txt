@@ -1,0 +1,28 @@
+InitDefineContext(
+    Tcl_Interp *interp,
+    Tcl_Namespace *namespacePtr,
+    Object *oPtr,
+    Tcl_Size objc,
+    Tcl_Obj *const *objv)
+{
+    CallFrame *framePtr, **framePtrPtr = &framePtr;
+
+    if (namespacePtr == NULL) {
+	Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		"no definition namespace available", TCL_AUTO_LENGTH));
+	OO_ERROR(interp, MONKEY_BUSINESS);
+	return TCL_ERROR;
+    }
+
+    /*
+     * framePtrPtr is needed to satisfy GCC 3.3's strict aliasing rules.
+     */
+
+    (void) TclPushStackFrame(interp, (Tcl_CallFrame **) framePtrPtr,
+	    namespacePtr, FRAME_IS_OO_DEFINE);
+    framePtr->clientData = oPtr;
+    framePtr->objc = objc;
+    framePtr->objv = objv;	/* Reference counts do not need to be
+				 * incremented here. */
+    return TCL_OK;
+}

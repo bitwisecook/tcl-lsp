@@ -1,0 +1,128 @@
+VERSION	status=0	hex=392e302e3420392e30
+BUILD	HEADER=9.0.4	GetVersion=9.0.4/2
+ABI	int=4	long=8	ptr=8	CHAR_BIT=8
+AVAILABILITY	status=0	hex=3120312031
+CASE	id=0	setup=0
+ROW	case=0	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=0	stage=forward-defined	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=0	stage=info-forward-returned	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+PREFIX	case=0	status=0	count=2	original_member=1
+ROW	case=0	stage=info-forward-list-accessed	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+PRESENTATION	case=0	hex=EVENT	case=0	sequence=1	kind=update	role=0
+63617074757265207072656669782d64617461
+ROW	case=0	stage=info-forward-presented	status=0	sequence=1	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+CALL	case=0	kind=forward	argc=2	original_member=1
+ROW	case=0	stage=capture-before-read	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=0	stage=capture-after-read	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=0	stage=forward-invoked	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+RESULT	case=0	status=0	hex=4341505455524544
+ROW	case=0	stage=result-presented	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=0	stage=interpreter-destroyed-held-originals	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=0	sequence=2	kind=free	role=0
+RELEASE	case=0	updates=1,0,0,0	frees=1,0,0,0	duplicates=0,0,0,0
+CASE	id=1	setup=0
+ROW	case=1	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=1	stage=forward-defined	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+CALL	case=1	kind=forward	argc=2	original_member=1
+ROW	case=1	stage=capture-before-read	status=0	sequence=0	capture_calls=1	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=1	sequence=1	kind=update	role=0
+ROW	case=1	stage=capture-after-read	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=1	stage=forward-invoked-without-report	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+RESULT	case=1	status=0	hex=4341505455524544
+ROW	case=1	stage=result-presented	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=1	stage=interpreter-destroyed-held-originals	status=0	sequence=1	capture_calls=1	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=1	sequence=2	kind=free	role=0
+RELEASE	case=1	updates=1,0,0,0	frees=1,0,0,0	duplicates=0,0,0,0
+CASE	id=2	setup=0
+ROW	case=2	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=2	stage=definition-entered	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=2	stage=definition-returned	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+RESULT	case=2	status=0	hex=4e4f5f5245504f5254
+ROW	case=2	stage=result-presented	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=2	stage=interpreter-destroyed-held-originals	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=2	sequence=1	kind=free	role=0
+RELEASE	case=2	updates=0,0,0,0	frees=1,0,0,0	duplicates=0,0,0,0
+CASE	id=3	setup=0
+ROW	case=3	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=3	stage=definition-entered	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=3	stage=definition-info-level-returned	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+REPORT	case=3	status=0	count=4	original_member=1
+ROW	case=3	stage=definition-info-list-accessed	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=3	stage=definition-returned	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+RESULT	case=3	status=0	hex=EVENT	case=3	sequence=1	kind=update	role=0
+6f6f3a3a646566696e652043206f62736572766572206672616d652d64617461
+ROW	case=3	stage=result-presented	status=0	sequence=1	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=3	stage=interpreter-destroyed-held-originals	status=0	sequence=1	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=3	sequence=2	kind=free	role=0
+RELEASE	case=3	updates=1,0,0,0	frees=1,0,0,0	duplicates=0,0,0,0
+CASE	id=4	setup=0
+ROW	case=4	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=4	stage=definition-entered	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=4	stage=definition-info-level-returned	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+REPORT	case=4	status=0	count=4	original_member=1
+ROW	case=4	stage=definition-info-list-accessed	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+PRESENTATION	case=4	hex=EVENT	case=4	sequence=1	kind=update	role=0
+6f6f3a3a646566696e652043206f62736572766572206672616d652d64617461
+ROW	case=4	stage=definition-info-presented	status=0	sequence=1	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=4	stage=definition-returned	status=0	sequence=1	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+RESULT	case=4	status=0	hex=6f6f3a3a646566696e652043206f62736572766572206672616d652d64617461
+ROW	case=4	stage=result-presented	status=0	sequence=1	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=2	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=4	stage=interpreter-destroyed-held-originals	status=0	sequence=1	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=-1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=-1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=4	sequence=2	kind=free	role=0
+RELEASE	case=4	updates=1,0,0,0	frees=1,0,0,0	duplicates=0,0,0,0
+CASE	id=5	setup=0
+ROW	case=5	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=5	sequence=1	kind=update	role=0
+EVENT	case=5	sequence=2	kind=update	role=1
+EVENT	case=5	sequence=3	kind=free	role=1
+EVENT	case=5	sequence=4	kind=update	role=2
+ROW	case=5	stage=method-returned	status=0	sequence=4	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=1	r1_update=1	r1_free=1	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+RESULT	case=5	status=0	hex=
+ROW	case=5	stage=result-presented	status=0	sequence=4	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=1	r1_update=1	r1_free=1	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=5	stage=interpreter-destroyed-held-originals	status=0	sequence=4	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=1	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=5	sequence=5	kind=free	role=0
+EVENT	case=5	sequence=6	kind=free	role=2
+RELEASE	case=5	updates=1,1,1,0	frees=1,1,1,0	duplicates=0,0,0,0
+CASE	id=6	setup=0
+ROW	case=6	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=6	sequence=1	kind=update	role=0
+EVENT	case=6	sequence=2	kind=update	role=1
+EVENT	case=6	sequence=3	kind=update	role=2
+ROW	case=6	stage=method-returned	status=1	sequence=3	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+RESULT	case=6	status=1	hex=756e6d617463686564206f70656e20627261636520696e206c697374
+ROW	case=6	stage=result-presented	status=1	sequence=3	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+ROW	case=6	stage=interpreter-destroyed-held-originals	status=0	sequence=3	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=-1	r3_string=0
+EVENT	case=6	sequence=4	kind=free	role=0
+EVENT	case=6	sequence=5	kind=free	role=1
+EVENT	case=6	sequence=6	kind=free	role=2
+RELEASE	case=6	updates=1,1,1,0	frees=1,1,1,0	duplicates=0,0,0,0
+CASE	id=7	setup=0
+ROW	case=7	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=1	r3_string=0
+EVENT	case=7	sequence=1	kind=update	role=3
+EVENT	case=7	sequence=2	kind=free	role=3
+EVENT	case=7	sequence=3	kind=update	role=1
+EVENT	case=7	sequence=4	kind=free	role=1
+EVENT	case=7	sequence=5	kind=update	role=0
+EVENT	case=7	sequence=6	kind=update	role=2
+ROW	case=7	stage=method-returned	status=0	sequence=6	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=1	r1_update=1	r1_free=1	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=1	r3_free=1	r3_duplicate=0	r3_refs=1	r3_string=1
+RESULT	case=7	status=0	hex=
+ROW	case=7	stage=result-presented	status=0	sequence=6	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=3	r0_string=1	r1_update=1	r1_free=1	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=1	r3_free=1	r3_duplicate=0	r3_refs=1	r3_string=1
+ROW	case=7	stage=interpreter-destroyed-held-originals	status=0	sequence=6	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=1	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=1	r3_free=1	r3_duplicate=0	r3_refs=1	r3_string=1
+EVENT	case=7	sequence=7	kind=free	role=0
+EVENT	case=7	sequence=8	kind=free	role=2
+RELEASE	case=7	updates=1,1,1,1	frees=1,1,1,1	duplicates=0,0,0,0
+CASE	id=8	setup=0
+ROW	case=8	stage=initial	status=0	sequence=0	capture_calls=0	r0_update=0	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=0	r1_update=0	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=0	r2_update=0	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=0	r3_update=0	r3_free=0	r3_duplicate=0	r3_refs=1	r3_string=0
+EVENT	case=8	sequence=1	kind=update	role=3
+EVENT	case=8	sequence=2	kind=update	role=0
+EVENT	case=8	sequence=3	kind=update	role=1
+EVENT	case=8	sequence=4	kind=update	role=2
+ROW	case=8	stage=method-returned	status=1	sequence=4	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=1	r3_free=0	r3_duplicate=0	r3_refs=1	r3_string=1
+RESULT	case=8	status=1	hex=626164206578706f727420666c616720222d626164223a206d757374206265202d6578706f72742c202d707269766174652c206f72202d756e6578706f7274
+ROW	case=8	stage=result-presented	status=1	sequence=4	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=1	r3_free=0	r3_duplicate=0	r3_refs=1	r3_string=1
+ROW	case=8	stage=interpreter-destroyed-held-originals	status=0	sequence=4	capture_calls=0	r0_update=1	r0_free=0	r0_duplicate=0	r0_refs=1	r0_string=1	r1_update=1	r1_free=0	r1_duplicate=0	r1_refs=1	r1_string=1	r2_update=1	r2_free=0	r2_duplicate=0	r2_refs=1	r2_string=1	r3_update=1	r3_free=0	r3_duplicate=0	r3_refs=1	r3_string=1
+EVENT	case=8	sequence=5	kind=free	role=0
+EVENT	case=8	sequence=6	kind=free	role=1
+EVENT	case=8	sequence=7	kind=free	role=2
+EVENT	case=8	sequence=8	kind=free	role=3
+RELEASE	case=8	updates=1,1,1,1	frees=1,1,1,1	duplicates=0,0,0,0

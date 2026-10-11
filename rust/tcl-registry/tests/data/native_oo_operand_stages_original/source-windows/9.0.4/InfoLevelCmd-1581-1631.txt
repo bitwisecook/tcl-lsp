@@ -1,0 +1,51 @@
+InfoLevelCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument objects. */
+{
+    Interp *iPtr = (Interp *) interp;
+
+    if (objc == 1) {		/* Just "info level" */
+	Tcl_SetObjResult(interp, Tcl_NewWideIntObj((int)iPtr->varFramePtr->level));
+	return TCL_OK;
+    }
+
+    if (objc == 2) {
+	int level;
+	CallFrame *framePtr, *rootFramePtr = iPtr->rootFramePtr;
+
+	if (TclGetIntFromObj(interp, objv[1], &level) != TCL_OK) {
+	    return TCL_ERROR;
+	}
+	if (level <= 0) {
+	    if (iPtr->varFramePtr == rootFramePtr) {
+		goto levelError;
+	    }
+	    level += iPtr->varFramePtr->level;
+	}
+	for (framePtr=iPtr->varFramePtr ; framePtr!=rootFramePtr;
+		framePtr=framePtr->callerVarPtr) {
+	    if ((int)framePtr->level == level) {
+		break;
+	    }
+	}
+	if (framePtr == rootFramePtr) {
+	    goto levelError;
+	}
+
+	Tcl_SetObjResult(interp,
+		Tcl_NewListObj(framePtr->objc, framePtr->objv));
+	return TCL_OK;
+    }
+
+    Tcl_WrongNumArgs(interp, 1, objv, "?number?");
+    return TCL_ERROR;
+
+  levelError:
+    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+	    "bad level \"%s\"", TclGetString(objv[1])));
+    Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "LEVEL",
+	    TclGetString(objv[1]), (char *)NULL);
+    return TCL_ERROR;
+}

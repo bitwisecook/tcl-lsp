@@ -1,0 +1,49 @@
+TclOONewProcMethod(
+    Tcl_Interp *interp,		/* The interpreter containing the class. */
+    Class *clsPtr,		/* The class to modify. */
+    int flags,			/* Whether this is a public method. */
+    Tcl_Obj *nameObj,		/* The name of the method, which may be NULL;
+				 * if so, up to caller to manage storage
+				 * (e.g., because it is a constructor or
+				 * destructor). */
+    Tcl_Obj *argsObj,		/* The formal argument list for the method,
+				 * which may be NULL; if so, it is equivalent
+				 * to an empty list. */
+    Tcl_Obj *bodyObj,		/* The body of the method, which must not be
+				 * NULL. */
+    ProcedureMethod **pmPtrPtr)	/* Place to write pointer to procedure method
+				 * structure to allow for deeper tuning of the
+				 * structure's contents. NULL if caller is not
+				 * interested. */
+{
+    Tcl_Size argsLen;		/* TCL_INDEX_NONE => delete argsObj before exit */
+    ProcedureMethod *pmPtr;
+    const char *procName;
+    Tcl_Method method;
+
+    if (argsObj == NULL) {
+	argsLen = TCL_INDEX_NONE;
+	TclNewObj(argsObj);
+	Tcl_IncrRefCount(argsObj);
+	procName = "<destructor>";
+    } else if (TclListObjLength(interp, argsObj, &argsLen) != TCL_OK) {
+	return NULL;
+    } else {
+	procName = (nameObj==NULL ? "<constructor>" : TclGetString(nameObj));
+    }
+
+    pmPtr = AllocProcedureMethodRecord(flags);
+    method = TclOOMakeProcMethod2(interp, clsPtr, flags, nameObj, procName,
+	    argsObj, bodyObj, &procMethodType, pmPtr, &pmPtr->procPtr);
+
+    if (argsLen == TCL_INDEX_NONE) {
+	Tcl_DecrRefCount(argsObj);
+    }
+    if (method == NULL) {
+	Tcl_Free(pmPtr);
+    } else if (pmPtrPtr != NULL) {
+	*pmPtrPtr = pmPtr;
+    }
+
+    return (Method *) method;
+}
