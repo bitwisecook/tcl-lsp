@@ -674,7 +674,22 @@ impl OriginalWrittenSourceWords {
         state: &super::ModuleCommandBindings,
         config: tcl_lexer::LexerConfig,
     ) -> Option<Self> {
-        let origin = state.current_source_origin.as_ref()?;
+        Self::at_source(
+            state.current_source_origin.as_ref()?,
+            words,
+            offset,
+            config,
+            state.baseline.dialect,
+        )
+    }
+
+    fn at_source(
+        origin: &Arc<super::SourceOriginId>,
+        words: &[crate::ir::WordExpr],
+        offset: u32,
+        config: tcl_lexer::LexerConfig,
+        dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> Option<Self> {
         origin.original_lexical_command(words, offset, config)?;
         Some(Self {
             site: super::CommandAllocationSite {
@@ -683,8 +698,110 @@ impl OriginalWrittenSourceWords {
             },
             config,
             words: Arc::from(words),
-            dialect: state.baseline.dialect,
+            dialect,
         })
+    }
+
+    pub(super) fn site(&self) -> &super::CommandAllocationSite {
+        &self.site
+    }
+}
+
+/// Immutable syntax owner from an authentic original body descent. Its private
+/// fields retain complete body bytes/channel and input, never lookup or entry.
+#[derive(Debug, Clone)]
+pub(crate) struct OriginalBodyWrittenWordOwner {
+    body: super::ExecutedScriptSource,
+    config: tcl_lexer::LexerConfig,
+    input: crate::analyser::ResolvedAnalysisInput,
+}
+
+impl super::SourceCommandBindings {
+    /// Freeze written geometry before any structural namespace memo is selected.
+    /// The caller independently authenticates the original body and namespace.
+    pub(crate) fn original_body_written_word_owner(
+        &self,
+        body: &super::ExecutedScriptSource,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<OriginalBodyWrittenWordOwner> {
+        let point = self.source_metadata_owner().source_analysis_input()?;
+        if (point != input && point != &input.for_nested_source())
+            || self.lexer_config != Some(config)
+            || self.root_origin.as_ref() != Some(&body.origin)
+            || body.text.channel() != tcl_lexer::SourceChannel::NativeValue
+        {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            input,
+            config,
+            Some(input.unit_profile()),
+        )?;
+        body.try_text().ok()?;
+        let base = usize::try_from(body.base()).ok()?;
+        let end = base.checked_add(body.text.len())?;
+        (body.origin.source_image().bytes().get(base..end) == Some(body.text.bytes()))
+            .then(|| OriginalBodyWrittenWordOwner {
+                body: body.clone(),
+                config,
+                input: input.clone(),
+            })
+    }
+}
+
+impl OriginalBodyWrittenWordOwner {
+    /// Attach only exact original geometry to an otherwise unknown point.
+    /// Existing reached/compiler/declaration owners keep their own refusals.
+    pub(crate) fn stamp_original_tokens(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        tokens: &mut crate::ir::CommandTokens,
+    ) -> Option<()> {
+        if input != &self.input
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+        {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            input,
+            self.config,
+            Some(input.unit_profile()),
+        )?;
+        let base = usize::try_from(self.body.base()).ok()?;
+        let end = base.checked_add(self.body.text.len())?;
+        if tokens.words().iter().any(|word| {
+            let span = word.source().span;
+            usize::try_from(span.start()).map_or(true, |start| start < base)
+                || usize::try_from(span.end()).map_or(true, |finish| finish > end)
+        }) {
+            return None;
+        }
+        let offset = tokens.words().first()?.source().span.start();
+        let original = OriginalWrittenSourceWords::at_source(
+            &self.body.origin,
+            tokens.words(),
+            offset,
+            self.config,
+            None,
+        )?;
+        let binding = tokens.source_binding.as_mut()?;
+        if binding.invocation_site().is_some()
+            || binding.lookup_state.is_some()
+            || binding.compiler_lookup_state.is_some()
+            || binding.declaration_layout_observations.is_some()
+            || !binding.unknown
+            || !binding.targets.is_empty()
+        {
+            return None;
+        }
+        binding.original_written_words = Some(Arc::new(original));
+        Some(())
     }
 }
 

@@ -260,6 +260,7 @@ mod native_result;
 mod numeric_operand_cache;
 mod object_instance;
 pub(crate) mod original_name_value;
+pub(crate) use original_name_value::OriginalBodyWrittenWordOwner;
 pub(crate) mod original_variable_compilation;
 mod source_analysis_cache;
 mod source_analysis_entry;

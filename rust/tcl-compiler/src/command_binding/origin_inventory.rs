@@ -50,7 +50,11 @@ impl SourceInvocationBinding {
     /// unit's relative spans. This supplies location only, never dispatch proof.
     #[must_use]
     pub fn invocation_site(&self) -> Option<&CommandAllocationSite> {
-        self.dispatch_site.as_ref()
+        self.dispatch_site.as_ref().or_else(|| {
+            self.original_written_words
+                .as_deref()
+                .map(super::original_name_value::OriginalWrittenSourceWords::site)
+        })
     }
 
     /// Actual runtime binding evidence excludes execution observers on this token.

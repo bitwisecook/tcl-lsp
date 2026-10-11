@@ -54,6 +54,8 @@ mod execution_regions;
 pub(crate) mod hooks;
 mod installed_bodies;
 #[cfg(test)]
+mod original_body_word_geometry_tests;
+#[cfg(test)]
 mod native_body_context_tests;
 #[cfg(test)]
 mod native_control_carrier_tests;
@@ -993,6 +995,9 @@ pub struct Lowerer<'r> {
     aliases: CommandAliasMap,
     /// Point-specific command state in the current source span space.
     source_bindings: Option<RetainedSourceBodyInventory>,
+    /// Written geometry only while lowering an authentic body with its
+    /// independently selected namespace; never an execution or lookup owner.
+    original_body_word_source: Option<crate::command_binding::OriginalBodyWrittenWordOwner>,
     /// Exact entry inventory retained for deferred method extraction.
     module_source_bindings: Option<Box<RetainedSourceBodyInventory>>,
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
@@ -1279,6 +1284,7 @@ impl<'r> Lowerer<'r> {
             module: Module::default(),
             aliases: CommandAliasMap::new(),
             source_bindings: None,
+            original_body_word_source: None,
             module_source_bindings: None,
             compilation_scope: tcl_runtime_api::SourceCompilationScope::WholeModule,
             trusted_package_loaders: Vec::new(),
@@ -1759,8 +1765,21 @@ impl<'r> Lowerer<'r> {
         trace("expression-inventory");
         let label = namespace.display().unwrap_or_default();
         let enclosing_channel = std::mem::replace(&mut self.source_channel, source.text.channel());
+        // Keep the authentic pre-selection owner. A namespace projection memo
+        // can filter observations but cannot issue written source geometry.
+        let word_source = self.source_bindings.as_ref().and_then(|owner| {
+            owner.original_body_written_word_owner(
+                &source,
+                self.config,
+                self.registry,
+                self.invocation_metadata_context()?.source_analysis_input()?,
+            )
+        });
+        let enclosing_word_source =
+            std::mem::replace(&mut self.original_body_word_source, word_source);
         let mut script =
             self.lower_into_script_with_boxed_bindings(text, source.base(), &label, bindings);
+        self.original_body_word_source = enclosing_word_source;
         #[cfg(any(test, debug_assertions))]
         trace("lowered");
         self.source_channel = enclosing_channel;
@@ -2573,6 +2592,13 @@ impl<'r> Lowerer<'r> {
         let mut tokens = CommandTokens::from_segmented(&self.word_space.map(), self.config, seg);
         if let Some(bindings) = &self.source_bindings {
             bindings.stamp_original_tokens(&mut tokens);
+            if let (Some(body), Some(metadata)) = (
+                self.original_body_word_source.as_ref(),
+                self.invocation_metadata_context(),
+            ) && let Some(input) = metadata.source_analysis_input()
+            {
+                let _ = body.stamp_original_tokens(self.registry, input, &mut tokens);
+            }
         }
         // Implementation contract: naming.consumer.hosted-source-taint-descriptor
         // docs/design/analysis/name-resolution-proofs/hosted-source-taint-descriptor.md
