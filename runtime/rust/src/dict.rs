@@ -387,6 +387,16 @@ fn ensure_dict_native_with_stage_check(
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
     stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
 ) -> Result<(), ValueError> {
+    ensure_dict_native_with_stage_handlers(value, protocol, currency, stage_check, None)
+}
+
+fn ensure_dict_native_with_stage_handlers(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
+    retain_error: Option<&dyn Fn(ValueError) -> ValueError>,
+) -> Result<(), ValueError> {
     dictionary_stage_current_checked(value, currency, stage_check)?;
     seal_string_protocol(value, protocol)?;
     if obj::obj_type_ptr(value) == &TCL_DICT_TYPE {
@@ -406,10 +416,16 @@ fn ensure_dict_native_with_stage_check(
             dictionary_stage_current_checked(value, currency, stage_check)?;
             reached?;
         }
-        crate::list::list_elements_native_with_stage_check(value, protocol, currency, stage_check)?
-            .into_iter()
-            .map(obj::Owned::retain)
-            .collect()
+        crate::list::list_elements_native_with_stage_handlers(
+            value,
+            protocol,
+            currency,
+            stage_check,
+            retain_error,
+        )?
+        .into_iter()
+        .map(obj::Owned::retain)
+        .collect()
     } else {
         let reached = native_object_bytes(value, protocol);
         dictionary_stage_current_checked(value, currency, stage_check)?;
@@ -472,19 +488,30 @@ fn ensure_dict_native_with_stage_check(
         string_protocol: Cell::new(Some(protocol)),
     })));
     dictionary_stage_current_checked(value, currency, stage_check)?;
-    if (currency.is_some() || stage_check.is_some()) && !obj::obj_type_ptr(value).is_null() {
-        if obj::has_string_rep(value) {
-            obj::discard_native_internal_representation(value)?;
-        } else {
-            obj::change_type(value, core::ptr::null(), 0);
+    if currency.is_some() || stage_check.is_some() {
+        let incoming = Box::into_raw(backing.0.take().expect("prepared Dictionary backing"));
+        let mut current = || dictionary_stage_current_checked(value, currency, stage_check);
+        let adopted = obj::change_type_with_stage_check(
+            value,
+            &TCL_DICT_TYPE,
+            incoming as usize as u64,
+            &mut current,
+        );
+        if let Err(error) = adopted {
+            let error = crate::list::retain_native_conversion_error(error, currency, retain_error);
+            // Transfer no prepared role on refusal. The existing owner retires
+            // each actual key/value hold before the original stage settles.
+            unsafe { drop(PreparedDictionaryBacking(Some(Box::from_raw(incoming)))) };
+            dictionary_stage_current_checked(value, currency, stage_check)?;
+            return Err(error);
         }
-        dictionary_stage_current_checked(value, currency, stage_check)?;
+    } else {
+        obj::change_type(
+            value,
+            &TCL_DICT_TYPE,
+            Box::into_raw(backing.0.take().expect("prepared Dictionary backing")) as usize as u64,
+        );
     }
-    obj::change_type(
-        value,
-        &TCL_DICT_TYPE,
-        Box::into_raw(backing.0.take().expect("prepared Dictionary backing")) as usize as u64,
-    );
     dictionary_stage_current_checked(value, currency, stage_check)
 }
 
@@ -543,7 +570,7 @@ impl PreparedNativeDictionary {
         original: Option<*mut TclObj>,
         protocol: NativeStringProtocol,
     ) -> Result<Self, ValueError> {
-        Self::prepare_with_stage_check(original, protocol, None)
+        Self::prepare_with_stage_check(original, protocol, None, None)
     }
 
     pub(crate) fn prepare_using<E>(
@@ -552,8 +579,8 @@ impl PreparedNativeDictionary {
         check: &impl Fn() -> Result<(), E>,
         refuse: &impl Fn(ValueError) -> E,
     ) -> Result<Self, E> {
-        crate::list::with_native_conversion_check(check, refuse, |stage| {
-            Self::prepare_with_stage_check(original, protocol, Some(stage))
+        crate::list::with_native_conversion_check(check, refuse, |stage, retain| {
+            Self::prepare_with_stage_check(original, protocol, Some(stage), Some(retain))
         })
     }
 
@@ -561,6 +588,7 @@ impl PreparedNativeDictionary {
         original: Option<*mut TclObj>,
         protocol: NativeStringProtocol,
         stage_check: Option<&dyn Fn() -> Result<(), ValueError>>,
+        retain_error: Option<&dyn Fn(ValueError) -> ValueError>,
     ) -> Result<Self, ValueError> {
         if let Some(original) = original {
             dictionary_stage_current_checked(original, None, stage_check)?;
@@ -569,13 +597,25 @@ impl PreparedNativeDictionary {
         let value = match original {
             Some(value) if obj::is_shared(value) => obj::Owned::fresh(obj::duplicate(value)),
             Some(value) => {
-                ensure_dict_native_with_stage_check(value, protocol, None, stage_check)?;
+                ensure_dict_native_with_stage_handlers(
+                    value,
+                    protocol,
+                    None,
+                    stage_check,
+                    retain_error,
+                )?;
                 obj::Owned::retain(value)
             }
             None => obj::Owned::fresh(new_dict_obj(&[])),
         };
         dictionary_stage_current_checked(value.as_ptr(), None, stage_check)?;
-        ensure_dict_native_with_stage_check(value.as_ptr(), protocol, None, stage_check)?;
+        ensure_dict_native_with_stage_handlers(
+            value.as_ptr(),
+            protocol,
+            None,
+            stage_check,
+            retain_error,
+        )?;
         Ok(Self { value, protocol })
     }
     pub(crate) fn prepare_after_conversion(
@@ -1027,8 +1067,8 @@ pub(crate) fn native_dict_pairs_using<E>(
     check: &(impl Fn() -> Result<(), E> + ?Sized),
     refuse: &impl Fn(ValueError) -> E,
 ) -> Result<Vec<(*mut TclObj, *mut TclObj)>, E> {
-    crate::list::with_native_conversion_check(check, refuse, |stage| {
-        ensure_dict_native_with_stage_check(value, protocol, None, Some(stage))?;
+    crate::list::with_native_conversion_check(check, refuse, |stage, retain| {
+        ensure_dict_native_with_stage_handlers(value, protocol, None, Some(stage), Some(retain))?;
         Ok(unsafe { dict_ref(value) }.entries.clone())
     })
 }

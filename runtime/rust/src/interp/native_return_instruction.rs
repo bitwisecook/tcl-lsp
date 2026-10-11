@@ -340,6 +340,7 @@ impl Interp {
                         crate::obj::check_native_liveness(options_lifetime.as_ptr())
                             .map_err(|error| self.clone().refuse_completion_value_access(error))
                     },
+                    &|error| self.clone().refuse_completion_value_access(error).into(),
                 )?;
                 self.restore_return_options_checked(original)?;
                 scope.currency().ensure_current_or_refuse()?;
@@ -1261,6 +1262,7 @@ mod original_syntax_transport_tests {
                                 value.as_ptr(),
                                 strings,
                                 &|| scope.currency().ensure_current_or_refuse(),
+                                &|error| interpreter.clone().refuse_completion_value_access(error).into(),
                             )
                             .map(drop),
                             _ => interpreter

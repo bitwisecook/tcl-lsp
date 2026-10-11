@@ -132,6 +132,7 @@ impl NativeReturnOptions {
         original: *mut TclObj,
         protocol: NativeStringProtocol,
         check: &dyn Fn() -> Result<(), tcl_runtime_api::NativeExecutionError>,
+        refuse: &impl Fn(ValueError) -> tcl_cmd_core::CmdError,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
         check()?;
         obj::check_native_liveness(original)?;
@@ -140,7 +141,7 @@ impl NativeReturnOptions {
             original,
             protocol,
             &|| check().map_err(tcl_cmd_core::CmdError::from),
-            &tcl_cmd_core::CmdError::from,
+            refuse,
         );
         check()?;
         let pairs = reached?;

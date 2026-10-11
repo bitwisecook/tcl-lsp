@@ -17319,21 +17319,6 @@ impl Interp {
         cfg: &crate::ensemble::EnsembleConfig,
         argv: &[*mut TclObj],
     ) -> EnsembleUnknown {
-        let ens_fqn = token.name();
-        let Some(protocol) = self
-            .eval_frame_dialect()
-            .native_string_materialization(None)
-            .map(|recipe| recipe.protocol())
-        else {
-            return EnsembleUnknown::Failed(
-                self.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "ensemble unknown original prefix",
-                    )
-                    .into(),
-                ),
-            );
-        };
         let Some(handler) = crate::ensemble::NativeEnsembleObjects::pointer(&cfg.originals.unknown)
         else {
             return EnsembleUnknown::Failed(
@@ -17345,78 +17330,207 @@ impl Interp {
                 ),
             );
         };
-        let call = obj::Owned::fresh(obj::duplicate(handler));
-        let fqn = obj::Owned::fresh(new_string(&ens_fqn));
-        let mut additions = vec![fqn.as_ptr()];
-        additions.extend_from_slice(&argv[1..]);
-        if let Err(error) =
-            crate::list::append_prepared_native_elements(call.as_ptr(), &additions, protocol)
-        {
-            return EnsembleUnknown::Failed(self.report_cmd_error(error.into()));
-        }
-        drop(fqn);
-        let hv = match crate::list::list_elements_native_checked(call.as_ptr(), protocol) {
-            Ok(words) => words,
-            Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error.into())),
+        let mut retained = argv.to_vec();
+        retained.push(handler);
+        let originals = match native_arguments::OriginalArguments::enter(self, &retained) {
+            Ok(originals) => originals,
+            Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
         };
-        let mut handler_call = Vec::new();
-        for (index, &word) in hv.iter().enumerate() {
-            if index != 0 {
-                handler_call.push(b' ');
+        let outcome = (|| {
+            let ens_fqn = token.name();
+            let Some(protocol) = self
+                .eval_frame_dialect()
+                .native_string_materialization(None)
+                .map(|recipe| recipe.protocol())
+            else {
+                return EnsembleUnknown::Failed(
+                    self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "ensemble unknown original prefix",
+                        )
+                        .into(),
+                    ),
+                );
+            };
+            if let Err(error) = originals
+                .check_original_for(self, argv.len(), handler)
+                .and_then(|()| originals.original(argv.len()).map(|_| ()))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
             }
-            crate::list::append_list_element(&mut handler_call, &obj_bytes(word), false);
-        }
-        let code = self.dispatch(&hv);
-        match code {
-            Code::Ok => {
-                if token.is_deleted() {
-                    let code = self.error_with_code(
-                        tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE.as_bytes(),
-                        tcl_cmd_core::ensemble::UNKNOWN_DELETED_ERROR_CODE.as_bytes(),
-                    );
-                    self.append_frame_noline(b"ensemble unknown subcommand handler");
-                    return EnsembleUnknown::Failed(code);
+            let call = obj::Owned::fresh(obj::duplicate(handler));
+            if let Err(error) = originals
+                .check_original_for(self, argv.len(), handler)
+                .and_then(|()| originals.original(argv.len()).map(|_| ()))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            let selected_call =
+                match native_arguments::OriginalArguments::enter(self, &[call.as_ptr()]) {
+                    Ok(originals) => originals,
+                    Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+                };
+            let fqn = obj::Owned::fresh(new_string(&ens_fqn));
+            let mut additions = vec![fqn.as_ptr()];
+            additions.extend_from_slice(&argv[1..]);
+            let checked = || {
+                originals
+                    .check_for(self)
+                    .and_then(|()| selected_call.check_original_for(self, 0, call.as_ptr()))
+            };
+            let prepared = crate::list::append_prepared_native_elements_using(
+                call.as_ptr(),
+                &additions,
+                protocol,
+                &checked,
+                &|error| originals.retain_refusal(error.into()),
+            );
+            if let Err(error) = checked() {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            if let Err(error) = prepared {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            drop(fqn);
+            if let Err(error) = originals
+                .check_for(self)
+                .and_then(|()| selected_call.check_original_for(self, 0, call.as_ptr()))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            let checked = || {
+                originals
+                    .check_for(self)
+                    .and_then(|()| selected_call.check_original_for(self, 0, call.as_ptr()))
+            };
+            let reached = crate::list::list_elements_native_using(
+                call.as_ptr(),
+                protocol,
+                &checked,
+                &|error| originals.retain_refusal(error.into()),
+            );
+            if let Err(error) = checked() {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            let hv = match reached {
+                Ok(words) => words,
+                Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+            };
+            let selected_words = match native_arguments::OriginalArguments::enter(self, &hv) {
+                Ok(originals) => originals,
+                Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+            };
+            let mut handler_call = Vec::new();
+            for index in 0..hv.len() {
+                let reached = selected_words.bytes(index);
+                if let Err(error) = originals
+                    .check_for(self)
+                    .and_then(|()| selected_words.check_for(self))
+                {
+                    return EnsembleUnknown::Failed(self.report_cmd_error(error));
                 }
-                let result = obj::Owned::retain(self.get_obj_result());
-                self.set_result_bytes(b"");
-                drop(call);
-                match crate::list::list_elements_native_checked(result.as_ptr(), protocol) {
-                    Ok(words) if !words.is_empty() => EnsembleUnknown::Prefix(result),
-                    Ok(_) => EnsembleUnknown::Reparse,
-                    Err(error) => {
-                        let code = self.report_cmd_error(error.into());
-                        self.append_error_info_context(
-                            b"while parsing result of ensemble unknown subcommand handler",
+                let word = match reached {
+                    Ok(word) => word,
+                    Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+                };
+                if index != 0 {
+                    handler_call.push(b' ');
+                }
+                crate::list::append_list_element(&mut handler_call, &word, false);
+            }
+            let code = self.dispatch(&hv);
+            if let Err(error) = originals
+                .check_for(self)
+                .and_then(|()| selected_words.check_for(self))
+            {
+                return EnsembleUnknown::Failed(self.report_cmd_error(error));
+            }
+            match code {
+                Code::Ok => {
+                    if token.is_deleted() {
+                        let code = self.error_with_code(
+                            tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE.as_bytes(),
+                            tcl_cmd_core::ensemble::UNKNOWN_DELETED_ERROR_CODE.as_bytes(),
                         );
-                        EnsembleUnknown::Failed(code)
+                        self.append_frame_noline(b"ensemble unknown subcommand handler");
+                        return EnsembleUnknown::Failed(code);
+                    }
+                    let result = obj::Owned::retain(self.get_obj_result());
+                    let selected_result = match native_arguments::OriginalArguments::enter(
+                        self,
+                        &[result.as_ptr()],
+                    ) {
+                        Ok(originals) => originals,
+                        Err(error) => return EnsembleUnknown::Failed(self.report_cmd_error(error)),
+                    };
+                    self.set_result_bytes(b"");
+                    drop(call);
+                    if let Err(error) = originals
+                        .check_for(self)
+                        .and_then(|()| selected_result.check_original_for(self, 0, result.as_ptr()))
+                    {
+                        return EnsembleUnknown::Failed(self.report_cmd_error(error));
+                    }
+                    let checked = || {
+                        originals.check_for(self).and_then(|()| {
+                            selected_result.check_original_for(self, 0, result.as_ptr())
+                        })
+                    };
+                    let parsed = crate::list::list_elements_native_using(
+                        result.as_ptr(),
+                        protocol,
+                        &checked,
+                        &|error| originals.retain_refusal(error.into()),
+                    );
+                    if let Err(error) = checked() {
+                        return EnsembleUnknown::Failed(self.report_cmd_error(error));
+                    }
+                    match parsed {
+                        Ok(words) if !words.is_empty() => EnsembleUnknown::Prefix(result),
+                        Ok(_) => EnsembleUnknown::Reparse,
+                        Err(error) => {
+                            let code = self.report_cmd_error(error);
+                            self.append_error_info_context(
+                                b"while parsing result of ensemble unknown subcommand handler",
+                            );
+                            EnsembleUnknown::Failed(code)
+                        }
                     }
                 }
-            }
-            Code::Error => {
-                if let Some(command) =
-                    parse::parse_script_with_config(&handler_call, self.lexer_config()).first()
-                {
-                    self.log_command_info(&handler_call, command);
+                Code::Error => {
+                    if let Some(command) =
+                        parse::parse_script_with_config(&handler_call, self.lexer_config()).first()
+                    {
+                        self.log_command_info(&handler_call, command);
+                    }
+                    self.append_frame_noline(b"ensemble unknown subcommand handler");
+                    EnsembleUnknown::Failed(Code::Error)
                 }
-                self.append_frame_noline(b"ensemble unknown subcommand handler");
-                EnsembleUnknown::Failed(Code::Error)
-            }
-            other => {
-                let mut m = b"unknown subcommand handler returned bad code: ".to_vec();
-                match other {
-                    Code::Return => m.extend_from_slice(b"return"),
-                    Code::Break => m.extend_from_slice(b"break"),
-                    Code::Continue => m.extend_from_slice(b"continue"),
-                    Code::Other(value) => m.extend_from_slice(value.to_string().as_bytes()),
-                    Code::Ok | Code::Error => unreachable!("handled above"),
+                other => {
+                    let mut message = b"unknown subcommand handler returned bad code: ".to_vec();
+                    match other {
+                        Code::Return => message.extend_from_slice(b"return"),
+                        Code::Break => message.extend_from_slice(b"break"),
+                        Code::Continue => message.extend_from_slice(b"continue"),
+                        Code::Other(value) => {
+                            message.extend_from_slice(value.to_string().as_bytes())
+                        }
+                        Code::Ok | Code::Error => unreachable!("checked above"),
+                    }
+                    let code = self.error_with_code(&message, b"TCL ENSEMBLE UNKNOWN_RESULT");
+                    let mut context = b"result of ensemble unknown subcommand handler: ".to_vec();
+                    context.extend_from_slice(&handler_call);
+                    self.append_error_info_context(&context);
+                    EnsembleUnknown::Failed(code)
                 }
-                let code = self.error_with_code(&m, b"TCL ENSEMBLE UNKNOWN_RESULT");
-                let mut context = b"result of ensemble unknown subcommand handler: ".to_vec();
-                context.extend_from_slice(&handler_call);
-                self.append_error_info_context(&context);
-                EnsembleUnknown::Failed(code)
             }
+        })();
+        if let Err(error) = originals.check_for(self) {
+            drop(outcome);
+            let _ = originals.check_for(self);
+            return EnsembleUnknown::Failed(self.report_cmd_error(error));
         }
+        outcome
     }
 
     /// Invoke `::tcl::mathfunc::<fname>` (resolved **absolutely**, so it works

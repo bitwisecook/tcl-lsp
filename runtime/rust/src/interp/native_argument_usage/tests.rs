@@ -450,3 +450,364 @@ fn original_usage_actual_receiver_refuses_foreign_interpreter_before_getter() {
     assert!(original.native_execution_refusal().is_none());
     assert_eq!(original.entered_native_operation_count(), 1);
 }
+
+thread_local! {
+    static UNKNOWN_CALLS: Cell<usize> = const { Cell::new(0) };
+    static UNKNOWN_RESULT: Cell<*mut TclObj> = const { Cell::new(core::ptr::null_mut()) };
+    static UNKNOWN_LEASE: RefCell<Option<obj::NativeObjectLifetime>> = const { RefCell::new(None) };
+    static UNKNOWN_FIRST: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+}
+
+struct UnknownTls;
+impl UnknownTls {
+    fn enter() -> Self {
+        UNKNOWN_CALLS.with(|value| value.set(0));
+        UNKNOWN_RESULT.with(|value| value.set(core::ptr::null_mut()));
+        UNKNOWN_FIRST.with(|value| {
+            value.borrow_mut().take();
+        });
+        UNKNOWN_LEASE.with(|value| {
+            value.borrow_mut().take();
+        });
+        Self
+    }
+}
+impl Drop for UnknownTls {
+    fn drop(&mut self) {
+        UNKNOWN_LEASE.with(|value| {
+            value.borrow_mut().take();
+        });
+    }
+}
+
+extern "C" fn unknown_retire(original: *mut TclObj) {
+    FREES.with(|value| value.set(value.get() + 1));
+    REFS.with(|value| value.borrow_mut()[2] = unsafe { (*original).ref_count });
+    let Some(interpreter) = (unsafe { codegen_abi::current_interp().as_ref() }) else {
+        BORROWS.with(|value| value.set(false));
+        return;
+    };
+    BORROWS.with(|value| value.set(value.get() && interpreter.exc.try_borrow_mut().is_ok()));
+    let mut interpreter = interpreter.clone();
+    match MODE.with(Cell::get) {
+        1 => {
+            interpreter.refuse_host_command("first unknown result primary retirement");
+        }
+        2 => change_and_restore(&mut interpreter),
+        _ => {}
+    }
+    // Checking the original currency latches the ABA before optional observers.
+    if let Err(first) = interpreter.check_entered_native_operation() {
+        interpreter.refuse_native_execution(first);
+    }
+    UNKNOWN_FIRST.with(|value| *value.borrow_mut() = interpreter.native_execution_refusal());
+}
+
+static UNKNOWN_RETIRE: obj::TclObjType = obj::TclObjType {
+    name: c"originalUnknownResultRetirement".as_ptr(),
+    free_int_rep_proc: Some(unknown_retire),
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+fn unknown_handler(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+    UNKNOWN_CALLS.with(|value| value.set(value.get() + 1));
+    if MODE.with(Cell::get) == 10 {
+        interpreter.delete_command(b"consumerUnknownEnsemble");
+        interpreter.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    let produced = UNKNOWN_RESULT.with(Cell::get);
+    if !produced.is_null() {
+        interpreter.set_result(produced);
+        let caller = CALLER.with(|value| value.borrow_mut().take());
+        drop(caller);
+    } else if MODE.with(Cell::get) == 7 {
+        interpreter.set_result_bytes(b"");
+    } else if MODE.with(Cell::get) == 8 {
+        interpreter.set_result_bytes(b"consumerOriginalTarget argument");
+    } else {
+        interpreter.set_result_bytes(b"UNKNOWN-GUEST");
+        return Code::Break;
+    }
+    Code::Ok
+}
+
+fn configured_unknown(
+    interpreter: &mut Interp,
+    members: &[*mut TclObj],
+) -> (
+    std::rc::Rc<crate::ensemble::EnsembleToken>,
+    crate::ensemble::EnsembleConfig,
+    *mut TclObj,
+) {
+    let protocol = interpreter
+        .eval_frame_dialect()
+        .native_string_materialization(None)
+        .unwrap()
+        .protocol();
+    let root = obj::Owned::fresh(crate::list::new_list_obj_native(members, protocol));
+    let original = root.as_ptr();
+    let configuration = crate::ensemble::EnsembleConfig {
+        originals: crate::ensemble::NativeEnsembleObjects {
+            unknown: Some(tcl_cmd_core::ensemble::EnsembleObjectRole::new(
+                crate::ensemble::NativeEnsembleRoot::owned(root),
+            )),
+            ..crate::ensemble::NativeEnsembleObjects::default()
+        },
+        ns: GLOBAL,
+        map: Some(Vec::new()),
+        subcommands: None,
+        prefixes: true,
+        parameters: Vec::new(),
+        unknown: vec![b"consumerOriginalUnknown".to_vec()],
+    };
+    interpreter.create_ensemble_in_slot(GLOBAL, b"consumerUnknownEnsemble", configuration);
+    let token = match interpreter
+        .namespaces()
+        .command_in(GLOBAL, b"consumerUnknownEnsemble")
+    {
+        Some(crate::interp::Command::Ensemble(token)) => token,
+        _ => panic!("actual configured ensemble publication"),
+    };
+    let config = token.config();
+    assert_eq!(
+        crate::ensemble::NativeEnsembleObjects::pointer(&config.originals.unknown),
+        Some(original)
+    );
+    (token, config, original)
+}
+
+#[test]
+fn original_unknown_current_guest_results_keep_true_prefix_and_reparse_contracts() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in [7, 8, 9, 10] {
+        let mut interpreter = native("tcl8.6");
+        interpreter.register_builtin(b"consumerOriginalUnknown", unknown_handler);
+        let _tls = OriginalTls::enter(&mut interpreter, mode);
+        let _unknown = UnknownTls::enter();
+        let head = obj::Owned::fresh(crate::interp::new_string(b"consumerOriginalUnknown"));
+        let (token, configuration, root) = configured_unknown(&mut interpreter, &[head.as_ptr()]);
+        let _root_lifetime = obj::NativeObjectLifetime::retain(root);
+        let invocation = obj::Owned::fresh(crate::interp::new_string(b"consumerUnknownEnsemble"));
+        let selector = obj::Owned::fresh(crate::interp::new_string(b"absent"));
+        let outcome = interpreter.ensemble_unknown(
+            &token,
+            &configuration,
+            &[invocation.as_ptr(), selector.as_ptr()],
+        );
+        match (mode, outcome) {
+            (7, super::super::EnsembleUnknown::Reparse) => {
+                assert_eq!(interpreter.result_bytes(), b"")
+            }
+            (8, super::super::EnsembleUnknown::Prefix(prefix)) => {
+                let members = crate::list::list_elements_native_checked(
+                    prefix.as_ptr(),
+                    interpreter
+                        .eval_frame_dialect()
+                        .native_string_materialization(None)
+                        .unwrap()
+                        .protocol(),
+                )
+                .unwrap();
+                assert_eq!(members.len(), 2);
+                assert_eq!(
+                    crate::obj::native_object_snapshot(members[0])
+                        .unwrap()
+                        .resident
+                        .as_deref(),
+                    Some(b"consumerOriginalTarget".as_slice())
+                );
+                assert_eq!(interpreter.result_bytes(), b"");
+            }
+            (9, super::super::EnsembleUnknown::Failed(Code::Error)) => {
+                assert!(interpreter
+                    .result_bytes()
+                    .starts_with(b"unknown subcommand handler returned bad code: break"));
+                assert_eq!(interpreter.error_code(), b"TCL ENSEMBLE UNKNOWN_RESULT");
+            }
+            (10, super::super::EnsembleUnknown::Failed(Code::Error)) => {
+                assert_eq!(
+                    interpreter.result_bytes(),
+                    tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE.as_bytes()
+                );
+                assert_eq!(
+                    interpreter.error_code(),
+                    tcl_cmd_core::ensemble::UNKNOWN_DELETED_ERROR_CODE.as_bytes()
+                );
+                assert!(token.is_deleted());
+                assert!(crate::ensemble::NativeEnsembleObjects::pointer(
+                    &configuration.originals.unknown
+                )
+                .is_none());
+            }
+            _ => panic!("actual unknown outcome"),
+        }
+        assert_eq!(UNKNOWN_CALLS.with(Cell::get), 1);
+        assert_eq!(unsafe { (*root).ref_count }, if mode == 10 { 0 } else { 1 });
+        assert_eq!(
+            unsafe { (*head.as_ptr()).ref_count },
+            if mode == 10 { 1 } else { 2 }
+        );
+        assert!(interpreter.native_execution_refusal().is_none());
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+    }
+}
+
+#[test]
+fn original_unknown_member_refusal_stops_later_getter_and_real_dispatch() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in [1, 2] {
+        let mut interpreter = native("tcl8.6");
+        interpreter.register_builtin(b"consumerOriginalUnknown", unknown_handler);
+        let _tls = OriginalTls::enter(&mut interpreter, mode);
+        let _unknown = UnknownTls::enter();
+        let head = obj::Owned::fresh(crate::interp::new_string(b"consumerOriginalUnknown"));
+        let first = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 0));
+        let later = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 1));
+        let (token, configuration, root) = configured_unknown(
+            &mut interpreter,
+            &[head.as_ptr(), first.as_ptr(), later.as_ptr()],
+        );
+        let invocation = obj::Owned::fresh(crate::interp::new_string(b"consumerUnknownEnsemble"));
+        let selector = obj::Owned::fresh(crate::interp::new_string(b"absent"));
+        let prior = prior_result(&mut interpreter);
+        let count = interpreter.cmd_count.get();
+        assert!(matches!(
+            interpreter.ensemble_unknown(
+                &token,
+                &configuration,
+                &[invocation.as_ptr(), selector.as_ptr()]
+            ),
+            super::super::EnsembleUnknown::Failed(Code::Error)
+        ));
+        assert_eq!(UNKNOWN_CALLS.with(Cell::get), 0);
+        assert_eq!(GETS.with(|value| *value.borrow()), [1, 0, 0, 0]);
+        // Caller, configured backing and copied call backing are real roles;
+        // the original argument projections add no Native reference.
+        assert_eq!(REFS.with(|value| value.borrow()[0]), 3);
+        assert_eq!(unsafe { (*first.as_ptr()).ref_count }, 2);
+        assert_eq!(unsafe { (*root).ref_count }, 1);
+        assert!(!obj::has_string_rep(later.as_ptr()));
+        assert_prior(&interpreter, prior);
+        assert_eq!(interpreter.cmd_count.get(), count);
+        assert!(interpreter.native_execution_refusal().is_some());
+        assert!(NESTED.with(Cell::get));
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+    }
+}
+
+#[test]
+fn original_unknown_result_primary_retirement_refuses_before_list_adoption() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in [1, 2] {
+        let mut interpreter = native("tcl8.6");
+        interpreter.register_builtin(b"consumerOriginalUnknown", unknown_handler);
+        let _tls = OriginalTls::enter(&mut interpreter, mode);
+        let _unknown = UnknownTls::enter();
+        let head = obj::Owned::fresh(crate::interp::new_string(b"consumerOriginalUnknown"));
+        let (token, configuration, _) = configured_unknown(&mut interpreter, &[head.as_ptr()]);
+        let produced = obj::Owned::fresh(obj::alloc_typed(&UNKNOWN_RETIRE, 0));
+        unsafe {
+            obj::set_native_updater_string_rep(
+                produced.as_ptr(),
+                b"consumerOriginalTarget argument",
+                false,
+            );
+        }
+        let original = produced.as_ptr();
+        UNKNOWN_RESULT.with(|value| value.set(original));
+        UNKNOWN_LEASE
+            .with(|value| *value.borrow_mut() = Some(obj::NativeObjectLifetime::retain(original)));
+        // Only the actual callback result slot acquires the incoming Native +1.
+        // Drop the caller's role inside the genuine worker before conversion.
+        CALLER.with(|value| *value.borrow_mut() = Some(produced));
+        let invocation = obj::Owned::fresh(crate::interp::new_string(b"consumerUnknownEnsemble"));
+        let selector = obj::Owned::fresh(crate::interp::new_string(b"absent"));
+        assert!(matches!(
+            interpreter.ensemble_unknown(
+                &token,
+                &configuration,
+                &[invocation.as_ptr(), selector.as_ptr()]
+            ),
+            super::super::EnsembleUnknown::Failed(Code::Error)
+        ));
+        assert_eq!(UNKNOWN_CALLS.with(Cell::get), 1);
+        assert_eq!(FREES.with(Cell::get), 1);
+        assert_eq!(REFS.with(|value| value.borrow()[2]), 1);
+        assert!(BORROWS.with(Cell::get));
+        assert!(NESTED.with(Cell::get));
+        assert_ne!(obj::obj_type_ptr(original), &crate::list::TCL_LIST_TYPE);
+        assert_eq!(unsafe { (*original).ref_count }, 0);
+        assert_eq!(
+            obj::native_object_snapshot(interpreter.get_obj_result())
+                .unwrap()
+                .resident
+                .as_deref(),
+            Some(b"".as_slice())
+        );
+        assert_eq!(
+            interpreter.native_execution_refusal(),
+            UNKNOWN_FIRST.with(|value| value.borrow().clone())
+        );
+        assert!(interpreter.native_execution_refusal().is_some());
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+    }
+}
+
+#[test]
+fn original_unknown_returned_string_refusal_stops_result_list_and_guest_context() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for mode in [1, 2] {
+        let mut interpreter = native("tcl8.6");
+        interpreter.register_builtin(b"consumerOriginalUnknown", unknown_handler);
+        let _tls = OriginalTls::enter(&mut interpreter, mode);
+        let _unknown = UnknownTls::enter();
+        let head = obj::Owned::fresh(crate::interp::new_string(b"consumerOriginalUnknown"));
+        let (token, configuration, _) = configured_unknown(&mut interpreter, &[head.as_ptr()]);
+        let produced = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 0));
+        let original = produced.as_ptr();
+        UNKNOWN_RESULT.with(|value| value.set(original));
+        UNKNOWN_LEASE
+            .with(|value| *value.borrow_mut() = Some(obj::NativeObjectLifetime::retain(original)));
+        CALLER.with(|value| *value.borrow_mut() = Some(produced));
+        let invocation = obj::Owned::fresh(crate::interp::new_string(b"consumerUnknownEnsemble"));
+        let selector = obj::Owned::fresh(crate::interp::new_string(b"absent"));
+        assert!(matches!(
+            interpreter.ensemble_unknown(
+                &token,
+                &configuration,
+                &[invocation.as_ptr(), selector.as_ptr()]
+            ),
+            super::super::EnsembleUnknown::Failed(Code::Error)
+        ));
+        assert_eq!(UNKNOWN_CALLS.with(Cell::get), 1);
+        assert_eq!(GETS.with(|value| *value.borrow()), [1, 0, 0, 0]);
+        assert_eq!(REFS.with(|value| value.borrow()[0]), 1);
+        assert_ne!(obj::obj_type_ptr(original), &crate::list::TCL_LIST_TYPE);
+        assert_eq!(unsafe { (*original).ref_count }, 0);
+        assert_eq!(
+            obj::native_object_snapshot(interpreter.get_obj_result())
+                .unwrap()
+                .resident
+                .as_deref(),
+            Some(b"".as_slice())
+        );
+        assert!(interpreter
+            .exc
+            .borrow()
+            .info
+            .as_ref()
+            .is_none_or(|info| !info
+                .windows(b"while parsing result".len())
+                .any(|window| window == b"while parsing result")));
+        assert!(interpreter.native_execution_refusal().is_some());
+        assert!(NESTED.with(Cell::get));
+        assert_eq!(interpreter.entered_native_operation_count(), 0);
+    }
+}

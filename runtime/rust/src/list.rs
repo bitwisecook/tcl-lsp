@@ -654,6 +654,16 @@ pub(crate) fn list_elements_native_with_stage_check(
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
 ) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+    list_elements_native_with_stage_handlers(value, protocol, currency, stage_check, None)
+}
+
+pub(crate) fn list_elements_native_with_stage_handlers(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+    retain_error: Option<&dyn Fn(tcl_syntax::value::ValueError) -> tcl_syntax::value::ValueError>,
+) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
     list_stage_current_checked(value, currency, stage_check)?;
     if crate::native_arithseries::is_series(value) {
         let result = crate::native_arithseries::elements(value, protocol);
@@ -692,20 +702,23 @@ pub(crate) fn list_elements_native_with_stage_check(
             source: original.clone(),
             protocol,
         },
-        |backing| install_list_backing(value, backing, currency, stage_check),
+        |backing| install_list_backing(value, backing, currency, stage_check, retain_error),
     );
     list_stage_current_checked(value, currency, stage_check)?;
     result
 }
 
-/// Carry the original typed check through an existing neutral conversion worker.
-/// The neutral error only unwinds that worker; the actual check error is retained
-/// directly and never reconstructed from text. Cleanup precedes the final check.
+/// Retain the actual guard error before releasing unadopted native members.
+/// The supplied typed mapper owns its cause; no text or ambient target is used.
+/// An operational mapper must retain its structured refusal in the caller's
+/// captured operation before returning. The local generic error slot does not
+/// retain interpreter first cause. Neutral ValueError utilities have no such owner.
 pub(crate) fn with_native_conversion_check<T, E>(
     check: &(impl Fn() -> Result<(), E> + ?Sized),
     refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
     worker: impl FnOnce(
         &dyn Fn() -> Result<(), tcl_syntax::value::ValueError>,
+        &dyn Fn(tcl_syntax::value::ValueError) -> tcl_syntax::value::ValueError,
     ) -> Result<T, tcl_syntax::value::ValueError>,
 ) -> Result<T, E> {
     let first = std::cell::RefCell::new(None);
@@ -725,7 +738,13 @@ pub(crate) fn with_native_conversion_check<T, E>(
             }
         }
     };
-    let reached = worker(&stage);
+    let retain = |error: tcl_syntax::value::ValueError| {
+        if first.borrow().is_none() {
+            *first.borrow_mut() = Some(refuse(error.clone()));
+        }
+        error
+    };
+    let reached = worker(&stage, &retain);
     check()?;
     if let Some(error) = first.into_inner() {
         return Err(error);
@@ -740,8 +759,8 @@ pub(crate) fn list_elements_native_using<E>(
     check: &(impl Fn() -> Result<(), E> + ?Sized),
     refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
 ) -> Result<Vec<*mut TclObj>, E> {
-    with_native_conversion_check(check, refuse, |stage| {
-        list_elements_native_with_stage_check(value, protocol, None, Some(stage))
+    with_native_conversion_check(check, refuse, |stage, retain| {
+        list_elements_native_with_stage_handlers(value, protocol, None, Some(stage), Some(retain))
     })
 }
 
@@ -771,29 +790,55 @@ fn list_stage_current_checked(
     Ok(())
 }
 
+pub(crate) fn retain_native_conversion_error(
+    error: tcl_syntax::value::ValueError,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+    retain_error: Option<&dyn Fn(tcl_syntax::value::ValueError) -> tcl_syntax::value::ValueError>,
+) -> tcl_syntax::value::ValueError {
+    if let Some(retain) = retain_error {
+        return retain(error);
+    }
+    if let Some(currency) = currency {
+        let mapped = tcl_cmd_core::CmdError::from(error.clone());
+        if let Some(first) = mapped.native_execution_refusal() {
+            currency.retain_refusal(first);
+        }
+    }
+    error
+}
+
 fn install_list_backing(
     value: *mut TclObj,
     backing: Box<TclList>,
     currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+    retain_error: Option<&dyn Fn(tcl_syntax::value::ValueError) -> tcl_syntax::value::ValueError>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     list_stage_current_checked(value, currency, stage_check)?;
-    if (currency.is_some() || stage_check.is_some()) && !obj::obj_type_ptr(value).is_null() {
-        if obj::has_string_rep(value) {
-            obj::discard_native_internal_representation(value)?;
-        } else {
-            // Direct Dictionary members or Jim's intermediate empty List are
-            // already retained by the prepared backing. Preserve absent String
-            // while releasing the original backing through the type owner.
-            obj::change_type(value, core::ptr::null(), 0);
+    if currency.is_some() || stage_check.is_some() {
+        let incoming = Box::into_raw(backing);
+        let mut current = || list_stage_current_checked(value, currency, stage_check);
+        let adopted = obj::change_type_with_stage_check(
+            value,
+            &TCL_LIST_TYPE,
+            incoming as usize as u64,
+            &mut current,
+        );
+        if let Err(error) = adopted {
+            let error = retain_native_conversion_error(error, currency, retain_error);
+            // An Err leaves the genuine prepared backing with this caller.
+            // Retire its original member roles before settling the first cause.
+            unsafe { drop(Box::from_raw(incoming)) };
+            list_stage_current_checked(value, currency, stage_check)?;
+            return Err(error);
         }
-        list_stage_current_checked(value, currency, stage_check)?;
+    } else {
+        obj::change_type(
+            value,
+            &TCL_LIST_TYPE,
+            Box::into_raw(backing) as usize as u64,
+        );
     }
-    obj::change_type(
-        value,
-        &TCL_LIST_TYPE,
-        Box::into_raw(backing) as usize as u64,
-    );
     list_stage_current_checked(value, currency, stage_check)
 }
 
@@ -908,7 +953,7 @@ fn prepare_native_list_mutation(
     value: *mut TclObj,
     protocol: NativeStringProtocol,
 ) -> Result<(), tcl_syntax::value::ValueError> {
-    prepare_native_list_mutation_with_stage_check(value, protocol, None)
+    prepare_native_list_mutation_with_stage_check(value, protocol, None, None)
 }
 
 fn prepare_native_list_mutation_using<E>(
@@ -917,8 +962,8 @@ fn prepare_native_list_mutation_using<E>(
     check: &impl Fn() -> Result<(), E>,
     refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
 ) -> Result<(), E> {
-    with_native_conversion_check(check, refuse, |stage| {
-        prepare_native_list_mutation_with_stage_check(value, protocol, Some(stage))
+    with_native_conversion_check(check, refuse, |stage, retain| {
+        prepare_native_list_mutation_with_stage_check(value, protocol, Some(stage), Some(retain))
     })
 }
 
@@ -926,8 +971,10 @@ fn prepare_native_list_mutation_with_stage_check(
     value: *mut TclObj,
     protocol: NativeStringProtocol,
     stage_check: Option<&dyn Fn() -> Result<(), tcl_syntax::value::ValueError>>,
+    retain_error: Option<&dyn Fn(tcl_syntax::value::ValueError) -> tcl_syntax::value::ValueError>,
 ) -> Result<(), tcl_syntax::value::ValueError> {
-    let elements = list_elements_native_with_stage_check(value, protocol, None, stage_check)?;
+    let elements =
+        list_elements_native_with_stage_handlers(value, protocol, None, stage_check, retain_error)?;
     if crate::native_arithseries::is_series(value) {
         for &element in &elements {
             // SAFETY: actual new List backing owns each original cached member.
@@ -938,7 +985,7 @@ fn prepare_native_list_mutation_with_stage_check(
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(Some(protocol)),
         });
-        install_list_backing(value, backing, None, stage_check)?;
+        install_list_backing(value, backing, None, stage_check, retain_error)?;
     }
     Ok(())
 }
@@ -1015,7 +1062,7 @@ pub(crate) fn append_prepared_native_elements(
     append_prepared_native_elements_using(value, elements, protocol, &|| Ok(()), &|error| error)
 }
 
-fn append_prepared_native_elements_using<E>(
+pub(crate) fn append_prepared_native_elements_using<E>(
     value: *mut TclObj,
     elements: &[*mut TclObj],
     protocol: NativeStringProtocol,
@@ -1891,3 +1938,7 @@ mod tests {
         let _ = release; // silence unused in this pure test
     }
 }
+
+#[cfg(test)]
+#[path = "list/original_adoption_tests.rs"]
+mod original_adoption_tests;

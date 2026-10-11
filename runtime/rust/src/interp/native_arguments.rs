@@ -7,8 +7,8 @@
 //! stage and keeps this context alive through subsequent effects and cleanup.
 
 use super::{
-    Code, Interp,
     native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
+    Code, Interp,
 };
 use crate::obj::{self, NativeObjectLifetime, TclObj};
 use std::rc::Rc;
@@ -131,7 +131,7 @@ impl OriginalArguments {
         }
     }
 
-    fn retain_refusal(&self, error: CmdError) -> CmdError {
+    pub(crate) fn retain_refusal(&self, error: CmdError) -> CmdError {
         if let Some(first) = error.native_execution_refusal() {
             let mut interpreter = self.interpreter.clone();
             interpreter.refuse_native_execution(first.clone());
