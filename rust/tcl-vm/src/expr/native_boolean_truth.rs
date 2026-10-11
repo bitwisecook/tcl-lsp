@@ -150,7 +150,8 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
         match stage {
             Probe::Scalar { kind, .. } => self.scalar_probe(value, kind),
             Probe::ExpressionInteger84 => {
-                let environment = self.host.numeric_environment();
+                let host = Rc::clone(&self.host);
+                let environment = host.numeric_environment();
                 let before = environment
                     .map(|environment| environment.c_integer_abi())
                     .transpose()
