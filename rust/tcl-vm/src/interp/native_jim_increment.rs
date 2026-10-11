@@ -214,15 +214,16 @@ impl Vm {
             Ok(current) => current,
             Err(error) => return error,
         };
-        let objects = match crate::value_ops::VmLegacyIncrementObjects::selected(self) {
-            Ok(objects) => objects,
-            Err(error) => return crate::command::completion_from_cmd_error(self, error),
-        };
-        let sum = match tcl_cmd_core::native_increment::increment_legacy(
-            &objects,
-            current.as_ref().map(NativeObjectLifetimeLease::value),
-            prepared,
-        ) {
+        let reached = (|| {
+            let objects = crate::value_ops::VmLegacyIncrementObjects::entered(self)?;
+            let result = tcl_cmd_core::native_increment::increment_legacy(
+                &objects,
+                current.as_ref().map(NativeObjectLifetimeLease::value),
+                prepared,
+            );
+            objects.complete(result)
+        })();
+        let sum = match reached {
             Ok(sum) => sum,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };

@@ -20053,15 +20053,12 @@ impl Vm {
             self.read_captured_increment(name, key, captured, policy)?;
         self.retain_variable_read_error_code(&read_options)?;
         let next = if modern {
-            let objects =
-                crate::value_ops::VmIncrementObjects::selected(self.native_invocation_dialect())
-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             let current = if has_current {
                 match self.initial_value_at_cell(
                     cell.id.expect("captured increment cell"),
                     captured.explicit_array,
                 ) {
-                    Ok(current) => current,
+                    Ok(current) => current.map(Value::native_lifetime_lease),
                     Err(error) => {
                         return Err(crate::command::completion_from_cmd_error(
                             self,
@@ -20072,17 +20069,25 @@ impl Vm {
             } else {
                 None
             };
-            tcl_cmd_core::native_increment::increment(&objects, current, amount)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
+            let reached = (|| {
+                let objects = crate::value_ops::VmOriginalIncrementObjects::entered(self)?;
+                let result = tcl_cmd_core::native_increment::increment(
+                    &objects,
+                    current
+                        .as_ref()
+                        .map(crate::NativeObjectLifetimeLease::value),
+                    amount,
+                );
+                objects.complete(result)
+            })();
+            reached.map_err(|error| crate::command::completion_from_cmd_error(self, error))?
         } else if let Some(PreparedIncrementAmount::Native(prepared)) = prepared_amount {
-            let objects = crate::value_ops::VmLegacyIncrementObjects::selected(self)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             let current = if has_current {
                 match self.initial_value_at_cell(
                     cell.id.expect("captured increment cell"),
                     captured.explicit_array,
                 ) {
-                    Ok(current) => current,
+                    Ok(current) => current.map(Value::native_lifetime_lease),
                     Err(error) => {
                         return Err(crate::command::completion_from_cmd_error(
                             self,
@@ -20093,8 +20098,18 @@ impl Vm {
             } else {
                 None
             };
-            tcl_cmd_core::native_increment::increment_legacy(&objects, current, *prepared)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
+            let reached = (|| {
+                let objects = crate::value_ops::VmLegacyIncrementObjects::entered(self)?;
+                let result = tcl_cmd_core::native_increment::increment_legacy(
+                    &objects,
+                    current
+                        .as_ref()
+                        .map(crate::NativeObjectLifetimeLease::value),
+                    *prepared,
+                );
+                objects.complete(result)
+            })();
+            reached.map_err(|error| crate::command::completion_from_cmd_error(self, error))?
         } else if let Some(PreparedIncrementAmount::Authored(prepared)) = prepared_amount {
             let current = has_current
                 .then(|| self.read_resolved_cell(cell.id.expect("captured increment cell")))
@@ -21834,21 +21849,51 @@ impl Vm {
         &mut self,
         original: &Value,
     ) -> Result<i64, tcl_cmd_core::CmdError> {
+        use native_numeric_ops::OriginalNumericOps;
         use tcl_syntax::scalar_getter::{
             NativeScalarCache, NativeScalarGetterKind, NativeScalarGetterValue,
         };
-        let dialect = self.actual_native_invocation_dialect();
-        let context = self.native_jim_object_context()?;
-        original.bind_native_jim_context(&context)?;
-        if original.native_jim_optimistic_integer() {
-            let _ = original.native_scalar_probe(dialect, NativeScalarGetterKind::Wide)?;
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self)
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        let ops = OriginalNumericOps::in_original_scope(self, &scope)?;
+        let dialect = ops.dialect();
+        if dialect.native_string_protocol()
+            != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into());
         }
+        let context = ops.with_vm_for_value(original, |vm| Ok(vm.native_jim_object_context()?))?;
+        let bound = original.bind_native_jim_context(&context);
+        ops.current_for_value(original)?;
+        bound?;
+        // Context ownership is independent of the original header and scope.
+        let current_context = || {
+            ops.with_vm_for_value(original, |vm| {
+                let actual = vm.jim_object_context.borrow().as_ref().cloned();
+                if !context.is_live() || actual.as_ref().is_none_or(|actual| !Rc::ptr_eq(actual, &context)) {
+                    return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                        vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                "original Jim expression interpreter")))));
+                }
+                Ok(())
+            })
+        };
+        current_context()?;
+        if original.native_jim_optimistic_integer() {
+            let _ = ops.probe(original, NativeScalarGetterKind::Wide)?;
+        }
+        current_context()?;
         if let Some(NativeScalarCache::Number(tcl_syntax::number::Number::Int(value))) =
             original.native_scalar_cache()
         {
             return Ok(value);
         }
-        let evaluated = match self.prepare_expression_value(original) {
+        let prepared = ops.with_vm_for_value(original, |vm| {
+            Ok(vm.prepare_expression_value_in_original_scope(original, &scope))
+        })?;
+        current_context()?;
+        let evaluated = match prepared {
             Ok(node) => {
                 let restore = original.retain_expression_primary();
                 let objects = original.native_jim_expression_objects().ok_or(
@@ -21856,49 +21901,60 @@ impl Vm {
                         "original Jim expression term backing",
                     ),
                 )?;
-                let result = tcl_syntax::expr::eval(
-                    &node,
-                    &mut crate::expr::ExprEval::native(self, objects, true),
-                );
-                if let Some(restore) = restore {
-                    restore();
-                }
-                result
+                // The same captured primary is restored even when evaluation refuses.
+                ops.with_vm_for_value(original, |vm| {
+                    let reached = tcl_syntax::expr::eval(
+                        &node,
+                        &mut crate::expr::ExprEval::native(vm, objects, true),
+                    );
+                    if let Some(restore) = restore {
+                        restore();
+                    }
+                    Ok(reached)
+                })?
             }
             Err(error) => Err(error),
         };
+        current_context()?;
         match evaluated {
             Ok(result) => {
-                result.bind_native_jim_context(&context)?;
+                ops.current_for_value(&result)?;
+                let bound = result.bind_native_jim_context(&context);
+                ops.current_for_value(&result)?;
+                bound?;
+                current_context()?;
                 context.publish_result(&result);
-                if let Ok(NativeScalarGetterValue::Wide(value)) =
-                    result.native_scalar_probe(dialect, NativeScalarGetterKind::Wide)?
-                {
+                current_context()?;
+                ops.current_for_value(&result)?;
+                let reached = ops.probe(&result, NativeScalarGetterKind::Wide);
+                drop(result);
+                current_context()?;
+                if let Ok(NativeScalarGetterValue::Wide(value)) = reached? {
                     return Ok(value);
                 }
             }
-            Err(error) if error.is_host() => {
-                if let Some(refusal) = error.native_access_refusal() {
-                    return Err(refusal.into());
-                }
-                let completion = crate::command::completion_from_tcl_error(self, error);
-                drop(completion);
-                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "native Jim safe-expression execution",
-                )
-                .into());
+            Err(crate::error::TclError::Host(first)) => {
+                return ops.with_vm_for_value(original, |vm| {
+                    Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                        vm.retain_tcl_host_failure(first),
+                    ))
+                });
             }
-            Err(_) => {}
+            Err(error @ crate::error::TclError::Guest(_)) => {
+                drop(error);
+                current_context()?;
+            }
         }
-        let bytes = original
-            .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-            .map_err(|error| {
-                tcl_syntax::value::ValueError::NativeStringAccess(
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                )
-            })?;
+        let bytes = ops.string(
+            original,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )?;
+        current_context()?;
         let message = tcl_syntax::expr::native_objects::jim_integer_expression_message(&bytes);
-        context.publish_result(&Value::new_native_string_bytes(message.as_slice()));
+        let error_result = Value::new_native_string_bytes(message.as_slice());
+        context.publish_result(&error_result);
+        drop(error_result);
+        current_context()?;
         Err(tcl_cmd_core::CmdError::from_byte_details(
             tcl_cmd_core::CmdErrorDetails {
                 string_result: None,
@@ -21911,12 +21967,54 @@ impl Vm {
         ))
     }
 
-    /// Preserve the actual shared expression source object, including its
-    /// lazy string and representation changes, for both execution engines.
+    /// Explicit independent expression-source route for authored and oracle inputs.
     pub(crate) fn prepare_expression_value(
         &mut self,
         source: &Value,
     ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
+        self.prepare_expression_value_using(source, None)
+    }
+
+    /// Enter the actual source operation before any selected Host String worker.
+    pub(crate) fn prepare_original_expression_value(
+        &mut self,
+        source: &Value,
+    ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
+        if self.authored_numeric_context().is_some() {
+            return self.prepare_expression_value(source);
+        }
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self)
+            .map_err(TclError::from_execution_failure)?;
+        self.prepare_expression_value_in_original_scope(source, &scope)
+    }
+
+    fn original_expression_source_current(
+        &mut self,
+        source: &Value,
+        scope: Option<&native_operation_currency::NativeOperationScope>,
+    ) -> Result<(), TclError> {
+        if let Some(scope) = scope {
+            let ops = native_numeric_ops::OriginalNumericOps::in_original_scope_native(self, scope)
+                .map_err(TclError::from_execution_failure)?;
+            crate::expr::OriginalArithmeticStages::current_for_value(&ops, source)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_expression_value_in_original_scope(
+        &mut self,
+        source: &Value,
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
+        self.prepare_expression_value_using(source, Some(scope))
+    }
+
+    fn prepare_expression_value_using(
+        &mut self,
+        source: &Value,
+        scope: Option<&native_operation_currency::NativeOperationScope>,
+    ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
+        self.original_expression_source_current(source, scope)?;
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
@@ -21926,9 +22024,13 @@ impl Vm {
         let protocol = self.actual_native_invocation_dialect().native_string_materialization(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation))
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable("native expression source materialization"))?.protocol();
         let source_info = if protocol.is_jim084() {
-            let context = self.native_jim_object_context()?;
-            source.bind_native_jim_context(&context)?;
-            Some(source.pin_native_jim_source_info(&context)?)
+            let reached = (|| {
+                let context = self.native_jim_object_context()?;
+                source.bind_native_jim_context(&context)?;
+                Ok::<_, tcl_syntax::value::ValueError>(source.pin_native_jim_source_info(&context)?)
+            })();
+            self.original_expression_source_current(source, scope)?;
+            Some(reached?)
         } else {
             None
         };
@@ -21936,17 +22038,32 @@ impl Vm {
             && source.expression_rejected(dialect, &profile, &self.native_compiler_policy())
         {
             let context = self.native_jim_object_context()?;
+            let options = self.current_jim_options_for_exit_code(Code::Error);
+            self.original_expression_source_current(source, scope)?;
             return Err(TclError::from_completion(Completion::new(
                 Code::Error,
                 context.result_object(),
-                self.current_jim_options_for_exit_code(Code::Error)?,
+                options?,
             )));
         }
-        let materialized = source.native_string_bytes(protocol).map_err(|error| {
-            tcl_syntax::value::ValueError::NativeStringAccess(
-                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-            )
-        })?;
+        let materialized = if let Some(scope) = scope {
+            let ops = native_numeric_ops::OriginalNumericOps::in_original_scope_native(self, scope)
+                .map_err(TclError::from_execution_failure)?;
+            if ops.dialect().native_string_protocol() != Some(protocol) {
+                return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into());
+            }
+            crate::expr::OriginalArithmeticStages::string(&ops, source)
+        } else {
+            source.native_string_bytes(protocol).map_err(|error| {
+                tcl_syntax::value::ValueError::NativeStringAccess(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                )
+                .into()
+            })
+        };
+        // Even a failed String worker must be checked before parser or cache work.
+        self.original_expression_source_current(source, scope)?;
+        let materialized = materialized?;
         let preparation = self
             .expression_parse_context()
             .native_syntax
@@ -21957,15 +22074,27 @@ impl Vm {
                     tcl_runtime_api::NativeExpressionRefusal::UnsupportedGrammar,
                 )
             })?;
-        let bytes = source.expression_source(
-            dialect,
-            &profile,
-            protocol,
-            &self.native_compiler_policy(),
-            preparation,
-        )?;
-        // Fixed-function preparation validates the actual installed table on
-        // every execution and returns Jim's native reassociated tree.
+        let policy = self.native_compiler_policy();
+        let bytes = if scope.is_some() {
+            source.expression_source_checked(
+                &crate::value::ExpressionSourceInput {
+                    dialect,
+                    profile: &profile,
+                    protocol,
+                    policy: &policy,
+                    preparation,
+                },
+                &materialized,
+                &mut || self.original_expression_source_current(source, scope),
+            )
+        } else {
+            source
+                .expression_source(dialect, &profile, protocol, &policy, preparation)
+                .map_err(TclError::from)
+        };
+        self.original_expression_source_current(source, scope)?;
+        let bytes = bytes?;
+        // Fixed-function preparation retains its installed table and Jim tree guards.
         if !tcl_registry::runtime_expr_validation::requires_fixed_function_preparation(
             &self.expression_parse_context(),
         ) && let Some(node) =
@@ -21982,14 +22111,24 @@ impl Vm {
                 tcl_registry::native_expression_error::ExpressionErrorPublication::Eval,
                 Some(source),
                 source_info.as_ref(),
-            )?
+            )
         } else {
             self.prepare_expression_bytes_in(
                 &bytes,
                 tcl_registry::native_expression_error::ExpressionErrorPublication::Eval,
-            )?
+            )
         };
-        source.cache_expression(dialect, profile, &self.native_compiler_policy(), &node);
+        self.original_expression_source_current(source, scope)?;
+        let node = node?;
+        let policy = self.native_compiler_policy();
+        if scope.is_some() {
+            source.cache_expression_checked(dialect, profile, &policy, &node, &mut || {
+                self.original_expression_source_current(source, scope)
+            })?;
+        } else {
+            source.cache_expression(dialect, profile, &policy, &node);
+        }
+        self.original_expression_source_current(source, scope)?;
         Ok(node)
     }
 

@@ -39,6 +39,9 @@ mod native_concat_tests;
 mod native_jim_string_cat_tests;
 #[path = "value_ops/native_list_index.rs"]
 mod native_list_index;
+#[path = "value_ops/original_increment.rs"]
+mod original_increment;
+pub(crate) use original_increment::{VmLegacyIncrementObjects, VmOriginalIncrementObjects};
 
 use std::rc::Rc;
 
@@ -222,91 +225,21 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for VmIncrementObjec
     }
 }
 
-/// Physical legacy receiver operations use the independently selected native handler.
-pub(crate) struct VmLegacyIncrementObjects {
-    dialect: tcl_registry::InvocationDialect,
-    string: tcl_syntax::native_string::NativeStringProtocol,
-    recipe: tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe,
-    jim_context: Option<Rc<crate::value::NativeJimObjectContext>>,
-}
-impl VmLegacyIncrementObjects {
-    pub(crate) fn selected(vm: &Vm) -> Result<Self, tcl_cmd_core::CmdError> {
-        let dialect = vm.native_invocation_dialect();
-        let recipe = dialect
-            .native_legacy_increment_protocol()
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?
-            .recipe();
-        let string = dialect
-            .native_string_protocol()
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        Ok(Self {
-            dialect,
-            string,
-            recipe,
-            jim_context: if string.is_jim084() {
-                Some(crate::interp::InterpState::native_jim_object_context(vm)?)
-            } else {
-                None
-            },
-        })
-    }
-}
-impl tcl_cmd_core::native_increment::LegacyIncrementObjects for VmLegacyIncrementObjects {
-    type Value = Value;
-    type Prepared = Value;
-    fn recipe(&self) -> tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe {
-        self.recipe
-    }
-    fn cache(
-        &self,
-        value: &Value,
-    ) -> Result<Option<tcl_syntax::scalar_getter::NativeScalarCache>, tcl_cmd_core::CmdError> {
-        Ok(value.native_scalar_cache())
-    }
-    fn wide(&self, value: &Value) -> Result<i64, tcl_cmd_core::CmdError> {
-        if let Some(context) = &self.jim_context {
-            value.bind_native_jim_context(context)?;
-        }
-        match value.native_scalar_getter(
-            self.dialect,
-            tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
-        )? {
-            tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value) => Ok(value),
-            _ => Err(ValueError::ScalarNumericInputUnavailable.into()),
-        }
-    }
-    fn prepare(&self, original: Option<&Value>) -> Result<Value, tcl_cmd_core::CmdError> {
-        Ok(match original {
-            Some(value) if value.native_object_is_shared() => {
-                value.duplicate_native_object_in(self.string)
-            }
-            Some(value) => value.clone(),
-            None => Value::int(0),
-        })
-    }
-    fn current<'a>(&self, prepared: &'a Value) -> &'a Value {
-        prepared
-    }
-    fn store(
-        &self,
-        prepared: &mut Value,
-        cache: tcl_syntax::scalar_getter::NativeScalarCache,
-    ) -> Result<(), tcl_cmd_core::CmdError> {
-        prepared
-            .store_native_legacy_increment_cache(cache, self.dialect)
-            .map_err(Into::into)
-    }
-    fn finish(&self, prepared: Value) -> Value {
-        prepared
-    }
-}
-
 pub(crate) struct VmLegacyIncrementAmountOps<'a>(pub(crate) &'a mut Vm);
 impl tcl_cmd_core::native_increment::LegacyIncrementAmountOps for VmLegacyIncrementAmountOps<'_> {
     type Value = Value;
     fn c84_long(&mut self, original: &Value) -> Result<i64, tcl_cmd_core::CmdError> {
-        match original.native_scalar_getter(
-            self.0.native_invocation_dialect(),
+        let selected = self.0.native_invocation_dialect();
+        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered(self.0)?;
+        if selected.native_legacy_increment_protocol()
+            != ops.dialect().native_legacy_increment_protocol()
+            || selected.native_scalar_getter_protocol()
+                != ops.dialect().native_scalar_getter_protocol()
+        {
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
+        }
+        match ops.getter(
+            original,
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Long,
         )? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value) => Ok(value),

@@ -812,3 +812,149 @@ fn original_number_and_failure_string_providers_check_currentness_before_interpr
         assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
     }
 }
+
+#[test]
+fn original_expression_source_preparation_keeps_current_cache_and_explicit_independent_route() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual source/cache handoff; this does not execute or compare an external compiler.
+    for engine in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
+        let source = Value::new_native_string_bytes(b"6 + 18".as_slice());
+        let before = source.native_object_reference_count();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        vm.prepare_expression_value_in_original_scope(&source, &scope)
+            .unwrap();
+        assert!(source.native_expression_cache_present(), "{engine}");
+        vm.prepare_expression_value_in_original_scope(&source, &scope)
+            .unwrap();
+        assert_eq!(source.native_object_reference_count(), before, "{engine}");
+        assert_eq!(source.resident_string_bytes().unwrap().as_ref(), b"6 + 18");
+        assert!(vm.execution_refusal.is_none());
+        assert!(scope.check_native(&mut vm).is_ok());
+        let independent = Value::new_native_string_bytes(b"6 + 18".as_slice());
+        vm.prepare_expression_value(&independent).unwrap();
+        assert!(independent.native_expression_cache_present());
+    }
+}
+
+#[test]
+fn original_expression_source_checks_actual_formatter_refusal_before_parser_and_cache() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual Host formatter drops the real root; no external updater/compiler chronology.
+    for stage in ["build", "format", "failed-format"] {
+        let (mut vm, formatter, acquisitions) = provided();
+        let root = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
+        let held = root.native_lifetime_lease();
+        *formatter.retire_owner.borrow_mut() = Some(root);
+        formatter
+            .retire_at
+            .set(Some(if stage == "build" { "build" } else { "format" }));
+        formatter.fail.set(stage == "failed-format");
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let error = vm
+            .prepare_original_expression_value(held.value())
+            .unwrap_err();
+        let first = vm.execution_refusal.clone().unwrap();
+        assert!(matches!(error,
+            TclError::Host(crate::error::TclHostFailure::Execution(ref actual)) if actual == &first));
+        assert_eq!(
+            first,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "retired native object header"
+                )
+            )
+        );
+        assert!(!held.value().native_object_is_live());
+        assert!(held.value().resident_string_bytes().is_none());
+        assert!(!held.value().native_expression_cache_present());
+        assert_eq!(acquisitions.get(), 1);
+        assert_eq!(
+            formatter.calls.borrow().last().unwrap().0,
+            if stage == "build" { "build" } else { "format" }
+        );
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+        assert_eq!(vm.try_invoke_command("set", &[]).unwrap_err(), first);
+    }
+}
+
+#[test]
+fn original_expression_source_keeps_live_root_child_refusal_before_cache_replacement() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The real formatter shimmers a live root, retiring its actual child backing.
+    let (mut vm, formatter, _) = provided();
+    let root = Value::native_list_constructor(vec![value(&vm, i64::MIN)], protocol());
+    *formatter.shimmer_root.borrow_mut() = Some((
+        root.native_lifetime_lease(),
+        vm.actual_native_invocation_dialect(),
+    ));
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let error = vm.prepare_original_expression_value(&root).unwrap_err();
+    let first = vm.execution_refusal.clone().unwrap();
+    assert!(matches!(error,
+        TclError::Host(crate::error::TclHostFailure::Execution(ref actual)) if actual == &first));
+    assert_eq!(
+        first,
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "retired native object header"
+            )
+        )
+    );
+    assert!(root.native_object_is_live());
+    assert_eq!(
+        root.native_scalar_cache(),
+        Some(NativeScalarCache::Tcl84Long(6))
+    );
+    assert!(!root.native_expression_cache_present());
+    assert!(root.resident_string_bytes().is_none());
+    assert_eq!(formatter.calls.borrow().last().unwrap().0, "format");
+    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+}
+
+#[test]
+fn original_expression_cache_publication_checks_actual_header_before_replacement() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // The supplied checker withdraws the original header at the cache worker;
+    // it supplies no arbitrary callback or external cache-retirement chronology.
+    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+    let independent = Value::new_native_string_bytes(b"6 + 18".as_slice());
+    let node = vm.prepare_expression_value(&independent).unwrap();
+    let dialect = vm.native_invocation_dialect();
+    let profile = vm.expression_source_profile().cache_key();
+    let policy = vm.native_compiler_policy();
+    let original = Value::int(6);
+    let held = original.native_lifetime_lease();
+    let mut owner = Some(original);
+    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+    let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+    let mut calls = 0;
+    let error = {
+        let mut check = || {
+            calls += 1;
+            if calls == 2 {
+                drop(owner.take());
+            }
+            ops.current_for_value(held.value())
+        };
+        held.value()
+            .cache_expression_checked(dialect, profile, &policy, &node, &mut check)
+            .unwrap_err()
+    };
+    drop(ops);
+    assert_eq!(calls, 2);
+    assert!(!held.value().native_expression_cache_present());
+    assert_eq!(
+        error.native_execution_refusal(),
+        vm.execution_refusal.as_ref()
+    );
+    assert!(error.native_execution_refusal().is_some());
+    assert_eq!(
+        scope.check_native(&mut vm).unwrap_err(),
+        *error.native_execution_refusal().unwrap()
+    );
+}

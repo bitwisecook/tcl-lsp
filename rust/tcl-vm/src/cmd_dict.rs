@@ -496,14 +496,17 @@ pub(crate) fn increment_dictionary_member(
     amount: &Value,
     fresh_missing: bool,
 ) -> Result<Value, tcl_cmd_core::CmdError> {
-    let objects = crate::value_ops::VmIncrementObjects::selected(vm.native_invocation_dialect())?;
-    if original.is_none() {
+    let objects = crate::value_ops::VmOriginalIncrementObjects::entered(vm)?;
+    let reached = if original.is_none() {
         if fresh_missing {
-            return Ok(amount.clone());
+            Ok(amount.clone())
+        } else {
+            tcl_cmd_core::native_increment::missing_dictionary_member(&objects, amount)
         }
-        return tcl_cmd_core::native_increment::missing_dictionary_member(&objects, amount);
-    }
-    tcl_cmd_core::native_increment::increment(&objects, original, amount)
+    } else {
+        tcl_cmd_core::native_increment::increment(&objects, original, amount)
+    };
+    objects.complete(reached)
 }
 
 /// A compiled append adopts its already concatenated input on a missing member.

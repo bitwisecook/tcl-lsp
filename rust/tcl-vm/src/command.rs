@@ -1926,7 +1926,7 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             parts.iter().map(std::convert::AsRef::as_ref),
         ))
     };
-    match vm.prepare_expression_value(&source) {
+    match vm.prepare_original_expression_value(&source) {
         Ok(node) => {
             vm.pending.expression = Some(crate::exec::ExpressionReq {
                 state: tcl_syntax::expr::ExprEvalState::new(node),

@@ -438,3 +438,22 @@ The pure Value and explicit policy wrappers pass no provider and preserve their
 existing conversion and header checks. Test-only checked probe wrappers retain
 their supplied checker without issuing VM currency. The original facade uses
 the String-aware siblings; no caller replays the conversion to recover bytes.
+
+Original increment adapters retain the canonical numeric operation through COW
+preparation, the selected Number or legacy Long/Wide getter, addition and cache
+store. The original cell value is viewed through an allocation lease before
+preparation; that lease adds no native reference and does not change the shared
+object decision. Existing selected fixture adapters remain independent. Failed
+workers and mandatory prepared/result retirement retain the first typed cause
+before variable or dictionary publication.
+
+`Vm::prepare_original_expression_value` enters the same original operation
+before source String work. Its shared preparation kernel checks both successful
+and failed String results before parser and source-cache admission. Cache
+replacement uses the Value retirement owner and checks the original header
+before publishing the replacement. The Jim Wide expression and both regexp
+index consumers share this source owner and the actual Jim context; context,
+namespace, frame and installed function-table guards remain independent. The
+explicit authored and independent `prepare_expression_value` routes pass no
+operation provider to that same kernel. An authored source or display label
+cannot provide native compiler, namespace or physical frame authority.

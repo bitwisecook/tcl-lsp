@@ -200,6 +200,48 @@ mod tests {
         }
     }
 
+    struct OriginalBodyGeometryFixture {
+        input: ResolvedAnalysisInput,
+        tokens: Vec<CommandTokens>,
+    }
+
+    /// Original lexical geometry under each selected source grammar. Logical
+    /// source ownership supplies no Native lookup, compiler or namespace entry.
+    fn original_geometry_fixture(source: &str, environment: &str) -> OriginalBodyGeometryFixture {
+        let selected = tcl_registry::model::ingress::resolve_known_environment(environment)
+            .expect("actual selected lexical environment");
+        let config = LexerConfig::for_profile(Some(selected.unit_profile()));
+        let mut analyser = crate::analyser::Analyser::new();
+        let original = analyser.prepare_analysis_input("tcl").unwrap();
+        let input = ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            original.context_registry(),
+            config,
+        );
+        assert!(input.has_logical_source_name_context());
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            input.borrowed_context_registry().commands(),
+            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let segments =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .expect("original whole-source geometry segmentation");
+        let tokens = segments
+            .iter()
+            .map(|segment| {
+                let mut tokens =
+                    CommandTokens::from_segmented(&image.source_map(), config, segment);
+                bindings.stamp_original_tokens(&mut tokens);
+                tokens
+            })
+            .collect();
+        OriginalBodyGeometryFixture { input, tokens }
+    }
+
     fn body_at(
         tokens: &CommandTokens,
         written: usize,
@@ -222,7 +264,7 @@ mod tests {
         // body entry, completion, namespace or native compiler admission.
         let source = "if {$condition} {puts A}; if {$condition} {}; if {$condition} \"puts B\"; if {$condition} puts; if {$condition} {puts {A}}; if {$condition} {puts café}; if {$condition} {puts\nA}";
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
-            let fixture = original_fixture(source, environment);
+            let fixture = original_geometry_fixture(source, environment);
             let config = fixture.input.lexer_config();
             assert_eq!(fixture.tokens.len(), 7);
             for (parent, expected) in fixture.tokens.iter().zip([
@@ -282,7 +324,8 @@ mod tests {
                         .is_none()
                 );
             }
-            let continuation = original_fixture("if {$condition} {puts \\\n A}", environment);
+            let continuation =
+                original_geometry_fixture("if {$condition} {puts \\\n A}", environment);
             let parent = &continuation.tokens[0];
             let body = body_at(parent, 2, continuation.input.lexer_config());
             if config.brace_backslash_newline == tcl_dialect::BraceBackslashNewline::Folds {
@@ -310,7 +353,7 @@ mod tests {
                 ));
             }
             for dynamic in ["if {$condition} \"$body\"", "if {$condition} $body"] {
-                let fixture = original_fixture(dynamic, environment);
+                let fixture = original_geometry_fixture(dynamic, environment);
                 let parent = &fixture.tokens[0];
                 assert!(
                     parent

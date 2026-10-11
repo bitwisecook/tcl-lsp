@@ -3774,7 +3774,7 @@ impl Vm {
                     return Tick::Return(completion);
                 }
                 crate::cmd_control::ControlStep::Expression(expression) => {
-                    match self.prepare_expression_value(&expression) {
+                    match self.prepare_original_expression_value(&expression) {
                         Ok(node) => {
                             return Tick::PushExpression {
                                 req: Box::new(ExpressionReq {
@@ -6441,7 +6441,7 @@ impl Vm {
             }
             Op::EXPR_STK => {
                 let source = pop(f);
-                return match self.prepare_expression_value(&source) {
+                return match self.prepare_original_expression_value(&source) {
                     Ok(node) => Tick::PushExpression {
                         req: Box::new(ExpressionReq {
                             state: tcl_syntax::expr::ExprEvalState::new(node),

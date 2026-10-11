@@ -491,6 +491,14 @@ struct ExpressionCache {
     jim: Option<Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Value>>>,
 }
 
+pub(crate) struct ExpressionSourceInput<'a> {
+    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) profile: &'a tcl_dialect::DialectProfileKey,
+    pub(crate) protocol: tcl_syntax::native_string::NativeStringProtocol,
+    pub(crate) policy: &'a crate::compiled::NativeCompilerPolicy,
+    pub(crate) preparation: tcl_syntax::expr::parser::ExpressionSourceCachePreparation,
+}
+
 pub(crate) struct JimExpressionInstall<'a> {
     pub(crate) dialect: tcl_registry::InvocationDialect,
     pub(crate) profile: tcl_dialect::DialectProfileKey,
@@ -1858,20 +1866,76 @@ impl Value {
         policy: &crate::compiled::NativeCompilerPolicy,
         preparation: tcl_syntax::expr::parser::ExpressionSourceCachePreparation,
     ) -> Result<Rc<[u8]>, tcl_syntax::value::ValueError> {
-        let bytes = self.native_string_bytes(protocol).map_err(|error| {
-            tcl_syntax::value::ValueError::NativeStringAccess(
-                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-            )
-        })?;
+        self.expression_source_using(
+            &ExpressionSourceInput {
+                dialect,
+                profile,
+                protocol,
+                policy,
+                preparation,
+            },
+            None,
+            &mut None,
+        )
+    }
+
+    pub(crate) fn expression_source_checked<E: From<ValueError>>(
+        &self,
+        input: &ExpressionSourceInput<'_>,
+        materialized: &Rc<[u8]>,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<Rc<[u8]>, E> {
+        self.expression_source_using(input, Some(materialized), &mut Some(check))
+    }
+
+    fn expression_source_using<E: From<ValueError>>(
+        &self,
+        input: &ExpressionSourceInput<'_>,
+        materialized: Option<&Rc<[u8]>>,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<Rc<[u8]>, E> {
+        Self::native_stage_check(check)?;
+        let bytes = if let Some(bytes) = materialized {
+            Rc::clone(bytes)
+        } else {
+            let reached = self.native_string_bytes(input.protocol).map_err(|error| {
+                ValueError::NativeStringAccess(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                )
+            });
+            Self::native_stage_result(reached, check)?
+        };
         let matches = matches!(&*self.0.intrep.borrow(), IntRep::Expression(cache)
-            if cache.dialect == dialect && &cache.profile == profile && cache.policy == *policy);
+            if cache.dialect == input.dialect && &cache.profile == input.profile && cache.policy == *input.policy);
         if !matches
-            && preparation
+            && input.preparation
                 == tcl_syntax::expr::parser::ExpressionSourceCachePreparation::BeforeParsing
         {
-            self.reject_expression(dialect, *profile, policy);
+            let replacement =
+                Self::expression_primary(input.dialect, *input.profile, input.policy, None);
+            if check.is_some() {
+                self.replace_primary_using(replacement, check)?;
+            } else {
+                self.replace_primary(replacement);
+            }
         }
+        Self::native_stage_check(check)?;
         Ok(bytes)
+    }
+
+    fn expression_primary(
+        dialect: tcl_registry::InvocationDialect,
+        profile: tcl_dialect::DialectProfileKey,
+        policy: &crate::compiled::NativeCompilerPolicy,
+        node: Option<tcl_syntax::expr::NativeExprNode>,
+    ) -> IntRep {
+        IntRep::Expression(Rc::new(ExpressionCache {
+            profile,
+            dialect,
+            policy: *policy,
+            node,
+            jim: None,
+        }))
     }
 
     pub(crate) fn reject_expression(
@@ -1880,13 +1944,7 @@ impl Value {
         profile: tcl_dialect::DialectProfileKey,
         policy: &crate::compiled::NativeCompilerPolicy,
     ) {
-        self.replace_primary(IntRep::Expression(Rc::new(ExpressionCache {
-            profile,
-            dialect,
-            policy: *policy,
-            node: None,
-            jim: None,
-        })));
+        self.replace_primary(Self::expression_primary(dialect, profile, policy, None));
     }
 
     pub(crate) fn cached_expression(
@@ -1979,6 +2037,26 @@ impl Value {
         }))
     }
 
+    fn expression_cache_replacement(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        profile: tcl_dialect::DialectProfileKey,
+        policy: &crate::compiled::NativeCompilerPolicy,
+        node: &tcl_syntax::expr::NativeExprNode,
+    ) -> Option<IntRep> {
+        if self.native_jim_expression_objects().is_some()
+            && self.cached_expression(dialect, &profile, policy).is_some()
+        {
+            return None;
+        }
+        Some(Self::expression_primary(
+            dialect,
+            profile,
+            policy,
+            Some(node.clone()),
+        ))
+    }
+
     pub(crate) fn cache_expression(
         &self,
         dialect: tcl_registry::InvocationDialect,
@@ -1986,18 +2064,27 @@ impl Value {
         policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
     ) {
-        if self.native_jim_expression_objects().is_some()
-            && self.cached_expression(dialect, &profile, policy).is_some()
+        if let Some(replacement) = self.expression_cache_replacement(dialect, profile, policy, node)
         {
-            return;
+            self.replace_primary(replacement);
         }
-        self.replace_primary(IntRep::Expression(Rc::new(ExpressionCache {
-            profile,
-            dialect,
-            policy: *policy,
-            node: Some(node.clone()),
-            jim: None,
-        })));
+    }
+
+    pub(crate) fn cache_expression_checked<E: From<ValueError>>(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        profile: tcl_dialect::DialectProfileKey,
+        policy: &crate::compiled::NativeCompilerPolicy,
+        node: &tcl_syntax::expr::NativeExprNode,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        let mut check = Some(check);
+        Self::native_stage_check(&mut check)?;
+        if let Some(replacement) = self.expression_cache_replacement(dialect, profile, policy, node)
+        {
+            self.replace_primary_using(replacement, &mut check)?;
+        }
+        Self::native_stage_check(&mut check)
     }
 
     /// Inspect bytes already present on the object without triggering conversion.
@@ -3496,11 +3583,31 @@ impl Value {
     ///
     /// # Errors
     /// Refuses caches outside authentic C 8.4 and Jim integer increment storage.
+    #[cfg(test)]
     pub(crate) fn store_native_legacy_increment_cache(
         &self,
         cache: NativeScalarCache,
         dialect: tcl_registry::InvocationDialect,
-    ) -> Result<(), tcl_syntax::value::ValueError> {
+    ) -> Result<(), ValueError> {
+        self.store_native_legacy_increment_cache_using(cache, dialect, &mut None)
+    }
+
+    pub(crate) fn store_native_legacy_increment_cache_checked<E: From<ValueError>>(
+        &self,
+        cache: NativeScalarCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.store_native_legacy_increment_cache_using(cache, dialect, &mut Some(check))
+    }
+
+    fn store_native_legacy_increment_cache_using<E: From<ValueError>>(
+        &self,
+        cache: NativeScalarCache,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(check)?;
         let protocol = dialect
             .native_scalar_getter_protocol()
             .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
@@ -3513,15 +3620,16 @@ impl Value {
             ) | (None, true, NativeScalarCache::Number(Number::Int(_)))
         );
         if !admitted {
-            return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
+            return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into());
         }
-        self.adopt_native_scalar_cache(cache, protocol, dialect)?;
+        self.adopt_native_scalar_cache_using(cache, protocol, dialect, check)?;
+        Self::native_stage_check(check)?;
         *self.0.string.borrow_mut() = None;
         self.0
             .string_storage
             .set(NativeStringStorageIdentity::Unknown);
         *self.0.source_location.borrow_mut() = None;
-        Ok(())
+        Self::native_stage_check(check)
     }
 
     fn adopt_native_scalar_cache(
@@ -4019,18 +4127,43 @@ impl Value {
         &self,
         number: Number,
         dialect: tcl_registry::InvocationDialect,
-    ) -> Result<(), tcl_syntax::value::ValueError> {
+    ) -> Result<(), ValueError> {
+        self.store_native_increment_number_using(number, dialect, &mut None)
+    }
+
+    pub(crate) fn store_native_increment_number_checked<E: From<ValueError>>(
+        &self,
+        number: Number,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut dyn FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.store_native_increment_number_using(number, dialect, &mut Some(check))
+    }
+
+    fn store_native_increment_number_using<E: From<ValueError>>(
+        &self,
+        number: Number,
+        dialect: tcl_registry::InvocationDialect,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        Self::native_stage_check(check)?;
         let protocol = dialect
             .native_scalar_getter_protocol()
             .filter(|protocol| protocol.supports_number_getter())
             .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
-        self.adopt_native_scalar_cache(NativeScalarCache::Number(number), protocol, dialect)?;
+        self.adopt_native_scalar_cache_using(
+            NativeScalarCache::Number(number),
+            protocol,
+            dialect,
+            check,
+        )?;
+        Self::native_stage_check(check)?;
         *self.0.string.borrow_mut() = None;
         self.0
             .string_storage
             .set(NativeStringStorageIdentity::Unknown);
         *self.0.source_location.borrow_mut() = None;
-        Ok(())
+        Self::native_stage_check(check)
     }
 
     /// Probe C's full Number or copying Bignum getter on this original object.

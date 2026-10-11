@@ -3284,3 +3284,14 @@ a later conversion, diagnostic or cache store. Pure wrappers keep their None
 provider and existing header checks; test-only checked probe siblings retain
 their explicit software checker. This forwarding adds no conversion replay,
 formatter implementation or native object reference.
+
+Original VM increment consumers use the canonical numeric facade through the
+existing COW preparation, Number/legacy getter and cache-store kernels. Captured
+cell views are allocation leases, not native reference holders. The shared Jim
+Wide expression worker also serves the original regexp index callers. Its
+entered source preparation checks the same actual source header after String
+and before parser/cache work; the original Jim context and selected compiler
+policy remain separate admissions. `prepare_original_expression_value` routes
+actual VM callers to that owner, while explicit authored and independent
+`prepare_expression_value` inputs keep their None route. Source-cache publication
+delegates to the existing checked Value backing-retirement owner.

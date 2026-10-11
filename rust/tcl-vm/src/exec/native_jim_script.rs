@@ -106,7 +106,7 @@ impl Vm {
                 }
             }
             JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Expression) => {
-                match self.prepare_expression_value(original.value()) {
+                match self.prepare_original_expression_value(original.value()) {
                     Ok(node) => {
                         return Err(Box::new(Tick::PushExpression {
                             req: Box::new(ExpressionReq {
