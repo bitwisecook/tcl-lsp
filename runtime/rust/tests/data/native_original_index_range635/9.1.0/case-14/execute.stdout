@@ -1,0 +1,20 @@
+provider	C-Tcl
+case	14	subject-is-original-index
+operation	index
+input-subject	322a31
+input-first	
+input-last	
+input-roles	producer=0	materialise=0	first=subject:1	last=first:0	extra-subject=0
+before-arg2	none	1	1	3
+before-arg3	none	1	1	3
+before-arg4	none	1	1	0
+code	1
+reached-arg2	none	1	1	3
+reached-arg3	none	1	1	3
+reached-arg4	none	1	1	0
+reached-result	string	1	1	65
+result-alias	subject=0	first=0	last=0
+result-bytes	62616420696e6465782022322a31223a206d75737420626520696e74656765723f5b2b2d5d696e74656765723f206f7220656e643f5b2b2d5d696e74656765723f
+materialised-result	string	1	1	65
+subject-bytes	322a31
+materialised-subject	none	1	1	3

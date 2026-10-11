@@ -1,0 +1,8 @@
+provider	Jim
+case	16	proper-binary-resident-shared-range
+operation	range
+input-subject	00ff41
+input-first	30
+input-last	31
+input-roles	producer=1	materialise=1	first=subject:0	last=first:0	extra-subject=1
+skipped	proper-binary-or-unicode-constructor-unavailable

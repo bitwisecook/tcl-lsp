@@ -1,0 +1,50 @@
+{
+  "question": "Which original counted storage, native unit, constructor, lazy cache and alias branches do actual string index/range reach, and how do those differ from replacement and a Rust Unicode projection?",
+  "scope": "Fresh original EvalObjv public-field observations only. Before result getter, result materialisation and subject materialisation are separate stages. No private cache epoch, callback chronology, lifetime ownership or Rust execution credit.",
+  "source_sha256": "81b03dfd9e5f3763c7cae44aca295c2c9b1c37a172d18f097ea262a378445bde",
+  "providers": [
+    "C8.4.20",
+    "C8.5.19",
+    "C8.6.18",
+    "C9.0.4",
+    "C9.1.0",
+    "Jim0.84-9-g5bac7c9"
+  ],
+  "case_count": 20,
+  "case_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "jim_explicit_unavailable_constructor_cases": [
+    12,
+    13,
+    16,
+    17
+  ],
+  "original_inputs": "All bytes are counted C arrays, embedded NUL and invalid bytes intentional; four-byte supplementary bytes and CESU surrogate bytes separate. C Unicode case17 explicitly supplies [0041,D83D,DE00,005A] in each actual Tcl_UniChar width. Each process owns each distinct object once; case16 adds one independent subject reference before Eval; aliases share exact original headers without invented reference.",
+  "source_functions": [
+    "C Tcl_StringObjCmd/TclStringIndexCmd/TclStringRangeCmd (release-specific names)",
+    "C Tcl_GetRange/TclStringRange/Unicode storage lazy paths/Tcl_GetUniChar",
+    "C Tcl_GetIntForIndex/GetEndOffsetFromObj",
+    "Jim string index/range branches/Jim_GetIndex/Jim_Utf8Index/Jim_Utf8CharLength"
+  ],
+  "execution": "Use the exact same selected static libraries/headers and current per-input before/after hash pins as629/633/634a. One fresh process per provider and case; retain all stdout/stderr/status, source, exact command receipts and independent same-library version receipts. Explicit skip rows are not measured command outcomes. All selectors first/current Scope roles recorded in invocation receipt."
+}

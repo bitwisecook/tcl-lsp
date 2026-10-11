@@ -1,0 +1,8 @@
+provider	Jim
+case	12	proper-binary-index
+operation	index
+input-subject	00ff41
+input-first	31
+input-last	
+input-roles	producer=1	materialise=0	first=subject:0	last=first:0	extra-subject=0
+skipped	proper-binary-or-unicode-constructor-unavailable
