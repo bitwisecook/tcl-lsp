@@ -71,7 +71,7 @@ pub struct CodeLens {
 #[must_use]
 pub fn code_lenses(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: Option<&AnalysisResult>,
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
     current_uri: &str,
@@ -79,6 +79,11 @@ pub fn code_lenses(
     let Some(analysis) = analysis else {
         return Vec::new();
     };
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    let dialect = current.profile();
     if !analysis.allows_lexical_declaration_advice() {
         let Some(identities) =
             crate::original_declaration::declarations(current_uri, source, analysis)
@@ -464,6 +469,79 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    fn source_currency_analysis(
+        source: &str,
+        environment: &str,
+        registry: std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                tcl_registry::model::ingress::resolve_environment(environment)
+                    .default_context_registry()
+                    .with_command_store(registry),
+            ),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_lexical_declaration_advice());
+        analysis
+    }
+
+    #[test]
+    fn original_logical_lenses_keep_complete_source_currency_and_actual_profile() {
+        // naming.consumer.original-code-lens
+        // docs/design/analysis/name-resolution-proofs/original-code-lens.md
+        let source = "proc p {} {p}; p";
+        let registry = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
+        let wrong_profile =
+            tcl_registry::model::ingress::resolve_environment("f5-irules").analyser_profile();
+        let lenses = |text: &str, analysis: &AnalysisResult| {
+            code_lenses(
+                text,
+                wrong_profile,
+                Some(analysis),
+                None,
+                "file:///source.tcl",
+            )
+        };
+        for environment in ["tcl8.4", "tcl8.6"] {
+            let analysis = source_currency_analysis(source, environment, registry.clone());
+            let current = lenses(source, &analysis);
+            assert_eq!(current.len(), 1);
+            assert_eq!(current[0].qname, "::p");
+            assert!(lenses("proc q {} {q}; q", &analysis).is_empty());
+            let mut stale = analysis.clone();
+            let config = stale.body_lexer_config.as_mut().unwrap();
+            config.strict_quoting = !config.strict_quoting;
+            assert!(lenses(source, &stale).is_empty());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(!missing.all_procs.is_empty());
+            assert!(lenses(source, &missing).is_empty());
+            let mut unavailable = analysis.clone();
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: environment.into(),
+                overlay: u64::MAX - 404,
+            });
+            assert!(lenses(source, &unavailable).is_empty());
+            let mut foreign_store = tcl_registry::CommandRegistry::build_default();
+            let mut descriptor = foreign_store.get("set").unwrap().clone();
+            descriptor.name = "source_currency_pack_control";
+            foreign_store.insert(descriptor);
+            let donor =
+                source_currency_analysis(source, environment, std::sync::Arc::new(foreign_store));
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = donor.resolved_input;
+            assert!(lenses(source, &foreign).is_empty());
+            assert_eq!(lenses(source, &analysis).len(), 1);
+        }
     }
 
     #[test]

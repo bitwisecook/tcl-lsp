@@ -145,7 +145,7 @@ a convention at the call site.
 | `tcl_codegen_local_get(slot)` | (n/a) | `null_or_owned` | (n/a) | Fires read traces first; null on an unbound slot, a failed trace, or a read miss (with the interp error set). |
 | `tcl_codegen_var_set(name_ptr, name_len, value)` | `value` `consumed` | i32 (0 ok) | stores into the named cell | The by-name form; same release discipline. |
 | `tcl_codegen_var_get(name_ptr, name_len)` | name bytes | `null_or_owned` | (n/a) | |
-| `tcl_codegen_expr_add(left, right)` | both `consumed` | `null_or_owned` | (n/a) | Consumes both operand-stack references on **every** path, including the error and null-argument paths, and returns a fresh `+1`. Without the `have_tommath` backend it consumes the operands and reports `arithmetic support is not available`. |
+| `tcl_codegen_expr_add(left, right)` | both `consumed` | `null_or_owned` | (n/a) | Consumes both operand-stack references on **every** path, including missing interpreter, pending Host and partial-null inputs. Uses the original interpreter's selected operand conversions and shared arithmetic kernel, releases inputs before final currency checks, and returns an owned `+1` only on success. Without `have_tommath`, it consumes the operands and reports `arithmetic support is not available` only when actual entry remains current. |
 | `tcl_codegen_puts(value)` | `consumed` | i32 (0 ok) | (n/a) | Dispatches the runtime's own `puts`. Adopts the transferred operand at entry and releases it on every path, before final currency settlement. |
 | `tcl_codegen_proc_register(name, params, body)` | byte ranges, no handles | i32 (0 ok) | defines a `Command::Proc` | Registers source metadata without evaluating `proc`. Parameters and body are held through the actual original procedure installer; success requires its installed generation. Host refusal preserves the first cause and prevents a false successful empty result. |
 | `tcl_eval(script)` | `script` `adopted` (`rc 0`, freed here) | `null_or_owned` (`+1` on the original interp result) | (n/a) | Guest completion codes are discarded. Host refusal returns null and retains its typed cause. No-interpreter compatibility returns an owned empty string. Input ownership is settled on every path. |
@@ -174,7 +174,20 @@ object access. Checked completion capture runs while the activation still owns
 its Guest error state; mandatory activation cleanup then runs before final
 publication. A refusal during capture or cleanup releases retained result and
 options and leaves caller output untouched. Mutable ambient interpreter state
-cannot retarget this settlement.
+cannot retarget this settlement. Arithmetic and unary numeric operators use
+the same entered operand preparation as comparison. Only accepted magnitudes
+reach temporary typed kernel inputs; a selected numeric rejection never
+reparses its original spelling under another ambient release. Unary logical
+NOT retains its separate Boolean operand purpose. Original operand cleanup
+runs before final result publication. Expression list membership retains the
+actual List backing incarnation and allocation-only member leases across original
+getters. These leases add no native child references and grant no conversion
+purpose. A retired backing or member refuses before the next getter or result;
+checked String access and selected List conversion retain the same entered
+currency. Authored F5 predicates use that checked String ingress after their
+independently installed expression policy admits the operator. Their counted
+bytes remain separate from the checked Unicode inputs of the pure predicate;
+consumed operands retire before final result publication.
 
 Separate compiler frame and activation calls retain their actual interpreter
 and entered currency in a LIFO ledger. Ordinary facade calls, completion

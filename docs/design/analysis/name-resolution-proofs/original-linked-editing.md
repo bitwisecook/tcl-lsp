@@ -14,9 +14,13 @@ Can linked editing mirror identical literal source components while preserving c
 
 The consumer selects the retained original procedure and independently matches direct self-call allocations. Native command component extents map through the shared literal source geometry. Each accepted range contains exactly the same plain source text; qualified heads retain their prefixes. Computed heads, linked aliases, escape-dependent components, unrelated arguments, stale source and missing scanner configuration cannot borrow a writable declaration range. ASCII and Unicode components use explicit validating patterns.
 
+Logical linked-source geometry requires the current complete original source owner; owner withdrawal remains independent of executable identity and actual rewrite permission.
+
 ## Scope
 
 Current Rust consumer and source geometry contract. Native naming observations retained elsewhere are independently scoped; they do not prove this editor integration. Fixed Rust tests bind the assertions without claiming a native consumer result.
+
+Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -64,7 +68,7 @@ This precise Rust source contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-source` (implementation): [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs). SHA-256 `c07aba7a312b846ca5d54c103d869a7638a2c84c4b20f577233df142c7a6fa59`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
+- `implementation-source` (implementation): [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs). SHA-256 `40e7a51d3b4e90268ea0983192230b498f02c09f778d732a3ee9918e4dec3821`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
 
 ## Source inspection
 
@@ -78,6 +82,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs), `linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words` (linked): The consumer selects the retained original procedure and independently matches direct self-call allocations. Native command component extents map through the shared literal source geometry. Each accepted range contains exactly the same plain source text; qualified heads retain their prefixes. Computed heads, linked aliases, escape-dependent components, unrelated arguments, stale source and missing scanner configuration cannot borrow a writable declaration range. ASCII and Unicode components use explicit validating patterns.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs), `linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner` (linked): Logical linked-edit geometry requires the current complete original source owner and withdraws replaced or unavailable input; source correspondence is separate from executable identity or actual edit permission.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

@@ -1037,19 +1037,21 @@ pub fn scan_stub_command_names(source: &str) -> HashSet<String> {
 /// a plain in-memory set by the time it reaches here, so folding it in costs
 /// nothing extra beyond the registry union already does.
 ///
-/// Gated on [`tcl_lexer::script_is_complete`]: the in-file signature scan only
-/// ever runs on a document with an unclosed delimiter, so a complete script
-/// skips that extra scan entirely — zero added cost on the overwhelmingly
-/// common well-formed edit.
+/// The in-file scan runs only when configured Document completeness proves
+/// the source incomplete. Both queries share the supplied whole-file grammar;
+/// an unavailable parser retains only registry and caller-supplied candidates.
 #[must_use]
 pub fn recovery_known_commands(
     source: &str,
     registry: &CommandRegistry,
     extra: &SharedNameSet,
+    config: tcl_lexer::LexerConfig,
 ) -> RecoveryKnownCommands {
     let mut names: HashSet<String> = registry.command_names().map(str::to_owned).collect();
-    if !tcl_lexer::script_is_complete(source) {
-        let sig = crate::signature_scan::extract_signatures(source, registry);
+    if tcl_lexer::script_image_is_complete(&tcl_lexer::SourceImage::document(source), config)
+        == Ok(false)
+    {
+        let sig = crate::signature_scan::extract_signatures_with_config(source, config, registry);
         for declaration in &sig.procedure_declarations {
             if let Some(spelling) = declaration.source_spelling() {
                 names.insert(spelling);
@@ -3392,8 +3394,12 @@ proc foo {} {}
 
     #[test]
     fn recovery_known_commands_includes_registry_names() {
-        let known =
-            recovery_known_commands("set x [foo\n", &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            "set x [foo\n",
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(known.contains("set"));
         assert!(known.contains("puts"));
     }
@@ -3406,7 +3412,12 @@ proc foo {} {}
         // costs nothing extra to fold in a set the caller already built.
         let extra: std::sync::Arc<HashSet<String>> =
             std::sync::Arc::new(["workspace_helper".to_string()].into_iter().collect());
-        let known = recovery_known_commands("set x 1\n", &registry(), &extra);
+        let known = recovery_known_commands(
+            "set x 1\n",
+            &registry(),
+            &extra,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(known.contains("workspace_helper"));
     }
 
@@ -3419,7 +3430,12 @@ proc foo {} {}
         let extra: SharedNameSet =
             std::sync::Arc::new(["workspace_helper".to_string()].into_iter().collect());
         let before = std::sync::Arc::strong_count(&extra);
-        let known = recovery_known_commands("set q {\nunclosed\n", &registry(), &extra);
+        let known = recovery_known_commands(
+            "set q {\nunclosed\n",
+            &registry(),
+            &extra,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(
             std::sync::Arc::strong_count(&extra),
             before + 1,
@@ -3445,6 +3461,7 @@ proc foo {} {}
             "proc my_helper {} {}\nmy_helper\n",
             &registry(),
             &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
         );
         assert!(!known.contains("my_helper"));
         assert!(known.contains("proc")); // registry names are always present
@@ -3453,7 +3470,12 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_user_proc_qualified_and_tail() {
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("myns::helper"),
             "expected the qualified name: {known:?}"
@@ -3471,7 +3493,12 @@ proc foo {} {}
         // Tcl syntax), so the leading-`::` form must be recognised
         // alongside the stripped/tail forms asserted above.
         let src = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("::myns::helper"),
             "expected the fully-qualified leading-:: form: {known:?}"
@@ -3482,7 +3509,12 @@ proc foo {} {}
     fn recovery_known_commands_adds_user_class_and_alias() {
         let src =
             "oo::class create Widget {}\ninterp alias {} greet {} puts hi\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(known.contains("Widget"), "{known:?}");
         assert!(known.contains("greet"), "{known:?}");
     }
@@ -3490,7 +3522,12 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_rename_target() {
         let src = "rename puts my_puts\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("my_puts"),
             "expected the rename target: {known:?}"
@@ -3500,7 +3537,12 @@ proc foo {} {}
     #[test]
     fn recovery_known_commands_adds_namespaced_rename_target() {
         let src = "namespace eval myns {\n  rename puts loud_puts\n}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             known.contains("myns::loud_puts"),
             "expected the qualified rename target: {known:?}"
@@ -3516,15 +3558,49 @@ proc foo {} {}
         // `rename OLD {}` deletes OLD; it must not introduce an empty-string
         // "command name".
         let src = "rename puts {}\n\nset q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(!known.contains(""));
     }
 
     #[test]
     fn recovery_known_commands_does_not_invent_undefined_names() {
         let src = "set q {\nunclosed\n";
-        let known = recovery_known_commands(src, &registry(), &std::sync::Arc::default());
+        let known = recovery_known_commands(
+            src,
+            &registry(),
+            &std::sync::Arc::default(),
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(!known.contains("not_a_real_proc"));
         assert!(!known.contains("unclosed")); // plain data, not a definition
+    }
+}
+
+#[cfg(test)]
+mod original_configured_recovery_tests {
+    #[test]
+    fn original_recovery_scan_and_gate_share_the_supplied_whole_configuration() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Conditional signature candidates; no command installation or entry.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let extra = std::sync::Arc::default();
+        let source = "proc hidden {} {}; set x ${a{}";
+        let config = tcl_lexer::LexerConfig::default();
+        let first_close = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..config
+        };
+        let complete = super::recovery_known_commands(source, &registry, &extra, first_close);
+        assert!(!complete.contains("hidden"));
+        let incomplete = super::recovery_known_commands(source, &registry, &extra, config);
+        assert!(incomplete.contains("hidden"));
+        assert!(complete.contains("set"));
+        assert!(incomplete.contains("set"));
     }
 }

@@ -3062,8 +3062,13 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
 /// the dialect-resolved answer — which is what the `segments` and `cst`
 /// views beside it show.
 #[must_use]
-pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
-    use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_is_complete};
+pub fn serialise_structural_index(
+    source: &str,
+    li: &LineIndex,
+    original: &tcl_lexer::SourceImage,
+    config: LexerConfig,
+) -> Value {
+    use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_image_is_complete};
 
     fn pos(li: &LineIndex, off: u32) -> Value {
         let p = li.position_at(off);
@@ -3095,7 +3100,8 @@ pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
         .collect();
 
     json!({
-        "scriptComplete": script_is_complete(source),
+        "scriptComplete": (original.bytes() == source.as_bytes())
+            .then(|| script_image_is_complete(original, config).ok()).flatten(),
         "commandBoundaries": boundaries,
         "brackets": {
             "unterminated": brackets.unterminated_count(),
@@ -3553,11 +3559,9 @@ pub fn serialise_result_with_optimisations(
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
     // `{*}` / iRules braces the same way the rest of the pipeline does. The
-    // grammar comes off the same ingress-resolved profile `run_pipeline`
-    // built the unit against, never a second by-name resolution.
-    let lexer_config = LexerConfig::for_file_grammar(
-        crate::environment::profile_for_dialect(&result.dialect).grammar,
-    );
+    // complete configuration comes from the actual lowered Module, retaining
+    // independently supplied axes rather than resolving its display label.
+    let lexer_config = result.unit.ir_module.lexer_config;
     out.insert(
         "cst".to_owned(),
         crate::cst::serialise_cst(&result.source, lexer_config),
@@ -3569,7 +3573,12 @@ pub fn serialise_result_with_optimisations(
     // Rust-native: the lexer structural pre-scan.
     out.insert(
         "structuralIndex".to_owned(),
-        serialise_structural_index(&result.source, &li),
+        serialise_structural_index(
+            &result.source,
+            &li,
+            &result.unit.ir_module.source,
+            lexer_config,
+        ),
     );
     // Rust-native: the LineIndex span model.
     let mut source_map = serialise_source_map(&result.source, &li);
@@ -5186,5 +5195,32 @@ mod tests {
         let start = usize::try_from(cond_range["startOffset"].as_u64().unwrap()).unwrap();
         let end = usize::try_from(cond_range["endOffset"].as_u64().unwrap()).unwrap();
         assert_eq!(&src[start..end], "{$x}");
+    }
+}
+
+#[cfg(test)]
+mod original_configured_index_tests {
+    use super::*;
+    #[test]
+    fn original_structural_completeness_keeps_module_input_and_unknown_null() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Explorer source display; fixed C9 structural indexes remain separate.
+        let mut result = crate::run_pipeline("set x ${a{}", "tcl9.1");
+        result.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        assert_eq!(
+            serialise_result(&result)["structuralIndex"]["scriptComplete"],
+            true
+        );
+        result.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        assert_eq!(
+            serialise_result(&result)["structuralIndex"]["scriptComplete"],
+            false
+        );
+        result.source.push_str("foreign");
+        assert!(serialise_result(&result)["structuralIndex"]["scriptComplete"].is_null());
+        let mut jim = crate::run_pipeline("set x 1", "jim");
+        jim.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        assert!(serialise_result(&jim)["structuralIndex"]["scriptComplete"].is_null());
     }
 }

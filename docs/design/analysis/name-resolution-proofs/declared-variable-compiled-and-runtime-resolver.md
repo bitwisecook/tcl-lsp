@@ -14,9 +14,13 @@ Do original counted declared member names resolve identically through literal co
 
 C8.6/C9.0/C9.1 literal compiled accesses to a matching raw-zero declaration read/write object STATIC, while dynamic full-name writes create ordinary locals, leave STATIC unchanged and fresh dynamic reads fail. Plain, surrogate and raw ff declarations resolve through both routes. A prefix-only declaration does not link the full raw-zero compiled name: its static reads fail, while a dynamic read after the dynamic write returns DYNAMIC. Qualification after zero is accepted by declaration, but the retained static and dynamic read controls fail and report no linked object variable. C8.6 info object vars clips the raw-zero presenter, whereas C9 retains it; that output alone does not identify the stored key. C8.4/C8.5/Jim lack OO in the observed command surface. No cache, original header, native local table or Rust execution authority is supplied.
 
+The pure selected resolver distinguishes counted compiled-primary byte matching from runtime C-string boundaries and refuses unsupported recipes; source policy tests are independent of actual OO lookup/frame execution.
+
 ## Scope
 
 Exact public original Tcl_NewStringObj(pointer,count)/Tcl_EvalObjv declaration, formal-list, method-body and dynamic name operands. ASCII setup via Tcl_Eval; compiled literal method bodies contain actual raw bytes, not Unicode/source escapes. Six names/negative arrangements and static/dynamic/read/object-vars chronology, fresh provider interpreters. Jim only executes startup/OO-availability source. Source windows explain full counted compiled matching versus runtime strlen; a caller still needs an independent actual compiler primary/context/lifetime owner.
+
+Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -677,6 +681,10 @@ ProcedureMethodCompiledVarResolver(
 - [runtime/rust/src/cmd_oo/native_variables.rs](../../../../runtime/rust/src/cmd_oo/native_variables.rs), `cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls` (linked): Compares all 48 retained counted declaration/static/dynamic/read/object-vars rows for each of C8.6/C9.0/C9.1 through independently selected native VM or Runtime interpreter contexts. It does not grant compiler preparation to source analysis or assert test execution from the native capture.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-syntax/src/naming/oo_variables.rs](../../../../rust/tcl-syntax/src/naming/oo_variables.rs), `naming::oo_variables::tests::declared_variable_resolver_selects_counted_primary_and_runtime_cstring_independently` (linked): The pure selected OO-variable resolver distinguishes counted compiled-primary bytes from runtime C-string boundaries, retains NUL/surrogate/opaque test inputs and refuses unsupported recipes; no external OO lookup/frame execution is attached.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

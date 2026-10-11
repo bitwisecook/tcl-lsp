@@ -73,51 +73,52 @@ pub(super) async fn compute_recovery_analysis(
     extra: &HashSet<String>,
     mode: NonAsciiMode,
     recovery: &RecoveryWidenCtx<'_>,
+    prepared: PreparedCompletenessInput,
 ) -> ControlFlow<bool, Arc<AnalysisResult>> {
-    let (packs, resource, supplied, factories, subclasses) = {
+    let PreparedCompletenessInput {
+        checked_input,
+        untracked_analyser,
+    } = prepared;
+    let (packs, resource, factories, subclasses) = {
         let db = ctx.db.lock().await;
         (
             ctx.config.spec_pack_key(&*db),
             ResourceAnalyserInputs::from_db_config(ctx.config, &*db),
-            ctx.file
-                .map(|file| tcl_lsp_db::document_analysis_input(&*db, file, ctx.config)),
             ctx.file
                 .and_then(|file| file.workspace_class_factories(&*db).clone()),
             ctx.file
                 .and_then(|file| file.workspace_subclass_methods(&*db).clone()),
         )
     };
-    let mut analyser = Backend::configured_analyser(
-        disabled.clone(),
-        mode,
-        extra.clone(),
-        packs,
-        resource.clone(),
-    )
-    .with_workspace_class_factories(factories.clone())
-    .with_workspace_subclass_methods(subclasses.clone())
-    .with_file_path(
-        ctx.uri
-            .to_file_path()
-            .map(|path| path.display().to_string()),
-    );
+    let analyser = untracked_analyser.unwrap_or_else(|| {
+        Backend::configured_analyser(
+            disabled.clone(),
+            mode,
+            extra.clone(),
+            packs,
+            resource.clone(),
+        )
+        .with_workspace_class_factories(factories.clone())
+        .with_workspace_subclass_methods(subclasses.clone())
+        .with_file_path(
+            ctx.uri
+                .to_file_path()
+                .map(|path| path.display().to_string()),
+        )
+    });
     let text = ctx.text.to_owned();
     let dialect = ctx.dialect;
     let preview = match crate::rt::spawn_blocking(move || {
-        with_pack_hooks(|| {
-            let input = supplied
-                .unwrap_or_else(|| analyser.prepare_analysis_input(dialect.name).map(Arc::new));
-            match input {
-                Ok(input) => analyser
-                    .with_resolved_input(input.as_ref().clone())
-                    .structure_only()
-                    .analyse(&text, dialect.name),
-                Err(miss) => {
-                    let mut refused = AnalysisResult::default();
-                    refused.dialect = dialect.name.to_owned();
-                    refused.analysis_context_unavailable = Some(miss);
-                    refused
-                }
+        with_pack_hooks(|| match checked_input {
+            Ok(input) => analyser
+                .with_resolved_input(input.as_ref().clone())
+                .structure_only()
+                .analyse(&text, dialect.name),
+            Err(miss) => {
+                let mut refused = AnalysisResult::default();
+                refused.dialect = dialect.name.to_owned();
+                refused.analysis_context_unavailable = Some(miss);
+                refused
             }
         })
     })

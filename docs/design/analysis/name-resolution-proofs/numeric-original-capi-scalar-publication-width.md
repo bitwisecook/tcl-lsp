@@ -24,6 +24,8 @@ The current Long-octal control compares nine bounded original live08 windows wit
 
 Boxed primitive reads retain their actually queried numeric environment and original engine issuer; raw Boolean getter integers remain separate from semantic truth. Missing or changed-and-restored issuer/ABI refuses before output and later cache effects.
 
+The entered ValueOps primitive source control preserves selected cache, raw Boolean projection, prior result and original rc0/reference roles under the actual software issuer; it adds no external primitive or expression-truth observation.
+
 ## Scope
 
 Exactly 29 fixed constructor/input cases by five selected primitive APIs, with a fresh full-init original interpreter and held original constructor object for each supported row. C uses Tcl_GetIntFromObj/LongFromObj/WideIntFromObj/DoubleFromObj/BooleanFromObj in live and NULL routes. Jim uses public Long/Wide/Double/Boolean only with a live interpreter; all 29 Int slots and all getter slots for the unclaimed Boolean and ByteArray constructor cases are explicit unavailable records, not failures or surrogate APIs. Original image 456 Jim compilation exits 1 with missing standard link dependencies and launches no primitive process; unchanged probe/request linked image 458 records its own successful compile/version/live process. All 25 provider compile/version/execute operations and the two compiler-version records remain distinct, without an all-operation PASS. Every listed 355 original input association, prior CLI receipt, exact generated executable, source/header/config/archive/compiler/dependency and output hash is verified. Runtime VERSION and independent CLI version are separately measured; original library-build compiler/configure history and unlisted inherited environment are not invented. Primary type and string-residency/pointer-stability flags are printed immediately after the primitive call, before later public result/errorCode/input rendering observers. C8.5+ errorCode observes Tcl_GetReturnOptions then DictObjGet; C8.4/Jim observe the public global errorCode variable. Those error channels do not establish private error-code identity. input_after_observers is a later rendering and cannot describe initial raw source or pre-getter cache. Raw primitive Boolean output, expression truth and branch semantics are separate questions. Native LP64 only: wasm32, LLP64, other ABI widths and BIG-IP are not tested. No cross-object/header/frame/token identity, application Native/CABI issuer, entered worker, SSA constant, source-name admission, null-Jim route or executed Rust consumer assertion follows.
@@ -37,6 +39,8 @@ The three current controls are unexecuted. Native comparisons are bounded to fiv
 This added source definition is unexecuted. Its Native field comparisons are limited to seven selected live failure code/message/errorCode/no-cache observations and two C9 Long live success value/cache-kind observations from the unchanged original456 capture. Original140 live/null comparisons, earlier1113/390 comparisons and failed Syntax301/302 assertions retain their own scope; no completed whole comparison, private object/header identity, application issuer, new ABI width, other counted/NUL bytes or expression-truth permission is inferred. Source303 predates this control.
 
 The added scalar ABI source controls issue no new external getter observation, C ABI width certificate, original header or expression-truth result. Their actual Runtime target requires its own successful producer, inventory and assertion receipt; the separate failed Runtime311 build supplies none.
+
+Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -1967,6 +1971,10 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 - [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs), `codegen_abi::tests::boxed_primitive_reads_refuse_foreign_and_restored_engine_issuers` (linked): Foreign or changed-and-restored actual engine issuers invalidate boxed primitive access. Same displayed profile cannot refresh the original getter/output receipt.
 
 These are current source bindings, with verified actual declaring modules or integration targets. No executable inventory or assertion result is inferred from their definitions. Independently retained software commands and original provider observations keep their own exact source/image/channel scope.
+
+- [runtime/rust/src/value_ops/native_coercion_tests.rs](../../../../runtime/rust/src/value_ops/native_coercion_tests.rs), `value_ops::native_coercion_tests::actual_valueops_primitives_keep_selected_cache_and_native_reference_roles` (linked): The entered software ValueOps primitive owner keeps selected cache, raw Jim-derived Boolean truth projection, prior result and original reference roles separate; actual rc0 access is not promoted by allocation protection. No complete native scalar row comparison or expression-truth outcome is attached.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

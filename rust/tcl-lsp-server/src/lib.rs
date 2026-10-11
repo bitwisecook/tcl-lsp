@@ -4081,6 +4081,66 @@ struct SalsaAnalysisCtx<'a> {
     dialect: &'static tcl_dialect::DialectProfile,
 }
 
+type CheckedCompletenessInput =
+    Result<Arc<tcl_compiler::analyser::ResolvedAnalysisInput>, tcl_registry::model::OverlayMiss>;
+
+struct PreparedCompletenessInput {
+    checked_input: CheckedCompletenessInput,
+    untracked_analyser: Option<Analyser>,
+}
+
+/// Resolve the same producer used by the subsequent base or recovery walk.
+/// An indexed input comes from its actual salsa key; an untracked analyser is
+/// retained, including its checked input, rather than rebuilt after the gate.
+async fn prepare_base_completeness_input(
+    ctx: &SalsaAnalysisCtx<'_>,
+    disabled: &HashSet<String>,
+    extra: &HashSet<String>,
+    mode: NonAsciiMode,
+) -> PreparedCompletenessInput {
+    let (supplied, packs, resource) = {
+        let db = ctx.db.lock().await;
+        (
+            ctx.file.map(|file| {
+                with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, ctx.config))
+            }),
+            ctx.config.spec_pack_key(&*db),
+            ResourceAnalyserInputs::from_db_config(ctx.config, &*db),
+        )
+    };
+    if let Some(input) = supplied {
+        return PreparedCompletenessInput {
+            checked_input: input,
+            untracked_analyser: None,
+        };
+    }
+    let mut analyser =
+        Backend::configured_analyser(disabled.clone(), mode, extra.clone(), packs, resource)
+            .with_file_path(
+                ctx.uri
+                    .to_file_path()
+                    .map(|path| path.display().to_string()),
+            );
+    let input = with_pack_hooks(|| {
+        analyser
+            .prepare_analysis_input(ctx.dialect.name)
+            .map(Arc::new)
+    });
+    PreparedCompletenessInput {
+        checked_input: input,
+        untracked_analyser: Some(analyser),
+    }
+}
+
+fn original_document_is_complete(text: &str, input: &CheckedCompletenessInput) -> bool {
+    input.as_ref().is_ok_and(|input| {
+        tcl_lexer::script_image_is_complete(
+            &tcl_lexer::SourceImage::document(text),
+            input.lexer_config(),
+        ) == Ok(true)
+    })
+}
+
 /// Report an analysis-worker panic to **both** the server log and the editor.
 ///
 /// A panic in the analysis pipeline costs the document every diagnostic it
@@ -4205,6 +4265,9 @@ async fn compute_base_analysis(
         dialect,
     } = ctx;
 
+    let prepared =
+        prepare_base_completeness_input(ctx, disabled, extra_commands, non_ascii_mode).await;
+
     // A document with an unclosed delimiter needs a wider "known command"
     // universe than the folder/global-scoped `extra_commands` salsa input
     // carries: the workspace's own procs/classes and the commands *this*
@@ -4215,10 +4278,9 @@ async fn compute_base_analysis(
     // inherently per-document — a document's own `package require`s decide
     // which package commands apply, which the shared, folder/global-scoped
     // salsa `AnalyserConfig` cannot express — so this bypasses the cached path
-    // entirely and only runs on this rare, edit-transient branch, mirroring
-    // `recovery_known_commands`'s own `script_is_complete` gate: a
-    // well-formed document pays nothing extra.
-    if !tcl_lexer::script_is_complete(text) {
+    // entirely and runs only when the original configured gate does not prove
+    // completeness. Unknown parser/input is retained on the recovery path.
+    if !original_document_is_complete(text, &prepared.checked_input) {
         return compute_recovery_analysis(
             client,
             ctx,
@@ -4226,6 +4288,7 @@ async fn compute_base_analysis(
             extra_commands,
             non_ascii_mode,
             recovery,
+            prepared,
         )
         .await;
     }
@@ -4262,35 +4325,22 @@ async fn compute_base_analysis(
             }
         }
     } else {
-        let (a_text, a_dialect, a_disabled) =
-            (text.to_owned(), dialect.to_owned(), disabled.clone());
-        let a_extra = extra_commands.clone();
-        // The path- and release-keyed inputs `file_analysis_incremental` reads
-        // off the salsa `SourceFile` / `AnalyserConfig` (pkgIndex.tcl and
-        // tclpkg.tcl scoping; the BIG-IP library-version axis).  This branch is
-        // the **closed-file** tier, not just a rare fallback, so a
-        // closed file's badge must not lose them.
-        let a_path = uri.to_file_path().map(|p| p.display().to_string());
-        let (a_packs, a_resource) = {
-            let db = db.lock().await;
-            (
-                config.spec_pack_key(&*db),
-                ResourceAnalyserInputs::from_db_config(config, &*db),
-            )
+        let a_text = text.to_owned();
+        let a_dialect = dialect;
+        // The gate and this actual untracked walk share one prepared owner.
+        let PreparedCompletenessInput {
+            checked_input,
+            untracked_analyser,
+        } = prepared;
+        let (Some(analyser), Ok(input)) = (untracked_analyser, checked_input) else {
+            return ControlFlow::Break(true);
         };
         let analysis = crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 Arc::new(
-                    Backend::configured_analyser(
-                        a_disabled,
-                        non_ascii_mode,
-                        a_extra,
-                        a_packs,
-                        a_resource,
-                    )
-                    .with_file_path(a_path)
-                    .analyse(&a_text, a_dialect.name)
-                    .clone(),
+                    analyser
+                        .with_resolved_input(input.as_ref().clone())
+                        .analyse(&a_text, a_dialect.name),
                 )
             })
         })
@@ -43903,14 +43953,19 @@ info exists ::N::v\uD800";
     async fn declared_package_provides_survive_an_incomplete_buffer() {
         let backend = test_backend();
         let uri = Uri::from_str("file:///ext_recovery.tcl").unwrap();
-        // Unclosed brace: `script_is_complete` is false, so this takes the
+        // Unclosed brace: configured Document completeness is false, so this takes the
         // recovery branch.
         let src = "package require myExtension
 frame .outer.inner
 proc p {} {
 ";
         assert!(
-            !tcl_lexer::script_is_complete(src),
+            tcl_lexer::script_image_is_complete(
+                &tcl_lexer::SourceImage::document(src),
+                tcl_lexer::LexerConfig::for_file_grammar(
+                    tcl_lsp_core::profile_for_dialect("tcl8.6").grammar,
+                ),
+            ) == Ok(false),
             "the fixture must actually take the recovery branch"
         );
         let has_tk1002 = |diags: &[tower_lsp_server::ls_types::Diagnostic]| {

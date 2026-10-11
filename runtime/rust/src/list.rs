@@ -313,6 +313,12 @@ pub(crate) struct NativeListBacking {
 }
 
 impl NativeListBacking {
+    /// Check the retained original backing incarnation without adding a header
+    /// or scanning unrelated members. Each accessed member still needs its own
+    /// checked original getter and liveness check.
+    pub(crate) fn check_generation(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        self.elements.checked_generation()
+    }
     pub(crate) fn len(&self) -> usize {
         self.elements.len()
     }

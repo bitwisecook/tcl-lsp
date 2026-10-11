@@ -14,9 +14,13 @@ Where does a bare namespace-eval Set write x with an existing root x or no root 
 
 C8.4-C8.6 reuses an existing root x and creates namespace x only when the root is absent; C9.0/C9.1 creates namespace x even when root x exists. Jim bare Set creates an activation-local x and leaves both namespace global x and existing root x unchanged. Explicit variable creates namespace x on all six. These are the fixed ASCII namespace-entry/store/read controls, not arbitrary resolver or trace closure.
 
+Original source symbol projections retain selected existing-root/fresh-namespace fallback, Jim namespace-activation local purpose and explicit namespace variable storage as distinct model facets.
+
 ## Scope
 
 Three caught ASCII source programs supplied as native shell stdin; actual info patchlevel, exact input and streams, executable/header/library/Makefile/source-owner hashes retained. Initial namespace names are fresh. No raw zero, physical variable header, compiler admission, alias or observer claim.
+
+Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -95,6 +99,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/var_resolve/original_bytes.rs](../../../../rust/tcl-compiler/src/var_resolve/original_bytes.rs), `var_resolve::original_bytes::tests::namespace_runtime_root_requires_current_or_global_table_membership` (linked): Independent current/global inventory for ASCII x distinguishes C8 existing-root fallback from C9 namespace selection and declines missing membership; opaque-byte equality is separate Rust correspondence beyond the measured ASCII native controls.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/scope.rs](../../../../rust/tcl-compiler/src/analyser/scope.rs), `analyser::scope::tests::original_namespace_store_symbols_use_the_selected_activation_and_fallback` (linked): Original source symbol projection keeps selected C existing-root/fresh-namespace fallback and Jim namespace-activation local purpose distinct from explicit variable namespace storage; no actual Native frame or store completion is attached.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

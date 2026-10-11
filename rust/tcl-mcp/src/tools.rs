@@ -1382,29 +1382,26 @@ fn extract_variable(args: &Value) -> Value {
     }
 }
 
+/// Both tool surfaces keep the analysis owner through conditional source edits.
+fn datagroup_advice(
+    source: &str,
+    cursor: u32,
+    name: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Option<tcl_lsp_core::refactor::Refactoring> {
+    tcl_lsp_core::refactor::extract_to_datagroup_with_analysis(
+        source, cursor, name, analysis, line_index,
+    )
+}
+
 fn extract_datagroup(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let (line_index, cursor) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let dg_name = arg_str(args, "dg_name");
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
-    if !analysis.allows_lexical_declaration_advice() {
-        return Value::Null;
-    }
-    let Some(config) = analysis.body_lexer_config else {
-        return Value::Null;
-    };
-    let Some(reg) = analysis.resolved_registry() else {
-        return Value::Null;
-    };
-    let Some(r) = tcl_lsp_core::refactor::extract_to_datagroup(
-        source,
-        cursor,
-        dg_name,
-        reg,
-        &line_index,
-        config,
-    ) else {
+    let Some(r) = datagroup_advice(source, cursor, dg_name, &analysis, &line_index) else {
         return Value::Null;
     };
     let Some(dg) = r.data_group.as_ref() else {
@@ -1484,22 +1481,10 @@ fn refactor(args: &Value) -> Value {
         "brace_expr",
         tcl_lsp_core::refactor::brace_expr(source, start_off, &analysis),
     );
-    if analysis.allows_lexical_declaration_advice()
-        && let Some(config) = analysis.body_lexer_config
-        && let Some(registry) = analysis.resolved_registry()
-    {
-        push(
-            "extract_datagroup",
-            tcl_lsp_core::refactor::extract_to_datagroup(
-                source,
-                start_off,
-                "",
-                registry,
-                &line_index,
-                config,
-            ),
-        );
-    }
+    push(
+        "extract_datagroup",
+        datagroup_advice(source, start_off, "", &analysis, &line_index),
+    );
     json!({ "total": available.len(), "available": available })
 }
 
@@ -3531,6 +3516,136 @@ proc repeated {second} {}";
 #[cfg(test)]
 mod original_refactor_request_tests {
     use super::*;
+
+    fn authored_datagroup_registry() -> std::sync::Arc<CommandRegistry> {
+        const OUTPUTS: &[tcl_registry::SubCommand] = &[
+            tcl_registry::SubCommand {
+                name: "match",
+                arity: tcl_registry::Arity::exact(3),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+            tcl_registry::SubCommand {
+                name: "lookup",
+                arity: tcl_registry::Arity::exact(2),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+        ];
+        let mut registry = CommandRegistry::build_default();
+        // An authored source output surface is independent of loaded handlers.
+        registry.insert(tcl_registry::CommandSpec {
+            name: "class",
+            surface: Some(tcl_registry::model::SpecSurface::TCL90_PLUS),
+            subcommands: OUTPUTS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        std::sync::Arc::new(registry)
+    }
+
+    fn datagroup_analysis(
+        source: &str,
+        environment: &str,
+        registry: std::sync::Arc<CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                tcl_registry::model::ingress::resolve_environment(environment)
+                    .default_context_registry()
+                    .with_command_store(registry),
+            ),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let result = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(result.allows_lexical_declaration_advice());
+        result
+    }
+
+    #[test]
+    fn original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons() {
+        // naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let registry = authored_datagroup_registry();
+        let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
+        let index = LineIndex::new(source);
+        let action = datagroup_advice(source, 0, "answers", &analysis, &index)
+            .expect("actual authored output and original conditional arm source");
+        assert_eq!(action.apply(source), "set answer [class lookup $x answers]");
+        assert_eq!(action.data_group.as_ref().unwrap().records.len(), 2);
+        let older = datagroup_analysis(source, "tcl8.4", registry.clone());
+        assert!(datagroup_advice(source, 0, "answers", &older, &index).is_none());
+        for prefix in ["proc set args {}; ", "proc class args {}; "] {
+            let replaced = format!("{prefix}{source}");
+            let owner = datagroup_analysis(&replaced, "tcl9.0", registry.clone());
+            assert!(
+                datagroup_advice(
+                    &replaced,
+                    u32::try_from(prefix.len()).unwrap(),
+                    "answers",
+                    &owner,
+                    &LineIndex::new(&replaced)
+                )
+                .is_none()
+            );
+        }
+        let alias = "interp alias {} choose {} if
+choose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
+        let alias_owner = datagroup_analysis(alias, "tcl9.0", registry.clone());
+        assert!(
+            datagroup_advice(
+                alias,
+                u32::try_from(alias.rfind("choose").unwrap()).unwrap(),
+                "answers",
+                &alias_owner,
+                &LineIndex::new(alias)
+            )
+            .is_some()
+        );
+        let captured = "interp alias {} choose {} if {$x eq one}
+choose {puts SAME} elseif {$x eq two} {puts SAME}";
+        let owner = datagroup_analysis(captured, "tcl9.0", registry);
+        assert!(
+            datagroup_advice(
+                captured,
+                u32::try_from(captured.rfind("choose").unwrap()).unwrap(),
+                "answers",
+                &owner,
+                &LineIndex::new(captured)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners() {
+        // naming.consumer.original-mcp-refactor-context
+        // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
+        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let registry = authored_datagroup_registry();
+        let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
+        let index = LineIndex::new(source);
+        assert!(datagroup_advice(source, 0, "answers", &analysis, &index).is_some());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut stale = analysis.clone();
+        stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = datagroup_analysis(source, "tcl8.4", registry).resolved_input;
+        let mut unavailable = analysis.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl9.0".into(),
+            overlay: u64::MAX - 405,
+        });
+        for refused in [missing, stale, foreign, unavailable] {
+            assert!(datagroup_advice(source, 0, "answers", &refused, &index).is_none());
+        }
+        assert!(datagroup_advice("# changed", 0, "answers", &analysis, &index).is_none());
+        assert!(datagroup_advice(source, 0, "answers", &analysis, &index).is_some());
+    }
 
     // Implementation contract: naming.consumer.original-mcp-refactor-context
     // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md

@@ -45,6 +45,7 @@ mod native_append;
 pub(crate) mod native_body_artifact;
 mod native_children;
 mod native_command_names;
+mod native_command_recreation;
 #[cfg(not(target_arch = "wasm32"))]
 mod native_coroutine_names;
 pub use native_children::ChildInterpreterCommand;
@@ -696,16 +697,22 @@ pub type TclCmdDeleteProc = unsafe extern "C" fn(*mut c_void);
 /// keeps the `clientData` live for as long as the command's own procedure
 /// executes, where C Tcl runs the procedure at the deletion itself. The table,
 /// a displaced binding and an interpreter's teardown are all just drops of the
-/// handle.
+/// handle. The selected original idle creation purpose separately discards a
+/// uniquely owned callback-recreated object record without a second delete
+/// procedure, matching the original public overwrite operation. This exception
+/// grants no active-command, procedure or native generation equivalence.
 pub struct ObjCommand {
     proc_: TclObjCmdProc,
     client_data: *mut c_void,
     delete_proc: Option<TclCmdDeleteProc>,
+    creation_purpose:
+        Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose>,
 }
 
 impl ObjCommand {
-    /// A command over `proc_`; `delete_proc` is called with `client_data` once,
-    /// when the command's last handle drops.
+    /// A command over `proc_`; ordinary retirement calls `delete_proc` with
+    /// `client_data` once when the last handle drops. The selected idle creation
+    /// overwrite purpose may discard an intermediate record without calling it.
     #[must_use]
     pub fn new(
         proc_: TclObjCmdProc,
@@ -716,7 +723,30 @@ impl ObjCommand {
             proc_,
             client_data,
             delete_proc,
+            creation_purpose: None,
         }
+    }
+
+    /// Retain the actual producer's record purpose independently of dispatch,
+    /// native name/address and object ownership permissions.
+    pub(crate) fn creation_purpose(
+        &self,
+    ) -> Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose> {
+        self.creation_purpose
+    }
+
+    /// Runtime-owned shim storage keeps its own destructor contract; it cannot
+    /// inherit the external legacy C callback's intermediate-record discard.
+    pub(crate) fn new_owned_runtime_shim(
+        proc_: TclObjCmdProc,
+        client_data: *mut c_void,
+        delete_proc: Option<TclCmdDeleteProc>,
+    ) -> Self {
+        let mut command = Self::new(proc_, client_data, delete_proc);
+        command.creation_purpose = Some(
+            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+        );
+        command
     }
 }
 
@@ -4211,7 +4241,14 @@ impl Interp {
             }
             return;
         }
+        let creation_protocol = self
+            .native_invocation_dialect()
+            .native_command_creation_protocol();
+        let creates_object_command = matches!(&command, Command::ObjCmd(command)
+            if command.creation_purpose == Some(tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand));
         let displaced = self.namespaces.borrow().command_in(ns, tail);
+        let original_object_retirement =
+            native_command_recreation::OriginalIdleObjectRetirement::capture(displaced.as_ref());
         let had_displaced = displaced.is_some();
         self.on_bound_command_replaced(ns, tail);
         if scope.currency().ensure_current_or_refuse().is_err()
@@ -4258,17 +4295,63 @@ impl Interp {
         if still_displaced {
             self.namespaces.borrow_mut().remove_in(ns, tail);
         }
+        let slot_was_empty = self.namespaces.borrow().command_in(ns, tail).is_none();
         drop(displaced);
         if scope.currency().ensure_current_or_refuse().is_err()
             || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
         {
             return;
         }
-        // TclCreateObjCommandInNs deletes the original once and discards a
-        // callback-recreated slot rather than repeating deletion (C8.6
-        // generic/tclBasic.c). This adapter currently drops that recreated
-        // handle normally; its extra deleteProc is a distinct source gap, not
-        // native equivalence. Retain it so that drop never borrows the table.
+        // The original idle public object-command overwrite discards a record
+        // created by the old deleteProc. Reuse the exact creation entry, actual
+        // slot generation and unique record ownership; a spelling is no proof.
+        let recreated_generation = self.namespaces.borrow().command_generation(ns, tail);
+        if creates_object_command && recreated_generation.is_some() {
+            let admissible = original_object_retirement
+                .as_ref()
+                .is_some_and(|original| original.completed_delete(slot_was_empty));
+            let selected = creation_protocol.filter(|_| admissible);
+            let Some(selected) = selected else {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original idle object-command recreation purpose unavailable",
+                    ),
+                );
+                return;
+            };
+            let recreated = self
+                .namespaces
+                .borrow_mut()
+                .take_recreated_object_for_creation(
+                    &native_entry,
+                    tail,
+                    recreated_generation.expect("the actual recreated slot was observed"),
+                );
+            let discarded = recreated.is_some_and(|recreated| {
+                // Release only the actual intermediate object outside the table
+                // borrow. Additional owners keep their ordinary retirement.
+                native_command_recreation::discard_idle_recreated_object(
+                    selected,
+                    recreated.command,
+                )
+                .is_ok()
+            });
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+            {
+                return;
+            }
+            if !discarded {
+                self.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original idle object-command recreation ownership unavailable",
+                    ),
+                );
+                return;
+            }
+        }
+        // Other publication purposes keep their ordinary retained-handle
+        // retirement; no idle object-command receipt is donated to them.
         let recreated = self.namespaces.borrow().command_in(ns, tail);
         self.namespaces
             .borrow_mut()
@@ -12126,6 +12209,33 @@ impl Interp {
     /// Unqualified names bind globally; qualified relative names use the actual
     /// current namespace. Answers the installed token without relooking up a name.
     pub(crate) fn create_obj_command(&mut self, name: &[u8], command: ObjCommand) -> Option<u64> {
+        self.create_obj_command_for_purpose(
+            name,
+            command,
+            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand,
+        )
+    }
+
+    /// Counted Engine creation retains its own receipt and callback purpose,
+    /// independently of the measured legacy public C object-command call.
+    pub(crate) fn create_counted_engine_obj_command(
+        &mut self,
+        name: &[u8],
+        command: ObjCommand,
+    ) -> Option<u64> {
+        self.create_obj_command_for_purpose(
+            name,
+            command,
+            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
+        )
+    }
+
+    fn create_obj_command_for_purpose(
+        &mut self,
+        name: &[u8],
+        mut command: ObjCommand,
+        purpose: tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose,
+    ) -> Option<u64> {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -12140,6 +12250,11 @@ impl Interp {
             self.refuse_host_command("C command publication has no selected original namespace");
             return None;
         };
+        // A caller-provided owned-shim purpose remains independently sealed
+        // even when its record passes through a public constructor facade.
+        if command.creation_purpose.is_none() {
+            command.creation_purpose = Some(purpose);
+        }
         self.bind_command_replacement(namespace, &simple, Command::ObjCmd(Rc::new(command)));
         if scope.currency().ensure_current_or_refuse().is_err() {
             return None;

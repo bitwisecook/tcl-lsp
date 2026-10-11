@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Selected native object-command creation retirement recipes.
+//!
+//! Original public C and Jim creation callbacks overwrite an idle command
+//! recreated by the original delete procedure without calling that intermediate
+//! command's delete procedure. The recipe supplies no table, live holder,
+//! unique object ownership, active-command or procedure lifetime evidence.
+
+use tcl_syntax::native_string::NativeStringProtocol;
+
+/// Original producer purpose retained on a runtime object-command record.
+/// The tag describes issuance; it grants no live table or address authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeObjectCommandCreationPurpose {
+    /// Legacy public C object-command constructor and its original callback ABI.
+    LegacyPublicObjectCommand,
+    /// Counted Engine callback publication, with its independent receipt contract.
+    CountedEngineObjectCommand,
+    /// Runtime-owned Rust shim storage, whose cleanup remains independently owned.
+    OwnedRuntimeShim,
+}
+
+/// Retirement of an independently owned idle object-command record overwritten
+/// by the original public object-command creation operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeRecreatedObjectRetirement {
+    /// Discard the intermediate record without another delete-procedure call.
+    DiscardWithoutDeleteProcedure,
+}
+
+/// Native creation rules selected independently of actual binding authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeCommandCreationProtocol(NativeStringProtocol);
+
+impl NativeCommandCreationProtocol {
+    /// Independently selected engine recipe; this grants no live command slot.
+    #[must_use]
+    pub const fn protocol(self) -> NativeStringProtocol {
+        self.0
+    }
+
+    /// The measured idle object-command overwrite purpose. Actual operation,
+    /// callback provenance and unique record ownership remain caller checks.
+    #[must_use]
+    pub const fn idle_recreated_object_retirement(
+        self,
+        purpose: NativeObjectCommandCreationPurpose,
+    ) -> Option<NativeRecreatedObjectRetirement> {
+        match purpose {
+            NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand => {
+                Some(NativeRecreatedObjectRetirement::DiscardWithoutDeleteProcedure)
+            }
+            NativeObjectCommandCreationPurpose::CountedEngineObjectCommand
+            | NativeObjectCommandCreationPurpose::OwnedRuntimeShim => None,
+        }
+    }
+}
+
+impl crate::InvocationDialect {
+    /// Select original C/Jim creation rules from the supported native point.
+    /// Authored compatibility, logical simulation and unknown points abstain.
+    #[must_use]
+    pub fn native_command_creation_protocol(self) -> Option<NativeCommandCreationProtocol> {
+        self.native_string_protocol()
+            .map(NativeCommandCreationProtocol)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn original_idle_recreation_recipe_requires_a_supported_native_point() {
+        // naming.embedding.original-command-recreation-discard
+        // docs/design/analysis/name-resolution-proofs/embedding-original-command-recreation-discard.md
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let dialect = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(environment).analyser_profile(),
+            );
+            let selected = dialect.native_command_creation_protocol().unwrap();
+            assert_eq!(
+                selected.protocol(),
+                dialect.native_string_protocol().unwrap()
+            );
+            assert_eq!(
+                selected.idle_recreated_object_retirement(
+                    NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand
+                ),
+                Some(NativeRecreatedObjectRetirement::DiscardWithoutDeleteProcedure)
+            );
+            for purpose in [
+                NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
+                NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+            ] {
+                assert_eq!(selected.idle_recreated_object_retirement(purpose), None);
+            }
+        }
+        let authored = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("tcl").analyser_profile(),
+        );
+        assert!(authored.native_command_creation_protocol().is_none());
+        let logical = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        assert!(logical.native_command_creation_protocol().is_none());
+        let mut missing = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        missing.core_point = None;
+        missing.native_family = None;
+        assert!(missing.native_command_creation_protocol().is_none());
+        let mut foreign = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        foreign.tcl_version = Some(tcl_dialect::TclVersion::V9_1);
+        assert!(foreign.native_command_creation_protocol().is_none());
+    }
+}

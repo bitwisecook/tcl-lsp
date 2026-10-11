@@ -14,9 +14,13 @@ How do workspace reporting settlement, callable-arity diagnostics and W123 refin
 
 ResolvedAnalysisInput::has_hosted_source_name_context classifies the actual retained hosted policy or ContextRegistry independently of source occurrence inventory. AnalysisResult::allows_lexical_declaration_advice combines that input with the independently selected lexical advice mode and original vendor inventory; copied dialect labels cannot change the decision. WorkspaceDiagnosticSourceContext captures the same shared advice mode together with complete source/channel, full scanner configuration and actual Registry semantic identity. Server reporting settlement, its lowest per-call resolver, reporting callable-arity diagnostics and W123 refinement require this explicit Logical branch. Native and hosted unresolved diagnostics remain present even when reporting candidates, math-function names, opt-in project tails or a supplied CrossFileCalls set match their spans. Genuine same-document original declaration identity and readonly source candidates retain their independent source/URI/configuration/Registry owners. Explicit Logical slot advice additionally requires the actual complete validated source-input token retained through entry, immutable baseline, cache and lowering. Presence and diagnostic-presence queries select this domain from the token rather than source-site existence; Native, hosted, missing or foreign input remains outside lexical absence advice.
 
+Workspace reporting retains actual same-store builtin availability and full pack/source/config currency; conditional declarations are not callable publications.
+
 ## Scope
 
 A Rust consumer and input-ownership invariant for reporting-based workspace diagnostic refinement. Fixed controls include C Tcl 8.4–9.1, Jim, actual F5 iRules/tmsh/iApps inputs, separately retained iCall policy and explicit Logical authoring. No independently loaded cross-file callable entry is issued by these reporting helpers. An Original lookup, callable signature, effective argv, provider survival, runtime dispatch, Normal completion, cell identity, native admission or edit permission still requires its own purpose-specific owner. These implementation assertions supply no native provider execution result.
+
+Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -105,6 +109,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/command_presence.rs](../../../../rust/tcl-compiler/src/command_binding/command_presence.rs), `command_binding::command_presence::tests::logical_source_slot_advice_uses_the_interpreted_head_not_query_labels` (linked): Validated Logical input selects the actual interpreted original head; reported query labels cannot replace it or derive Native/hosted absence authority.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs), `original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store` (linked): Workspace reporting retains complete source/config/store and distinguishes actual same-store C8.4/C8.6 builtin availability; conditional source declarations do not install callable or Native publications.
+- [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs), `original_workspace_diagnostics_tests::original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners` (linked): Workspace reporting withholds changed pack generations, missing input, stale grammar and populated unavailable owners; the reporting result supplies no physical frame or Native execution authority.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

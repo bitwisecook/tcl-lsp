@@ -199,8 +199,10 @@ impl OriginalGeometryTiming {
             })
     }
 
-    fn record_clone(&self, started: std::time::Instant) {
-        let elapsed = started.elapsed().as_nanos();
+    fn record_clone(&self, elapsed: Option<u128>) {
+        let Some(elapsed) = elapsed else {
+            return;
+        };
         ORIGINAL_GEOMETRY_TOTALS.with(|totals| {
             let mut values = totals.get();
             values[self.query].world_clones = values[self.query].world_clones.saturating_add(1);
@@ -1595,18 +1597,17 @@ impl ModuleCommandBindings {
     ) -> Option<SourceCommandKey> {
         #[cfg(any(test, debug_assertions))]
         let geometry_timing = OriginalGeometryTiming::at_query(0);
+        let query = self.original_command_world.query_view(self);
         #[cfg(any(test, debug_assertions))]
-        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
-        let mut world = (*self.original_command_world).clone();
-        #[cfg(any(test, debug_assertions))]
-        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
-            timing.record_clone(started);
+        if let Some(timing) = geometry_timing.as_ref() {
+            timing.record_clone(query.clone_nanos());
         }
-        if world.select_policy(self)? != policy {
+        if query.selected_policy()? != policy {
             return None;
         }
         let mut namespaces = self.namespaces.iter().filter(|namespace| {
-            world
+            query
+                .world()
                 .scope(namespace, policy)
                 .is_some_and(|scope| match scope {
                     SignatureNamespaceScope::C(path) => path == slot.namespace,
@@ -1699,20 +1700,18 @@ impl ModuleCommandBindings {
         use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol, NativeNameQualification};
         #[cfg(any(test, debug_assertions))]
         let geometry_timing = OriginalGeometryTiming::at_query(1);
+        let query = self.original_command_world.query_view(self);
         #[cfg(any(test, debug_assertions))]
-        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
-        let mut world = (*self.original_command_world).clone();
-        #[cfg(any(test, debug_assertions))]
-        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
-            timing.record_clone(started);
+        if let Some(timing) = geometry_timing.as_ref() {
+            timing.record_clone(query.clone_nanos());
         }
-        if world.select_policy(self)? != policy || self.has_opaque_domain() {
+        if query.selected_policy()? != policy || self.has_opaque_domain() {
             return None;
         }
         let scope = if bytes.starts_with(b"::") {
             SignatureNamespaceScope::root(Some(policy))
         } else {
-            world.scope(current, policy)?
+            query.world().scope(current, policy)?
         };
         let recipe = policy.recipe();
         let mut paths = Vec::new();
@@ -1774,7 +1773,7 @@ impl ModuleCommandBindings {
                                 if !self.namespaces.contains(namespace) {
                                     continue;
                                 }
-                                let selected = world.scope(namespace, policy)?;
+                                let selected = query.world().scope(namespace, policy)?;
                                 let slot = recipe
                                     .command_lookup_slot(selected.context()?, bytes)
                                     .ok()?;
@@ -1985,15 +1984,13 @@ impl ModuleCommandBindings {
         if !self.namespaces.contains(namespace) {
             return None;
         }
+        let query = self.original_command_world.query_view(self);
         #[cfg(any(test, debug_assertions))]
-        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
-        let mut world = (*self.original_command_world).clone();
-        #[cfg(any(test, debug_assertions))]
-        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
-            timing.record_clone(started);
+        if let Some(timing) = geometry_timing.as_ref() {
+            timing.record_clone(query.clone_nanos());
         }
-        (world.select_policy(self)? == policy).then_some(())?;
-        world.scope(namespace, policy)
+        (query.selected_policy()? == policy).then_some(())?;
+        query.world().scope(namespace, policy)
     }
 
     /// Readonly catalogue or document advice at genuine original geometry.
@@ -2048,14 +2045,12 @@ impl ModuleCommandBindings {
         if !name.is_ascii() || name.as_bytes().contains(&0) {
             return (None, None);
         }
+        let query = self.original_command_world.query_view(self);
         #[cfg(any(test, debug_assertions))]
-        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
-        let mut world = (*self.original_command_world).clone();
-        #[cfg(any(test, debug_assertions))]
-        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
-            timing.record_clone(started);
+        if let Some(timing) = geometry_timing.as_ref() {
+            timing.record_clone(query.clone_nanos());
         }
-        let Some(policy) = world.select_policy(self) else {
+        let Some(policy) = query.selected_policy() else {
             return (None, None);
         };
         self.original_advice_candidates_for_bytes(current, name.as_bytes(), policy)
@@ -2178,18 +2173,16 @@ impl ModuleCommandBindings {
             }
             return Some(OriginalLookupSlot::Retained(key));
         }
+        let query = self.original_command_world.query_view(self);
         #[cfg(any(test, debug_assertions))]
-        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
-        let mut world = (*self.original_command_world).clone();
-        #[cfg(any(test, debug_assertions))]
-        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
-            timing.record_clone(started);
+        if let Some(timing) = geometry_timing.as_ref() {
+            timing.record_clone(query.clone_nanos());
         }
-        if world.select_policy(self)? != policy || self.baseline.unknown_entry {
+        if query.selected_policy()? != policy || self.baseline.unknown_entry {
             return None;
         }
         for namespace in self.namespaces.iter() {
-            let matches = match world.scope(namespace, policy)? {
+            let matches = match query.world().scope(namespace, policy)? {
                 SignatureNamespaceScope::C(path) => path == slot.namespace,
                 SignatureNamespaceScope::Jim(_) => slot.namespace.is_root(),
                 SignatureNamespaceScope::Symbolic(_) => return None,
@@ -2485,15 +2478,13 @@ impl ModuleCommandBindings {
         let SourceCommandKey::Slot { namespace, simple } = key else {
             return None;
         };
+        let query = self.original_command_world.query_view(self);
         #[cfg(any(test, debug_assertions))]
-        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
-        let mut world = (*self.original_command_world).clone();
-        #[cfg(any(test, debug_assertions))]
-        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
-            timing.record_clone(started);
+        if let Some(timing) = geometry_timing.as_ref() {
+            timing.record_clone(query.clone_nanos());
         }
-        let policy = world.select_policy(self)?;
-        let scope = world.scope(namespace, policy)?;
+        let policy = query.selected_policy()?;
+        let scope = query.world().scope(namespace, policy)?;
         let selected = match policy.recipe() {
             tcl_syntax::naming::NativeNameProtocol::C(_) => {
                 let SignatureNamespaceScope::C(path) = scope else {
@@ -2857,17 +2848,15 @@ impl ModuleCommandBindings {
         let SourceCommandKey::Slot { namespace, simple } = key else {
             return None;
         };
+        let query = self.original_command_world.query_view(self);
         #[cfg(any(test, debug_assertions))]
-        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
-        let mut world = (*self.original_command_world).clone();
-        #[cfg(any(test, debug_assertions))]
-        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
-            timing.record_clone(started);
+        if let Some(timing) = geometry_timing.as_ref() {
+            timing.record_clone(query.clone_nanos());
         }
-        if world.select_policy(self)? != policy {
+        if query.selected_policy()? != policy {
             return None;
         }
-        let namespace = match world.scope(namespace, policy)? {
+        let namespace = match query.world().scope(namespace, policy)? {
             SignatureNamespaceScope::C(path) => path,
             SignatureNamespaceScope::Jim(_) => tcl_core_types::ByteNamespacePath::root(),
             SignatureNamespaceScope::Symbolic(_) => return None,

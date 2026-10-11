@@ -107,6 +107,7 @@ pub mod model;
 pub mod native_array_compilation;
 pub mod native_binary_usage;
 pub mod native_binary_value;
+pub mod native_command_creation;
 pub mod native_command_literal;
 pub mod native_compilation;
 pub mod native_compiled_variables;

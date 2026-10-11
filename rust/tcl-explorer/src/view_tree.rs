@@ -1223,12 +1223,14 @@ fn build_structural_index(d: &Value) -> Vec<ViewNode> {
         return vec![ViewNode::note("(structural index unavailable)", "dim")];
     }
     let mut roots = Vec::new();
-    let complete = si["scriptComplete"].as_bool().unwrap_or(false);
-    roots.push(ViewNode::leaf(
-        format!("script complete: {complete}"),
-        Vec::new(),
-        Some(if complete { "green" } else { "yellow" }),
-    ));
+    match si["scriptComplete"].as_bool() {
+        Some(complete) => roots.push(ViewNode::leaf(
+            format!("script complete: {complete}"),
+            Vec::new(),
+            Some(if complete { "green" } else { "yellow" }),
+        )),
+        None => roots.push(ViewNode::note("script completeness unavailable", "dim")),
+    }
 
     let boundaries = arr(si, "commandBoundaries");
     let cb_children: Vec<ViewNode> = boundaries
@@ -2271,5 +2273,28 @@ mod tests {
         let taint = build_view("taint", &d);
         assert_eq!(taint.len(), 1);
         assert_eq!(taint[0].style.as_deref(), Some("dim"));
+    }
+}
+
+#[cfg(test)]
+mod original_configured_completeness_tests {
+    use super::*;
+    #[test]
+    fn original_structural_view_keeps_unknown_completeness_distinct_from_false() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Display of the actual source query; no parser or execution authority.
+        let mut result = crate::run_pipeline("set x 1", "tcl8.6");
+        let view = build_structural_index(&crate::serialise::serialise_result(&result));
+        assert_eq!(view[0].label, "script complete: true");
+        assert_eq!(view[0].style.as_deref(), Some("green"));
+        let incomplete = crate::run_pipeline("set x {", "tcl8.6");
+        let view = build_structural_index(&crate::serialise::serialise_result(&incomplete));
+        assert_eq!(view[0].label, "script complete: false");
+        assert_eq!(view[0].style.as_deref(), Some("yellow"));
+        result.source.push_str("foreign");
+        let view = build_structural_index(&crate::serialise::serialise_result(&result));
+        assert_eq!(view[0].label, "script completeness unavailable");
+        assert_eq!(view[0].style.as_deref(), Some("dim"));
     }
 }

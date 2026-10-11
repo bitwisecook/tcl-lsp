@@ -14,9 +14,13 @@ Can CLI package discovery retain actual original package and requirement operand
 
 NativePackageNameKey::manifest_atom checks the retained package-purpose key and selected native string configuration, renders one bounded Document-channel atom and reparses it through the shared original word owner. The resulting package key must equal the original key and policy. Package names and requirement operands are retained independently at the genuine selected argument ordinals; requirement values do not receive package C-string projection. CLI discovery validates whole-source/full-configuration currency and reads these original inputs directly. Known retained values are reported as original-value without deriving identity from optimised text. Unknown, unavailable or unrepresentable operands remain unresolved. Only independently selected lexical source advice enters the optimiser-based compatibility branch. These interfaces issue source/manifest advice, not package availability, loading, table membership, execution or edit equivalence.
 
+CLI package source refinement requires checked pack-bearing input, full LexerConfig and actual source availability; missing, foreign, stale or unavailable owners withhold conditional metadata advice.
+
 ## Scope
 
 Current Registry key projection, foreground analyser and background signature producer, and CLI package manifest discovery. Fixed assertions distinguish package key zero clipping from counted requirement values, literal and known original values, actual -exact and version ordinals, missing operands, report-map changes, stale whole source, incompatible configuration and opaque unrepresentable units. All native provider statuses are not-tested for this Rust consumer contract; no executed Rust receipt is attached.
+
+Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -82,6 +86,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-cli/src/commands/pkg_discover.rs](../../../../rust/tcl-cli/src/commands/pkg_discover.rs), `commands::pkg_discover::tests::original_package_requirement_values_keep_actual_option_ordinals_and_unknowns` (linked): Foreground and background producers retain genuine -exact/name/version ordinals and preserve unknown requirement operands independently.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-cli/src/commands/pkg_discover.rs](../../../../rust/tcl-cli/src/commands/pkg_discover.rs), `commands::pkg_discover::tests::original_package_refinement_keeps_pack_input_availability_and_full_lexer` (linked): CLI package source refinement uses checked pack-bearing input, actual availability and full LexerConfig under the original source owner; metadata declarations are independent of package loading or callable installation.
+- [rust/tcl-cli/src/commands/pkg_discover.rs](../../../../rust/tcl-cli/src/commands/pkg_discover.rs), `commands::pkg_discover::tests::original_package_refinement_refuses_missing_foreign_stale_and_unavailable_owners` (linked): CLI package source advice withholds missing, foreign, stale and unavailable owners instead of consulting presentation or reporting-only values.
+
+Current source linkage supplies no execution or assertion credit.
 
 ## Replay
 

@@ -342,6 +342,18 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     if !context.matches_registry(registry) {
         return None;
     }
+    let context = if context.permits_logical_source_names() {
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_input(
+                tokens,
+                context.source_analysis_input()?,
+                registry,
+            )?
+    } else {
+        context
+    };
     if bindings.is_some_and(|bindings| bindings.original_arguments_rejected_before_handler(tokens))
     {
         return None;
@@ -355,9 +367,6 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
             .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
     let source_roles = if context.permits_logical_source_names() {
         let binding = tokens.source_binding.as_ref()?;
-        if binding.logical_source_name_advice_input() != context.source_analysis_input() {
-            return None;
-        }
         let realm = binding.invocation_realm().or_else(|| {
             binding
                 .declaration_operand_layout_advice(tokens)
@@ -447,6 +456,15 @@ fn original_declared_structured_invocation<'a>(
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
+    let context = if context.permits_logical_source_names() {
+        binding.original_invocation_metadata_for_input(
+            tokens,
+            context.source_analysis_input()?,
+            registry,
+        )?
+    } else {
+        context
+    };
     if let Some(input) = context.source_analysis_input()
         && binding
             .original_lexer_config_for_tokens(tokens)?
@@ -531,14 +549,13 @@ pub(crate) fn original_logical_operation_invocation_with_metadata_context(
     {
         return None;
     }
-    let input = context.source_analysis_input()?;
     let binding = tokens.source_binding.as_ref()?;
-    if binding.logical_source_name_advice_input() != Some(input)
-        || binding
-            .original_lexer_config_for_tokens(tokens)?
-            .normalized()
-            != input.lexer_config().normalized()
-    {
+    let context = binding.original_invocation_metadata_for_input(
+        tokens,
+        context.source_analysis_input()?,
+        registry,
+    )?;
+    if !context.permits_logical_source_names() {
         return None;
     }
     resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
@@ -4693,7 +4710,7 @@ impl RegistryInvocationShape {
     ) -> Option<T> {
         let binding = tokens.source_binding.as_ref()?;
         let point = binding
-            .original_invocation_metadata_at_point(tokens, registry)
+            .original_source_metadata_for_advice(tokens, registry)
             .ok()??;
         context.source_analysis_input()?;
         point.source_analysis_input()?;
@@ -4712,7 +4729,9 @@ impl RegistryInvocationShape {
         if !assistance.candidates.contains(self) {
             return None;
         }
-        let original = binding.original_compilation_lookup_advice(tokens)?;
+        let original = binding
+            .declaration_operand_layout_advice(tokens)
+            .or_else(|| binding.original_compilation_lookup_advice(tokens))?;
         let config = binding.original_lexer_config_for_tokens(tokens)?;
         let dialect = tcl_registry::InvocationDialect {
             lexer_grammar: config.grammar_over(original.dialect().lexer_grammar),
@@ -7157,7 +7176,7 @@ fn original_expression_context_advice_selected_word(
     // Availability comes from this unchanged original point. Supplied missing
     // or stale ownership cannot be replaced by a catalogue/profile context.
     let context = binding
-        .original_invocation_metadata_at_point(tokens, registry)
+        .original_source_metadata_for_advice(tokens, registry)
         .ok()??;
     let advice = binding
         .declaration_operand_layout_advice(tokens)

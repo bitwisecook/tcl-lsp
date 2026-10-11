@@ -728,7 +728,13 @@ impl<'a> Lowerer<'a> {
     /// source text and its 1-based line within the body being compiled.
     fn statement_site(&self, node: &NodeId) -> Option<StatementSite> {
         let source = self.command_sites.get(node)?;
-        let text = command_text(self.input.source, source.span).to_owned();
+        let text = command_text(
+            self.input.source,
+            source.span,
+            &self.input.module.source,
+            self.input.module.lexer_config,
+        )
+        .to_owned();
         Some(StatementSite {
             line: body_line(
                 self.input.source,
@@ -758,7 +764,13 @@ impl<'a> Lowerer<'a> {
     }
 
     fn eval_source(&mut self, source: &SourceSite, reason: NativeLoweringDecline) {
-        let text = command_text(self.input.source, source.span).to_owned();
+        let text = command_text(
+            self.input.source,
+            source.span,
+            &self.input.module.source,
+            self.input.module.lexer_config,
+        )
+        .to_owned();
         self.emit(NativeOp::EvalSource { text, reason });
         self.clobber_shadows();
     }

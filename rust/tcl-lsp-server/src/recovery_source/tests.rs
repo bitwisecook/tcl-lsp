@@ -15,7 +15,15 @@ async fn recover_for_input(
     source: &str,
     tracked: bool,
 ) -> Arc<AnalysisResult> {
-    assert!(!tcl_lexer::script_is_complete(source));
+    assert_eq!(
+        tcl_lexer::script_image_is_complete(
+            &tcl_lexer::SourceImage::document(source),
+            tcl_lexer::LexerConfig::for_file_grammar(
+                tcl_lsp_core::profile_for_dialect("tcl8.6").grammar,
+            ),
+        ),
+        Ok(false),
+    );
     backend
         .db_set_source(uri, source, "tcl8.6".to_owned())
         .await;
@@ -372,4 +380,72 @@ async fn assert_unavailable_caller(backend: &Backend, uri: &Uri, source: &str) {
     assert!(refused.analysis_context_unavailable.is_some());
     assert!(refused.resolved_input.is_none());
     assert!(refused.all_procs.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn original_base_completeness_retains_indexed_and_untracked_input_owners() {
+    // naming.source.original-configured-script-completeness
+    // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+    // Server source gate; no scalar String byte/header or execution equivalence.
+    let backend = crate::tests::test_backend();
+    let uri = Uri::from_file_path("/caller/completeness.tcl").unwrap();
+    let source = "set x ${a{}";
+    backend
+        .db_set_source(&uri, source, "tcl8.6".to_owned())
+        .await;
+    let config = backend.resolved_db_config(&uri).await;
+    let file = backend.db_files.lock().await[&uri];
+    let (extra, mode, disabled) = {
+        let db = backend.db.lock().await;
+        (
+            config.extra_commands(&*db).iter().cloned().collect(),
+            config.non_ascii_mode(&*db),
+            config.disabled_diagnostics(&*db).iter().cloned().collect(),
+        )
+    };
+    // The display label disagrees intentionally; the indexed actual input
+    // retains C8.6's first-close grammar rather than borrowing that label.
+    let mut ctx = SalsaAnalysisCtx {
+        db: &backend.db,
+        uri: &uri,
+        file: Some(file),
+        config,
+        text: source,
+        dialect: tcl_lsp_core::profile_for_dialect("tcl9.1"),
+    };
+    let PreparedCompletenessInput {
+        checked_input: indexed,
+        untracked_analyser: driver,
+    } = prepare_base_completeness_input(&ctx, &disabled, &extra, mode).await;
+    assert!(driver.is_none());
+    assert!(original_document_is_complete(source, &indexed));
+    let expected = {
+        let db = backend.db.lock().await;
+        tcl_lsp_db::document_analysis_input(&*db, file, config).unwrap()
+    };
+    assert_eq!(indexed.as_ref().unwrap().as_ref(), expected.as_ref());
+    ctx.file = None;
+    let PreparedCompletenessInput {
+        checked_input: untracked,
+        untracked_analyser: driver,
+    } = prepare_base_completeness_input(&ctx, &disabled, &extra, mode).await;
+    assert!(!original_document_is_complete(source, &untracked));
+    let input = untracked.unwrap();
+    let analysis = driver
+        .unwrap()
+        .with_resolved_input(input.as_ref().clone())
+        .analyse(source, ctx.dialect.name);
+    assert_eq!(analysis.resolved_input.as_ref(), Some(input.as_ref()));
+    {
+        let mut db = backend.db.lock().await;
+        config.set_spec_pack_key(&mut *db).to(u64::MAX - 457);
+    }
+    ctx.file = Some(file);
+    let PreparedCompletenessInput {
+        checked_input: missing,
+        untracked_analyser: driver,
+    } = prepare_base_completeness_input(&ctx, &disabled, &extra, mode).await;
+    assert!(missing.is_err());
+    assert!(driver.is_none());
+    assert!(!original_document_is_complete("set x 1", &missing));
 }

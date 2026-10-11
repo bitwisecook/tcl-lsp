@@ -791,6 +791,23 @@ struct InterpExprCtx<'a> {
     propagated_code: Code,
 }
 
+/// Original arithmetic over existing owned operands, sharing the interpreter
+/// expression context and its selected getter/currency/error owners.
+#[cfg(have_tommath)]
+pub(crate) fn eval_binary_operands(
+    interp: &mut Interp,
+    op: tcl_syntax::expr::BinOp,
+    left: crate::obj::Owned,
+    right: crate::obj::Owned,
+) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+    let mut context = InterpExprCtx {
+        interp,
+        propagated: false,
+        propagated_code: Code::Error,
+    };
+    crate::expr::eval_binary_operands(op, left, right, &mut context)
+}
+
 #[cfg(have_tommath)]
 impl InterpExprCtx<'_> {
     fn propagated_error(&mut self, code: Code) -> crate::expr_error::ExprError {

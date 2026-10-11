@@ -81,6 +81,8 @@ pub enum PerItemFallback {
     /// Source is not a complete script (unbalanced braces / quotes) — mid-edit
     /// state, so this one is expected to fire transiently while typing.
     IncompleteScript,
+    /// The selected original source parser cannot answer completeness.
+    CompletenessUnavailable,
     /// An inline `tcl-lsp: stub` directive; stub overlays are modelled only on
     /// the full path.
     StubDirective,
@@ -146,6 +148,7 @@ impl PerItemFallback {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::IncompleteScript => "incomplete-script",
+            Self::CompletenessUnavailable => "completeness-unavailable",
             Self::StubDirective => "stub-directive",
             Self::SidecarStub => "sidecar-stub",
             Self::TkActive => "tk-active",
@@ -171,8 +174,9 @@ impl PerItemFallback {
 /// the result back.
 #[derive(Debug, Clone)]
 pub struct DeferredBody {
-    /// Actual editing generation and grammar, independent of the temporal
-    /// command proofs restored by the document shell.
+    /// Actual parent input, independent of temporal command proofs restored
+    /// by the document shell. Isolated analysis explicitly projects this
+    /// whole-source configuration to nested body coordinates.
     pub resolved_input: Option<super::ResolvedAnalysisInput>,
     /// Body text (braces stripped), as `analyse_body` expects.
     ///
@@ -328,7 +332,11 @@ impl Analyser {
         // order, so the split costs nothing.
         let environment = crate::environment_ingress::resolve_environment(dialect);
         let profile = environment.analyser_profile();
-        let entry_gate = if tcl_lexer::script_is_complete(source) {
+        let completeness = tcl_lexer::script_image_is_complete(
+            &tcl_lexer::SourceImage::document(source),
+            self.file_lexer_config(),
+        );
+        let entry_gate = if completeness == Ok(true) {
             if source.contains("tcl-lsp: stub") {
                 Some(PerItemFallback::StubDirective)
             } else if super::utils::has_sidecar_stubs(self.file_path.as_deref(), profile) {
@@ -348,7 +356,11 @@ impl Analyser {
                 None
             }
         } else {
-            Some(PerItemFallback::IncompleteScript)
+            Some(if completeness.is_err() {
+                PerItemFallback::CompletenessUnavailable
+            } else {
+                PerItemFallback::IncompleteScript
+            })
         };
         if let Some(reason) = entry_gate {
             self.per_item_fallback = Some(reason);
@@ -431,7 +443,7 @@ impl Analyser {
         // (`E…` diagnostic) means `analyse` engaged its error-*recovery* machinery
         // (ghost-token re-lexing, recovery segmentation, body-level partial
         // detection) that the per-item walk only partially reproduces — a
-        // locally-unbalanced `}` that `script_is_complete` still accepts is the
+        // locally-unbalanced `}` that configured completeness accepts is the
         // classic case.  Re-analyse fully so the result is byte-identical to a
         // from-scratch `analyse`.  Well-formed edits (the common case) carry no
         // E-codes and stay on the fast path.
@@ -487,7 +499,7 @@ impl Analyser {
         self.source = source.to_string();
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
-        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.body_lexer_config = Some(self.file_lexer_config());
         self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
@@ -542,6 +554,7 @@ impl Analyser {
             source,
             self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
+            self.file_lexer_config(),
         );
         let known: HashSet<&str> = self.recovery_known_commands.iter().collect();
         crate::segmenter::segment_commands_with_recovery_and_config(
@@ -1527,7 +1540,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         .with_non_ascii_mode(non_ascii)
         .with_workspace_class_factories(workspace_class_factories);
     if let Some(input) = &db.resolved_input {
-        a = a.with_resolved_input(input.clone());
+        a = a.with_resolved_input(input.for_nested_source());
     }
     a.resolve_walk_environment(dialect);
     a.result.body_lexer_config = Some(a.lexer_config());
@@ -3357,5 +3370,115 @@ mod tests {
         eq("proc foo {a b staticsok\\\n    c d} {\n  set x 1\n}\n");
         // Method form (instance vars + params rebind under the same suppression).
         eq("oo::class create K {\n  method m {a b\\\n    c} { return $a }\n}\n");
+    }
+}
+
+#[cfg(test)]
+mod original_configured_entry_tests {
+    use super::*;
+    #[test]
+    fn original_isolated_body_projects_its_genuine_parent_input_to_nested_source() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // An actual deferred source body; no entered procedure or frame claim.
+        let environment = crate::environment_ingress::resolve_environment("tcl");
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+        };
+        let input = super::super::input::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            environment.default_context_registry(),
+            config,
+        );
+        let source = "\u{feff}proc p {} {\u{feff}set x 1}";
+        let mut shell = Analyser::new().with_resolved_input(input.clone());
+        let commands = shell.per_item_setup(source, "tcl");
+        shell.defer_proc_bodies = true;
+        shell.walk_commands_top_level(&commands, false);
+        shell.defer_proc_bodies = false;
+        assert_eq!(shell.deferred_bodies.len(), 1);
+        let body = shell.deferred_bodies.pop().unwrap();
+        assert_eq!(body.resolved_input.as_ref(), Some(&input));
+        assert_eq!(body.body_text.as_ref(), "\u{feff}set x 1");
+        let fragment = analyse_proc_body_isolated(
+            &body,
+            "tcl9.1",
+            &std::collections::HashSet::<String>::new(),
+            super::super::state::NonAsciiMode::Off,
+            None,
+            None,
+        );
+        let nested = input.for_nested_source();
+        assert_eq!(fragment.result.resolved_input.as_ref(), Some(&nested));
+        assert_eq!(
+            fragment.result.body_lexer_config,
+            Some(nested.lexer_config())
+        );
+        assert_eq!(
+            nested.lexer_config().leading_bom,
+            tcl_lexer::LeadingBom::Content
+        );
+        assert!(
+            fragment
+                .result
+                .command_invocations
+                .iter()
+                .any(|invocation| invocation.name == "\u{feff}set")
+        );
+    }
+
+    #[test]
+    fn original_per_item_entry_uses_retained_configuration_and_unknown_is_distinct() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Source-only fast-path control; no native entry or completion grant.
+        let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+        let source = "set x ${a{}";
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+        };
+        let input = super::super::input::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            environment.default_context_registry(),
+            config,
+        );
+        let mut selected = Analyser::new().with_resolved_input(input.clone());
+        let result = selected.analyse_per_item(source, "tcl9.1");
+        assert_ne!(
+            selected.per_item_fallback,
+            Some(PerItemFallback::IncompleteScript)
+        );
+        assert_eq!(result.resolved_input.as_ref(), Some(&input));
+        let mut balanced = Analyser::new();
+        balanced.analyse_per_item(source, "tcl9.1");
+        assert_eq!(
+            balanced.per_item_fallback,
+            Some(PerItemFallback::IncompleteScript)
+        );
+        let jim = crate::environment_ingress::resolve_environment("jim");
+        let foreign = tcl_lexer::LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+            ..tcl_lexer::LexerConfig::for_file_grammar(jim.grammar())
+        };
+        let input = super::super::input::ResolvedAnalysisInput::new(
+            jim.analyser_profile(),
+            jim.unit_profile(),
+            jim.default_context_registry(),
+            foreign,
+        );
+        let mut unknown = Analyser::new().with_resolved_input(input);
+        unknown.analyse_per_item("set x 1", "jim");
+        assert_eq!(
+            unknown.per_item_fallback,
+            Some(PerItemFallback::CompletenessUnavailable)
+        );
+        assert_eq!(
+            PerItemFallback::CompletenessUnavailable.as_str(),
+            "completeness-unavailable"
+        );
     }
 }

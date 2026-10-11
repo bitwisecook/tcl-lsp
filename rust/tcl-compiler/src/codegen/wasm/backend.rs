@@ -2713,7 +2713,13 @@ fn codegen(
                     .functions
                     .insert("::top".to_owned(), FunctionReport::declined(reason));
             }
-            structured::walk(&mut emitter, &module.top_level, source);
+            structured::walk(
+                &mut emitter,
+                &module.top_level,
+                source,
+                &module.source,
+                module.lexer_config,
+            );
             let top = emitter.finish_function("::top", "top", None);
             wasm.functions.push(top);
         }
@@ -2797,7 +2803,13 @@ fn codegen(
         if direct {
             emitter.emit_proc_prelude(proc);
         }
-        structured::walk(&mut emitter, &proc.body, source);
+        structured::walk(
+            &mut emitter,
+            &proc.body,
+            source,
+            &module.source,
+            module.lexer_config,
+        );
         let func = emitter.finish_function(&proc.qualified_name, "proc", Some(proc));
         wasm.functions.push(func);
     }

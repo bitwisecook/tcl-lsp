@@ -587,7 +587,7 @@ fn install_host(
     interp.bind_command_replacement(
         namespace,
         simple,
-        Command::ObjCmd(Rc::new(ObjCommand::new(
+        Command::ObjCmd(Rc::new(ObjCommand::new_owned_runtime_shim(
             host_command_proc,
             client_data,
             Some(host_command_delete),
@@ -1398,7 +1398,7 @@ mod tests {
             matches!(&observed.borrow()[0], Value::Resident { value, string, storage: NativeStringStorageIdentity::Allocated }
             if matches!(value.as_ref(), Value::NativeScalar(NativeScalarCache::Integer(16))) && string.as_ref() == b"0x10")
         );
-        let byte_array = Value::byte_array(Rc::from(&b"\0\xff"[..]));
+        let byte_array = Value::byte_array(Rc::<[u8]>::from(&b"\0\xff"[..]));
         engine.invoke(&handle, &[byte_array]).unwrap();
         assert!(
             matches!(&observed.borrow()[0], Value::ByteArray(bytes) if bytes.as_ref() == b"\0\xff")

@@ -1417,6 +1417,9 @@ impl SourceCommandTarget {
 #[derive(Debug)]
 pub(crate) struct OriginalCompilationLookupAdvice {
     snapshot: Arc<SourceLookupSnapshot>,
+    site: CommandAllocationSite,
+    words: Arc<[crate::ir::WordExpr]>,
+    config: tcl_lexer::LexerConfig,
     targets: Vec<SourceCommandTarget>,
     dialect: tcl_registry::InvocationDialect,
     namespace: SourceNamespaceKey,
@@ -2132,6 +2135,9 @@ fn original_site_layout_advice(
     }
     Some(OriginalCompilationLookupAdvice {
         snapshot: Arc::clone(snapshot),
+        site: site.clone(),
+        words: Arc::from(tokens.words()),
+        config,
         targets: projection.targets,
         dialect,
         namespace: namespace.clone(),

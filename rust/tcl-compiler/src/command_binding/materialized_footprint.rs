@@ -31,9 +31,13 @@ impl SourceInvocationBinding {
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Vec<super::SourceCommandTarget>> {
         if !input.has_logical_source_name_context()
-            || self.logical_source_name_advice_input() != Some(input)
-            || self.original_lexer_config_for_tokens(tokens)?.normalized()
-                != input.lexer_config().normalized()
+            || !self
+                .original_invocation_metadata_for_input(
+                    tokens,
+                    input,
+                    input.borrowed_context_registry().commands(),
+                )?
+                .permits_logical_source_names()
         {
             return None;
         }
@@ -50,8 +54,10 @@ impl SourceInvocationBinding {
     }
 
     /// Actual metadata at this whole original source vector under its Module
-    /// producer. Unknown dispatch remains unknown: this projection grants no
-    /// closed lookup, handler, frame, Normal completion or materialized body.
+    /// producer. Positively Logical, declaration-only source uses the sealed
+    /// original-declaration purpose; Native source still requires its point.
+    /// Unknown dispatch remains unknown: this grants no closed lookup,
+    /// handler, frame, Normal completion or materialized body.
     pub(crate) fn original_invocation_metadata_for_module<'a>(
         &'a self,
         tokens: &CommandTokens,
@@ -77,7 +83,9 @@ impl SourceInvocationBinding {
         Some(metadata)
     }
 
-    /// Availability retained by this function and its exact original point.
+    /// Availability retained by this function and its exact original source.
+    /// A positively Logical declaration uses the sealed source-only purpose;
+    /// Native input still requires its independently retained point.
     /// This validates the FU input/configuration and complete source vector; it
     /// cannot authenticate a whole changed Module without the Module overload.
     /// Neither route grants a handler, physical frame, read or normal result.
@@ -106,15 +114,26 @@ impl SourceInvocationBinding {
         owner.metadata_context(registry)
     }
 
-    /// Join the unchanged original point/vector to its full supplied input,
-    /// config, origin and command store. This carries metadata only and grants
-    /// no execution, handler completion, body entry or physical frame.
+    /// Join unchanged original source metadata to its full supplied input,
+    /// config, origin and command store. A positively Logical declaration-only
+    /// vector uses its sealed original-declaration purpose; a present reached
+    /// owner remains terminal on refusal. Native input requires the point route.
+    /// This grants no execution, handler completion, body entry or physical frame.
     pub(crate) fn original_invocation_metadata_for_input<'a>(
         &'a self,
         tokens: &CommandTokens,
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &CommandRegistry,
     ) -> Option<InvocationMetadataContext<'a>> {
+        // A declaration-only Logical body retains its own full source owner.
+        // This metadata projection does not manufacture a reached point, and
+        // Native input cannot take the original-declaration purpose branch.
+        if self.lookup_state.is_none() {
+            input.has_logical_source_name_context().then_some(())?;
+            let metadata = self.original_declaration_metadata_for_source(tokens, registry)?;
+            let point = metadata.source_analysis_input()?;
+            return (point == input || point == &input.for_nested_source()).then_some(metadata);
+        }
         let config = self.original_invocation_config(tokens, registry)?;
         let point = self
             .lookup_state
@@ -197,6 +216,27 @@ impl SourceInvocationBinding {
             .baseline
             .metadata_context;
         self.original_invocation_metadata_for_owner(tokens, owner, registry)
+    }
+
+    /// Conditional source-advice metadata of this original vector. An actual
+    /// reached point keeps its own checked route, including terminal refusal.
+    /// Only its absence permits positively Logical, unanimous declaration
+    /// observations to supply source metadata. Neither branch grants handler,
+    /// frame, Native preparation, Normal completion or executable effects.
+    pub(crate) fn original_source_metadata_for_advice(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Result<
+        Option<InvocationMetadataContext<'_>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
+        if self.lookup_state.is_some() {
+            return self.original_invocation_metadata_at_point(tokens, registry);
+        }
+        self.original_declaration_metadata_for_source(tokens, registry)
+            .map(Some)
+            .ok_or(crate::registry_invocation::RegistryInvocationDecline::IncompleteResolution)
     }
 
     /// Common original point/vector geometry for actual FU and Module inputs.

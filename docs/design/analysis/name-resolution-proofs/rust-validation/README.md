@@ -3097,3 +3097,67 @@ is lossless gzip; decompression returns SHA-256 `af2cedcabd72e219b91200e32047134
 The [whole original log](frozen315/integration-compiler-clean-test-build315/tests.log) retains
 SHA-256 `3fe9d610182e18e35f00cf4719f30583f082b54e11cb38d9453fd42c10847de8`. These commands remain separate from the later
 `integration-compiler-clean-rebuilt-test-build315` producer request.
+
+## Source315 independent rebuilt Compiler producer and inventory
+
+The independent clean rebuilt-target Compiler own no-run command succeeds
+after 262.9910011140164 seconds with uniform source `true`. Its actual
+produced Cargo test artifact (`fresh: false`, features `[]`) admits the
+strict image SHA-256 `321a2d6d3f1a16161e0d8653bab5ca68c7cf1dbb85b32c66bd5661d6babaa03a`.
+The separate exact executable inventory closes exit `0` after
+0.016613451996818185 seconds and lists 9,212 tests, zero benchmarks.
+The complete immutable 33,404-leaf source retains HEAD
+`fbdf15187c9797789ab688d914669449bbb0b962`. Neither command executes an
+assertion. The earlier linker Bus error and target-directory failure
+remain independently recorded failures; active selections are excluded.
+
+| Closed operation | Exact scope | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-compiler-clean-rebuilt-test-build315` | `compile-passed`, exit `0`; no assertions | [lossless original](frozen315/integration-compiler-clean-rebuilt-test-build315/receipt.json.gz) | [whole log](frozen315/integration-compiler-clean-rebuilt-test-build315/tests.log) |
+| `integration-compiler-own-list315` | `listed`, exit `0`; no assertions | [lossless original](frozen315/integration-compiler-own-list315/receipt.json.gz) | [whole log](frozen315/integration-compiler-own-list315/tests.log) |
+
+The [complete source companion](frozen315/sealed-own-compiler-image/source-snapshot.json.gz),
+[strict original metadata](frozen315/sealed-own-compiler-image/pinned-compiler315.json)
+and [lossless image map](frozen315/sealed-own-compiler-image/lossless-compiler-image-storage.json)
+retain original producer, whole payload, mode and source associations.
+Restore the complete measured executable only after both integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen315/sealed-own-compiler-image")
+record = json.loads((base / "lossless-compiler-image-storage.json").read_text())
+packed = (base / "pinned-compiler315.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-compiler315.elf")
+restored.write_bytes(original)
+restored.chmod(record["original_mode"])
+```
+
+Restoration does not replace or retire an active original executable and
+runs no assertion. No complete Compiler, VM, Runtime, Native provider or
+combined gate result is inferred from this producer and inventory.
+
+## Source315 Runtime engine compilation failure
+
+The independent own Runtime engine library-test no-run command closes exit
+`101` after 64.69150838599307 seconds with uniform source `true`. Its exact
+33404-leaf Source315 image retains HEAD
+`fbdf15187c9797789ab688d914669449bbb0b962`. The original log records one
+`E0283` at `engine.rs:1401`: the `Rc::from` argument to `Value::byte_array`
+has an ambiguous allocator/slice type in a test fixture.
+
+No own Runtime producer, strict image, executable inventory or assertion
+is admitted. The successful own Compiler build and inventory retain their
+separate scope. The later explicit fixture type supplies no retrospective
+build or assertion credit.
+
+The [complete original receipt](frozen315/integration-runtime-own-test-build315/receipt.json.gz)
+is lossless gzip; decompression returns SHA-256 `9f027d592e73f7c4e52276211c01512b35ba9642b8d7403120f9522bf17eaa76`.
+The [whole original log](frozen315/integration-runtime-own-test-build315/tests.log) retains
+SHA-256 `259b58a09c9e70d58d47a726cb33eb5f374033e59430e838e10aea697ceeafe2`. The complete original source association is identical
+to the independently retained [Source315 source snapshot](frozen315/sealed-own-compiler-image/source-snapshot.json.gz).

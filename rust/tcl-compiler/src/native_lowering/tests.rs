@@ -113,6 +113,50 @@ fn lower_original_boolean_unit(
     module: &crate::ir::Module,
 ) -> Result<(NativeFunction, FunctionReport), FunctionDecline> {
     let facts = &unit.top_level.semantic_facts;
+    if std::env::var_os("TCL_LSP_TRACE_NATIVE_BOOLEAN_SOURCE").is_some() {
+        let mut pending = vec![(Vec::<usize>::new(), &module.top_level)];
+        while let Some((path, script)) = pending.pop() {
+            eprintln!(
+                "NATIVE_BOOLEAN_SOURCE path={path:?} statements={} source={:?} namespace={:?} sites={}",
+                script.statements.len(),
+                script.executed_source.as_ref().map(|source| (
+                    source.base(),
+                    source.text.len(),
+                    source.origin.kind(),
+                )),
+                script.namespace_context,
+                script.command_binding_sites.iter().count(),
+            );
+            for (index, statement) in script.statements.iter().enumerate() {
+                let inline = statement.tokens();
+                let retained = script.retained_source_tokens_for_statement(statement);
+                let (kind, reason) = match statement {
+                    crate::ir::Statement::Call { .. } => ("Call", None),
+                    crate::ir::Statement::Barrier { reason, .. } => {
+                        ("Barrier", Some(reason.as_str()))
+                    }
+                    crate::ir::Statement::NativeCall { .. } => ("NativeCall", None),
+                    crate::ir::Statement::If { .. } => ("If", None),
+                    crate::ir::Statement::AssignConst { .. } => ("AssignConst", None),
+                    crate::ir::Statement::AssignValue { .. } => ("AssignValue", None),
+                    crate::ir::Statement::AssignExpr { .. } => ("AssignExpr", None),
+                    _ => ("Other", None),
+                };
+                eprintln!(
+                    "NATIVE_BOOLEAN_STATEMENT path={path:?} index={index} kind={kind} reason={reason:?} span={:?} inline_words={:?} retained_words={:?} synthetic={:?}",
+                    statement.span(),
+                    inline.map(|tokens| tokens.words().len()),
+                    retained.map(|tokens| tokens.words().len()),
+                    inline.and_then(|tokens| tokens.synthetic),
+                );
+                for (child, body) in statement.child_scripts().into_iter().enumerate().rev() {
+                    let mut child_path = path.clone();
+                    child_path.extend([index, child]);
+                    pending.push((child_path, body));
+                }
+            }
+        }
+    }
     let function = facts.executable().function().unwrap_or_else(|| {
         panic!(
             "actual source builds executable IR; retained availability={:?}; module metadata current={}; function metadata current={}; module grammar={:?}; function grammar={:?}",

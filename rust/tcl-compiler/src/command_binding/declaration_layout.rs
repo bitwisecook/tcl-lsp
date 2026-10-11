@@ -1689,7 +1689,142 @@ impl SourceCommandBindings {
     }
 }
 
+impl super::OriginalCompilationLookupAdvice {
+    /// Metadata of this sealed original declaration, including raw preview
+    /// vectors which have no reached invocation. Exact source, grammar and
+    /// tagged availability remain prerequisites; this grants no dispatch,
+    /// Normal handler, Native preparation, entered frame or variable effects.
+    /// Only explicit Standalone may return `Ok(None)`.
+    pub(crate) fn original_declaration_metadata_context(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Result<
+        Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        crate::registry_invocation::RegistryInvocationDecline,
+    > {
+        use crate::registry_invocation::{
+            OwnedInvocationMetadataContext, RegistryInvocationDecline,
+        };
+        let refusal = RegistryInvocationDecline::IncompleteResolution;
+        let state = &self.snapshot.state;
+        if tokens.synthetic.is_some()
+            || tokens.words() != self.words.as_ref()
+            || state.current_source_origin.as_ref() != Some(&self.site.source)
+            || state.baseline.registry_snapshot.as_ref()
+                != Some(&registry.snapshot().semantic_key())
+            || state.source_variables.invocation_dialect != Some(self.dialect)
+        {
+            return Err(refusal);
+        }
+        self.site
+            .source
+            .original_lexical_command(tokens.words(), self.site.offset, self.config)
+            .ok_or(refusal)?;
+        let owner = &state.baseline.metadata_context;
+        if let Some(binding) = tokens.source_binding.as_ref() {
+            if binding.invocation_site() != Some(&self.site)
+                || binding.original_lexer_config_for_tokens(tokens) != Some(self.config)
+            {
+                return Err(refusal);
+            }
+            if let Some(point) = &binding.lookup_state {
+                // An explicitly retained invalid reached owner cannot be
+                // repaired from an earlier declaration observation.
+                binding
+                    .original_invocation_metadata_at_point(tokens, registry)
+                    .map(|_| ())?;
+                if point.state.baseline.metadata_context != *owner {
+                    return Err(refusal);
+                }
+            } else {
+                let rows = original_declaration_layouts(
+                    binding
+                        .declaration_layout_observations
+                        .as_deref()
+                        .ok_or(refusal)?,
+                )
+                .ok_or(refusal)?;
+                if !rows.clone().all(|row| {
+                    row.entry.owns_source(&self.site.source, self.site.offset)
+                        && row.words.as_ref() == self.words.as_ref()
+                        && row.config == self.config
+                        && row.snapshot.state.baseline.metadata_context == *owner
+                }) {
+                    return Err(refusal);
+                }
+            }
+        }
+        match owner {
+            OwnedInvocationMetadataContext::SuppliedSource(input) => owner
+                .metadata_context_for_source(registry, self.config, Some(input.unit_profile()))
+                .map(Some)
+                .ok_or(refusal),
+            OwnedInvocationMetadataContext::Standalone => {
+                owner.metadata_context(registry).ok_or(refusal)
+            }
+            OwnedInvocationMetadataContext::Supplied(_)
+            | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
+        }
+    }
+}
+
 impl super::SourceInvocationBinding {
+    /// Positively Logical metadata from unanimous sealed original declaration
+    /// observations. No reached point is manufactured. A present reached owner
+    /// is handled by the separate checked point route and cannot fall back here.
+    pub(crate) fn original_declaration_metadata_for_source(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+        if self.lookup_state.is_some() {
+            return None;
+        }
+        let site = self.invocation_site()?;
+        let rows = original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
+        let mut selected = None;
+        for row in rows {
+            if !row.entry.owns_source(&site.source, site.offset)
+                || row.words.as_ref() != tokens.words()
+            {
+                return None;
+            }
+            let advice = super::original_site_operand_layout_advice(
+                site,
+                tokens,
+                &row.snapshot,
+                &row.namespace,
+                row.config,
+            )?;
+            let checked = advice
+                .original_declaration_metadata_context(registry, tokens)
+                .ok()??;
+            checked.permits_logical_source_names().then_some(())?;
+            let input = row
+                .snapshot
+                .state
+                .baseline
+                .metadata_context
+                .source_analysis_input()?;
+            let metadata = row
+                .snapshot
+                .state
+                .baseline
+                .metadata_context
+                .metadata_context_for_source(registry, row.config, Some(input.unit_profile()))?;
+            if selected.is_some_and(
+                |prior: crate::registry_invocation::InvocationMetadataContext<'_>| {
+                    prior.source_analysis_input() != metadata.source_analysis_input()
+                },
+            ) {
+                return None;
+            }
+            selected = Some(metadata);
+        }
+        selected
+    }
+
     /// Original source-backed callees under this binding's unanimous declared
     /// pre-operand table. No entered target or successful call is supplied.
     pub(crate) fn declaration_call_layout_advice(

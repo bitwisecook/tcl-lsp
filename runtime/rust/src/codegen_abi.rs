@@ -1581,63 +1581,68 @@ pub unsafe extern "C" fn tcl_codegen_expr_add(
     left: *mut TclObj,
     right: *mut TclObj,
 ) -> *mut TclObj {
-    if left.is_null() || right.is_null() {
-        unsafe {
-            obj::decr_ref_count(left);
-            obj::decr_ref_count(right);
+    // SAFETY: non-null inputs each transfer exactly one generated +1.
+    let left = (!left.is_null()).then(|| unsafe { obj::Owned::from_raw(left) });
+    let right = (!right.is_null()).then(|| unsafe { obj::Owned::from_raw(right) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(_) => {
+            drop(left);
+            drop(right);
+            return ptr::null_mut();
         }
+    };
+    let result = match (left, right) {
+        (Some(left), Some(right)) => crate::builtins::eval_binary_operands(
+            &mut operation.interpreter,
+            tcl_syntax::expr::BinOp::Add,
+            left,
+            right,
+        ),
+        (left, right) => {
+            drop(left);
+            drop(right);
+            let _ = operation.ensure_current();
+            return ptr::null_mut();
+        }
+    };
+    let result = match result {
+        Ok(result) => Some(result),
+        Err(error) => {
+            operation.interpreter.report_expr_error(error);
+            None
+        }
+    };
+    if operation.ensure_current().is_err() {
+        drop(result);
         return ptr::null_mut();
     }
-    let interp = current_interp();
-    let result = crate::bignum::add(left, right);
-    // SAFETY: the operation consumes both generated operand-stack references.
-    unsafe {
-        obj::decr_ref_count(left);
-        obj::decr_ref_count(right);
-    }
-    match result {
-        Ok(value) => {
-            // SAFETY: transfer a single owned result to generated code.
-            unsafe { obj::incr_ref_count(value) };
-            value
-        }
-        Err(e) => {
-            if !interp.is_null() {
-                let err = crate::expr::arith_err(e);
-                // SAFETY: the bootstrap installed a live current interpreter.
-                unsafe { (*interp).report_expr_error(err) };
-            }
-            ptr::null_mut()
-        }
-    }
+    result.map_or(ptr::null_mut(), obj::Owned::into_raw)
 }
 
-/// Report that arithmetic is unavailable in a deliberately reduced runtime.
+/// Report unavailable arithmetic while consuming every transferred reference.
 ///
 /// # Safety
-/// Both operands must be live references owned by generated code.
+/// Non-null inputs transfer one live generated +1 each.
 #[no_mangle]
 #[cfg(not(have_tommath))]
 pub unsafe extern "C" fn tcl_codegen_expr_add(
     left: *mut TclObj,
     right: *mut TclObj,
 ) -> *mut TclObj {
-    if left.is_null() || right.is_null() {
-        unsafe {
-            obj::decr_ref_count(left);
-            obj::decr_ref_count(right);
+    // SAFETY: adopt both inputs before any operation/refusal/null branch.
+    let left = (!left.is_null()).then(|| unsafe { obj::Owned::from_raw(left) });
+    let right = (!right.is_null()).then(|| unsafe { obj::Owned::from_raw(right) });
+    let operation = CodegenOperation::enter();
+    drop(left);
+    drop(right);
+    if let Ok(mut operation) = operation {
+        if operation.ensure_current().is_ok() {
+            operation
+                .interpreter
+                .set_error(b"arithmetic support is not available");
+            let _ = operation.ensure_current();
         }
-        return ptr::null_mut();
-    }
-    // SAFETY: the operation consumes both generated operand-stack references.
-    unsafe {
-        obj::decr_ref_count(left);
-        obj::decr_ref_count(right);
-    }
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: the bootstrap installed a live current interpreter.
-        unsafe { (*interp).set_error(b"arithmetic support is not available") };
     }
     ptr::null_mut()
 }

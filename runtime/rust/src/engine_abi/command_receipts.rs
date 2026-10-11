@@ -134,7 +134,7 @@ pub unsafe extern "C" fn tcl_engine_create_command_counted(
         return TCL_ERROR;
     };
     let Some(generation) =
-        interp.create_obj_command(name, ObjCommand::new(procedure, client, None))
+        interp.create_counted_engine_obj_command(name, ObjCommand::new(procedure, client, None))
     else {
         return TCL_ERROR;
     };

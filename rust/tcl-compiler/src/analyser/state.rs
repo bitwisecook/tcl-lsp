@@ -2027,16 +2027,17 @@ impl Analyser {
         Ok(self.resolved_analysis_input())
     }
 
-    /// Retain the current walk's editing generation and exact body grammar for
-    /// isolated analysis or a cache key. Call after resolving the walk input;
-    /// this does not retain the document's temporal execution world.
+    /// Retain the current whole-source editing generation and configuration.
+    /// Supplied inputs stay exact; default ingress records its file boundary.
+    /// Extracted bodies explicitly use the retained input's nested projection.
+    /// This does not retain the document's temporal execution world.
     #[must_use]
     pub fn resolved_analysis_input(&self) -> super::input::ResolvedAnalysisInput {
         let input = super::input::ResolvedAnalysisInput::new(
             self.profile,
             self.unit_profile.unwrap_or(self.profile),
             self.analysis_context(),
-            self.lexer_config(),
+            self.file_lexer_config(),
         );
         match self.vendor_source_name_policy() {
             Some(policy) => input.with_vendor_source_policy(policy),
@@ -2183,7 +2184,7 @@ impl Analyser {
         // turn.
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
-        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.body_lexer_config = Some(self.file_lexer_config());
         self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
@@ -2239,6 +2240,7 @@ impl Analyser {
             source,
             self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
+            self.file_lexer_config(),
         );
         let known_commands: HashSet<&str> = self.recovery_known_commands.iter().collect();
         let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
@@ -2624,7 +2626,7 @@ impl Analyser {
             return (result, Vec::new());
         }
         self.result.dialect = dialect.to_string();
-        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.body_lexer_config = Some(self.file_lexer_config());
         self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
@@ -2667,6 +2669,7 @@ impl Analyser {
             source,
             self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
+            self.file_lexer_config(),
         );
         self.line_offsets = Some(compute_line_offsets(source));
         self.cached_line_index = tcl_lexer::LineIndex::new(source);
@@ -2723,7 +2726,7 @@ impl Analyser {
             return result;
         }
         self.result.dialect = dialect.to_string();
-        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.body_lexer_config = Some(self.file_lexer_config());
         self.result.lexical_declaration_advice = self.selected_logical_declaration_advice();
         self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
@@ -2762,6 +2765,7 @@ impl Analyser {
             source,
             self.registry.as_deref().expect("registry just stashed"),
             &self.extra_commands,
+            self.file_lexer_config(),
         );
         self.line_offsets = Some(compute_line_offsets(source));
         self.cached_line_index = tcl_lexer::LineIndex::new(source);
@@ -2823,7 +2827,12 @@ impl Analyser {
         // inline `# tcl-lsp: stub` overlays are only applied on the full
         // `analyse` path; when either could be in play, re-analyse fully
         // so the incremental result can never diverge.
-        if !tcl_lexer::script_is_complete(new_text) || new_text.contains("tcl-lsp: stub") {
+        if tcl_lexer::script_image_is_complete(
+            &tcl_lexer::SourceImage::document(new_text),
+            self.file_lexer_config(),
+        ) != Ok(true)
+            || new_text.contains("tcl-lsp: stub")
+        {
             return self.analyse(new_text, dialect);
         }
         let cmds = crate::segmenter::segment_commands_incremental(
@@ -2835,9 +2844,9 @@ impl Analyser {
             self.file_lexer_config(),
         );
         // `analyse` segments with *error recovery*; the fast path uses plain
-        // incremental segmentation.  `script_is_complete` only checks overall
-        // delimiter balance, so a locally-unbalanced brace (a stray `}` matched
-        // by a missing `{` elsewhere) passes it yet makes recovery segmentation
+        // incremental segmentation. Configured completeness accepts terminal
+        // syntax cuts as complete; that does not prove the recovery stream.
+        // A locally-unbalanced brace can still make recovery segmentation
         // split off a partial command — emitting E200/E102/E202 that the plain
         // walk never sees.  Replicate the recovery segmentation `analyse` uses
         // and fall back to a full rebuild when it differs from what the fast
@@ -3665,6 +3674,106 @@ mod tests {
             assert!(result.command_invocations.is_empty());
             assert!(result.diagnostics.is_empty());
             assert!(result.global_scope.children.is_empty());
+        }
+    }
+
+    #[test]
+    fn original_prepared_input_records_the_file_boundary_and_preserves_supplied_config() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original editing inputs; no runtime source or Native entry receipt.
+        let source = "\u{feff}set name value";
+        let mut default = Analyser::new();
+        let prepared = default.prepare_analysis_input("tcl9.1").unwrap();
+        assert_eq!(prepared.lexer_config(), default.file_lexer_config());
+        assert_eq!(
+            prepared.lexer_config().leading_bom,
+            tcl_lexer::LeadingBom::Skip
+        );
+        assert_ne!(prepared.lexer_config(), default.lexer_config());
+        let ordinary = Analyser::new().analyse(source, "tcl9.1");
+        let retained = Analyser::new()
+            .with_resolved_input(prepared.clone())
+            .analyse(source, "presentation-only");
+        assert_eq!(ordinary.resolved_input.as_ref(), Some(&prepared));
+        assert_eq!(ordinary.body_lexer_config, Some(prepared.lexer_config()));
+        assert!(ordinary.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            prepared.lexer_config(),
+        ));
+        assert!(retained.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            prepared.lexer_config(),
+        ));
+        assert_eq!(project_result(&ordinary), project_result(&retained));
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            prepared.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        assert_eq!(command.argv[0], "set");
+
+        let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+        };
+        let supplied = super::super::input::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            environment.default_context_registry(),
+            config,
+        );
+        let mut selected = Analyser::new().with_resolved_input(supplied.clone());
+        assert_eq!(selected.prepare_analysis_input("tcl8.4").unwrap(), supplied);
+        let result = selected.analyse(source, "tcl8.4");
+        assert_eq!(result.resolved_input.as_ref(), Some(&supplied));
+        assert_eq!(result.body_lexer_config, Some(config));
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            result.resolved_input.as_ref().unwrap().lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        assert_eq!(command.argv[0], "\u{feff}set");
+    }
+
+    #[test]
+    fn original_incremental_completeness_retains_the_supplied_parser_configuration() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Incremental source analysis must converge; this grants no entry.
+        let environment = crate::environment_ingress::resolve_environment("tcl9.1");
+        let previous = "puts before";
+        let source = "puts \"${a{}\"";
+        for braced_var in [
+            tcl_lexer::BracedVarStyle::FirstClose,
+            tcl_lexer::BracedVarStyle::Tcl9Nesting,
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                braced_var,
+                ..tcl_lexer::LexerConfig::for_file_grammar(environment.grammar())
+            };
+            let input = super::super::input::ResolvedAnalysisInput::new(
+                environment.analyser_profile(),
+                environment.unit_profile(),
+                environment.default_context_registry(),
+                config,
+            );
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(previous, 0, config);
+            let result = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse_incremental(previous, &commands, source, "tcl9.1");
+            let fresh = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl9.1");
+            assert_eq!(result.resolved_input.as_ref(), Some(&input));
+            assert_eq!(project_result(&result), project_result(&fresh));
         }
     }
 

@@ -7,9 +7,10 @@
 
 use std::sync::Arc;
 
-/// The exact profile, availability generation and body grammar supplied by a
-/// driver. Clones retain the same immutable generation for body-cache keys;
-/// independently assembled generations conservatively invalidate those keys.
+/// The exact profile, availability generation and whole-source configuration
+/// supplied by a driver. Clones retain the same immutable generation for cache
+/// keys; independently assembled generations conservatively invalidate them.
+/// An extracted body explicitly projects the retained input to nested source.
 #[derive(Clone)]
 pub struct ResolvedAnalysisInput {
     pub(super) profile: &'static tcl_dialect::DialectProfile,
@@ -20,9 +21,10 @@ pub struct ResolvedAnalysisInput {
 }
 
 impl ResolvedAnalysisInput {
-    /// Retain the driver's editing inputs. The config describes a body at
-    /// offset zero; nested walks supply their own offsets. Native execution
-    /// admission remains the separate `SourceAnalysisEntry` contract.
+    /// Retain the driver's complete editing inputs, including its supplied
+    /// whole-source boundary and position configuration. Body-only producers
+    /// explicitly use `for_nested_source` before isolated analysis. Native
+    /// execution admission remains the separate `SourceAnalysisEntry` contract.
     #[must_use]
     pub const fn new(
         profile: &'static tcl_dialect::DialectProfile,

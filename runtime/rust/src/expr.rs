@@ -32,6 +32,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 mod native_numeric;
+mod native_values;
 use native_numeric::NumericOperation;
 
 use core::cmp::Ordering;
@@ -384,20 +385,28 @@ fn operand_type_err(
 /// "non-numeric floating-point value", a well-formed multi-element list is
 /// 9.0's list branch, a double handed to an integer-only operator is a
 /// "floating-point value", and anything else is a "non-numeric string".
-fn operand_desc(o: *mut TclObj, float_operand: bool) -> OperandDesc {
+fn operand_desc(
+    o: *mut TclObj,
+    float_operand: bool,
+    bytes: &[u8],
+    dialect: tcl_registry::InvocationDialect,
+) -> OperandDesc {
     if float_operand {
         return OperandDesc::FloatingPointValue;
     }
-    // `compare(o, o)` is `Unordered` exactly for a NaN (numeric but unusable).
-    if matches!(bignum::compare(o, o), Some(NumericCompare::Unordered)) {
+    if obj::obj_type_ptr(o) == &obj::TCL_DOUBLE_TYPE && obj::double_of(o).is_nan() {
         return OperandDesc::NonNumericFloatingPointValue;
     }
-    let bytes = obj::bytes_of(o);
-    if let Ok(text) = core::str::from_utf8(&bytes) {
-        if tcl_syntax::list::max_list_length(text) > 1 && tcl_syntax::list::split_list(text).is_ok()
-        {
-            return OperandDesc::List;
-        }
+    if dialect
+        .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        ))
+        .is_some_and(|recipe| {
+            tcl_syntax::list::split_native_list_elements(bytes, recipe.protocol())
+                .is_ok_and(|members| members.len() > 1)
+        })
+    {
+        return OperandDesc::List;
     }
     OperandDesc::NonNumericString
 }
@@ -420,93 +429,31 @@ fn binop_sym(op: BinOp) -> &'static [u8] {
     }
 }
 
-/// Build the operand-type error for a *binary* op: the offending operand is the
-/// first one (left, then right) that is non-numeric (for `NonNumeric`) or a
-/// float (for `NonInteger`). Other `ArithError`s keep their plain message.
-fn binop_err(
-    e: ArithError,
-    op: BinOp,
-    lp: *mut TclObj,
-    rp: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
-) -> ExprError {
-    let float = match e {
-        ArithError::NonInteger => true,
-        ArithError::NonNumeric => false,
-        other => return arith_err(other),
-    };
-    // `NonInteger`: the float operand; `NonNumeric`: the non-numeric one.
-    let left_bad = if float {
-        bignum::is_numeric(lp) && !bignum::is_integer(lp)
-    } else {
-        !bignum::is_numeric(lp)
-    };
-    let (bad, side) = if left_bad {
-        (lp, OperandSide::Left)
-    } else {
-        (rp, OperandSide::Right)
-    };
-    operand_type_err(
-        operand_desc(bad, float),
-        &obj::bytes_of(bad),
-        side,
-        binop_sym(op),
-        dialect,
-        if float {
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer
-        } else {
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::FloatingPoint
-        },
-    )
-}
-
-fn selected_operand_error(
-    dialect: tcl_registry::InvocationDialect,
-    stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+fn original_operand_bytes(
     value: *mut TclObj,
-) -> Option<ExprError> {
-    let presentation = dialect.expression_operand_error_presentation()?;
-    Some(ExprError::from_bytes(
-        presentation.message(stage, &obj::bytes_of(value)),
-    ))
-}
-
-fn selected_binop_error(
-    error: ArithError,
-    op: BinOp,
-    left: *mut TclObj,
-    right: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,
-) -> ExprError {
-    use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
-    if matches!(error, ArithError::NonNumeric | ArithError::NonInteger) {
-        let integer = matches!(
-            op,
-            BinOp::Mod
-                | BinOp::BitAnd
-                | BinOp::BitOr
-                | BinOp::BitXor
-                | BinOp::LShift
-                | BinOp::RShift
-        );
-        let bad = if !bignum::is_numeric(left) || (integer && !bignum::is_integer(left)) {
-            left
-        } else {
-            right
-        };
-        if let Some(error) = selected_operand_error(
-            dialect,
-            if integer {
-                Stage::Integer
-            } else {
-                Stage::FloatingPoint
-            },
-            bad,
-        ) {
-            return error;
-        }
-    }
-    binop_err(error, op, left, right, dialect)
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<Vec<u8>, ExprError> {
+    let current = || {
+        currency.map_or(Ok(()), |currency| {
+            currency
+                .ensure_current_or_refuse()
+                .map_err(ExprError::from_execution_refusal)
+        })
+    };
+    current()?;
+    let recipe = dialect
+        .native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        ))
+        .ok_or_else(|| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            )
+        })?;
+    let result = crate::dict::native_object_bytes(value, recipe.protocol());
+    current()?;
+    result.map_err(|error| ExprError::from_cmd_error(error.into()))
 }
 
 fn selected_unary_error(
@@ -515,57 +462,73 @@ fn selected_unary_error(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
 ) -> ExprError {
     use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
-    if matches!(error, ArithError::NonNumeric | ArithError::NonInteger) {
-        if let Some(presentation) = dialect.expression_operand_error_presentation() {
-            if let Some(message) = presentation.non_numeric_unary_message(op) {
-                // JimExprOpNumUnary reaches the public Boolean primitive after
-                // rejected numeric operands; this is not an expression truth site.
-                // Guest refusal preserves ordinary classification. Its operational
-                // failure remains complete and cannot become the fallback Guest.
-                match crate::typed_value::native_scalar_probe_with_environment(
-                    value,
-                    dialect,
-                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
-                    environment,
-                ) {
-                    Ok(Ok(_)) => return ExprError::from_bytes(message),
-                    Ok(Err(_)) => {}
-                    Err(cause) => return ExprError::from_cmd_error(cause.into()),
-                }
+    if !matches!(error, ArithError::NonNumeric | ArithError::NonInteger) {
+        return arith_err(error);
+    }
+    let current = || {
+        currency.map_or(Ok(()), |currency| {
+            currency
+                .ensure_current_or_refuse()
+                .map_err(ExprError::from_execution_refusal)
+        })
+    };
+    if let Err(error) = current() {
+        return error;
+    }
+    if let Some(presentation) = dialect.expression_operand_error_presentation() {
+        if let Some(message) = presentation.non_numeric_unary_message(op) {
+            // JimExprOpNumUnary reaches the neutral public Boolean primitive
+            // solely to classify rejected numeric operands, never logical truth.
+            let result = crate::typed_value::native_scalar_probe_with_environment_and_currency(
+                value,
+                dialect,
+                tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+                environment,
+                currency,
+            );
+            if let Err(error) = current() {
+                return error;
+            }
+            match result {
+                Ok(Ok(_)) => return ExprError::from_bytes(message),
+                Ok(Err(_)) => {}
+                Err(cause) => return ExprError::from_cmd_error(cause.into()),
             }
         }
-        let stage = if op == UnaryOp::BitNot {
-            Stage::Integer
-        } else {
-            Stage::Boolean
-        };
-        if let Some(error) = selected_operand_error(dialect, stage, value) {
-            return error;
-        }
     }
-    let symbol = match op {
+    let bytes = match original_operand_bytes(value, dialect, currency) {
+        Ok(bytes) => bytes,
+        Err(error) => return error,
+    };
+    let stage = if op == UnaryOp::BitNot {
+        Stage::Integer
+    } else {
+        Stage::Boolean
+    };
+    if let Some(presentation) = dialect.expression_operand_error_presentation() {
+        return ExprError::from_bytes(presentation.message(stage, &bytes));
+    }
+    let symbol: &[u8] = match op {
         UnaryOp::Pos => b"+",
         UnaryOp::Neg => b"-",
         UnaryOp::BitNot => b"~",
         _ => b"?",
     };
-    match error {
-        ArithError::NonInteger | ArithError::NonNumeric => operand_type_err(
-            operand_desc(value, error == ArithError::NonInteger),
-            &obj::bytes_of(value),
-            OperandSide::Unary,
-            symbol,
-            dialect,
-            if op == UnaryOp::BitNot {
-                Stage::Integer
-            } else {
-                Stage::FloatingPoint
-            },
-        ),
-        other => arith_err(other),
-    }
+    operand_type_err(
+        operand_desc(value, error == ArithError::NonInteger, &bytes, dialect),
+        &bytes,
+        OperandSide::Unary,
+        symbol,
+        dialect,
+        if op == UnaryOp::BitNot {
+            Stage::Integer
+        } else {
+            Stage::FloatingPoint
+        },
+    )
 }
 
 /// The evaluation context the tower `ExprOps` resolves `$var`/`[cmd]` through —
@@ -920,6 +883,17 @@ pub(crate) fn math_func_err(e: MathFuncError) -> ExprError {
     ExprError::with_code(message.as_bytes(), e.error_code().as_bytes())
 }
 
+/// Evaluate selected owned operands with the same original
+/// arithmetic ingress as the expression walker; this performs no source eval.
+pub(crate) fn eval_binary_operands(
+    op: BinOp,
+    left: Owned,
+    right: Owned,
+    ctx: &mut dyn ExprCtx,
+) -> Result<Owned, ExprError> {
+    native_numeric::binary(ctx, op, left, right)
+}
+
 /// The tower [`ExprOps`] over an [`ExprCtx`].
 struct TowerOps<'a> {
     ctx: &'a mut dyn ExprCtx,
@@ -1087,117 +1061,16 @@ impl ExprOps for TowerOps<'_> {
     }
 
     fn arith(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
-        let dialect = self.ctx.invocation_dialect();
-        let mut normalized_left = None;
-        let mut normalized_right = None;
-        if let Some(policy) = dialect
-            .arithmetic()
-            .filter(|policy| *policy != tcl_dialect::NativeArithmetic::TclBignum)
-        {
-            let numeric_host = self.ctx.numeric_host();
-            let environment = numeric_host
-                .as_ref()
-                .and_then(|host| host.numeric_environment());
-            let left_integer = fixed_integer_with_environment(left.ptr(), dialect, environment)
-                .map_err(|error| operand_overflow(error, binop_sym(op)))?;
-            let right_integer = fixed_integer_with_environment(right.ptr(), dialect, environment)
-                .map_err(|error| operand_overflow(error, binop_sym(op)))?;
-            if let (Some(left_integer), Some(right_integer)) = (left_integer, right_integer) {
-                let result =
-                    tcl_syntax::expr::wide::binary(policy, op, left_integer, right_integer)
-                        .map_err(|error| wide_error(error, policy))?;
-                return native_integer_result(dialect, result, &[left.ptr(), right.ptr()]);
-            }
-            normalized_left = left_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
-            normalized_right =
-                right_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
-        }
-        prepare_scalar_operand(left.ptr(), dialect)?;
-        prepare_scalar_operand(right.ptr(), dialect)?;
-        let lp = normalized_left.as_ref().unwrap_or(&left).ptr();
-        let rp = normalized_right.as_ref().unwrap_or(&right).ptr();
-        let res = match op {
-            BinOp::Add => bignum::add(lp, rp),
-            BinOp::Sub => bignum::sub(lp, rp),
-            BinOp::Mul => bignum::mul(lp, rp),
-            BinOp::Div => bignum::div(lp, rp),
-            BinOp::Mod => bignum::mod_(lp, rp),
-            BinOp::Pow => bignum::pow(lp, rp),
-            BinOp::BitAnd => bignum::band(lp, rp),
-            BinOp::BitOr => bignum::bor(lp, rp),
-            BinOp::BitXor => bignum::bxor(lp, rp),
-            BinOp::LShift => bignum::shl(lp, rp),
-            BinOp::RShift => bignum::shr(lp, rp),
-            _ => return Err(ExprError::msg(b"unsupported operator")),
-        };
-        // `left`/`right` stay alive until here, then release.
-        Ok(Owned::fresh(res.map_err(|e| {
-            selected_binop_error(e, op, lp, rp, dialect)
-        })?))
+        native_numeric::binary(self.ctx, op, left, right)
     }
 
     fn unary(&mut self, op: UnaryOp, value: Owned) -> Result<Owned, ExprError> {
-        let dialect = self.ctx.invocation_dialect();
-        let numeric_host = self.ctx.numeric_host();
-        let environment = numeric_host
-            .as_ref()
-            .and_then(|host| host.numeric_environment());
-        if matches!(op, UnaryOp::Pos | UnaryOp::Neg | UnaryOp::BitNot) {
-            if let Some(policy) = dialect
-                .arithmetic()
-                .filter(|policy| *policy != tcl_dialect::NativeArithmetic::TclBignum)
-            {
-                if let Some(integer) =
-                    fixed_integer_with_environment(value.ptr(), dialect, environment)?
-                {
-                    let result = tcl_syntax::expr::wide::unary(policy, op, integer)
-                        .map_err(|error| wide_error(error, policy))?;
-                    return native_integer_result(dialect, result, &[value.ptr()]);
-                }
-            }
-        }
-        prepare_scalar_operand(value.ptr(), dialect)?;
-        // A unary operand-type error names the value and the operator, with no
-        // left/right qualifier (`as operand of "OP"`).
-        let uerr = |error: ArithError, _symbol: &[u8]| {
-            selected_unary_error(error, op, value.ptr(), dialect, environment)
-        };
         match op {
-            UnaryOp::Pos => {
-                // Non-numeric AND NaN operands both raise for unary `+`
-                // (tclsh: `expr {+NaN}` → "can't use non-numeric
-                // floating-point value as operand").
-                if !matches!(
-                    bignum::compare(value.ptr(), value.ptr()),
-                    Some(NumericCompare::Ordered(_))
-                ) {
-                    if dialect.expression_operand_error_presentation().is_some() {
-                        return Err(selected_unary_error(
-                            ArithError::NonNumeric,
-                            op,
-                            value.ptr(),
-                            dialect,
-                            environment,
-                        ));
-                    }
-                    return Err(operand_type_err(
-                        operand_desc(value.ptr(), false),
-                        &obj::bytes_of(value.ptr()),
-                        OperandSide::Unary,
-                        b"+",
-                        dialect,
-                        tcl_registry::native_numeric_error::NativeExpressionOperandStage::FloatingPoint,
-                    ));
-                }
-                Ok(value)
+            UnaryOp::Pos | UnaryOp::Neg | UnaryOp::BitNot => {
+                native_numeric::unary(self.ctx, op, value)
             }
-            UnaryOp::Neg => Ok(Owned::fresh(
-                bignum::neg(value.ptr()).map_err(|e| uerr(e, b"-"))?,
-            )),
-            UnaryOp::BitNot => Ok(Owned::fresh(
-                bignum::bnot(value.ptr()).map_err(|e| uerr(e, b"~"))?,
-            )),
             UnaryOp::Not => {
+                let dialect = self.ctx.invocation_dialect();
                 let truth = self.ctx.original_boolean(
                     value.ptr(),
                     tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot,
@@ -1296,18 +1169,7 @@ impl ExprOps for TowerOps<'_> {
         Ok(self.compare_string(left, right)?.is_eq())
     }
     fn in_list(&mut self, needle: &Owned, list: &Owned) -> Result<bool, ExprError> {
-        let grammar = self.ctx.invocation_dialect().lexer_grammar;
-        let elems = crate::list::list_elements_in(list.ptr(), grammar.list_parse, grammar.escapes)
-            .map_err(|error| {
-                ExprError::from_parts(
-                    error
-                        .shared()
-                        .full_message_bytes(&obj::bytes_of(list.ptr())),
-                    error.shared().error_code().as_bytes().to_vec(),
-                )
-            })?;
-        let n = obj::bytes_of(needle.ptr());
-        Ok(elems.iter().any(|element| obj::bytes_of(*element) == n))
+        native_values::in_list(self.ctx, needle, list)
     }
 
     fn to_bool(&mut self, _value: &Owned) -> Result<bool, ExprError> {
@@ -1339,20 +1201,7 @@ impl ExprOps for TowerOps<'_> {
             .expect("selected boolean result producer")
     }
     fn binary_other(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
-        let provider = self
-            .ctx
-            .f5_string_predicate_provider()
-            .ok_or_else(|| self.unsupported("operator"))?;
-        let predicate = provider
-            .predicate(op)
-            .ok_or_else(|| self.unsupported("operator"))?;
-        let checked = |value: &Owned| {
-            tcl_syntax::raw_string::RawString::from_bytes(obj::bytes_of(value.ptr())).unicode()
-                .map_err(|_| ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("authored F5 predicate checked string")))
-        };
-        let left = checked(&left)?;
-        let right = checked(&right)?;
-        Ok(self.bool_value(predicate.evaluate(&left, &right)))
+        native_values::f5_predicate(self.ctx, op, left, right)
     }
 
     fn unsupported(&mut self, what: &str) -> ExprError {
@@ -1628,17 +1477,6 @@ fn operand_overflow(mut error: ExprError, operator: &[u8]) -> ExprError {
     error
 }
 
-fn prepare_scalar_operand(
-    value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
-) -> Result<(), ExprError> {
-    if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::JimWide) {
-        let _ = crate::typed_value::scalar_number(value, dialect, false)
-            .map_err(ExprError::host_refusal)?;
-    }
-    Ok(())
-}
-
 fn native_integer_result(
     dialect: tcl_registry::InvocationDialect,
     integer: i64,
@@ -1871,6 +1709,7 @@ mod tests {
                 original.as_ptr(),
                 dialect,
                 None,
+                None,
             );
             assert_eq!(error.msg, expected);
             assert!(error.native_access_refusal.is_none());
@@ -1900,6 +1739,7 @@ mod tests {
             UnaryOp::Neg,
             pointer,
             interp.native_invocation_dialect(),
+            None,
             None,
         );
         let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(

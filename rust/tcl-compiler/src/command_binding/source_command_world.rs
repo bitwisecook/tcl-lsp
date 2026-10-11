@@ -141,7 +141,75 @@ pub(super) struct OriginalSourceCommandWorld {
     exports: Vec<(SignatureNamespaceScope, Vec<SignatureSourceNameInput>)>,
 }
 
+/// Readonly access to the selected original ledger. An already initialised
+/// ledger is borrowed; preparation owns a private clone and never changes the
+/// flow-sensitive state. Measurement fields are outside semantic identity.
+pub(super) struct OriginalSourceCommandQuery<'a> {
+    world: std::borrow::Cow<'a, OriginalSourceCommandWorld>,
+    selected_policy: Option<NamePolicyProtocol>,
+    #[cfg(any(test, debug_assertions))]
+    clone_nanos: Option<u128>,
+}
+
+impl OriginalSourceCommandQuery<'_> {
+    pub(super) fn world(&self) -> &OriginalSourceCommandWorld {
+        &self.world
+    }
+
+    pub(super) const fn selected_policy(&self) -> Option<NamePolicyProtocol> {
+        self.selected_policy
+    }
+
+    #[cfg(any(test, debug_assertions))]
+    pub(super) const fn clone_nanos(&self) -> Option<u128> {
+        self.clone_nanos
+    }
+}
+
 impl OriginalSourceCommandWorld {
+    /// Borrow only when the existing selection would change no ledger field.
+    /// All other entries take the original private clone and policy selection.
+    pub(super) fn query_view<'a>(
+        &'a self,
+        state: &ModuleCommandBindings,
+    ) -> OriginalSourceCommandQuery<'a> {
+        // naming.command.original-world-readonly-query
+        // docs/design/analysis/name-resolution-proofs/original-world-readonly-query.md
+        if let Some(policy) = self.current_policy(state)
+            && self.policy == Some(policy)
+            && state
+                .source_root_namespace_key()
+                .is_some_and(|root| self.namespaces.iter().any(|entry| entry.key == root))
+        {
+            return OriginalSourceCommandQuery {
+                world: std::borrow::Cow::Borrowed(self),
+                selected_policy: Some(policy),
+                #[cfg(any(test, debug_assertions))]
+                clone_nanos: None,
+            };
+        }
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        let mut world = self.clone();
+        #[cfg(any(test, debug_assertions))]
+        let clone_nanos = clone_started.map(|started| started.elapsed().as_nanos());
+        let selected_policy = world.select_policy(state);
+        OriginalSourceCommandQuery {
+            world: std::borrow::Cow::Owned(world),
+            selected_policy,
+            #[cfg(any(test, debug_assertions))]
+            clone_nanos,
+        }
+    }
+
+    fn current_policy(&self, state: &ModuleCommandBindings) -> Option<NamePolicyProtocol> {
+        let policy = state.baseline.execution_name_policy?.native_recipe()?;
+        (!self.unavailable && self.policy.is_none_or(|previous| previous == policy))
+            .then_some(policy)
+    }
+
     /// Select the immutable source baseline before any branch or operation.
     /// Native entry state and unknown history retain their independent owners.
     pub(super) fn for_baseline(state: &ModuleCommandBindings) -> Self {
@@ -249,10 +317,7 @@ impl OriginalSourceCommandWorld {
         &mut self,
         state: &ModuleCommandBindings,
     ) -> Option<NamePolicyProtocol> {
-        let policy = state.baseline.execution_name_policy?.native_recipe()?;
-        if self.unavailable || self.policy.is_some_and(|previous| previous != policy) {
-            return None;
-        }
+        let policy = self.current_policy(state)?;
         let initialize_metadata = self.policy.is_none()
             && state.baseline.native_entry.is_none()
             && !state.baseline.unknown_entry;
@@ -2087,6 +2152,133 @@ mod tests {
                 .original_completed_command_world()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn readonly_original_world_queries_borrow_exact_selected_baselines_and_publications() {
+        // naming.command.original-world-readonly-query
+        // docs/design/analysis/name-resolution-proofs/original-world-readonly-query.md
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let state = ModuleCommandBindings::initial(registry);
+            let original = state.original_command_world.as_ref();
+            let query = original.query_view(&state);
+            let policy = original.policy.expect("actual selected baseline recipe");
+            assert!(matches!(&query.world, std::borrow::Cow::Borrowed(_)));
+            assert!(std::ptr::eq(query.world(), original));
+            assert_eq!(query.selected_policy(), Some(policy));
+            assert_eq!(query.clone_nanos(), None);
+            assert_eq!(
+                query
+                    .world()
+                    .scope(&state.source_root_namespace_key().unwrap(), policy),
+                Some(SignatureNamespaceScope::root(Some(policy)))
+            );
+        }
+        let bindings = analyse(
+            "proc original {} {}; interp alias {} forwarding {} original; rename original moved",
+            tcl_dialect::TclVersion::V9_1,
+        );
+        let state = bindings.original_completed_root_state.as_ref().unwrap();
+        let original = state.original_command_world.as_ref();
+        let query = original.query_view(state);
+        assert!(std::ptr::eq(query.world(), original));
+        assert!(query.world().publications.iter().any(|publication| {
+            publication.slot == slot(&[], b"moved")
+                && publication.kind == OriginalCommandPublicationKind::Procedure
+        }));
+        assert!(query.world().publications.iter().any(|publication| {
+            publication.slot == slot(&[], b"forwarding")
+                && publication.kind == OriginalCommandPublicationKind::Alias
+                && publication
+                    .alias_target
+                    .as_ref()
+                    .unwrap()
+                    .name_input()
+                    .bytes()
+                    == b"original"
+        }));
+        assert!(
+            query
+                .world()
+                .publications
+                .iter()
+                .all(|publication| { publication.slot != slot(&[], b"original") })
+        );
+    }
+
+    #[test]
+    fn readonly_original_world_queries_prepare_only_owned_missing_policy_or_root() {
+        // naming.command.original-world-readonly-query
+        // docs/design/analysis/name-resolution-proofs/original-world-readonly-query.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
+        let state = ModuleCommandBindings::initial(registry);
+        let original = state.original_command_world.as_ref();
+        let policy = original.policy.unwrap();
+        let root = state.source_root_namespace_key().unwrap();
+        let mut missing_root = original.clone();
+        missing_root
+            .namespaces
+            .retain(|namespace| namespace.key != root);
+        let query = missing_root.query_view(&state);
+        assert!(matches!(&query.world, std::borrow::Cow::Owned(_)));
+        assert_eq!(query.selected_policy(), Some(policy));
+        assert_eq!(
+            query.world().scope(&root, policy),
+            Some(SignatureNamespaceScope::root(Some(policy)))
+        );
+        assert!(
+            missing_root
+                .namespaces
+                .iter()
+                .all(|namespace| namespace.key != root)
+        );
+        let unselected = OriginalSourceCommandWorld::default();
+        let query = unselected.query_view(&state);
+        assert!(matches!(&query.world, std::borrow::Cow::Owned(_)));
+        assert_eq!(query.selected_policy(), Some(policy));
+        assert_eq!(query.world(), original);
+        assert_eq!(unselected, OriginalSourceCommandWorld::default());
+    }
+
+    #[test]
+    fn readonly_original_world_queries_keep_policy_refusal_and_cow_withdrawal_current() {
+        // naming.command.original-world-readonly-query
+        // docs/design/analysis/name-resolution-proofs/original-world-readonly-query.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
+        let state = ModuleCommandBindings::initial(registry);
+        let original = state.original_command_world.as_ref();
+        let earlier_query = original.query_view(&state);
+        let foreign_registry =
+            tcl_registry::model::ingress::static_context_for("tcl8.4").commands();
+        let foreign_state = ModuleCommandBindings::initial(foreign_registry);
+        let refused = original.query_view(&foreign_state);
+        assert!(matches!(&refused.world, std::borrow::Cow::Owned(_)));
+        assert_eq!(refused.selected_policy(), None);
+        assert_eq!(refused.world(), original);
+        let mut current = state.clone();
+        current.mark_opaque_binding_mutation();
+        assert!(!Arc::ptr_eq(
+            &state.original_command_world,
+            &current.original_command_world
+        ));
+        let withdrawn = current.original_command_world.query_view(&current);
+        assert!(matches!(&withdrawn.world, std::borrow::Cow::Owned(_)));
+        assert_eq!(withdrawn.selected_policy(), None);
+        assert!(withdrawn.world().unavailable);
+        assert!(!earlier_query.world().unavailable);
+        assert_eq!(earlier_query.selected_policy(), original.policy);
+        let unknown = ModuleCommandBindings::initial_with_options(
+            registry,
+            super::super::SourceAnalysisOptions {
+                unknown_entry: true,
+                ..Default::default()
+            },
+            None,
+        );
+        let unavailable = unknown.original_command_world.query_view(&unknown);
+        assert_eq!(unavailable.selected_policy(), None);
+        assert!(unavailable.world().unavailable);
     }
 
     #[test]

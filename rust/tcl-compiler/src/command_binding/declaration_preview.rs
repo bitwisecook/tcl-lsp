@@ -1427,6 +1427,302 @@ fn retains_successor_layout(
 mod tests {
     use super::*;
 
+    fn complete_logical_declaration_tokens(
+        source: &str,
+        command: &str,
+        context: &Arc<tcl_registry::model::ContextRegistry>,
+    ) -> (
+        SourceCommandBindings,
+        crate::ir::CommandTokens,
+        crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(context),
+            config,
+        );
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            context.commands(),
+            super::super::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        let offset = u32::try_from(source.find(command).unwrap()).unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let part = tcl_lexer::SourceImage::document(command);
+        let segments =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&part, offset, config)
+                .unwrap();
+        let [segment] = segments.as_slice() else {
+            panic!("one original source vector");
+        };
+        let mut tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
+        bindings.stamp_original_tokens(&mut tokens);
+        (bindings, tokens, input)
+    }
+
+    #[test]
+    fn original_declaration_metadata_keeps_unentered_logical_successor_source() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original declaration metadata supplies conditional source structure;
+        // no reached lookup, Native frame, handler or compiled store is donated.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let source = "proc f {} {set p literal.txt; open $p}";
+        for command in ["set p literal.txt", "open $p"] {
+            let (_, tokens, input) = complete_logical_declaration_tokens(source, command, &context);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.lookup_state.is_none(), "unentered procedure source");
+            assert!(binding.logical_source_name_advice_input().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.native_structured_preparation.is_none());
+            assert!(
+                binding
+                    .original_invocation_metadata_at_point(&tokens, context.commands())
+                    .is_err()
+            );
+            let metadata = binding
+                .original_invocation_metadata_for_input(&tokens, &input, context.commands())
+                .expect("same original Logical declaration source owner");
+            assert_eq!(metadata.source_analysis_input(), Some(&input));
+            assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                context.commands(), metadata, &tokens,
+            ).is_some(), "{command}");
+            let advice = binding
+                .declaration_operand_layout_advice(&tokens)
+                .expect("the exact original successor layout");
+            assert!(advice.closed_logical_source_lookup());
+            let mut raw = tokens.clone();
+            raw.source_binding = None;
+            let raw_metadata = advice
+                .original_declaration_metadata_context(context.commands(), &raw)
+                .expect("raw preview vector retains its sealed advice")
+                .unwrap();
+            assert_eq!(raw_metadata.source_analysis_input(), Some(&input));
+            let flow = crate::registry_invocation::declaration_invocation_flow(
+                context.commands(),
+                &raw,
+                &advice,
+            )
+            .expect("source flow needs no entered binding");
+            if command.starts_with("set ") {
+                assert_eq!(
+                    flow.literal_stores,
+                    vec![("p".to_owned(), "literal.txt".to_owned())]
+                );
+            }
+            assert!(raw.source_binding.is_none());
+        }
+    }
+
+    #[test]
+    fn original_declaration_metadata_refuses_missing_foreign_and_changed_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Same command store does not identify the availability owner; exact
+        // source vectors and every original declaration remain prerequisites.
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let mut selected = registry.get("set").unwrap().clone();
+        selected.name = "metadata_store";
+        selected.surface = registry.get("dict").unwrap().surface;
+        registry.insert(selected);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let source = "proc f {} {metadata_store p VALUE; open $p}";
+        let (_, tokens, input) =
+            complete_logical_declaration_tokens(source, "metadata_store p VALUE", &context);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let metadata = binding
+            .original_invocation_metadata_for_input(&tokens, &input, &registry)
+            .unwrap();
+        assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            &registry, metadata, &tokens,
+        ).is_some());
+        let (_, older_tokens, older_input) =
+            complete_logical_declaration_tokens(source, "metadata_store p VALUE", &older);
+        let older_binding = older_tokens.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_invocation_metadata_for_input(&tokens, &older_input, &registry)
+                .is_none()
+        );
+        if let Some(older_metadata) = older_binding.original_invocation_metadata_for_input(
+            &older_tokens,
+            &older_input,
+            &registry,
+        ) {
+            assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                &registry, older_metadata, &older_tokens,
+            ).is_none());
+        }
+        let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
+        foreign_registry.insert(tcl_registry::CommandSpec {
+            name: "foreign_declaration_axis",
+            ..registry.get("set").unwrap().clone()
+        });
+        let foreign = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(foreign_registry.snapshot().shared_registry()),
+        );
+        let changed_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig {
+                strict_quoting: !input.lexer_config().strict_quoting,
+                ..input.lexer_config()
+            },
+        );
+        let foreign_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            foreign,
+            input.lexer_config(),
+        );
+        for owner in [
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
+            crate::registry_invocation::OwnedInvocationMetadataContext::Supplied(Arc::clone(
+                &context,
+            )),
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &changed_input,
+            )),
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &foreign_input,
+            )),
+        ] {
+            let mut changed = tokens.clone();
+            let binding = changed.source_binding.as_mut().unwrap();
+            for row in Arc::make_mut(binding.declaration_layout_observations.as_mut().unwrap()) {
+                let state = &mut Arc::make_mut(&mut row.snapshot).state;
+                Arc::make_mut(&mut state.baseline).metadata_context = owner.clone();
+            }
+            let binding = changed.source_binding.as_ref().unwrap();
+            assert!(
+                binding
+                    .original_invocation_metadata_for_input(&changed, &input, &registry)
+                    .is_none()
+            );
+        }
+        let mut missing = tokens.clone();
+        missing
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .declaration_layout_observations = None;
+        assert!(
+            missing
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_invocation_metadata_for_input(&missing, &input, &registry,)
+                .is_none()
+        );
+        let mut changed_vector = tokens.clone();
+        changed_vector.word_exprs.pop();
+        assert!(
+            binding
+                .original_invocation_metadata_for_input(&changed_vector, &input, &registry)
+                .is_none()
+        );
+        let (_, shadowed, shadow_input) = complete_logical_declaration_tokens(
+            "proc metadata_store args {return CUSTOM}; proc f {} {metadata_store p VALUE}",
+            "metadata_store p VALUE",
+            &context,
+        );
+        let shadow_binding = shadowed.source_binding.as_ref().unwrap();
+        if let Some(metadata) = shadow_binding.original_invocation_metadata_for_input(
+            &shadowed,
+            &shadow_input,
+            &registry,
+        ) {
+            assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                &registry, metadata, &shadowed,
+            ).is_none());
+        }
+    }
+
+    #[test]
+    fn original_declaration_metadata_cannot_repair_invalid_reached_or_native_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Retained source advice cannot replace a present invalid reached
+        // owner, nor issue Native lookup or preparation for an unentered body.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let (_, tokens, input) =
+            complete_logical_declaration_tokens("set p VALUE", "set p VALUE", &context);
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .lookup_state
+                .is_some()
+        );
+        let mut withdrawn = tokens.clone();
+        let binding = withdrawn.source_binding.as_mut().unwrap();
+        let state = &mut Arc::make_mut(binding.lookup_state.as_mut().unwrap()).state;
+        Arc::make_mut(&mut state.baseline).metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        assert!(binding.declaration_layout_observations.is_some());
+        let binding = withdrawn.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_source_metadata_for_advice(&withdrawn, context.commands())
+                .is_err()
+        );
+        assert!(
+            binding
+                .original_invocation_metadata_for_input(&withdrawn, &input, context.commands())
+                .is_none()
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            context.commands(),
+            &input,
+        )
+        .unwrap();
+        assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            context.commands(), metadata, &withdrawn,
+        ).is_none());
+        let source = "proc f {} {set p VALUE}";
+        let (_, unentered, _) =
+            complete_logical_declaration_tokens(source, "set p VALUE", &context);
+        let native_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+        let native_input = crate::analyser::ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(native_profile.grammar),
+        );
+        assert!(!native_input.has_logical_source_name_context());
+        let binding = unentered.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_none());
+        assert!(
+            binding
+                .original_invocation_metadata_for_input(
+                    &unentered,
+                    &native_input,
+                    context.commands()
+                )
+                .is_none()
+        );
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.native_structured_preparation.is_none());
+    }
+
     fn inventory(source: &str, command: &str) -> (SourceCommandBindings, crate::ir::CommandTokens) {
         inventory_in_world(source, command, false)
     }

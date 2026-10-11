@@ -98,6 +98,17 @@ pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> Signature
     )
 }
 
+/// Scan under the caller's complete source configuration without issuing
+/// command bindings, an entry receipt or a native execution premise.
+#[must_use]
+pub fn extract_signatures_with_config(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+) -> SignatureScanResult {
+    extract_signatures_in(source, config, registry, None)
+}
+
 /// Scan with an independently retained source binding inventory. Exact source
 /// bytes, channel and complete lexer configuration must match before callback
 /// lookup coordinates can be borrowed. A mismatched inventory is ignored.
@@ -123,10 +134,8 @@ fn extract_signatures_in(
     bindings: Option<&crate::command_binding::SourceCommandBindings>,
 ) -> SignatureScanResult {
     let known_commands: std::collections::HashSet<&str> = registry.command_names().collect();
-    // The registry carries the environment's resolved profile, so the scan
-    // reads every word and segments every body under the document's own
-    // grammar — an iRules `}{`, a Jim `$(…)`, an 8.4 `{*}` — rather than
-    // re-deriving C Tcl's answer.
+    // The caller's full configuration governs every word and body. The
+    // standalone entry point above separately selects its registry profile.
     let mut ctx = ScanCtx {
         registry: Some(registry),
         original_bindings: bindings,

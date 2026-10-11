@@ -70,6 +70,7 @@ pub fn linked_editing_ranges(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<LinkedEditingRanges> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     if !analysis.allows_lexical_declaration_advice() {
         return original_linked_editing_ranges(source, line, character, analysis);
     }
@@ -347,6 +348,64 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    fn source_currency_analysis(
+        source: &str,
+        environment: &str,
+        registry: std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                tcl_registry::model::ingress::resolve_environment(environment)
+                    .default_context_registry()
+                    .with_command_store(registry),
+            ),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_lexical_declaration_advice());
+        analysis
+    }
+
+    #[test]
+    fn original_logical_linked_edits_require_the_current_whole_source_owner() {
+        // naming.consumer.original-linked-editing
+        // docs/design/analysis/name-resolution-proofs/original-linked-editing.md
+        let source = "proc p {} {p}";
+        let registry = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
+        let edit =
+            |text: &str, analysis: &AnalysisResult| linked_editing_ranges(text, 0, 5, analysis);
+        for environment in ["tcl8.4", "tcl8.6"] {
+            let analysis = source_currency_analysis(source, environment, registry.clone());
+            let current = edit(source, &analysis).expect("actual declaration and recursive call");
+            assert_eq!(current.ranges.len(), 2);
+            assert!(edit("proc p {} {p}; puts CHANGED", &analysis).is_none());
+            let mut stale = analysis.clone();
+            let config = stale.body_lexer_config.as_mut().unwrap();
+            config.strict_quoting = !config.strict_quoting;
+            assert!(edit(source, &stale).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(!missing.all_procs.is_empty());
+            assert!(edit(source, &missing).is_none());
+            let donor = source_currency_analysis(source, "tcl9.1", registry.clone());
+            let mut foreign = analysis.clone();
+            foreign.resolved_input = donor.resolved_input;
+            assert!(edit(source, &foreign).is_none());
+            let mut unavailable = analysis.clone();
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: environment.into(),
+                overlay: u64::MAX - 404,
+            });
+            assert!(edit(source, &unavailable).is_none());
+            assert_eq!(edit(source, &analysis).unwrap().ranges.len(), 2);
+        }
     }
 
     #[test]

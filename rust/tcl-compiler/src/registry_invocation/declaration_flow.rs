@@ -90,10 +90,8 @@ pub(crate) fn declaration_lifecycle_invocation(
         .source_binding
         .as_ref()?
         .declaration_operand_layout_advice(tokens)?;
-    let metadata = tokens
-        .source_binding
-        .as_ref()?
-        .original_invocation_metadata_at_point(tokens, registry)
+    let metadata = advice
+        .original_declaration_metadata_context(registry, tokens)
         .ok()?;
     let dialect = advice.dialect();
     let mut agreed = None;
@@ -155,10 +153,8 @@ pub(crate) fn declaration_invocation_flow(
     tokens: &CommandTokens,
     advice: &crate::command_binding::OriginalCompilationLookupAdvice,
 ) -> Option<DeclarationInvocationFlow> {
-    let metadata = tokens
-        .source_binding
-        .as_ref()?
-        .original_invocation_metadata_at_point(tokens, registry)
+    let metadata = advice
+        .original_declaration_metadata_context(registry, tokens)
         .ok()?;
     let dialect = advice.dialect();
     let mut agreed = None;

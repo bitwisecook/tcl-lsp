@@ -348,6 +348,7 @@ struct NativeCommandNode {
 /// The original creation entry, retained across re-entrant delete callbacks.
 pub(crate) struct NativeCommandCreation {
     namespace: NsId,
+    original_tail: Vec<u8>,
     occupied: bool,
     jim_table_key: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
 }
@@ -741,6 +742,7 @@ impl Namespaces {
             });
         NativeCommandCreation {
             namespace: ns,
+            original_tail: simple.to_vec(),
             occupied: occupied.is_some(),
             jim_table_key,
         }
@@ -2535,6 +2537,35 @@ impl Namespaces {
     /// qualified parsing — `import` inserting a redirect into the importing ns).
     pub fn bind(&mut self, ns: NsId, name: &[u8], command: Command) {
         self.insert_bound(ns, name.to_vec(), command);
+    }
+
+    /// Take only the actual object record at the original occupied creation
+    /// slot. The generation identifies the callback-created binding; no name
+    /// resolution or a recreated namespace holder supplies this permission.
+    pub(crate) fn take_recreated_object_for_creation(
+        &mut self,
+        entry: &NativeCommandCreation,
+        name: &[u8],
+        generation: u64,
+    ) -> Option<CommandBinding> {
+        if !entry.occupied || entry.original_tail != name {
+            return None;
+        }
+        let binding = self
+            .arena
+            .get(entry.namespace)?
+            .commands
+            .entries
+            .get(name)?;
+        if binding.generation != generation
+            || !matches!(&binding.command, Command::ObjCmd(command)
+                if command.creation_purpose() == Some(tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::LegacyPublicObjectCommand))
+        {
+            return None;
+        }
+        // The owned binding is returned before its record can be retired;
+        // callers release it outside the namespace RefCell borrow.
+        self.remove_native_binding(entry.namespace, name)
     }
 
     /// Consume the original creation entry after its callbacks have returned.
