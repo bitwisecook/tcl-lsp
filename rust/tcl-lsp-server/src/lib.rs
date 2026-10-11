@@ -18601,19 +18601,14 @@ impl Backend {
         }
     }
 
-    /// Cross-document incoming calls to the proc whose
-    /// qualified name is `qualified`: run the externally-
-    /// targeted incoming-calls pass over every analysed
-    /// document *other than* `current_uri`, tagging each result
-    /// with its document's URI.  Documents that don't define
-    /// the proc still contribute their call sites (passing
-    /// `None` for the declaration span so nothing is skipped).
+    /// Conditional incoming source calls in sibling documents. The actual
+    /// selected declaration supplies procedure/member kind, original name and
+    /// member side; reporting labels cannot reconstruct this target.
     async fn cross_document_incoming_calls(
         &self,
         current_uri: &Uri,
-        qualified: &str,
+        target: &core_call_hierarchy::LogicalCallTarget<'_>,
     ) -> Vec<(Uri, core_call_hierarchy::IncomingCall)> {
-        let simple = tcl_compiler::naming::key_tail(qualified);
         // Collect (uri, source, dialect) for every document *other
         // than* the current one: first the open buffers, then the
         // indexed-but-unopened files the folder scan discovered
@@ -18646,65 +18641,77 @@ impl Backend {
             }
         }
         let mut out = Vec::new();
-        let method_target = qualified
-            .rsplit_once("::")
-            .filter(|(class_q, method)| !class_q.is_empty() && !method.is_empty())
-            .map(|(class_q, method)| (class_q.to_owned(), method.to_owned()));
         for (doc_uri, source, dialect) in docs {
             let analysis = self
-                .analysis_for(&doc_uri, Arc::clone(&source), dialect.clone())
+                .analysis_for(&doc_uri, Arc::clone(&source), dialect)
                 .await;
-            if let Some((target_class, method)) = &method_target {
-                let receivers: Vec<(String, bool)> = {
-                    let index = self.workspace_index.read().await;
-                    analysis
-                        .all_classes
-                        .keys()
-                        .filter_map(|receiver| {
-                            let internal = index
-                                .method_dispatch_chain(
-                                    receiver,
-                                    method,
-                                    core_workspace_index::MethodAccess::Internal,
-                                )
-                                .first()
-                                .is_some_and(|provider| provider.qualified_name == *target_class);
-                            internal.then(|| {
-                                let external = index
-                                    .method_dispatch_chain(
-                                        receiver,
-                                        method,
-                                        core_workspace_index::MethodAccess::External,
-                                    )
+            match target.declaration() {
+                core_call_hierarchy::LogicalCallDeclaration::Member {
+                    class: target_class,
+                    definition: method,
+                    side,
+                } => {
+                    let receivers: Vec<(String, bool)> = {
+                        let index = self.workspace_index.read().await;
+                        analysis
+                            .all_classes
+                            .keys()
+                            .filter_map(|receiver| {
+                                let chain = |access| match side {
+                                    tcl_compiler::analyser::MemberSide::Instance => {
+                                        index.method_dispatch_chain(receiver, &method.name, access)
+                                    }
+                                    tcl_compiler::analyser::MemberSide::ClassObject => index
+                                        .class_method_dispatch_chain(
+                                            receiver,
+                                            &method.name,
+                                            access,
+                                        ),
+                                };
+                                let internal = chain(core_workspace_index::MethodAccess::Internal)
                                     .first()
                                     .is_some_and(|provider| {
-                                        provider.qualified_name == *target_class
+                                        provider.qualified_name == target_class.qualified_name
                                     });
-                                (receiver.clone(), external)
+                                internal.then(|| {
+                                    let external =
+                                        chain(core_workspace_index::MethodAccess::External)
+                                            .first()
+                                            .is_some_and(|provider| {
+                                                provider.qualified_name
+                                                    == target_class.qualified_name
+                                            });
+                                    (receiver.clone(), external)
+                                })
                             })
-                        })
-                        .collect()
-                };
-                for (receiver, external) in receivers {
+                            .collect()
+                    };
+                    for (receiver, external) in receivers {
+                        out.extend(
+                            core_call_hierarchy::incoming_calls_for_logical_member_in_class(
+                                &source, &analysis, &receiver, target, external,
+                            )
+                            .into_iter()
+                            .map(|call| (doc_uri.clone(), call)),
+                        );
+                    }
+                }
+                core_call_hierarchy::LogicalCallDeclaration::Procedure {
+                    qualified,
+                    definition,
+                } => {
                     out.extend(
-                        core_call_hierarchy::incoming_instance_method_calls_in_class(
+                        core_call_hierarchy::incoming_calls_for_target(
                             &source,
-                            tcl_lsp_core::profile_for_dialect(&dialect),
                             &analysis,
-                            &receiver,
-                            method,
-                            external,
+                            &definition.name,
+                            qualified,
+                            None,
                         )
                         .into_iter()
                         .map(|call| (doc_uri.clone(), call)),
                     );
                 }
-            }
-            let calls = core_call_hierarchy::incoming_calls_for_target(
-                &source, &analysis, simple, qualified, None,
-            );
-            for c in calls {
-                out.push((doc_uri.clone(), c));
             }
         }
         out
@@ -27251,7 +27258,11 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let qualified = core_item.name.clone();
+        let Some(target) =
+            core_call_hierarchy::LogicalCallTarget::capture(&doc.text, &analysis, &core_item)
+        else {
+            return Ok(Some(Vec::new()));
+        };
         let doc_text = doc.text.clone();
         let doc_dialect = doc.dialect.clone();
         let local_item = core_item.clone();
@@ -27283,7 +27294,7 @@ impl LanguageServer for Backend {
             local.into_iter().map(|c| (uri.clone(), c)).collect();
         // Cross-document callers: run the externally-targeted
         // incoming-calls pass over every *other* analysed doc.
-        tagged.extend(self.cross_document_incoming_calls(&uri, &qualified).await);
+        tagged.extend(self.cross_document_incoming_calls(&uri, &target).await);
         let lifted = tagged
             .into_iter()
             .map(|(doc_uri, c)| CallHierarchyIncomingCall {
@@ -59155,25 +59166,49 @@ proc p {} {
         );
     }
 
+    async fn register_logical_hierarchy(backend: &Backend, uri: &Uri, source: &str) {
+        backend
+            .documents
+            .lock("test logical hierarchy")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(source.to_owned(), "tcl".to_owned()),
+            );
+        let analysis = Analyser::new().analyse(source, "tcl");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+    }
+
     #[tokio::test]
     async fn incoming_calls_span_multiple_documents() {
+        // naming.core.logical-call-target-owner
+        // docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md
         let backend = test_backend();
         let lib = Uri::from_str("file:///lib.tcl").unwrap();
         let consumer = Uri::from_str("file:///consumer.tcl").unwrap();
-        register(&backend, &lib, "proc helper {} {}\n").await;
-        register(&backend, &consumer, "proc caller {} { helper }\n").await;
+        register_logical_hierarchy(&backend, &lib, "proc helper {} {}\n").await;
+        register_logical_hierarchy(&backend, &consumer, "proc caller {} { helper }\n").await;
         // prepare the `helper` item from lib.tcl.
         let prep = {
             let mut a = Analyser::new();
-            let analysis = a.analyse("proc helper {} {}\n", "tcl8.6").clone();
+            let analysis = a.analyse("proc helper {} {}\n", "tcl").clone();
             core_call_hierarchy::prepare("proc helper {} {}\n", 0, 5, &analysis)
         };
         let core_item = prep.into_iter().next().expect("prepared item");
-        // Call-hierarchy items now carry the short display name.
+        // Source-advice procedure items carry the short display name.
         assert_eq!(core_item.name, "helper");
-        let cross = backend
-            .cross_document_incoming_calls(&lib, &core_item.name)
-            .await;
+        let analysis = Analyser::new().analyse("proc helper {} {}\n", "tcl");
+        let target = core_call_hierarchy::LogicalCallTarget::capture(
+            "proc helper {} {}\n",
+            &analysis,
+            &core_item,
+        )
+        .expect("current source-advice declaration");
+        let cross = backend.cross_document_incoming_calls(&lib, &target).await;
         // The only caller is `caller` in consumer.tcl.
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].0, consumer);
@@ -59182,14 +59217,16 @@ proc p {} {
 
     #[tokio::test]
     async fn outgoing_calls_resolve_sibling_document_callee() {
+        // naming.core.logical-call-target-owner
+        // docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md
         let backend = test_backend();
         let lib = Uri::from_str("file:///lib.tcl").unwrap();
         let main = Uri::from_str("file:///main.tcl").unwrap();
-        register(&backend, &lib, "proc helper {} {}\n").await;
+        register_logical_hierarchy(&backend, &lib, "proc helper {} {}\n").await;
         // `caller` calls a builtin (`puts`) and the sibling-file
         // proc `helper`; only `helper` resolves cross-document.
         let main_src = "proc caller {} { puts hi\n helper }\n";
-        register(&backend, &main, main_src).await;
+        register_logical_hierarchy(&backend, &main, main_src).await;
 
         let item = core_call_hierarchy::CallHierarchyItem {
             identity: None,
@@ -59210,7 +59247,7 @@ proc p {} {
         };
         let analysis = {
             let mut a = Analyser::new();
-            a.analyse(main_src, "tcl8.6").clone()
+            a.analyse(main_src, "tcl").clone()
         };
         let cross = backend
             .cross_document_outgoing_calls(
@@ -59225,6 +59262,137 @@ proc p {} {
         assert_eq!(cross[0].to.name, "::helper");
         assert_eq!(cross[0].to.uri, lib);
         assert_eq!(cross[0].from_ranges.len(), 1, "{cross:?}");
+    }
+
+    fn logical_member_item(
+        source: &str,
+        analysis: &AnalysisResult,
+        class: &str,
+        method: &str,
+        side: tcl_compiler::analyser::MemberSide,
+    ) -> core_call_hierarchy::CallHierarchyItem {
+        let class = &analysis.all_classes[class];
+        let members = match side {
+            tcl_compiler::analyser::MemberSide::Instance => &class.methods,
+            tcl_compiler::analyser::MemberSide::ClassObject => &class.class_methods,
+        };
+        let span = members[method].name_span;
+        let lines = tcl_lexer::LineIndex::new(source);
+        let position = lines.position_at_utf16(span.start(), source);
+        core_call_hierarchy::prepare(source, position.line, position.character.get(), analysis)
+            .into_iter()
+            .find(|item| {
+                item.selection_range.start_line == position.line
+                    && item.selection_range.start_character == position.character.get()
+            })
+            .expect("actual member declaration")
+    }
+
+    #[tokio::test]
+    async fn logical_incoming_target_keeps_procedure_member_side_and_colon_name_separate() {
+        // naming.core.logical-call-target-owner
+        // docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md
+        let backend = test_backend();
+        let provider_uri = Uri::from_str("file:///logical-provider.tcl").unwrap();
+        let caller_uri = Uri::from_str("file:///logical-callers.tcl").unwrap();
+        let provider = "namespace eval C {}; proc ::C::m {} {}; oo::class create C {method m {} {}; self method m {} {}; method a::b {} {}}";
+        let caller = "oo::class create C {method instanceCaller {} {my m}; self method classCaller {} {my m}; method colonCaller {} {my a::b}}; proc procedureCaller {} {::C::m}";
+        register_logical_hierarchy(&backend, &provider_uri, provider).await;
+        register_logical_hierarchy(&backend, &caller_uri, caller).await;
+        let analysis = Analyser::new().analyse(provider, "tcl");
+        for (side, method, expected) in [
+            (
+                tcl_compiler::analyser::MemberSide::Instance,
+                "m",
+                "::C::instanceCaller",
+            ),
+            (
+                tcl_compiler::analyser::MemberSide::ClassObject,
+                "m",
+                "::C::classCaller",
+            ),
+            (
+                tcl_compiler::analyser::MemberSide::Instance,
+                "a::b",
+                "::C::colonCaller",
+            ),
+        ] {
+            let mut item = logical_member_item(provider, &analysis, "::C", method, side);
+            item.name = "copied display label".into();
+            item.detail = Some("copied detail".into());
+            let target =
+                core_call_hierarchy::LogicalCallTarget::capture(provider, &analysis, &item)
+                    .unwrap();
+            let cross = backend
+                .cross_document_incoming_calls(&provider_uri, &target)
+                .await;
+            assert_eq!(cross.len(), 1, "{side:?}/{method}: {cross:?}");
+            assert_eq!(cross[0].0, caller_uri);
+            assert_eq!(cross[0].1.from.name, expected);
+            assert_eq!(cross[0].1.from_ranges.len(), 1);
+        }
+        let span = analysis.all_procs["::C::m"].name_span;
+        let position =
+            tcl_lexer::LineIndex::new(provider).position_at_utf16(span.start(), provider);
+        let item = core_call_hierarchy::prepare(
+            provider,
+            position.line,
+            position.character.get(),
+            &analysis,
+        )
+        .pop()
+        .unwrap();
+        let target =
+            core_call_hierarchy::LogicalCallTarget::capture(provider, &analysis, &item).unwrap();
+        let cross = backend
+            .cross_document_incoming_calls(&provider_uri, &target)
+            .await;
+        assert_eq!(cross.len(), 1, "{cross:?}");
+        assert_eq!(cross[0].1.from.name, "procedureCaller");
+    }
+
+    #[tokio::test]
+    async fn logical_incoming_source_owner_withdrawal_cannot_be_recovered_from_a_title() {
+        // naming.core.logical-call-target-owner
+        // docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md
+        let backend = test_backend();
+        let provider_uri = Uri::from_str("file:///logical-owner.tcl").unwrap();
+        let caller_uri = Uri::from_str("file:///logical-caller.tcl").unwrap();
+        let provider = "proc selected {} {}";
+        let caller = "proc caller {} {selected}";
+        register_logical_hierarchy(&backend, &provider_uri, provider).await;
+        register_logical_hierarchy(&backend, &caller_uri, caller).await;
+        let mut analysis = Analyser::new().analyse(provider, "tcl");
+        let mut item = core_call_hierarchy::prepare(provider, 0, 6, &analysis)
+            .pop()
+            .unwrap();
+        let target =
+            core_call_hierarchy::LogicalCallTarget::capture(provider, &analysis, &item).unwrap();
+        assert_eq!(
+            backend
+                .cross_document_incoming_calls(&provider_uri, &target)
+                .await
+                .len(),
+            1
+        );
+        drop(target);
+        item.selection_range.start_character += 1;
+        assert!(
+            core_call_hierarchy::LogicalCallTarget::capture(provider, &analysis, &item).is_none()
+        );
+        item.selection_range.start_character -= 1;
+        assert!(
+            core_call_hierarchy::LogicalCallTarget::capture("proc changed {} {}", &analysis, &item)
+                .is_none()
+        );
+        analysis.resolved_input = None;
+        assert!(
+            core_call_hierarchy::LogicalCallTarget::capture(provider, &analysis, &item).is_none()
+        );
+        let native = Analyser::new().analyse(provider, "tcl8.6");
+        assert!(
+            core_call_hierarchy::LogicalCallTarget::capture(provider, &native, &item).is_none()
+        );
     }
 
     #[test]

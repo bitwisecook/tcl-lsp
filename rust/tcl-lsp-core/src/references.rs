@@ -2062,6 +2062,61 @@ pub fn obj_method_call_sites(
     )
 }
 
+/// Direct class-command selector sites in the actual retained Logical source.
+/// The shared original class-call owner supplies factory/name lineage and full
+/// context; this query grants neither Native receiver identity nor dispatch.
+/// Captured selector prefixes cannot donate a written call-site range.
+pub(crate) fn logical_class_command_method_sites(
+    source: &str,
+    analysis: &AnalysisResult,
+    receiver: &tcl_compiler::analyser::ClassDef,
+    method: &str,
+) -> Vec<tcl_lexer::Span> {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    if !analysis.allows_retained_logical_declaration_advice() {
+        return Vec::new();
+    }
+    let image = tcl_lexer::SourceImage::document(source);
+    let context = current.context();
+    let mut seen = FxHashSet::default();
+    analysis
+        .command_invocations
+        .iter()
+        .filter_map(|invocation| {
+            if !invocation.lookup.is_execution_site() {
+                return None;
+            }
+            let call =
+                tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
+                    source,
+                    analysis,
+                    invocation.range.start(),
+                )?;
+            if !call.matches_source_context(&image, current.config(), &context)
+                || !std::ptr::eq(
+                    call.class_declaration().logical_source_class(analysis)?,
+                    receiver,
+                )
+                || call.arguments().first()?.literal_bytes()? != method.as_bytes()
+            {
+                return None;
+            }
+            let written = call.written_argument(0)?;
+            let selector = call.argument_word(0)?;
+            if call.original_words().get(written + 1) != Some(selector)
+                || selector.tokens().len() != 1
+            {
+                return None;
+            }
+            let span = selector.tokens()[0].span;
+            seen.insert((span.start(), span.end())).then_some(span)
+        })
+        .collect()
+}
+
 /// Reference spans for `method` on `class_q` **within `source`**, for
 /// cross-document aggregation: every `$obj method` / `my method` call site,
 /// plus the declaration when `include_decl`.  Empty when `class_q` does not
@@ -8142,6 +8197,117 @@ mod original_dispatch_parser_purpose_tests {
                 &[body],
                 "selected",
                 None
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod logical_class_selector_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_class_selector_keeps_actual_alias_and_rename_source_lineage() {
+        // naming.core.logical-call-target-owner
+        // docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md
+        for tail in [
+            "C m",
+            "rename C D; D m",
+            "interp alias {} invoke {} C; invoke m",
+        ] {
+            let source = format!("oo::class create C {{self method m {{}} {{}}}}; {tail}");
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            let receiver = analysis
+                .all_classes
+                .values()
+                .find(|class| class.name == "C")
+                .unwrap();
+            let sites = logical_class_command_method_sites(&source, &analysis, receiver, "m");
+            assert_eq!(sites.len(), 1, "{tail}: {sites:?}");
+            assert_eq!(
+                &source[sites[0].start() as usize..sites[0].end() as usize],
+                "m"
+            );
+        }
+    }
+
+    #[test]
+    fn captured_selectors_and_replaced_class_commands_have_no_written_selector_grant() {
+        // naming.core.logical-call-target-owner
+        // docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md
+        for tail in [
+            "interp alias {} invoke {} C m; invoke",
+            "proc C args {}; C m",
+            "rename C {}; C m",
+        ] {
+            let source = format!("oo::class create C {{self method m {{}} {{}}}}; {tail}");
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            let receiver = analysis
+                .all_classes
+                .values()
+                .find(|class| class.name == "C")
+                .unwrap();
+            assert!(
+                logical_class_command_method_sites(&source, &analysis, receiver, "m").is_empty(),
+                "{tail}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_selector_preserves_full_source_and_unicode_and_refuses_native_donation() {
+        // naming.core.logical-call-target-owner
+        // docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md
+        let source = "oo::class create C {self method mβ::x {} {}}; C mβ::x";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let receiver = &analysis.all_classes["::C"];
+        let expected = logical_class_command_method_sites(source, &analysis, receiver, "mβ::x");
+        assert_eq!(expected.len(), 1);
+        assert_eq!(
+            &source[expected[0].start() as usize..expected[0].end() as usize],
+            "mβ::x"
+        );
+        assert!(
+            logical_class_command_method_sites(
+                &source.replace("mβ::x", "other"),
+                &analysis,
+                receiver,
+                "mβ::x"
+            )
+            .is_empty()
+        );
+        analysis.dialect = "copied reporting label".into();
+        assert_eq!(
+            logical_class_command_method_sites(
+                source,
+                &analysis,
+                &analysis.all_classes["::C"],
+                "mβ::x"
+            ),
+            expected
+        );
+        for dialect in ["tcl8.6", "f5-irules"] {
+            let other = Analyser::new().analyse(source, dialect);
+            assert!(
+                logical_class_command_method_sites(
+                    source,
+                    &other,
+                    &analysis.all_classes["::C"],
+                    "mβ::x"
+                )
+                .is_empty(),
+                "{dialect} cannot borrow a Logical receiver"
+            );
+        }
+        analysis.resolved_input = None;
+        assert!(
+            logical_class_command_method_sites(
+                source,
+                &analysis,
+                &analysis.all_classes["::C"],
+                "mβ::x"
             )
             .is_empty()
         );

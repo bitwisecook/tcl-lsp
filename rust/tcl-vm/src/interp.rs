@@ -11498,18 +11498,64 @@ impl Vm {
         Ok(imported)
     }
 
-    /// Jim's namespace helper imports by full-name glob and installs ordinary
-    /// aliases. Export lists and C import-token retirement do not participate.
+    /// The pinned Jim helper queries the root alias table, owns the same
+    /// stored Prefix List, compares that whole List, then queries it as the
+    /// next command name. A multiword prefix does not become its first member.
     fn check_jim_import_alias_cycle(
         &mut self,
-        source: &NameBytes,
-        destination: &CommandSlot,
+        source: &Value,
+        destination: &Value,
         original: &[u8],
+        operation: &native_operation_currency::NativeOperationScope,
     ) -> Result<(), Completion<Value>> {
         let mut visited = HashSet::new();
-        let mut next = source.clone();
+        let mut alias = source.clone();
         loop {
-            if next == destination.simple {
+            let lookup =
+                tcl_runtime_api::Aliases::alias_prefix_original_value_at(self, ROOT_NS, &alias);
+            if let Err(error) = operation.check(self) {
+                return Err(crate::command::completion_from_cmd_error(self, error));
+            }
+            let next = match lookup {
+                Ok(
+                    tcl_runtime_api::AliasPrefixLookup::MissingCommand
+                    | tcl_runtime_api::AliasPrefixLookup::NotAlias,
+                ) => break,
+                Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(next)) => next,
+                Err(error) => {
+                    return Err(crate::command::completion_from_cmd_error(
+                        self,
+                        error.into(),
+                    ));
+                }
+            };
+            let resident = alias.native_object_snapshot().resident.ok_or_else(|| {
+                crate::command::completion_from_cmd_error(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "Jim import reached original alias spelling",
+                    )
+                    .into(),
+                )
+            })?;
+            if !visited.insert(resident) {
+                return Err(crate::command::completion_from_cmd_error(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "Jim namespace import cyclic alias chain",
+                    )
+                    .into(),
+                ));
+            }
+            alias = next;
+            let equal =
+                tcl_syntax::native_equality::full_native_equality(self, &alias, destination);
+            if let Err(error) = operation.check(self) {
+                return Err(crate::command::completion_from_cmd_error(self, error));
+            }
+            if equal
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?
+            {
                 let mut message = b"import pattern \"".to_vec();
                 message.extend_from_slice(original);
                 message.extend_from_slice(b"\" would create a loop");
@@ -11518,54 +11564,40 @@ impl Vm {
                     tcl_cmd_core::CmdError::new_bytes(message),
                 ));
             }
-            if !visited.insert(next.clone()) {
-                break;
-            }
-            let key = match self.command_at_exact_slot_checked(
-                &CommandSlot {
-                    namespace: ROOT_NS,
-                    simple: next.clone(),
-                },
-                true,
-            ) {
-                Ok(Some(key)) => key,
-                Ok(None) => break,
-                Err(error) => return Err(self.refuse_host_command(error.to_string())),
-            };
-            let Some(Command::Alias { words, .. }) = self.visible_command_at_key(&key) else {
-                break;
-            };
-            let Some(head) = words.first() else {
-                break;
-            };
-            let bytes = match self.native_name_operand_bytes(head) {
-                Ok(bytes) => bytes,
-                Err(error) => return Err(self.refuse_host_command(error.to_string())),
-            };
-            next = NameBytes::from(bytes.as_ref());
         }
         Ok(())
     }
 
-    pub(crate) fn import_source_names(&mut self, original: &[u8]) -> Completion<Value> {
+    pub(crate) fn import_source_names(
+        &mut self,
+        original: &[u8],
+        operation: &native_operation_currency::NativeOperationScope,
+    ) -> Completion<Value> {
         let context = self.current_ns_id();
         let Some(policy) = self.name_policy_protocol() else {
             return self
                 .refuse_host_command("native Jim import name protocol is unavailable".into());
         };
-        let namespace = self
-            .name_world
-            .borrow()
-            .jim_namespace_objects
-            .get(&context)
-            .cloned();
-        let Some(namespace) = namespace else {
-            return self
-                .refuse_host_command("actual Jim import namespace object is unavailable".into());
+        let holder =
+            self.with_jim_namespace_at(context, |original| Ok(original.native_lifetime_lease()));
+        if let Err(error) = operation.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
+        let holder = match holder {
+            Ok(holder) => holder,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
+        };
+        let namespace = tcl_syntax::value::ValueOps::native_string_bytes(self, holder.value());
+        if let Err(error) = operation.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
+        let namespace = match namespace {
+            Ok(namespace) => namespace,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
         };
         let path = self.ns_path(context);
         let qualified = match policy.recipe().jim_namespace_canonical_input(
-            tcl_syntax::naming::NativeNameContext::with_jim_namespace(&path, namespace.as_bytes()),
+            tcl_syntax::naming::NativeNameContext::with_jim_namespace(&path, namespace.as_ref()),
             original,
         ) {
             Ok(projected) => projected.selected().to_vec(),
@@ -11593,17 +11625,13 @@ impl Vm {
             }
         }
         for source in candidates {
-            let native_source = tcl_core_types::c_string_extent(source.as_bytes());
-            let separator = native_source.windows(2).rposition(|pair| pair == b"::");
-            let (holder, tail) = match separator {
-                Some(index) => (&native_source[..index], &native_source[index + 2..]),
-                None => (b"".as_slice(), source.as_bytes()),
-            };
-            if holder == namespace.as_bytes() {
+            let holder = policy.recipe().namespace_qualifier_bytes(source.as_bytes());
+            let tail = policy.recipe().namespace_tail_bytes(source.as_bytes());
+            if holder == namespace.as_ref() {
                 let mut message = b"import pattern \"".to_vec();
                 message.extend_from_slice(original);
                 message.extend_from_slice(b"\" tries to import from namespace \"");
-                message.extend_from_slice(namespace.as_bytes());
+                message.extend_from_slice(namespace.as_ref());
                 message.extend_from_slice(b"\" into itself");
                 return crate::command::completion_from_cmd_error(
                     self,
@@ -11612,7 +11640,7 @@ impl Vm {
             }
             // The pinned Jim namespace helper forms ${current}::tail from
             // its actual canonical namespace object, without another root.
-            let mut written = namespace.as_bytes().to_vec();
+            let mut written = namespace.as_ref().to_vec();
             written.extend_from_slice(b"::");
             written.extend_from_slice(tail);
             let publication = match policy
@@ -11632,11 +11660,19 @@ impl Vm {
                 namespace: ROOT_NS,
                 simple: publication,
             };
-            if let Err(error) = self.check_jim_import_alias_cycle(&source, &destination, original) {
+            let source_object = Value::from_native_string_bytes(source.as_bytes());
+            let destination_object = Value::from_native_string_bytes(written.as_slice());
+            if let Err(error) = self.check_jim_import_alias_cycle(
+                &source_object,
+                &destination_object,
+                original,
+                operation,
+            ) {
                 return error;
             }
-            let mut rooted_source = b"::".to_vec();
-            rooted_source.extend_from_slice(source.as_bytes());
+            if let Err(error) = operation.check(self) {
+                return crate::command::completion_from_cmd_error(self, error);
+            }
             let report = match self.jim_command_table_key_for_original(
                 &written,
                 tcl_syntax::naming::NativeNamePurpose::AliasPublication,
@@ -11646,12 +11682,15 @@ impl Vm {
             };
             self.register_command_in_slot_with_jim_key(
                 destination,
-                Command::Alias {
-                    words: Rc::new(vec![Value::from_native_string_bytes(rooted_source)]),
-                    publication_name: NameBytes::from(written.as_slice()),
-                },
+                Command::CallerAlias(Value::native_list_constructor(
+                    vec![source_object],
+                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                )),
                 report,
             );
+            if let Err(error) = operation.check(self) {
+                return crate::command::completion_from_cmd_error(self, error);
+            }
         }
         ok(Value::empty())
     }
@@ -20066,6 +20105,7 @@ impl Vm {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn set_array_elem_bytes(
         &mut self,
         root: &[u8],
@@ -25311,17 +25351,36 @@ impl tcl_runtime_api::Aliases for Vm {
         original_name: &Self::Value,
     ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
     {
+        self.alias_prefix_original_value_at(self.current_ns_id(), original_name)
+    }
+
+    fn alias_prefix_original_value_at(
+        &mut self,
+        context: NsId,
+        original_name: &Self::Value,
+    ) -> Result<tcl_runtime_api::AliasPrefixLookup<Self::Value>, tcl_syntax::value::ValueError>
+    {
         if !self.uses_native_jim_lookup() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original Jim alias prefix issuer",
             ));
         }
-        let Some((_, command)) =
-            self.lookup_original_command_at(self.current_ns_id(), original_name)?
-        else {
+        let operation =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Jim alias entered context",
+                )
+            })?;
+        let selected = self.lookup_original_command_at(context, original_name);
+        operation.check(self).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim alias lookup currency",
+            )
+        })?;
+        let Some((_, command)) = selected? else {
             return Ok(tcl_runtime_api::AliasPrefixLookup::MissingCommand);
         };
-        match command {
+        let result = match command {
             Command::CallerAlias(original) => {
                 original.check_native_header()?;
                 Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(original))
@@ -25332,7 +25391,13 @@ impl tcl_runtime_api::Aliases for Vm {
                 ))
             }
             _ => Ok(tcl_runtime_api::AliasPrefixLookup::NotAlias),
-        }
+        };
+        operation.check(self).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim alias prefix currency",
+            )
+        })?;
+        result
     }
 }
 

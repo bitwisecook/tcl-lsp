@@ -178,6 +178,9 @@ fails.
 - [original-secondary-body-analysis.md](contracts/original-secondary-body-analysis.md) —
   actual source ownership, full parser policy and shared class roster for
   conditional original child CFG/lattice facts.
+- [logical-call-targets.md](contracts/logical-call-targets.md) — exact current
+  declaration targets, procedure/member kind and independent member-side
+  source advice across local and workspace call hierarchy consumers.
 - [retained-explorer-source-views.md](contracts/retained-explorer-source-views.md) —
   actual Module source/configuration/store owners and unavailable Explorer view rendering.
 - [retained-positioned-command-realm.md](contracts/retained-positioned-command-realm.md) —

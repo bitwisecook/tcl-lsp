@@ -121,29 +121,42 @@ impl Vm {
         &self,
         read: impl FnOnce(&Value) -> Result<R, ValueError>,
     ) -> Result<R, ValueError> {
+        self.with_jim_namespace_at(self.current_ns_id(), read)
+    }
+
+    /// Borrow the actual original namespace object for this explicit token.
+    /// Metadata/display bytes cannot replace a missing frame or root owner.
+    pub(super) fn with_jim_namespace_at<R>(
+        &self,
+        namespace: NsId,
+        read: impl FnOnce(&Value) -> Result<R, ValueError>,
+    ) -> Result<R, ValueError> {
+        if !self.native_namespace_token_has_owner(namespace) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "Jim explicit original namespace token",
+            ));
+        }
         let context = self.native_jim_object_context()?;
-        let namespace = self.current_ns_id();
         if namespace == ROOT_NS {
             return read(&context.empty_object());
         }
-        let frame = self
+        let original = self
             .frames
-            .last()
+            .iter()
+            .rev()
+            .find_map(|frame| {
+                frame
+                    .jim_namespace
+                    .borrow()
+                    .as_ref()
+                    .filter(|(token, _)| *token == namespace)
+                    .map(|(_, original)| original.native_lifetime_lease())
+            })
             .ok_or(ValueError::CommandProtocolUnavailable(
-                "Jim current original namespace frame",
+                "Jim explicit original namespace owner",
             ))?;
-        if !frame
-            .jim_namespace
-            .borrow()
-            .as_ref()
-            .is_some_and(|(token, _)| *token == namespace)
-        {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "Jim current original namespace owner",
-            ));
-        }
-        let holder = frame.jim_namespace.borrow();
-        read(&holder.as_ref().expect("checked original namespace owner").1)
+        // All owner borrows have ended before a reached physical getter.
+        read(original.value())
     }
 
     pub(super) fn note_jim_command_publication(
@@ -300,6 +313,7 @@ impl Vm {
 
     fn cached_original_jim_command(
         &self,
+        namespace: NsId,
         original: &Value,
         recipe: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
     ) -> Result<Option<(String, Command)>, ValueError> {
@@ -314,7 +328,7 @@ impl Vm {
                 if cache.epoch != epoch {
                     return Ok(None);
                 }
-                let same_namespace = self.with_jim_current_namespace(|namespace| {
+                let same_namespace = self.with_jim_namespace_at(namespace, |namespace| {
                     let current = namespace
                         .native_string_bytes(
                             tcl_syntax::native_string::NativeStringProtocol::Jim084,
@@ -374,7 +388,9 @@ impl Vm {
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "Jim original command lookup issuer",
                 ))?;
-        let hit = self.cached_original_jim_command(original, recipe)?;
+        // Validate the independent caller's actual namespace even on a cache hit.
+        self.with_jim_namespace_at(current, |_| Ok(()))?;
+        let hit = self.cached_original_jim_command(current, original, recipe)?;
         if hit.is_some() {
             return Ok(hit);
         }
@@ -405,7 +421,7 @@ impl Vm {
         {
             self.note_jim_command_publication(token, &command, &key, &bytes);
         }
-        let namespace = self.with_jim_current_namespace(|original| Ok(original.clone()))?;
+        let namespace = self.with_jim_namespace_at(current, |original| Ok(original.clone()))?;
         let epoch = self.name_world.borrow().jim_procedure_epoch;
         original.install_jim_command_cache(
             crate::value::JimCommandCache {
