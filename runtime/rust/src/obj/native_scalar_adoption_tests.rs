@@ -490,7 +490,7 @@ fn original_jim_cache_and_boolean_word_keep_unreached_environment_unqueried() {
         Some(scope.currency()),
     )
     .unwrap();
-    assert_eq!(result, NativeScalarGetterValue::Boolean(true));
+    assert_eq!(result, NativeScalarGetterValue::Boolean(tcl_syntax::scalar_getter::NativeBooleanGetterValue::normalized(true)));
     assert_eq!(host.queries.get(), 0);
     assert_eq!(unsafe { (*cached.as_ptr()).ref_count }, 1);
     assert_eq!(unsafe { (*word.as_ptr()).ref_count }, 1);
