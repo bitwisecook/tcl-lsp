@@ -66,7 +66,7 @@ pub(super) fn is_factory_body(
         param_vars.insert(format!("${p}"));
         param_vars.insert(format!("${{{p}}}"));
     }
-    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config.nested());
     for cmd in commands {
         if cmd.is_partial || cmd.texts.is_empty() {
             continue;
@@ -194,6 +194,40 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_factory_scans_keep_body_bom_distinct_from_definer_and_call_heads() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Conditional wrapper/header shape only; no entered procedure or manufactured command.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let params = vec!["name".to_owned(), "args".to_owned(), "body".to_owned()];
+        let source = "proc factory {name args body} {proc $name $args $body}\nproc badFactory {name args body} {\u{feff}proc $name $args $body}\nproc init {} {\u{feff}factory hidden {} {}; factory shown {} {}; badFactory falseHit {} {}}";
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut config = input.lexer_config();
+            config.leading_bom = bom;
+            config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            assert!(is_factory_body(
+                "proc ${name} ${args} ${body}",
+                &params,
+                config
+            ));
+            assert!(!is_factory_body(
+                "\u{feff}proc $name $args $body",
+                &params,
+                config
+            ));
+            let result = super::super::extract_signatures_with_config(source, config, registry);
+            assert!(result.procs.contains_key("::factory"));
+            let shown = result.procs.get("::shown").unwrap();
+            assert_eq!(source.get(shown.name_range.as_range()), Some("shown"));
+            assert!(!result.procs.contains_key("::hidden"));
+            assert!(!result.procs.contains_key("::falseHit"));
+        }
+    }
 
     #[test]
     fn canonical_factory_body_matches() {

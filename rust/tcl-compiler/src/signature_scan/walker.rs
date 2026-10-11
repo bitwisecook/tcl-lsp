@@ -99,7 +99,7 @@ pub(super) fn scan(
         None => segment_commands_with_recovery_and_config(source, known_commands, ctx.config),
         Some(tok) => {
             let base = tok.span.start() + u32::from(tok.content_offset);
-            segment_commands_with_offset_and_config(source, base, ctx.config)
+            segment_commands_with_offset_and_config(source, base, ctx.config.nested())
         }
     };
     for cmd in commands {
@@ -872,7 +872,7 @@ pub(super) fn scan_factory_candidates(
     ctx: &mut ScanCtx,
 ) {
     let base = body_tok.span.start() + u32::from(body_tok.content_offset);
-    let commands = segment_commands_with_offset_and_config(body_text, base, ctx.config);
+    let commands = segment_commands_with_offset_and_config(body_text, base, ctx.config.nested());
     for cmd in commands {
         if cmd.is_partial || cmd.argv.is_empty() {
             continue;
@@ -963,6 +963,50 @@ mod tests {
         ScanCtx {
             registry: Some(tcl_registry::model::ingress::static_context_for("").commands()),
             ..ScanCtx::default()
+        }
+    }
+
+    #[test]
+    fn original_signature_root_and_bodies_keep_file_bom_and_parent_word_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Readonly signature/header geometry, not successful creation or body execution.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let context = input.context_registry();
+        let registry = context.commands();
+        let source =
+            "\u{feff}proc real {} {}\nif 1 {\u{feff}proc hidden {} {}}\nif 1 {proc shown {} {}}";
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut config = input.lexer_config();
+            config.leading_bom = bom;
+            config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+            let result = super::super::extract_signatures_with_config(source, config, registry);
+            assert_eq!(
+                result.procs.contains_key("::real"),
+                bom == tcl_lexer::LeadingBom::Skip
+            );
+            assert!(!result.procs.contains_key("::hidden"));
+            let shown = result.procs.get("::shown").unwrap();
+            assert_eq!(source.get(shown.name_range.as_range()), Some("shown"));
+            let original = result
+                .command_invocations
+                .iter()
+                .find(|call| call.name == "\u{feff}proc" && call.range.start() > 3)
+                .unwrap();
+            assert_eq!(source.get(original.range.as_range()), Some("\u{feff}proc"));
+            let key = original
+                .original_name_input
+                .as_ref()
+                .unwrap()
+                .original_word_key()
+                .unwrap();
+            assert_eq!(
+                key.source_image(),
+                &tcl_lexer::SourceImage::document(source)
+            );
+            assert_eq!(key.lexer_config(), config);
+            assert_eq!(key.bytes(), "\u{feff}proc".as_bytes());
         }
     }
 

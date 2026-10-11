@@ -262,11 +262,7 @@ fn closed_definition_bodies(
         if !state.definition_has_only_deferred_members(body, grammar, context) {
             return None;
         }
-        let map = tcl_lexer::SourceMap::new(body);
-        for segment in
-            crate::segmenter::segment_commands_with_offset_and_config(body, 0, context.config)
-        {
-            let words = crate::ir::CommandTokens::from_segmented(&map, context.config, &segment);
+        for words in super::definition_body_command_tokens(body, context.config) {
             for word in words.words() {
                 super::literal_object_pool::SourceOrdinaryLiteralObject::capture_word(word, state)?;
             }

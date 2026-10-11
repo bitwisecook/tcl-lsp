@@ -12264,12 +12264,7 @@ impl ModuleCommandBindings {
         grammar: &tcl_registry::definer::DefinitionBodyGrammar,
         context: SourceExecutionContext<'_>,
     ) -> bool {
-        let map = tcl_lexer::SourceMap::new(body);
-        crate::segmenter::segment_commands_with_offset_and_config(body, 0, context.config)
-            .into_iter()
-            .all(|segment| {
-                let words =
-                    crate::ir::CommandTokens::from_segmented(&map, context.config, &segment);
+        definition_body_command_tokens(body, context.config).all(|words| {
                 let effective = source_effective_words(
                     words.words(),
                     self.baseline.dialect,
@@ -22719,5 +22714,71 @@ mod selected_replay_formal_tests {
             recover_procedure_definition(&duplicate, &namespace, Some(c)),
             ProcedureDefinitionReplay::Recovered { .. }
         ));
+    }
+}
+
+fn definition_body_command_tokens(
+    body: &str,
+    parent_config: tcl_lexer::LexerConfig,
+) -> impl Iterator<Item = crate::ir::CommandTokens> + '_ {
+    let config = parent_config.nested();
+    let map = tcl_lexer::SourceMap::new(body);
+    crate::segmenter::segment_commands_with_offset_and_config(body, 0, config)
+        .into_iter()
+        .map(move |segment| crate::ir::CommandTokens::from_segmented(&map, config, &segment))
+}
+
+#[cfg(test)]
+mod original_definition_body_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_definition_body_projection_keeps_bom_geometry_and_parent_config_separate() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Local syntax shared by validation/publication, never a member or Native admission receipt.
+        let mut prepared = crate::analyser::Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        let body = "\u{feff}method hidden {} {}; method shown {} {}";
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut config = input.lexer_config();
+            config.leading_bom = bom;
+            let tokens = definition_body_command_tokens(body, config).collect::<Vec<_>>();
+            assert_eq!(tokens.len(), 2);
+            assert_eq!(tokens[0].argv_texts, ["\u{feff}method", "hidden", "", ""]);
+            assert_eq!(tokens[1].argv_texts, ["method", "shown", "", ""]);
+            assert_eq!(tokens[0].argv[0].start(), 0);
+            assert_eq!(
+                body.get(tokens[0].argv[0].as_range()),
+                Some("\u{feff}method")
+            );
+            assert_eq!(body.get(tokens[1].argv[1].as_range()), Some("shown"));
+            assert!(
+                tokens
+                    .iter()
+                    .all(|command| command.source_binding.is_none())
+            );
+            assert_eq!(config.leading_bom, bom);
+
+            let nested = definition_body_command_tokens("method ${outer{inner}}", config)
+                .next()
+                .unwrap();
+            assert!(matches!(
+                nested.words()[1],
+                crate::ir::WordExpr::Variable { .. }
+            ));
+            let first_close = tcl_lexer::LexerConfig {
+                braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+                ..config
+            };
+            let nested = definition_body_command_tokens("method ${outer{inner}}", first_close)
+                .next()
+                .unwrap();
+            assert!(matches!(
+                nested.words()[1],
+                crate::ir::WordExpr::Template { .. }
+            ));
+            assert!(nested.source_binding.is_none());
+        }
     }
 }
