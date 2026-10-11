@@ -106,10 +106,21 @@ pub struct NativeTclooMethodLayout {
     pub body: usize,
 }
 
+/// Order of reached export/unexport operand reads and flag effects.
+/// The compatibility schedule carries no selected native chronology claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeTclooMethodExportOperandOrder {
+    /// Existing unmeasured adapter reads all operands before applying effects.
+    CompatibilityReadAll,
+    /// Selected C9.1 reads and applies each operand before reaching the next.
+    OperandThenEffect,
+}
+
 /// Independently selected C method-definition argv semantics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeTclooMethodDefinitionProtocol {
     options: bool,
+    export_order: NativeTclooMethodExportOperandOrder,
 }
 
 impl NativeTclooMethodDefinitionProtocol {
@@ -119,7 +130,18 @@ impl NativeTclooMethodDefinitionProtocol {
         let version = dialect.tcl_version?;
         (dialect.family() == Some(Family::Tcl) && version >= TclVersion::V8_6).then_some(Self {
             options: version >= TclVersion::V9_0,
+            export_order: if version >= TclVersion::V9_1 {
+                NativeTclooMethodExportOperandOrder::OperandThenEffect
+            } else {
+                NativeTclooMethodExportOperandOrder::CompatibilityReadAll
+            },
         })
+    }
+
+    /// Pure reached operand schedule; supplies no method record or flag authority.
+    #[must_use]
+    pub const fn export_operand_order(self) -> NativeTclooMethodExportOperandOrder {
+        self.export_order
     }
 
     /// The native option-free form is exactly three operands. C9 adds one
@@ -210,6 +232,30 @@ impl NativeTclooMethodDefinitionProtocol {
             "method name ?option? args body"
         } else {
             "method name args body"
+        }
+    }
+}
+
+#[cfg(test)]
+mod export_order_tests {
+    use super::*;
+    #[test]
+    fn selected_export_operand_order_does_not_grant_uninspected_releases() {
+        for version in TclVersion::ALL {
+            let selected = NativeTclooMethodDefinitionProtocol::select(
+                InvocationDialect::for_version(version),
+            );
+            assert_eq!(selected.is_some(), version >= TclVersion::V8_6);
+            if let Some(selected) = selected {
+                assert_eq!(
+                    selected.export_operand_order(),
+                    if version >= TclVersion::V9_1 {
+                        NativeTclooMethodExportOperandOrder::OperandThenEffect
+                    } else {
+                        NativeTclooMethodExportOperandOrder::CompatibilityReadAll
+                    }
+                );
+            }
         }
     }
 }

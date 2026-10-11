@@ -182,13 +182,13 @@ fn original_jim_root_sharing_precedes_path_conversion_and_follows_array_conversi
         if purpose == Purpose::VariableSet {
             assert_eq!(
                 obj::obj_type_ptr(source.as_ptr()),
-                &crate::list::TCL_LIST_TYPE
+                &crate::list::TCL_LIST_TYPE as *const obj::TclObjType
             );
             assert!(!obj::has_string_rep(source.as_ptr()));
         } else {
             assert_eq!(
                 obj::obj_type_ptr(source.as_ptr()),
-                &crate::dict::TCL_DICT_TYPE
+                &crate::dict::TCL_DICT_TYPE as *const obj::TclObjType
             );
             assert!(obj::has_string_rep(source.as_ptr()));
         }
@@ -286,7 +286,10 @@ fn original_jim_copied_child_is_published_before_later_conversion_failure() {
         .unwrap()
         .unwrap();
     assert_ne!(published, child.as_ptr());
-    assert_eq!(obj::obj_type_ptr(published), &crate::list::TCL_LIST_TYPE);
+    assert_eq!(
+        obj::obj_type_ptr(published),
+        &crate::list::TCL_LIST_TYPE as *const obj::TclObjType
+    );
     assert_eq!(unsafe { (*published).ref_count }, 1);
     assert_eq!(unsafe { (*child.as_ptr()).ref_count }, 1);
     assert!(!obj::has_string_rep(child.as_ptr()));
@@ -469,7 +472,10 @@ fn original_jim_cached_dictionary_and_scalar_roots_keep_their_selected_copy_role
             .unwrap();
             assert_eq!(updated == source_ptr, !held);
             assert_eq!(current(&interpreter, b"a"), Some(updated));
-            assert_eq!(obj::obj_type_ptr(updated), &crate::dict::TCL_DICT_TYPE);
+            assert_eq!(
+                obj::obj_type_ptr(updated),
+                &crate::dict::TCL_DICT_TYPE as *const obj::TclObjType
+            );
             assert_eq!(
                 crate::dict::original_cached_member(updated, b"k").unwrap(),
                 Some(new.as_ptr())

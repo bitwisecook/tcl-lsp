@@ -1,0 +1,17 @@
+{
+  "retired_path": "/tmp/naming-owned334/pinned-compiler334.elf",
+  "bytes": 209269272,
+  "sha256": "232160a6387aa3004106d1e21569040944274e84ff9f0444ca3489487813d3b1",
+  "mode": 448,
+  "uid": 1000,
+  "gid": 1000,
+  "atime_ns": 1791698018519235287,
+  "mtime_ns": 1791697990079456272,
+  "inode": 914073,
+  "packed_path": "/workspace/.proofs/closed-compiler-cargo-image334.elf.gz",
+  "packed_sha256": "530e2ce364d57e9024e48d1703712ccee290854cd1d34861bdcb17d9c64d8886",
+  "closed_selected_run_receipt": "/workspace/.proofs/integration-compiler-exact-consumer-tests334.json",
+  "closed_selected_run_receipt_sha256": "fd538dd42e80634591a1df8f333dcab6a5412ef66bc1332e7ed7d0988afc8419",
+  "reason": "Actual own334 selected runner closed SIGKILL. Existing closed Cargo-image gzip independently equals every actual pinned ELF byte; both metadata records retained. No new image/result or termination-cause claim.",
+  "restore": "Gzip-decompress to original path, apply recorded mode/ownership/ns-times. Inode cannot be restored; executable assertion replay is a separate run."
+}

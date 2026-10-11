@@ -222,6 +222,8 @@ mod dictionary_store;
 mod evaluated_word;
 mod expression_preparation;
 mod interpreter_manufacture;
+#[cfg(test)]
+mod logical_dispatch_purpose_tests;
 pub(crate) mod named_manufacture;
 mod native_class_factory_roles;
 mod original_alias_creation;
@@ -2338,11 +2340,14 @@ impl SourceBindingPoint {
                 .method_prefix_arguments
                 .clone_from(&self.method_prefix_arguments);
             proof.entered_execution_observer = self.observer_execution;
-            proof.runtime_reachability = if self.declaration_preview {
-                SourceRuntimeReachability::Conditional
-            } else {
-                SourceRuntimeReachability::Reached
-            };
+            // A retained Logical source continuation is conditional even at
+            // the root. Its interpreted target supplies no entered handler.
+            proof.runtime_reachability =
+                if self.declaration_preview || self.original_logical_lookup_head().is_some() {
+                    SourceRuntimeReachability::Conditional
+                } else {
+                    SourceRuntimeReachability::Reached
+                };
             proof
                 .frozen_written_words
                 .clone_from(&self.frozen_written_words);

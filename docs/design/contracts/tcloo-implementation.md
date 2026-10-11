@@ -583,3 +583,12 @@ a first refusal or target withdrawal stops later result publication. A callback
 may legitimately replace the newly adopted declaration roster without a method
 world or old-inventory veto. This software replacement order carries no Native
 variable-map hash or retirement chronology claim.
+
+Definition mutations retain the original target before name and option getters,
+then check it before class, namespace, method-removal and result stages. A
+withdrawn target cannot receive a new class facet or a successful namespace
+publication. Each method removal retires its actual owning record outside the
+OO borrow before a later operand or invalidation stage. The selected C9.1
+export recipe interleaves each original name getter with its flag effect; a
+later refusal preserves earlier reached flags. Other releases retain their
+explicit compatibility schedule without an original chronology claim.

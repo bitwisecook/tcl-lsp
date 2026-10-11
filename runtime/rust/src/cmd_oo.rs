@@ -2531,8 +2531,13 @@ fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(t) => t,
             Err(c) => return c,
         };
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::for_definition(interp, &target)
+        );
         for index in 1..argv.len() {
             let name = oo_original_bytes!(interp, originals, index);
+            oo_checked!(interp, target_owner.check(interp));
             let retired = {
                 let mut oo = interp.oo.borrow_mut();
                 match &target {
@@ -2549,6 +2554,7 @@ fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let removed = retired.is_some();
             drop(retired);
             oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
             if removed {
                 match &target {
                     DefTarget::Class(id) => {
@@ -2559,6 +2565,8 @@ fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     }
                 }
             }
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
             if !removed {
                 let mut m = b"method ".to_vec();
                 m.extend_from_slice(&name);
@@ -2789,6 +2797,10 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Err(c) => return c,
         };
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::capture(interp, obj, false)
+        );
         // The root classes' class may not be changed (each with its own message).
         if Some(obj) == interp.oo.borrow().object_root {
             return err(interp, b"may not modify the class of the root object class");
@@ -2796,12 +2808,14 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if Some(obj) == interp.oo.borrow().class_root {
             return err(interp, b"may not modify the class of the class of classes");
         }
-        let new_cls = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 1));
+        let name = oo_original_bytes!(interp, originals, 1);
+        oo_checked!(interp, target_owner.check(interp));
+        let new_cls = interp.oo_resolve_object(&name);
         if !interp.oo.borrow().objects.contains_key(&new_cls) {
-            return not_object(interp, &oo_original_bytes!(interp, originals, 1));
+            return not_object(interp, &name);
         }
         if !interp.oo.borrow().classes.contains_key(&new_cls) {
-            let mut m = oo_original_bytes!(interp, originals, 1);
+            let mut m = name;
             m.extend_from_slice(b" does not refer to a class");
             return err(interp, &m);
         }
@@ -2840,11 +2854,17 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // as a plain object — only its class facet is removed.
             interp.oo_destroy_class_descendants(obj);
             oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
             let retired = interp.oo.borrow_mut().classes.remove(&obj);
             drop(retired);
             oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
         }
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         oo_checked!(interp, interp.native_property_structure_changed(obj, false));
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -2865,6 +2885,10 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Err(c) => return c,
         };
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::capture(interp, cls, true)
+        );
         if Some(cls) == interp.oo.borrow().object_root || Some(cls) == interp.oo.borrow().class_root
         {
             return err(
@@ -2877,12 +2901,11 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         // Default kind is `-class`.
         let instance = if argv.len() == 3 {
-            match interp.native_static_option_index(
-                argv[1],
-                DEFINITION_KINDS.names(),
-                false,
-                "kind",
-            ) {
+            let selected =
+                interp.native_static_option_index(argv[1], DEFINITION_KINDS.names(), false, "kind");
+            oo_original_check!(interp, originals);
+            oo_checked!(interp, target_owner.check(interp));
+            match selected {
                 Ok(index) => index == 1,
                 Err(m) => return interp.report_cmd_error(m),
             }
@@ -2890,6 +2913,7 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             false
         };
         let ns_arg = oo_original_bytes!(interp, originals, argv.len() - 1);
+        oo_checked!(interp, target_owner.check(interp));
         let stored = if ns_arg.is_empty() {
             None
         } else {
@@ -2910,6 +2934,8 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 c.class_def_ns = stored;
             }
         }
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -3309,54 +3335,92 @@ fn oo_object_unknown(interp: &mut Interp, obj: OoId, args: &[*mut TclObj]) -> Co
 /// `export`/`unexport name ...` — set method visibility on the current target.
 /// Tracks both the `unexported` set (a method hidden from public dispatch) and
 /// the `exported` set (a default-unexported built-in promoted to public).
+/// Apply a reached flag change without holding an OO borrow across a getter.
+fn apply_method_visibility(
+    interp: &mut Interp,
+    target: &DefTarget,
+    name: &[u8],
+    export: bool,
+) -> bool {
+    let apply = |unexp: &mut BTreeSet<Vec<u8>>,
+                 exp: &mut BTreeSet<Vec<u8>>,
+                 priv_set: &mut BTreeSet<Vec<u8>>| {
+        let mut changed = priv_set.remove(name);
+        if export {
+            changed |= unexp.remove(name);
+            changed |= exp.insert(name.to_vec());
+        } else {
+            changed |= exp.remove(name);
+            changed |= unexp.insert(name.to_vec());
+        }
+        changed
+    };
+    let mut oo = interp.oo.borrow_mut();
+    match target {
+        DefTarget::Class(class) => oo.classes.get_mut(class).is_some_and(|owner| {
+            apply(
+                &mut owner.unexported,
+                &mut owner.exported,
+                &mut owner.private,
+            )
+        }),
+        DefTarget::Object(object) => {
+            oo.native_methods.instance_table_created(*object);
+            oo.objects.get_mut(object).is_some_and(|owner| {
+                owner.methods.mark_allocated();
+                apply(
+                    &mut owner.unexported,
+                    &mut owner.exported,
+                    &mut owner.private,
+                )
+            })
+        }
+    }
+}
+
 fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
-        let mut names = Vec::with_capacity(argv.len().saturating_sub(1));
-        for index in 1..argv.len() {
-            names.push(oo_original_bytes!(interp, originals, index));
-        }
-        // Export/unexport also clears the TIP 500 private flag: the method becomes
-        // plain public/unexported (oo-40.2/40.3).
-        let apply = |unexp: &mut BTreeSet<Vec<u8>>,
-                     exp: &mut BTreeSet<Vec<u8>>,
-                     priv_set: &mut BTreeSet<Vec<u8>>| {
-            let mut changed = false;
-            for n in &names {
-                changed |= priv_set.remove(n);
-                if export {
-                    changed |= unexp.remove(n);
-                    changed |= exp.insert(n.clone());
-                } else {
-                    changed |= exp.remove(n);
-                    changed |= unexp.insert(n.clone());
-                }
-            }
-            changed
+        use tcl_registry::native_tcloo_method_definition::{
+            NativeTclooMethodDefinitionProtocol, NativeTclooMethodExportOperandOrder,
         };
         let target = match def_target(interp) {
             Ok(target) => target,
             Err(code) => return code,
         };
-        let changed = match &target {
-            DefTarget::Class(c) => {
-                let mut oo = interp.oo.borrow_mut();
-                oo.classes
-                    .get_mut(c)
-                    .is_some_and(|cl| apply(&mut cl.unexported, &mut cl.exported, &mut cl.private))
-            }
-            DefTarget::Object(o) => {
-                let mut oo = interp.oo.borrow_mut();
-                if !names.is_empty() {
-                    oo.native_methods.instance_table_created(*o);
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::for_definition(interp, &target)
+        );
+        let selected = oo_checked!(
+            interp,
+            NativeTclooMethodDefinitionProtocol::select(interp.native_invocation_dialect()).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "TclOO export operand order",
+                )
+            )
+        );
+        let mut changed = false;
+        match selected.export_operand_order() {
+            NativeTclooMethodExportOperandOrder::OperandThenEffect => {
+                for index in 1..argv.len() {
+                    let name = oo_original_bytes!(interp, originals, index);
+                    oo_checked!(interp, target_owner.check(interp));
+                    changed |= apply_method_visibility(interp, &target, &name, export);
+                    oo_original_check!(interp, originals);
+                    oo_checked!(interp, target_owner.check(interp));
                 }
-                oo.objects.get_mut(o).is_some_and(|ob| {
-                    if !names.is_empty() {
-                        ob.methods.mark_allocated();
-                    }
-                    apply(&mut ob.unexported, &mut ob.exported, &mut ob.private)
-                })
             }
-        };
+            NativeTclooMethodExportOperandOrder::CompatibilityReadAll => {
+                let mut names = Vec::with_capacity(argv.len().saturating_sub(1));
+                for index in 1..argv.len() {
+                    names.push(oo_original_bytes!(interp, originals, index));
+                    oo_checked!(interp, target_owner.check(interp));
+                }
+                for name in names {
+                    changed |= apply_method_visibility(interp, &target, &name, export);
+                }
+            }
+        }
         if changed {
             match target {
                 DefTarget::Class(id) => {
@@ -3367,6 +3431,8 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
                 }
             }
         }
+        oo_original_check!(interp, originals);
+        oo_checked!(interp, target_owner.check(interp));
         interp.set_result_bytes(b"");
         Code::Ok
     })
@@ -7685,6 +7751,9 @@ mod native_method_report_tests;
 
 #[cfg(test)]
 mod original_declaration_retirement_tests;
+
+#[cfg(test)]
+mod original_definition_stage_tests;
 
 #[cfg(test)]
 mod tests {

@@ -4151,3 +4151,44 @@ round-trip to their exact original bytes and retain complete command, source,
 HEAD and actual compile-root identities. The source object equals the original
 immutable snapshot. Other producer, image, inventory or assertion receipts and
 external Native observations establish no outcome for this failed run.
+
+## Source334 own Compiler image and incomplete selected run
+
+The independent Compiler library-test no-run producer closes exit `0`
+after 228.30626771098468 seconds with uniform source `true`. Its original
+Cargo log contains one `fresh: false` test executable with features `[]`.
+The strict original image independently lists 9,340 unique tests and zero
+benchmarks after 0.015100763004738837 seconds. These two commands execute
+no assertions.
+
+The exact admitted 631-selector run closes `SIGKILL` (exit `-9`) after
+3261.1572607230046 seconds with uniform source `true` and no final suite
+summary. Its whole log records **349 explicit passes and 158 explicit
+failures**. Another **124 selected tests have no terminal result**: one
+entered regex test and 123 unentered tests. These are partial libtest
+events, not an aggregate result. The signal's cause and a performance
+conclusion are unestablished.
+
+| Original closed command | Bounded result | Receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-compiler-own-test-build334` | own image only; no assertions | [exact original](frozen334/integration-compiler-own-test-build334/receipt.json.gz) | [build](frozen334/integration-compiler-own-test-build334/build.log) |
+| `integration-compiler-own-inventory334` | 9340-test listing; no assertions | [exact original](frozen334/integration-compiler-own-inventory334/receipt.json.gz) | [inventory](frozen334/integration-compiler-own-inventory334/inventory.log) |
+| `integration-compiler-exact-consumer-tests334` | 349 passed / 158 failed / 124 unfinished; no aggregate | [exact original](frozen334/integration-compiler-exact-consumer-tests334/receipt.json.gz) | [selected run](frozen334/integration-compiler-exact-consumer-tests334/tests.log) |
+
+The [actual selector admission](frozen334/selections/compiler-exact-admission334.json)
+and [partial events](frozen334/integration-compiler-exact-consumer-tests334/partial-libtest-events.json)
+preserve every selected name, explicit result and unfinished boundary.
+The [whole original 38,140-leaf source snapshot](frozen334/source-snapshot.json.gz)
+equals all three closed receipt source objects, with the recorded HEAD,
+compile root and immutable archive. Every whole receipt and source gzip
+round-trips to its original bytes. These outcomes grant no result for a
+different source, whole Compiler suite, Runtime image or Native provider.
+
+The [strict pin metadata](frozen334/sealed-own-compiler-image/pinned-compiler334.json)
+joins the original producer and [209,269,272-byte executable](frozen334/sealed-own-compiler-image/pinned-compiler334.elf.gz)
+by whole SHA. Full decompression verifies its original SHA and size.
+The [lossless storage map](frozen334/sealed-own-compiler-image/lossless-compiler-image-storage.json)
+retains both original retirement journals, modes, ownership and timestamps.
+The raw executable paths require exact verified restoration before original
+argv replay; inode identity cannot be restored. Restoration or a separate
+execution supplies no replacement result for this closed invocation.

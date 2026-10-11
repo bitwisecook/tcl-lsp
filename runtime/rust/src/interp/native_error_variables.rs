@@ -1055,8 +1055,16 @@ mod tests {
                     .is_some();
                 let original = obj::Owned::fresh(new_string(b"PRIVATE INFO"));
                 let code = obj::Owned::fresh(new_string(b"PRIVATE CODE"));
-                interp.set_global_raw(b"::errorInfo", b"GUEST INFO");
-                interp.set_global_raw(b"::errorCode", b"GUEST CODE");
+                let public_info = obj::Owned::fresh(new_string(b"GUEST INFO"));
+                interp
+                    .var_set(b"::errorInfo", public_info.as_ptr())
+                    .unwrap();
+                drop(public_info);
+                let public_code = obj::Owned::fresh(new_string(b"GUEST CODE"));
+                interp
+                    .var_set(b"::errorCode", public_code.as_ptr())
+                    .unwrap();
+                drop(public_code);
                 interp.exc.borrow_mut().native = NativeErrorObjects {
                     info: Some(original.clone()),
                     info_len: b"PRIVATE INFO".len(),

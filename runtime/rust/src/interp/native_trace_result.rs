@@ -414,7 +414,11 @@ mod settlement_tests {
                     let prior = obj::Owned::retain(interp.result_obj());
                     let value = obj::Owned::fresh(obj::new_string_bytes(b"REACHED\0VALUE"));
                     CALLS.with(|calls| calls.set(0));
-                    let scope = crate::interp::NativeOperationScope::enter(&interp).unwrap();
+                    let scope =
+                        crate::interp::native_operation_currency::NativeOperationScope::enter(
+                            &interp,
+                        )
+                        .unwrap();
                     let result = interp.var_set(b"x", value.as_ptr());
                     assert_eq!(
                         CALLS.with(Cell::get),
@@ -483,7 +487,9 @@ mod settlement_tests {
             let prior = obj::Owned::retain(interp.result_obj());
             let value = obj::Owned::fresh(obj::new_string_bytes(b"REACHED"));
             CALLS.with(|calls| calls.set(0));
-            let scope = crate::interp::NativeOperationScope::enter(&interp).unwrap();
+            let scope =
+                crate::interp::native_operation_currency::NativeOperationScope::enter(&interp)
+                    .unwrap();
             assert_eq!(
                 interp.var_set(b"x", value.as_ptr()),
                 Err(VarError::TraceError)
@@ -585,7 +591,9 @@ mod settlement_tests {
             interp.set_result_bytes(b"PRIOR");
             let prior = obj::Owned::retain(interp.result_obj());
             let value = obj::Owned::fresh(obj::new_string_bytes(b"REACHED"));
-            let scope = crate::interp::NativeOperationScope::enter(&interp).unwrap();
+            let scope =
+                crate::interp::native_operation_currency::NativeOperationScope::enter(&interp)
+                    .unwrap();
             assert_eq!(
                 interp.var_set(b"x", value.as_ptr()),
                 Err(VarError::TraceError)

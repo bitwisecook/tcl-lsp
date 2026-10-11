@@ -151,7 +151,10 @@ fn original_dictionary_key_refusal_retains_early_empty_publication_and_stops_lat
         assert!(!obj::has_string_rep(later.as_ptr()));
         let root = current(&interpreter, b"a")
             .expect("Jim published the missing root before the key getter");
-        assert_eq!(obj::obj_type_ptr(root), &dict::TCL_DICT_TYPE);
+        assert_eq!(
+            obj::obj_type_ptr(root),
+            &dict::TCL_DICT_TYPE as *const obj::TclObjType
+        );
         assert_eq!(dict::original_cached_member(root, b"set").unwrap(), None);
         assert_eq!(unsafe { (*root).ref_count }, 1);
         assert_eq!(interpreter.get_obj_result(), prior);

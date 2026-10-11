@@ -539,6 +539,12 @@ fn unicode_error(error: std::str::Utf8Error) -> UnicodeAccessError {
     }
 }
 
+impl From<NativeExecutionError> for CmdError {
+    fn from(error: NativeExecutionError) -> Self {
+        Self::from_execution_refusal(error)
+    }
+}
+
 impl From<UnicodeAccessError> for CmdError {
     fn from(error: UnicodeAccessError) -> Self {
         let mut refusal = Self::new_bytes(Vec::new());
@@ -567,6 +573,65 @@ impl From<HostError> for CmdError {
         // The bare reason; contextual helpers (e.g. `open`) build the richer
         // `couldn't open "<path>": <reason>` form themselves.
         Self::new(e.reason())
+    }
+}
+
+#[cfg(test)]
+mod execution_transport_tests {
+    use super::*;
+
+    fn reached_failure(first: NativeExecutionError) -> Result<(), CmdError> {
+        Err::<(), NativeExecutionError>(first)?;
+        Ok(())
+    }
+
+    #[test]
+    fn native_execution_transport_preserves_complete_cause_through_question_mark_and_into() {
+        // Authored diagnostic records test transport only; no entry or interpreter grant.
+        let first = NativeExecutionError::HostCommandRefusal(Box::new(
+            tcl_runtime_api::NativeHostCommandRefusal {
+                reason: "method missing does not exist".to_owned(),
+                source_profile: tcl_dialect::DialectProfile::find("tcl8.4")
+                    .unwrap()
+                    .cache_key(),
+                native_profile: tcl_dialect::DialectProfile::find("tcl9.1")
+                    .unwrap()
+                    .cache_key(),
+                interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner: 17,
+                    interpreter: 31,
+                },
+                frame: 9,
+                namespace: "::retained".into(),
+                namespace_token: 43,
+            },
+        ));
+        for first in [
+            first,
+            NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable("original operation currency"),
+            ),
+        ] {
+            let delegated = CmdError::from_execution_refusal(first.clone());
+            let question_mark = reached_failure(first.clone()).unwrap_err();
+            let converted: CmdError = first.clone().into();
+            for transported in [question_mark, converted] {
+                assert_eq!(transported.native_execution_refusal(), Some(&first));
+                assert_eq!(transported.message_bytes(), delegated.message_bytes());
+                assert!(transported.message_bytes().is_empty());
+                assert_eq!(
+                    transported.error_code_update(),
+                    delegated.error_code_update()
+                );
+                assert_eq!(transported.message(), Err(first.clone()));
+                assert_eq!(transported.error_code(), Err(first.clone()));
+                assert_eq!(transported.clone().into_message(), Err(first.clone()));
+                match transported.into_details() {
+                    Err(actual) => assert_eq!(actual, first),
+                    Ok(_) => panic!("original Host cause cannot project a Guest completion"),
+                }
+            }
+        }
     }
 }
 

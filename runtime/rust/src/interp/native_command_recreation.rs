@@ -73,7 +73,7 @@ mod tests {
     use super::*;
     use crate::interp::{default_host, Code, Interp, WeakInterp};
     use crate::namespace::GLOBAL;
-    use crate::obj::TclObj;
+    use crate::obj::{self, TclObj};
     use std::cell::{Cell, RefCell};
     use std::ffi::{c_int, c_void};
 

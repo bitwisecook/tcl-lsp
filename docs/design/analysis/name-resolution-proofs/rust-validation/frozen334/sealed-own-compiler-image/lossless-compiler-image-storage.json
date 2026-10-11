@@ -1,0 +1,26 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen334/sealed-own-compiler-image/pinned-compiler334.elf.gz",
+  "stored_sha256": "530e2ce364d57e9024e48d1703712ccee290854cd1d34861bdcb17d9c64d8886",
+  "stored_bytes": 41057247,
+  "original_sha256": "232160a6387aa3004106d1e21569040944274e84ff9f0444ca3489487813d3b1",
+  "original_bytes": 209269272,
+  "original_mode": 448,
+  "original_recorded_executable": "/tmp/naming-owned334/pinned-compiler334.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen334/sealed-own-compiler-image/pinned-compiler334.json",
+  "pin_metadata_sha256": "48ad03acf4395916439b51812e50a9930853960bae163f0cee9a620d6cb65954",
+  "owned_retirement_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen334/sealed-own-compiler-image/lossless-closed-compiler-owned334.json",
+  "owned_retirement_sha256": "fc278049238a087d7190cccd9b2e9b2f81d5720ab1c9b941eee71aee539f64f7",
+  "cargo_retirement_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen334/sealed-own-compiler-image/lossless-closed-compiler-cargo-image334.json",
+  "cargo_retirement_sha256": "2980c58a583607abad63a3fdf658991bfecf535cb5af2229679b82a4108384c0",
+  "build_receipt_id": "rust.frozen334.integration-compiler-own-test-build334",
+  "build_receipt_sha256": "90bef30af21c30615a2644eab9cb91469de5960d9177b0f7ff7afe7b1cc0c110",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen334/source-snapshot.json.gz",
+    "sha256": "7628c219e5a539ead833b7d6a3f66e1f03be45c8cc949acbefee409869322837",
+    "compression": "gzip",
+    "uncompressed_sha256": "84ff78785e4b27568e4566f9c021c94b076560f035bf79e954a91e0a46e340c2"
+  },
+  "verification": "The original successful no-run producer emits one fresh:false Compiler library-test artifact. The strict pin metadata and both original retirement journals join the same whole executable SHA and size. Independent complete gzip decompression verifies the original 209,269,272 bytes; compressed bytes are copied unchanged. Both raw executable paths are absent as recorded by the lossless retirement. This publication creates no raw executable or assertion result.",
+  "restoration": "Verify compressed SHA and size, then full decompressed original SHA and size. Restore the exact original path, mode, ownership and nanosecond timestamps from the retained journal before replaying original argv. Original inode identity cannot be restored. Never replace an active executable; assertion replay is a separate operation."
+}

@@ -1,0 +1,16 @@
+{
+  "purpose": "Closed successful Source334 compiler Cargo producer duplicate; active independently owned test image remains untouched. Full original gzip byte roundtrip verified. Restore raw Cargo path before inspections needing it.",
+  "original": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_compiler-7528e034bafba336",
+  "original_sha256": "232160a6387aa3004106d1e21569040944274e84ff9f0444ca3489487813d3b1",
+  "bytes": 209269272,
+  "mode": 448,
+  "uid": 1000,
+  "gid": 1000,
+  "atime_ns": 1791697990159455651,
+  "mtime_ns": 1791697990079456272,
+  "original_inode": 913919,
+  "packed": "/workspace/.proofs/closed-compiler-cargo-image334.elf.gz",
+  "packed_sha256": "530e2ce364d57e9024e48d1703712ccee290854cd1d34861bdcb17d9c64d8886",
+  "packed_bytes": 41057247,
+  "retained_active_own_image": "/tmp/naming-owned334/pinned-compiler334.elf"
+}
