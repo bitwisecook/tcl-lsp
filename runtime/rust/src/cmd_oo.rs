@@ -7087,8 +7087,14 @@ impl Interp {
     fn oo_destroy_bg(&mut self, obj: OoId) {
         self.with_preserved_result(|interp| {
             if interp.oo_destroy(obj) == Code::Error {
-                let msg = interp.result_bytes();
-                let ec = interp.error_code();
+                let msg = match interp.completion_result_bytes_checked() {
+                    Ok(message) => message,
+                    Err(_) => return,
+                };
+                let ec = match interp.error_code_bytes_checked() {
+                    Ok(code) => code,
+                    Err(_) => return,
+                };
                 let options = match build_list(
                     interp,
                     &[
@@ -10454,7 +10460,7 @@ mod original_argument_tests {
                 .get_mut(&target)
                 .unwrap()
                 .methods
-                .insert(b"retire".to_vec(), method);
+                .insert_generated(b"retire".to_vec(), method);
             assert!(retired.is_none());
             let head = word(b"deletemethod");
             let name = word(b"retire");

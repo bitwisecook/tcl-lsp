@@ -852,7 +852,7 @@ mod tests {
                 .get_mut(&class)
                 .unwrap()
                 .methods
-                .insert(
+                .insert_generated(
                     b"observe".to_vec(),
                     Method::Builtin(observe_replaced_procedure),
                 );

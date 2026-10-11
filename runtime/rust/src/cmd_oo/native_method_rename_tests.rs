@@ -330,7 +330,7 @@ fn original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages
                 );
                 assert_eq!(
                     unsafe { (*destination.as_ptr()).ref_count },
-                    row["n1_refs"].parse::<i32>().unwrap()
+                    row["n1_refs"].parse::<isize>().unwrap()
                 );
                 let result = original_fields(version, "RESULT", case, "inner-rename");
                 assert_eq!(interpreter.result_bytes(), decode_hex(result["hex"]));

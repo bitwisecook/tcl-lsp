@@ -396,7 +396,7 @@ class ProofGateTests(unittest.TestCase):
                 "path": str(source.relative_to(root)),
                 "selector": "fixture::result",
                 "status": "linked",
-                "purpose": "Synthetic authored test-pair coverage only; no provider execution.",
+                "assertion": "Synthetic authored test-pair coverage only; no provider execution.",
             }]
             self.assertEqual(self.write_record_fixture(root, record, census), [])
             self.assertTrue(all(provider["status"] == "not-tested" for provider in record["providers"]))
@@ -437,7 +437,7 @@ class ProofGateTests(unittest.TestCase):
                 "path": str(source.relative_to(root)),
                 "selector": "fixture::result",
                 "status": "linked",
-                "purpose": "Synthetic comment-boundary correspondence only.",
+                "assertion": "Synthetic comment-boundary correspondence only.",
             }]
             source.write_text(
                 "fn helper() {\n"
@@ -507,7 +507,7 @@ class ProofGateTests(unittest.TestCase):
         # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            self.fixture(root)
+            record, _, census = self.fixture(root)
             page = root / DIRECTORY / "unindexed.md"
             page.write_text(
                 "# naming.fixture.unindexed\n\nA question without an index entry.\n"
@@ -533,9 +533,16 @@ class ProofGateTests(unittest.TestCase):
             )
             page.unlink()
             source.write_text(
-                "// Proof naming.fixture.actual-result:\n#[test]\nfn result() { assert!(true); }\n"
+                f"// Proof {record['id']}:\n// {record['document']}\n"
+                "#[test]\nfn result() { assert!(true); }\n"
             )
-            self.assertEqual(gate.validate(root)[0], [])
+            record["tests"] = [{
+                "path": str(source.relative_to(root)),
+                "selector": "fixture::result",
+                "status": "linked",
+                "assertion": "Synthetic indexed question, document and actual function pair.",
+            }]
+            self.assertEqual(self.write_record_fixture(root, record, census), [])
 
     def test_scope_and_conclusion_cannot_borrow_partial_heading_names(self):
         # Implementation contract: naming.proof-records.exact-evidence-and-coverage
