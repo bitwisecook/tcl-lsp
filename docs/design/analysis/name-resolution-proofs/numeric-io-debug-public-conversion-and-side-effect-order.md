@@ -88,6 +88,7 @@ No actual BIG-IP response to these exact inputs is retained. Local C Tcl/Jim out
 - `jim-stderr` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stderr](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/Jim/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
 - `exact-provider-input-retention` (provider): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/provider-retention.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/provider-retention.json). SHA-256 `d34ecbe00ef936c6da5ec69b2de39567486ee28e0b538962f8607e35e81c1252`. Each original before/after executable/probe/library pin joins exact existing full payload bytes. Version-source provenance remains explicit; no C/Jim source or loaded-library closure is implied.
 - `independent-projection` (observation): [runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/interpretation.json](../../../../runtime/rust/tests/data/native_io_debug_public_conversion_side_effect_order_original/628/interpretation.json). SHA-256 `0598ee7176a46ff51d54abfdb2663f702ababa58de8593bc4392717ac7b4427c`. Exact counted raw-line byte joins and separate public result/effect fields, reviewed without executing a provider.
+- `authored-compiler-registry633-787dfd2b73c7` (implementation): [rust/tcl-registry/src/native_numeric_error/command.rs](../../../../rust/tcl-registry/src/native_numeric_error/command.rs). SHA-256 `5a5f92d7a5120523ad1504b6e70debd0b50421b7fee0b7b3fb3b3810894e1d98`. Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
 
 ## Source inspection
 
@@ -95,7 +96,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-registry/src/native_numeric_error/command.rs](../../../../rust/tcl-registry/src/native_numeric_error/command.rs), `native_numeric_error::command::tests::original_numeric_command_recipes_keep_actual_width_order_and_unavailable_workers` (linked): Selected Registry recipes preserve C release-specific read-count rules, seek width/order, line-length getter widths and unavailable base64/debug purposes; Jim retains its own aio options, origin order and path-aware negative-seek recipe. Descriptor assertions do not observe internal Native worker timing or side effects.
 
 A named test is a coverage binding, not a claim that it executed.
 
@@ -111,9 +112,3 @@ Recorded argument vector:
 ```
 
 The exact original runner refuses to replace results.json and expects its original absolute provider/library paths. Restore and verify the declared payload bytes, use a separate fresh output root, and retain any new process evidence separately. For 628 supply a distinct owned disposable R2286_IO_PROBE_FILE for each provider; it is deleted by the unchanged probe. Version attribution must retain its explicit capture source. Full provider build and loaded-library replay are unrecorded. The preserved runner has no implementation-source build closure or original Native object authority.
-
-## Input and observation geometry
-
-The probe file is ASCII with physical LF line endings. Its quoted `"abcdef\n"` contains a written backslash followed by `n`, and produces a runtime LF; the data file bytes are `6162636465660a`. Count, offset and maxlen operands are exactly `bad`, `1.5`, `-1`, `0`, `2` and `18446744073709551616`. Seek origins are omitted, `start` and `current`; the combined error case is offset `bad` with `invalid-origin`. Debug operands are `bad`, `1.5`, `false`, `true`, `0` and `1`, each with a fresh child interpreter where that public child API is available.
-
-Every operation resets `errorCode` to `R2286 SEEDED` before catch. An unchanged seeded value on success is an observation of this probe, not a new error. Jim reports `NONE` even for successful read/seek calls. Channel-dependent names and Jim file paths in errors are retained exactly; they are not normalised into provider-independent messages. The debug report's `BEFORE 0 AFTER 0` fields come from supplied constants and establish no state transition. Only the following `debug-frame-state` row reports actual debug state.

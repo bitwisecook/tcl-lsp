@@ -12,15 +12,11 @@ Does selected slot diagnostic presence retain the genuine original head and its 
 
 ## Conclusion
 
-An actual source invocation selects its retained original head input and exact current ordered table paths. Present, absent, conditional and unknown outcomes keep reached namespace holders and binding alternatives separate. Missing producer or foreign complete vector remains unknown; diagnostic absence additionally requires retained qualifier holders and the genuine default unknown handler. Opaque heads preserve their emitting source identity without a UTF-8 lookup-word bridge.
-
-Positioned source diagnostics retain absence after an interpolated spelling selects an already deleted procedure; display-only reporting names do not issue a live candidate.
+An actual source invocation selects its retained original head input and exact current ordered table paths. Present, absent, conditional and unknown outcomes keep reached namespace holders and binding alternatives separate. Missing producer or foreign complete vector remains unknown; diagnostic absence additionally requires retained qualifier holders and the genuine default unknown handler. Opaque heads preserve their emitting source identity without a UTF-8 lookup-word bridge. Positioned source diagnostics retain absence after an interpolated spelling selects an already deleted procedure; display-only reporting names do not issue a live candidate.
 
 ## Scope
 
-This is a Rust readonly source-presence and diagnostic-admission contract. It uses source table and namespace observations at the authentic consuming point, with execution and unknown-handler guards preserved. It grants neither runtime command absence nor Native compilation or Normal completion. Native name geometry and execution are independently scoped observations.
-
-Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
+This is a Rust readonly source-presence and diagnostic-admission contract. It uses source table and namespace observations at the authentic consuming point, with execution and unknown-handler guards preserved. It grants neither runtime command absence nor Native compilation or Normal completion. Native name geometry and execution are independently scoped observations. Current direct test attributes and real module parents attach these source/API contracts only. They do not certify an executable inventory, passed assertion, complete Native comparison or changed-current-image result. Each original provider answer and independently closed software command retains its exact input/channel/source purpose.
 
 ## Provider answers
 
@@ -69,7 +65,7 @@ This precise Rust source contract has no native execution receipt.
 ## Exact evidence
 
 - `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/command_presence.rs](../../../../rust/tcl-compiler/src/command_binding/command_presence.rs). SHA-256 `bbef6fa998b984f4bad594ae9ee3c18fa0e4b5e923c62de7107fa36f80196a83`. Current implementation source and fixed assertion bindings; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `7da52e49ba59f8b3bf9bfed828dfda9d53bbeaa18ecbf3a482a171424522c9a4`. Current implementation source and fixed assertion bindings; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `c44ea509aa5c225acdc07ab7140c8dc55a783b77b2d670f7fb1210f9c96b99ea`. Current implementation source and fixed assertion bindings; no execution receipt.
 
 ## Source inspection
 
@@ -80,12 +76,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/command_presence.rs](../../../../rust/tcl-compiler/src/command_binding/command_presence.rs), `selected_slot_diagnostic_presence`: Use genuine original head/table presence under default-handler and execution guards.
 - [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs), `original_slot_presence_for_input`: Retain current ordered original byte table paths and reached namespace holders as readonly presence advice.
 - [rust/tcl-compiler/src/command_binding/command_presence.rs](../../../../rust/tcl-compiler/src/command_binding/command_presence.rs), `command_binding::command_presence::tests::original_slot_diagnostics_keep_opaque_heads_and_refuse_missing_producers` (linked): Preserve opaque heads and refuse missing/foreign producers, missing qualifier holders and replaced unknown handlers without changing the diagnostic fixture.
-
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged` (linked): The original analysed interpolation that names an already deleted procedure retains positioned W123 absence; a reporting name supplies no live candidate. Source/software diagnostic control, with no original provider or assertion outcome attached.
 
-Current source linkage supplies no execution or assertion credit.
+A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 

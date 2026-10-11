@@ -64,9 +64,10 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-No evidence artifact is attached.
-
+- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). SHA-256 `351ea4e52dbb8c4e367956cbf3c5b7e40df9f1732daeb25dfeac3299734a72a5`. JSON pointer `/question_observations/naming.compiler.original-analysis-metadata-context`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
 - `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+- `authored-compiler-registry633-46724475aca2` (implementation): [rust/tcl-compiler/src/ir_helpers.rs](../../../../rust/tcl-compiler/src/ir_helpers.rs). SHA-256 `7559eae9ec9f653cc2ec30ba6a90b69dc7ae210e6d7384dba5f722d4c5ba41a7`. Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
+- `authored-compiler-registry633-24bce0430d4a` (implementation): [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs). SHA-256 `fd58807edc351ee9481c2badac226d55b22c3267f5abe435e97838a29482e4f8`. Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
 
 ## Source inspection
 
@@ -705,7 +706,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/diagnostic_report.rs](../../../../rust/tcl-lsp-core/src/diagnostic_report.rs), `diagnostic_report::tests::original_standalone_candidates_keep_the_shared_unit_and_source_currency` (linked): Finite source-defined control: original standalone candidates keep the shared unit and source currency. Conditional source candidates preserve their separate edit obligations. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-lsp-core/src/diagnostic_report.rs](../../../../rust/tcl-lsp-core/src/diagnostic_report.rs), `diagnostic_report::tests::original_standalone_candidates_refuse_current_foreign_availability_config_and_store` (linked): Finite source-defined control: original standalone candidates refuse current foreign availability config and store. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-lsp-core/src/refactor/switch_to_dict.rs](../../../../rust/tcl-lsp-core/src/refactor/switch_to_dict.rs), `refactor::switch_to_dict::original_branch_parser_tests::original_dictionary_branches_keep_nested_bom_content_and_parent_edit_geometry` (linked): Finite source-defined control: original dictionary branches keep nested bom content and parent edit geometry. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
-
 - [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_argument_caller_phase_keeps_real_return_and_direct_argument_counts` (linked): Argument caller phase keeps real return and direct argument counts. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_argument_caller_child_keeps_its_own_expression_roles` (linked): Argument caller child keeps its own expression roles. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty` (linked): Argument caller owner refusal stays distinct from effect only empty. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
@@ -719,35 +719,14 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/handlers/retained_static_context_tests.rs](../../../../rust/tcl-compiler/src/analyser/handlers/retained_static_context_tests.rs), `analyser::handlers::retained_static_context_tests::original_static_context_refuses_missing_foreign_and_changed_source_axes` (linked): Static context refuses missing foreign and changed source axes. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [rust/tcl-compiler/src/analyser/handlers/retained_static_context_tests.rs](../../../../rust/tcl-compiler/src/analyser/handlers/retained_static_context_tests.rs), `analyser::handlers::retained_static_context_tests::original_static_result_retains_native_and_hosted_advice_barriers` (linked): Static result retains native and hosted advice barriers. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [rust/tcl-lsp-server/src/recovery_source/tests.rs](../../../../rust/tcl-lsp-server/src/recovery_source/tests.rs), `recovery_source::tests::malformed_recovery_preserves_original_autoload_labels_and_root_marker` (linked): Malformed recovery preserves original autoload labels and root marker. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
+- [rust/tcl-compiler/src/ir_helpers.rs](../../../../rust/tcl-compiler/src/ir_helpers.rs), `ir_helpers::original_written_source_tests::original_recovered_written_words_keep_full_source_and_component_extents_separate` (linked): The retained full source and FirstClose configuration recover whole written words including empty/braced/quoted forms, Unicode, braced-variable closers and expansion markers, while original component/substitution geometry stays separate. This source/API assertion supplies no Native argv or evaluated value.
+- [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_covered_alias_effect_keeps_actual_publication_and_prefix_owner` (linked): The genuine held Native entry source model joins creation-site continuation to the original alias publication/target/prefix and preserves caller arity and literals; clearing the actual captured prefix withdraws coverage. This models the retained producer and does not claim successful alias execution or Native completion.
+- [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_covered_alias_effect_refuses_missing_foreign_source_and_vector_owners` (linked): Missing retained bindings/input, different full source/configuration or command-store owner, and changed complete argv vector refuse source alias-transition coverage; the unchanged source owner remains accepted. No Native frame/table/current-worker grant follows.
+- [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_covered_alias_effect_keeps_rebinding_unknown_and_callback_opacity` (linked): Alias replacement, rename, unknown calls, callbacks and cross-interpreter alias source examples retain opaque caller evidence. Covered source transitions cannot erase those independent effects or issue Normal/Native execution.
+- [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs), `unit_scope::tests::original_covered_alias_effect_requires_original_entered_continuation` (linked): Unentered code after return, unknown preceding effects and a foreign interpreter operand lack the authentic creation-site continuation and refuse source coverage. A transition from another held source cannot substitute for that owner.
 
 A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
 Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
-
-
-## Exact original-source Compiler software outcomes
-
-The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
-
-| Original operation | Passed | Failed | Incomplete |
-| --- | ---: | ---: | ---: |
-| `integration-compiler-original-namespace-trace341b` | 0 | 1 | 0 |
-| `integration-compiler-focused-consumer-tests344` | 21 | 17 | 0 |
-| `integration-compiler-original-child-guards344` | 0 | 3 | 0 |
-| `integration-compiler-original-factory-completion344` | 0 | 2 | 0 |
-
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
-
-## Exact original-source347 software outcomes
-
-These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
-
-| Original operation | Passed | Failed |
-| --- | ---: | ---: |
-| `integration-compiler-focused-consumer-tests347` | 27 | 16 |
-| `integration-compiler-original-source-trace347` | 2 | 3 |
-
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

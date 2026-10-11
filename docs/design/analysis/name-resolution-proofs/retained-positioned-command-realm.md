@@ -64,7 +64,7 @@ This Rust immutable-source retention and projection contract does not run an ext
 
 ## Exact evidence
 
-- `retained-positioned-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `b457884e90c6a20e065b5e07235eed843683dae103366495d20905721ce31928`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
+- `retained-positioned-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `61af1e5c0d1eb74f03b5e304029d9d6bf6fc827fe25c6eb826dfcf392e4f452b`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
 - `retained-positioned-retained-source` (implementation): [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs). SHA-256 `914ceb69a4e2ab42af4b0ac99ede3a8c3374fc7743090488fe29b7cf0126e181`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
 - `retained-positioned-compilation-unit` (implementation): [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs). SHA-256 `812947b77edb4b2f1fcd13b6a7b46f4bf737838abedea5c1f4f1ac1c77324cd7`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
 - `retained-positioned-inline-uplevel` (implementation): [rust/tcl-compiler/src/inline_uplevel.rs](../../../../rust/tcl-compiler/src/inline_uplevel.rs). SHA-256 `4eafd580f1b015b49f8443a6a1ad2bce15e9ed44747f82aa4c10b93a9dae98e0`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
@@ -73,8 +73,8 @@ This Rust immutable-source retention and projection contract does not run an ext
 - `retained-positioned-mod` (implementation): [rust/tcl-compiler/src/optimiser/mod.rs](../../../../rust/tcl-compiler/src/optimiser/mod.rs). SHA-256 `83faed96f49ebc8e385578f2f27d850d68ab389300fabfebb5aaacd2d77f7932`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
 - `retained-positioned-realm` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). SHA-256 `1ec2575611039c76ce295b3af3440073c74b622baab70413d5b389e25e57d07e`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
 - `retained-positioned-taint` (implementation): [rust/tcl-compiler/src/taint.rs](../../../../rust/tcl-compiler/src/taint.rs). SHA-256 `ebfb084d0d2f5387582742f4c4f138852d288a012a544131112e100e847dc576`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-unit-scope` (implementation): [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs). SHA-256 `fae5c9292d405fee0a52a8d583e50d4fbdbd9581f9d4046fbb7b0614e201f1c2`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-
+- `retained-positioned-unit-scope` (implementation): [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs). SHA-256 `fd58807edc351ee9481c2badac226d55b22c3267f5abe435e97838a29482e4f8`. Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
+- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). SHA-256 `351ea4e52dbb8c4e367956cbf3c5b7e40df9f1732daeb25dfeac3299734a72a5`. JSON pointer `/question_observations/naming.source.retained-positioned-command-realm`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
 - `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
@@ -111,25 +111,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Source definitions only. A matching independently successful own producer, exact executable inventory and complete assertion receipt are required for executed software outcomes. Actual independent source ingress and every Native/provider/frame/completion/edit receipt remain separate. Complete original/current measurement receipts are required for performance claims.
-
-
-## Exact original-source Compiler software outcomes
-
-The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
-
-| Original operation | Passed | Failed | Incomplete |
-| --- | ---: | ---: | ---: |
-| `integration-compiler-focused-consumer-tests344` | 4 | 0 | 0 |
-
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
-
-## Exact original-source347 software outcomes
-
-These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
-
-| Original operation | Passed | Failed |
-| --- | ---: | ---: |
-| `integration-compiler-focused-consumer-tests347` | 4 | 0 |
-
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

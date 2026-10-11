@@ -64,7 +64,7 @@ This is a Rust immutable-storage join contract; no external interpreter ran in t
 
 ## Exact evidence
 
-- `shared-noop-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `b457884e90c6a20e065b5e07235eed843683dae103366495d20905721ce31928`. Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit.
+- `shared-noop-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `61af1e5c0d1eb74f03b5e304029d9d6bf6fc827fe25c6eb826dfcf392e4f452b`. Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit.
 - `shared-noop-lib` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). SHA-256 `00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759`. Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit.
 
 ## Source inspection
@@ -83,22 +83,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 A matching independently successful own producer, exact inventory and independently closed assertion receipt are required for software execution credit. The C8.6 source-model constructions are not an original provider process. Complete actual measurement receipts are required for performance claims; no process-termination cause is established by allocation-path inspection.
-
-## Current join contract
-
-Retain the complete original baseline and source owners. Only the identical
-immutable collection Arc permits its pure self-join to keep shared storage.
-A name, label, equal digest or absent diagnostic cannot authenticate that
-storage relationship. Distinct collection owners retain the complete
-semantic joins for object, observer, namespace and provider state.
-
-The literal-pool join performs its independent current-observation query
-before the collection guards, including when all collection Arcs match.
-Storage identity supplies no Native currency, selected dispatch, handler,
-body, frame, read, store or source-edit permission.
-
-The two linked C8.6 source-model control definitions cover thirteen shared
-collection owners and genuine distinct observer/namespace branches. Their
-meaning is limited to complete source semantics, storage identity,
-idempotence and unchanged retained snapshots. No matching executed result
-or measured allocation, memory or timing benefit is attached.

@@ -64,8 +64,8 @@ Storage sharing is a Rust implementation contract; no external interpreter ran i
 
 ## Exact evidence
 
-- `publication-rows-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `b457884e90c6a20e065b5e07235eed843683dae103366495d20905721ce31928`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
-- `publication-rows-source-command-world` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `a499f01c057db89f68c07adf8894c2a34d72d22be3857709e2ad9a7b8bc098a9`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
+- `publication-rows-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). SHA-256 `61af1e5c0d1eb74f03b5e304029d9d6bf6fc827fe25c6eb826dfcf392e4f452b`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
+- `publication-rows-source-command-world` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `ce135a7d49494c862497f733471d2880643963d8686a8ae869222bf7767f32ce`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
 - `publication-rows-lib` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). SHA-256 `00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759`. Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
 
 ## Source inspection
@@ -85,20 +85,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Matching independently successful own producer, exact executable inventory and independently closed assertion receipt are required for executed software results. Source model profiles are not external provider comparisons. Complete original/current measurements are required for performance conclusions; process termination cause remains separately evidenced.
-
-## Current storage contract
-
-Share the immutable full publication producer, including its original inputs,
-allocation and definition. A spelling or digest is insufficient. Snapshot
-clones retain those complete rows in their original order.
-
-Move/import updates construct a changed row. Definition attachment detaches
-through row-level copy-on-write under its existing allocation/world guards.
-Mutating a current branch cannot change an earlier retained snapshot.
-Readonly consumers continue to observe the complete publication values;
-structural equality and hash remain independent of Arc addresses.
-
-These definitions establish the sharing path and its semantic boundaries.
-They supply no measured memory or timing result, current Native currency,
-lookup/evaluation, handler, body, frame or edit permission. A five-profile
-software-model loop is not an original external-provider experiment.

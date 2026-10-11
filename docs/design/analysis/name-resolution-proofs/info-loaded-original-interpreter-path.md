@@ -99,6 +99,7 @@ Observed guest rejection of info functions in all seven function controls; this 
 - `jim-stderr` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact jim stderr from the independent source-file shell capture.
 - `jim-version.stdout` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stdout). SHA-256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`. Exact jim version.stdout from the independent source-file shell capture.
 - `jim-version.stderr` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact jim version.stderr from the independent source-file shell capture.
+- `own-source349-runtime-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json). SHA-256 `bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f`. JSON pointer `/by_question/naming.info.loaded-original-interpreter-path`. Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.
 
 ## Source inspection
 
@@ -110,6 +111,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `stock_loaded`: Pass the original path object to the independently selected live child-path owner before enumerating loaded entries.
 - [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements` (linked): Compare the matched finite C source/result purposes through the actual selected VM/Runtime provider; this binding claims no Rust execution or physical byte/header/cache parity.
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements` (linked): Compare the matched finite C source/result purposes through the actual selected VM/Runtime provider; this binding claims no Rust execution or physical byte/header/cache parity.
+- [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `cmd_info::tests::original_info_loaded_empty_result_uses_actual_c_constructor_without_list_cache` (linked): Five genuine software core fixtures select the actual empty info-loaded result constructor and assert resident empty String with no List cache. The fixture selections are not external C header measurements or new executed results.
+- [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `cmd_info::tests::original_info_loaded_inventory_follows_selected_child_and_refuses_retired_id` (linked): Actual root and resolved child inventory remain distinct; deleting the selected child withdraws its inventory without changing root libraries, and the original public child path yields a Guest error. This software owner/path definition grants no fallback inventory or passing outcome.
+- [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `cmd_info::tests::original_info_loaded_keeps_physical_result_owner_separate_from_source_labels` (linked): An actual C9 software core retains its empty result owner independently of C84 source policy. An authored actual-profile label without a genuine core has no physical String protocol and refuses; this definition adds no Native header measurement or executed outcome.
 
 A named test is a coverage binding, not a claim that it executed.
 
@@ -126,15 +130,3 @@ Recorded argument vector:
 ```
 
 The verifier checks retained exact input/provider/stream associations and launches no native provider. The copied capture runner requires its recorded external environment and original absolute source/shell paths. Native executable/library/header/configure artifacts are not included. Numeric output units and materialised binary values supply no raw resident-string, direct counted API, cache or Rust execution claim.
-
-
-## Exact original-source349 software outcomes
-
-These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
-
-| Original selection | Passed | Failed | Aborted or incomplete | Not started |
-| --- | ---: | ---: | ---: | ---: |
-| `grouped` | 1 | 0 | 0 | 0 |
-| `isolated` | 1 | 0 | 0 | 0 |
-
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

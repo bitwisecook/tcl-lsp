@@ -65,9 +65,8 @@ This original-source implementation contract supplies no native process, reached
 ## Exact evidence
 
 - `naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-command_binding-materialized_footprint.rs` (implementation): [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs). SHA-256 `7d1cf44810a6f230ef62ce7ec703eaf9a84f8759971e02de219ec42fed50a5ac`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-ir_helpers-materialized_footprint.rs` (implementation): [rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs](../../../../rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs). SHA-256 `833ce1d12ecf63cf9575100a83286c69f9874f5a9ea0a111b5f6930dbc932943`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-ir_helpers-materialized_footprint.rs` (implementation): [rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs](../../../../rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs). SHA-256 `32f11bf86fb36d41551eed2f02cc25f09f46a74f577b1764c884e03dc3eaf887`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 - `naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-analyser-diagnostics-helpers.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs). SHA-256 `90644205ac85894d798c2b6b30b14c7f3d2aea1a88a3c76588662f0323c08298`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-
 - `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
@@ -113,14 +112,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Source/API owner and authored software controls only. Independent native public values and Rust validation receipts do not establish entered materialized-child execution; this publication executes no command.
-
-
-## Exact original-source347 software outcomes
-
-These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
-
-| Original operation | Passed | Failed |
-| --- | ---: | ---: |
-| `integration-compiler-focused-consumer-tests347` | 0 | 2 |
-
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.

@@ -88,6 +88,7 @@ No actual BIG-IP response to these exact inputs is retained. Local C Tcl/Jim out
 - `jim-stderr` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stderr](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
 - `exact-provider-input-retention` (provider): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/provider-retention.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/provider-retention.json). SHA-256 `f00da0043cbde42fb19513f70aaa16cd5a9876b93c35ec10def529e63e18429a`. Each original before/after executable/probe/library pin joins exact existing full payload bytes. Version-source provenance remains explicit; no C/Jim source or loaded-library closure is implied.
 - `independent-projection` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/interpretation.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/interpretation.json). SHA-256 `74382a47fa271409eabed761a9e3f7438098882078d60e3a0fd987d9397d4c78`. Exact counted raw-line byte joins and separate public result/effect fields, reviewed without executing a provider.
+- `authored-compiler-registry633-bf406c6acc0e` (implementation): [rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs). SHA-256 `5f6705ca32162292bfec461b589ec314dc75d6e430e6c32e9564611d49166bd0`. Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
 
 ## Source inspection
 
@@ -95,7 +96,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-lexer/src/parse_cut.rs](../../../../rust/tcl-lexer/src/parse_cut.rs), `parse_cut::original_parse_descent_tests::original_enclosing_script_cut_delays_child_syntax_without_hiding_root_delimiters` (linked): The configured software parse-cut owner delays child-command syntax in bracket, quoted and indexed roots under EnclosingScript, while retaining root braced-word, missing bracket and unterminated quote cuts; the independently selected child gets its own cut. This syntax-only definition grants no Direct prefix effects, entered source or execution receipt.
+- [rust/tcl-lexer/src/jim_script_tokens.rs](../../../../rust/tcl-lexer/src/jim_script_tokens.rs), `jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_delays_child_syntax_but_keeps_enclosing_delimiters` (linked): The selected Jim syntax roster delays terminal child-command syntax in bracket, quoted and indexed forms, preserves actual enclosing unmatched-bracket records for missing-brace and bare x{ sources, and exposes a child-root terminal cut independently. This software syntax projection does not claim the separately measured Direct effects or bytecode/frame authority.
+- [rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs), `command_binding::original_script_parse_entry_tests::original_jim_nested_script_parse_stops_body_prefix_and_later_outer_commands` (linked): Held Jim source modeling retains the reached outer eval entry but excludes invalid body-prefix and later outer procedure declarations; the selected nested grammar independently locates the parse cut. No actual script effect, callback or Native frame is observed.
+- [rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs), `command_binding::original_script_parse_entry_tests::original_jim_command_child_parse_keeps_root_prefix_but_refuses_child_prefix` (linked): The held Jim command-child source model keeps the prior root declaration while excluding invalid child-prefix and later-root declarations. Native Direct probe outcomes and public completeness evidence remain independently scoped.
+- [rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs), `command_binding::original_script_parse_entry_tests::original_jim_direct_delimiter_scan_does_not_borrow_c_bare_brace_syntax` (linked): The held Jim delimiter owner refuses malformed child shapes before any root publication; corresponding selected C source examples retain their prior/later declarations. This finite source-model comparison does not reuse C grammar as a Jim execution owner.
 
 A named test is a coverage binding, not a claim that it executed.
 
@@ -111,17 +116,3 @@ Recorded argument vector:
 ```
 
 The exact original runner refuses to replace results.json and expects its original absolute provider/library paths. Restore and verify the declared payload bytes, use a separate fresh output root, and retain any new process evidence separately. For 628 supply a distinct owned disposable R2286_IO_PROBE_FILE for each provider; it is deleted by the unchanged probe. Version attribution must retain its explicit capture source. Full provider build and loaded-library replay are unrecorded. The preserved runner has no implementation-source build closure or original Native object authority.
-
-## Exact counted sources
-
-Every source below is ASCII. Braces, quotes, brackets, dollar signs and semicolons are literal source bytes. The hexadecimal column determines the exact bytes; none of these values contains a physical source newline.
-
-| Case | Written source | Counted source hex |
-| --- | --- | --- |
-| `terminal_child` | `set before 1; set sink [list {a}b]; set after 2` | `736574206265666f726520313b207365742073696e6b205b6c697374207b617d625d3b207365742061667465722032` |
-| `terminal_child_prefix` | `set before 1; set sink [set inner 1; list {a}b]; set after 2` | `736574206265666f726520313b207365742073696e6b205b73657420696e6e657220313b206c697374207b617d625d3b207365742061667465722032` |
-| `terminal_quoted_child` | `set before 1; set sink "[list {a}b]"; set after 2` | `736574206265666f726520313b207365742073696e6b20225b6c697374207b617d625d223b207365742061667465722032` |
-| `terminal_index_child` | `set before 1; set sink $arr([list {a}b]); set after 2` | `736574206265666f726520313b207365742073696e6b2024617272285b6c697374207b617d625d293b207365742061667465722032` |
-| `missing_child_brace` | `set before 1; set sink [list {a]; set after 2` | `736574206265666f726520313b207365742073696e6b205b6c697374207b615d3b207365742061667465722032` |
-| `missing_child_variable_brace` | `set before 1; set sink [list ${a]; set after 2` | `736574206265666f726520313b207365742073696e6b205b6c69737420247b615d3b207365742061667465722032` |
-| `bare_child_open_brace` | `set before 1; set sink [list x{]; set after 2` | `736574206265666f726520313b207365742073696e6b205b6c69737420787b5d3b207365742061667465722032` |

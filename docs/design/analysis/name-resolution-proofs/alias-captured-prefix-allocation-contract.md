@@ -64,20 +64,17 @@ This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP exec
 
 ## Exact evidence
 
-- `owner-0` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `7da52e49ba59f8b3bf9bfed828dfda9d53bbeaa18ecbf3a482a171424522c9a4`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
-
+- `owner-0` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `c44ea509aa5c225acdc07ab7140c8dc55a783b77b2d670f7fb1210f9c96b99ea`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 - `owner-1` (implementation): [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs). SHA-256 `86814c50ebbbf1e419f34575393319efae9e4db13d62ef53c6a50d54cdc4cbc5`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
-
-- `owner-2` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `a499f01c057db89f68c07adf8894c2a34d72d22be3857709e2ad9a7b8bc098a9`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-2` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `ce135a7d49494c862497f733471d2880643963d8686a8ae869222bf7767f32ce`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
 ## Source inspection
 
-No native implementation source excerpt is attached. Native outputs cannot establish this Rust provenance invariant.
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs), `original_targets_for_input`: Traverses the actual canonical table and alias allocation while retaining exact captured input lineage.
-
 - [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs), `command_binding::source_command_world::tests::original_alias_prefix_inputs_follow_actual_allocations_and_held_values` (linked): Checks the independently retained original inputs and allocation/provider/receiver-axis boundary stated in this contract.
 
 A named test is a coverage binding, not a claim that it executed.
