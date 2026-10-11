@@ -622,7 +622,9 @@ mod imp {
             (Some(FromCoro::ProbeDone(code, result)), Some(snap)) => {
                 interp.set_result(result.0.as_ptr());
                 if code == Code::Error {
-                    interp.restore_error(snap);
+                    if let Err(first) = interp.restore_error(snap) {
+                        return interp.refuse_native_execution(first);
+                    }
                     interp.append_frame_noline(b"injected coroutine probe command");
                 }
                 code
@@ -1281,7 +1283,7 @@ mod tests {
             .take_coro_probe_error()
             .expect("published probe receipt");
         assert!(interp.take_coro_probe_error().is_none());
-        interp.restore_error(snapshot);
+        interp.restore_error(snapshot).unwrap();
         assert_eq!(interp.jim_stacktrace_object().as_ptr(), original);
         assert_eq!(interp.jim_stacktrace(), b"TRACE\xff\0tail");
     }

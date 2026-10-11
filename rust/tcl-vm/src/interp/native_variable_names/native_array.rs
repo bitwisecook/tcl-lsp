@@ -34,13 +34,15 @@ impl Vm {
         };
         let cell = self.trace_cell_from_resolved(&resolved);
         let check = |vm: &mut Self| {
-            vm.fire_var_traces_from_cell_bytes(
-                &name,
-                "array",
-                element.as_deref(),
-                None,
-                cell.clone(),
-            )?;
+            vm.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(
+                    &name,
+                    "array",
+                    element.as_deref(),
+                    None,
+                    cell.clone(),
+                )
+            })?;
             Ok(resolved.elem.is_none()
                 && resolved
                     .id

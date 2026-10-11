@@ -421,7 +421,8 @@ impl Interp {
         if let Some(value) = value {
             self.publish_compiled_dictionary(target, &captured, value)?;
         }
-        self.restore_dictionary_scope_error(saved_error);
+        self.restore_dictionary_scope_error(saved_error)
+            .map_err(|first| self.refuse_native_execution(first))?;
         Ok(())
     }
 

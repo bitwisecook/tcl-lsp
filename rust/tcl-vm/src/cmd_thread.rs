@@ -525,7 +525,7 @@ fn job_result(vm: &mut Vm, comp: Result<Completion<Value>, TclError>) -> JobResu
         Ok(completion) => completion,
         Err(error) => crate::command::completion_from_tcl_error(vm, error),
     };
-    match vm.execution_refusal.take() {
+    match vm.take_host_boundary_refusal() {
         Some(refusal) => JobResult::Host(refusal),
         None => JobResult::Guest {
             ok: completion.code.is_ok(),
@@ -1488,4 +1488,33 @@ fn filtered_list(mut items: Vec<String>, pattern: Option<&str>) -> Value {
     }
     items.sort_unstable();
     Value::list(items.into_iter().map(Value::string).collect::<Vec<_>>())
+}
+
+#[cfg(test)]
+mod original_job_boundary_tests {
+    use super::*;
+    use crate::interp::native_operation_currency::NativeOperationScope;
+
+    #[test]
+    fn original_job_boundary_keeps_the_complete_cause_until_the_actual_scope_finishes() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual job transport, not an external threaded Tcl observation.
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let _ = vm.refuse_host_command("original thread job cause".into());
+        let first = vm.execution_refusal.clone().unwrap();
+        let JobResult::Host(reached) = job_result(&mut vm, Ok(ok(Value::empty()))) else {
+            panic!("original Host cause must not become serialised Guest bytes");
+        };
+        assert_eq!(reached, first);
+        assert_eq!(vm.execution_refusal, Some(first.clone()));
+        assert_eq!(scope.check_native(&mut vm), Err(first.clone()));
+        drop(scope);
+        let JobResult::Host(closed) = job_result(&mut vm, Ok(ok(Value::empty()))) else {
+            panic!("original outer boundary returns the final cause");
+        };
+        assert_eq!(closed, first);
+        assert!(vm.execution_refusal.is_none());
+    }
 }

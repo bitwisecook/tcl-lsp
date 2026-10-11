@@ -1415,7 +1415,9 @@ fn finish_update_writeback(
             return code;
         }
         unsafe { obj::decr_ref_count(acc) };
-        interp.restore_dictionary_scope_error(saved_error);
+        if let Err(first) = interp.restore_dictionary_scope_error(saved_error) {
+            return interp.refuse_native_execution(first);
+        }
     }
     interp.set_result(result.as_ptr());
     finish_scope_completion(interp, plan, route, code)
@@ -1571,7 +1573,9 @@ fn finish_with_writeback(
         }
         unsafe { obj::decr_ref_count(acc) };
     }
-    interp.restore_dictionary_scope_error(saved_error);
+    if let Err(first) = interp.restore_dictionary_scope_error(saved_error) {
+        return interp.refuse_native_execution(first);
+    }
     interp.set_result(result.as_ptr());
     finish_scope_completion(interp, plan, route, code)
 }

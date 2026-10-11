@@ -38,7 +38,13 @@ impl SourceInvocationBinding {
             .enumerate()
             .skip(1)
         {
-            if native.span() != span || word.source().span != span {
+            // Braced literal IR retains the lexer's inner-end span. The
+            // original NativeWord owns the whole written extent, including its
+            // closer; only the shared extent owner may reconcile those views.
+            if word.source().span != span
+                || native.span()
+                    != tcl_lexer::word_span_at(site.source.source_image().bytes(), span)
+            {
                 continue;
             }
             let EffectiveInvocationWord::Literal(value) = effective_invocation_word(
@@ -205,6 +211,121 @@ mod tests {
             .unwrap()
             .original_body_source_for_word(tokens, tokens.words()[written].source().span, config)
             .expect("whole original written body")
+    }
+
+    #[test]
+    fn original_body_word_extent_keeps_inner_and_whole_geometry_separate() {
+        // naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        // Lexical projection alone: the full native extent and the compiler's
+        // original inner-end span describe the same written word, without any
+        // body entry, completion, namespace or native compiler admission.
+        let source = "if {$condition} {puts A}; if {$condition} {}; if {$condition} \"puts B\"; if {$condition} puts; if {$condition} {puts {A}}; if {$condition} {puts café}; if {$condition} {puts\nA}";
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let fixture = original_fixture(source, environment);
+            let config = fixture.input.lexer_config();
+            assert_eq!(fixture.tokens.len(), 7);
+            for (parent, expected) in fixture.tokens.iter().zip([
+                "puts A",
+                "",
+                "puts B",
+                "puts",
+                "puts {A}",
+                "puts café",
+                "puts\nA",
+            ]) {
+                let binding = parent.source_binding.as_ref().unwrap();
+                let span = parent.words()[2].source().span;
+                let site = binding.invocation_site().unwrap();
+                let original = site
+                    .source
+                    .original_lexical_command(parent.words(), site.offset, config)
+                    .unwrap();
+                let whole = original.native_words()[2].span();
+                assert_eq!(
+                    whole,
+                    tcl_lexer::word_span_at(site.source.source_image().bytes(), span)
+                );
+                if expected == "puts A" {
+                    assert_ne!(
+                        whole, span,
+                        "nonempty braces retain their inner-end compiler span"
+                    );
+                }
+                let body = body_at(parent, 2, config);
+                assert_eq!(body.text.bytes(), expected.as_bytes());
+                assert_eq!(&body.origin, &site.source);
+                assert_eq!(
+                    body.mapping,
+                    super::super::ExecutedScriptMapping::Contiguous { base: body.base() }
+                );
+                assert_eq!(
+                    site.source
+                        .source_image()
+                        .bytes()
+                        .get(body.base() as usize..body.base() as usize + expected.len()),
+                    Some(expected.as_bytes())
+                );
+                let changed = Span::new(span.start(), span.end().checked_add(1).unwrap());
+                assert!(
+                    binding
+                        .original_body_source_for_word(parent, changed, config)
+                        .is_none()
+                );
+                assert!(
+                    binding
+                        .original_body_source_for_word(
+                            parent,
+                            Span::new(span.start() + 1, span.end()),
+                            config
+                        )
+                        .is_none()
+                );
+            }
+            let continuation = original_fixture("if {$condition} {puts \\\n A}", environment);
+            let parent = &continuation.tokens[0];
+            let body = body_at(parent, 2, continuation.input.lexer_config());
+            if config.brace_backslash_newline == tcl_dialect::BraceBackslashNewline::Folds {
+                assert_eq!(body.text.bytes(), b"puts  A");
+                assert_eq!(
+                    body.mapping,
+                    super::super::ExecutedScriptMapping::Materialised
+                );
+                assert_eq!(body.base(), 0);
+                assert_ne!(
+                    &body.origin,
+                    &parent
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .invocation_site()
+                        .unwrap()
+                        .source
+                );
+            } else {
+                assert_eq!(body.text.bytes(), b"puts \\\n A");
+                assert!(matches!(
+                    body.mapping,
+                    super::super::ExecutedScriptMapping::Contiguous { .. }
+                ));
+            }
+            for dynamic in ["if {$condition} \"$body\"", "if {$condition} $body"] {
+                let fixture = original_fixture(dynamic, environment);
+                let parent = &fixture.tokens[0];
+                assert!(
+                    parent
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .original_body_source_for_word(
+                            parent,
+                            parent.words()[2].source().span,
+                            fixture.input.lexer_config()
+                        )
+                        .is_none()
+                );
+            }
+        }
     }
 
     #[test]

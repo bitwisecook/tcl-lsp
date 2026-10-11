@@ -4699,7 +4699,9 @@ impl Vm {
                     try_op!(self.exists_original_c_parts(&original, None))
                 } else {
                     let name = native_operand_bytes!(original);
-                    self.exists_var_traced_bytes(&name)
+                    try_op!(self.exists_var_traced_bytes(&name).map_err(|first| {
+                        self.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
+                    }))
                 };
                 f.stack.push(try_op!(self.compiled_existence_result(found)));
             }
@@ -4719,7 +4721,12 @@ impl Vm {
                 } else {
                     let index = native_operand_bytes!(index);
                     let name = native_operand_bytes!(original);
-                    self.exists_elem_traced_bytes(&name, &index)
+                    try_op!(
+                        self.exists_elem_traced_bytes(&name, &index)
+                            .map_err(|first| self.refuse_tcl_host_failure(
+                                crate::error::TclHostFailure::Execution(first)
+                            ))
+                    )
                 };
                 f.stack.push(try_op!(self.compiled_existence_result(found)));
             }

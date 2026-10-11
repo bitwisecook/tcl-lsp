@@ -598,7 +598,15 @@ impl Vm {
         let (name, resolved) = self.compiled_operand(slot, None)?;
         let cell = self.trace_cell_from_resolved(&resolved);
         let check = |vm: &mut Self| {
-            vm.fire_var_traces_from_cell_bytes(name.as_bytes(), "array", None, None, cell.clone())?;
+            vm.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(
+                    name.as_bytes(),
+                    "array",
+                    None,
+                    None,
+                    cell.clone(),
+                )
+            })?;
             Ok(resolved
                 .id
                 .and_then(|id| vm.var_arena.get(id))

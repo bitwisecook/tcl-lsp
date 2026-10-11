@@ -3818,9 +3818,14 @@ impl Interp {
         let snapshot = self.snapshot_error();
         self.oo_destroy_bg(object);
         self.set_result(result.as_ptr());
-        self.restore_error(snapshot);
+        let restored = self.restore_error(snapshot);
         drop(result);
-        let _ = self.check_entered_native_operation();
+        if let Err(first) = restored {
+            return self.refuse_native_execution(first);
+        }
+        if let Err(first) = self.check_entered_native_operation() {
+            return self.refuse_native_execution(first);
+        }
         code
     }
 
@@ -6338,7 +6343,9 @@ impl Interp {
                 self.retire_original_oo_class_record(object);
                 self.retire_oo_command_identity(object);
                 self.oo.borrow_mut().names.remove(&object);
-                self.error_restore(snap);
+                if let Err(first) = self.error_restore(snap) {
+                    return self.refuse_native_execution(first);
+                }
                 let _ = self.check_entered_native_operation();
                 return Code::Error;
             }

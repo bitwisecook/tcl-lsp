@@ -57,6 +57,7 @@ use tcl_runtime_api::{
     ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::eval;
+use variable_trace_outcomes::VariableTraceOutcome;
 
 mod authored_math;
 mod authored_package;
@@ -102,9 +103,9 @@ pub(crate) mod native_jim_lookup;
 mod native_legacy_increment_tests;
 mod native_name_world;
 mod native_namespace_names;
-pub(crate) mod native_operation_currency;
 #[cfg(test)]
 mod native_namespace_root_tests;
+pub(crate) mod native_operation_currency;
 mod native_package_files;
 #[cfg(test)]
 mod native_precision_tests;
@@ -118,6 +119,7 @@ mod native_variable_observers;
 mod object_materialization;
 mod selected_frame;
 mod variable_container;
+mod variable_trace_outcomes;
 
 use native_procedure_artifacts::{CachedProcedureArtifact, ProcedureCacheKey};
 pub(crate) use selected_frame::SelectedFrameRestore;
@@ -1038,7 +1040,8 @@ impl Default for NativeCReturnState {
 pub(crate) struct NativeTraceResultState {
     result: Value,
     interpreter: Option<NativeTraceInterpreterState>,
-    reset_before_restore: bool,
+    recipe: tcl_registry::native_variable_trace::NativeTraceStateRecipe,
+    physical_owner: variable_trace_outcomes::TracePhysicalOwner,
 }
 
 struct NativeTraceInterpreterState {
@@ -3378,21 +3381,24 @@ impl InterpState {
 impl Vm {
     /// Save the authentic C trace-chain result role, independently of callback type.
     pub(crate) fn save_native_interp_trace_result(
-        &self,
-    ) -> Result<Option<NativeTraceResultState>, tcl_syntax::value::ValueError> {
+        &mut self,
+    ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
         self.save_native_trace_result(false)
     }
 
     pub(crate) fn save_native_script_trace_result(
-        &self,
-    ) -> Result<Option<NativeTraceResultState>, tcl_syntax::value::ValueError> {
+        &mut self,
+    ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
         self.save_native_trace_result(true)
     }
 
     fn save_native_trace_result(
-        &self,
+        &mut self,
         script: bool,
-    ) -> Result<Option<NativeTraceResultState>, tcl_syntax::value::ValueError> {
+    ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
+        let physical_owner =
+            variable_trace_outcomes::TracePhysicalOwner::capture(self, scope.currency().clone());
         use tcl_registry::native_variable_trace::{
             NativeTraceStatePurpose, NativeTraceStateRecipe,
         };
@@ -3407,21 +3413,32 @@ impl Vm {
             return Ok(None);
         }
         if recipe == Some(NativeTraceStateRecipe::MoveResult) {
-            self.with_native_interp_result(|_| ())?;
+            self.with_native_interp_result(|_| ())
+                .map_err(|error| self.retain_variable_trace_value_error(error))?;
             let result = self
                 .native_c_result
                 .replace(Some(Value::new_native_string_bytes(b"".as_slice())))
                 .expect("C84 transfers its current result role");
-            return Ok(Some(NativeTraceResultState {
+            let saved = NativeTraceResultState {
                 result,
                 interpreter: None,
-                reset_before_restore: true,
-            }));
+                recipe: NativeTraceStateRecipe::MoveResult,
+                physical_owner,
+            };
+            scope.check_native(self)?;
+            return Ok(Some(saved));
+        }
+        if recipe != Some(NativeTraceStateRecipe::Interpreter) {
+            return Err(self.retain_host_command_refusal(
+                "original variable trace state recipe is unavailable".into(),
+            ));
         }
         let interpreter = NativeTraceInterpreterState {
-            error: self
-                .save_native_error_trace_state()
-                .expect("selected C interpreter error state"),
+            error: self.save_native_error_trace_state().ok_or_else(|| {
+                self.retain_host_command_refusal(
+                    "original trace interpreter error state is unavailable".into(),
+                )
+            })?,
             return_state: self.native_errors.native_c_return_state,
             stack: self
                 .actual_native_invocation_dialect()
@@ -3430,30 +3447,25 @@ impl Vm {
                 .is_some_and(tcl_dialect::TclVersion::has_error_stack)
                 .then(|| self.native_errors.error_stack.clone()),
         };
-        self.with_native_interp_result(|result| {
-            Some(NativeTraceResultState {
-                result: result.clone(),
-                interpreter: Some(interpreter),
-                reset_before_restore: false,
+        let saved = self
+            .with_native_interp_result(|result| {
+                Some(NativeTraceResultState {
+                    result: result.clone(),
+                    interpreter: Some(interpreter),
+                    recipe: NativeTraceStateRecipe::Interpreter,
+                    physical_owner,
+                })
             })
-        })
+            .map_err(|error| self.retain_variable_trace_value_error(error))?;
+        scope.check_native(self)?;
+        Ok(saved)
     }
 
-    pub(crate) fn restore_native_interp_trace_result(&mut self, state: NativeTraceResultState) {
-        if state.reset_before_restore {
-            self.reset_native_jim_result()
-                .expect("the retained C84 result issuer remains available");
-            self.clear_error_logged();
-        }
-        if let Some(saved) = state.interpreter {
-            self.native_errors.native_c_return_state = saved.return_state;
-            self.restore_native_error_trace_state(saved.error);
-            if let Some(stack) = saved.stack {
-                self.native_errors.error_stack = stack;
-            }
-        }
-        let retired = self.native_c_result.replace(Some(state.result));
-        drop(retired);
+    pub(crate) fn restore_native_interp_trace_result(
+        &mut self,
+        state: NativeTraceResultState,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.restore_original_trace_state(state)
     }
 
     /// Authored framework bookkeeping uses retained physical cells. Cleanup
@@ -14404,11 +14416,7 @@ impl Vm {
     /// callback as `command name1 name2 op`. A read/write/array callback error
     /// aborts the access; unset errors are ignored. Re-entrant firing of the
     /// same resolved variable cell is suppressed.
-    pub(crate) fn fire_var_traces(
-        &mut self,
-        name: &str,
-        op: &str,
-    ) -> Result<(), Completion<Value>> {
+    pub(crate) fn fire_var_traces(&mut self, name: &str, op: &str) -> VariableTraceOutcome {
         self.fire_var_traces_reporting(name, op, None)
     }
 
@@ -14452,11 +14460,15 @@ impl Vm {
             .and_then(|resolved| self.trace_cell_from_resolved(resolved))
             .filter(|cell| cell.id.is_some())
         else {
-            self.fire_var_traces_from_cell_bytes(name, "read", None, None, None)?;
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(name, "read", None, None, None)
+            })?;
             return Ok(self.get_var_bytes(name));
         };
         self.with_variable_operation(&cell, |vm| {
-            vm.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))?;
+            vm.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
+            })?;
             match vm.initial_value_at_cell(cell.id.expect("selected native read"), explicit_array) {
                 Ok(value) => Ok(value.cloned()),
                 Err(error) => Err(crate::command::completion_from_cmd_error(vm, error.into())),
@@ -14571,9 +14583,13 @@ impl Vm {
                     .map_err(|error| vm.refuse_host_command(error.to_string()))?;
             }
             if let Some(element) = element {
-                vm.fire_elem_traces_from_cell_bytes(root, element, "read", cell.clone())?;
+                vm.variable_trace_guest_or_unwind(|vm| {
+                    vm.fire_elem_traces_from_cell_bytes(root, element, "read", cell.clone())
+                })?;
             } else {
-                vm.fire_var_traces_from_cell_bytes(root, "read", None, None, cell.clone())?;
+                vm.variable_trace_guest_or_unwind(|vm| {
+                    vm.fire_var_traces_from_cell_bytes(root, "read", None, None, cell.clone())
+                })?;
             }
             let current = if vm.dictionary_variable_containers() {
                 vm.read_variable_contents(&resolved)
@@ -14690,7 +14706,9 @@ impl Vm {
         if let Some(id) = selected {
             self.var_arena.retain_operation(id);
         }
-        let trace = self.fire_elem_traces_from_cell_bytes(name, key, "read", cell);
+        let trace = self.variable_trace_guest_or_unwind(|vm| {
+            vm.fire_elem_traces_from_cell_bytes(name, key, "read", cell)
+        });
         let value = if trace.is_ok() {
             selected.map_or_else(
                 || self.get_array_elem_bytes_from(start, name, key),
@@ -14705,28 +14723,33 @@ impl Vm {
         (live_was_array, trace.map(|()| value))
     }
 
-    pub(crate) fn exists_var_traced_bytes(&mut self, name: &[u8]) -> bool {
+    pub(crate) fn exists_var_traced_bytes(
+        &mut self,
+        name: &[u8],
+    ) -> Result<bool, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
         if self.observed_name_policy_selected() {
-            return match self.observed_variable_exists(name, self.current_level()) {
-                Ok(found) => found,
-                Err(error) => {
-                    let _ = self.refuse_host_command(format!(
-                        "observed variable storage is unavailable: {error}"
-                    ));
-                    false
-                }
-            };
+            let reached = self.observed_variable_exists(name, self.current_level());
+            scope.check_native(self)?;
+            return reached.map_err(|error| {
+                self.retain_host_command_refusal(format!(
+                    "observed variable storage is unavailable: {error}"
+                ))
+            });
         }
         let cell = self.trace_cell_bytes(name).and_then(|cell| cell.id);
-        let _ = self.fire_var_traces_from_cell_bytes(name, "read", None, None, None);
-        cell.map_or_else(
+        self.fire_original_existence_read(name, None, None)?;
+        scope.check_native(self)?;
+        let found = cell.map_or_else(
             || self.exists_var_bytes_from(name, self.current_level()),
             |id| {
                 self.var_arena
                     .get(id)
                     .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_) | Local::Array(_)))
             },
-        )
+        );
+        scope.check_native(self)?;
+        Ok(found)
     }
 
     fn exists_var_bytes_from(&self, name: &[u8], start: usize) -> bool {
@@ -14742,20 +14765,28 @@ impl Vm {
             .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_) | Local::Array(_)))
     }
 
-    pub(crate) fn exists_elem_traced_bytes(&mut self, root: &[u8], element: &[u8]) -> bool {
+    pub(crate) fn exists_elem_traced_bytes(
+        &mut self,
+        root: &[u8],
+        element: &[u8],
+    ) -> Result<bool, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
         let resolved = self.resolve_var_parts_from_bytes(root, Some(element), self.current_level());
         let cell = resolved
             .as_ref()
             .and_then(|resolved| self.trace_cell_from_resolved(resolved));
         let selected = cell.as_ref().and_then(|cell| cell.id);
-        let _ = self.fire_elem_traces_from_cell_bytes(root, element, "read", cell);
-        selected.map_or_else(
+        self.fire_original_existence_read(root, Some(element), cell)?;
+        scope.check_native(self)?;
+        let found = selected.map_or_else(
             || {
                 self.get_array_elem_bytes_from(self.current_level(), root, element)
                     .is_some()
             },
             |id| self.read_resolved_cell(id).is_some(),
-        )
+        );
+        scope.check_native(self)?;
+        Ok(found)
     }
 
     pub(crate) fn unset_array_elem_checked_bytes(
@@ -14836,7 +14867,9 @@ impl Vm {
         if !has_array_trace || !traceable_state {
             return Ok(());
         }
-        self.fire_var_traces_from_cell_bytes(name, "array", None, None, Some(cell))
+        self.variable_trace_guest_or_unwind(|vm| {
+            vm.fire_var_traces_from_cell_bytes(name, "array", None, None, Some(cell))
+        })
     }
 
     /// Locate and pin one array cell across its operation trace and command.
@@ -14985,7 +15018,7 @@ impl Vm {
         name: &str,
         op: &str,
         reported_name1: Option<&str>,
-    ) -> Result<(), Completion<Value>> {
+    ) -> VariableTraceOutcome {
         self.fire_var_traces_taken(name, op, reported_name1, None)
     }
 
@@ -15001,7 +15034,7 @@ impl Vm {
         op: &str,
         reported_name1: Option<&str>,
         taken: Option<TakenVarTraces>,
-    ) -> Result<(), Completion<Value>> {
+    ) -> VariableTraceOutcome {
         self.fire_var_traces_from_cell(name, op, reported_name1, taken, None)
     }
 
@@ -15012,13 +15045,16 @@ impl Vm {
         reported_name1: Option<&str>,
         taken: Option<TakenVarTraces>,
         located: Option<VarTraceCell>,
-    ) -> Result<(), Completion<Value>> {
+    ) -> VariableTraceOutcome {
+        if let Some(first) = self.execution_refusal.clone() {
+            return Err(first);
+        }
         if self.variable_observers.script_traces.is_empty()
             && taken.is_none()
             && self.variable_observers.precision_cell.is_none()
             && self.variable_observers.native_error_cells.is_empty()
         {
-            return Ok(());
+            return Ok(Ok(()));
         }
         self.fire_var_traces_from_cell_bytes(
             name.as_bytes(),
@@ -15036,9 +15072,9 @@ impl Vm {
         reported_name1: Option<&[u8]>,
         taken: Option<TakenVarTraces>,
         located: Option<VarTraceCell>,
-    ) -> Result<(), Completion<Value>> {
+    ) -> VariableTraceOutcome {
         let Some(policy) = self.name_policy_protocol() else {
-            return Err(self.refuse_host_command(
+            return Err(self.retain_host_command_refusal(
                 "native variable trace reporting policy is unavailable".into(),
             ));
         };
@@ -15068,7 +15104,7 @@ impl Vm {
         key: &[u8],
         op: &str,
         located: Option<VarTraceCell>,
-    ) -> Result<(), Completion<Value>> {
+    ) -> VariableTraceOutcome {
         let mut display = base.to_vec();
         display.push(b'(');
         display.extend_from_slice(key);
@@ -15091,33 +15127,31 @@ impl Vm {
         invocation: VarTraceInvocation<'_>,
         taken: Option<TakenVarTraces>,
         located: Option<VarTraceCell>,
-    ) -> Result<(), Completion<Value>> {
-        // C's `VAR_TRACE_ACTIVE` belongs to the reached `Var`: the whole array
-        // and every element are separate cells. A callback may therefore enter
-        // a different element, while a recursive access to this exact cell is
-        // suppressed regardless of operation.
+    ) -> VariableTraceOutcome {
+        use native_operation_currency::NativeOperationScope;
+        let scope = NativeOperationScope::enter_native(self)?;
         let Some(cell) = located.or_else(|| {
             taken.as_ref().map_or_else(
                 || self.trace_cell_bytes(invocation.name),
                 |taken| Some(taken.cell.clone()),
             )
         }) else {
-            return Ok(());
+            scope.check_native(self)?;
+            return Ok(Ok(()));
         };
         let publication_hold =
             invocation.op == "write" && self.authored_tmm_static.policy.is_some();
         if publication_hold && let Some(id) = cell.id {
-            // Reuse the actual Var operation role through both publication and
-            // source traces; recipient callbacks may detach its original table.
             self.var_arena.retain_operation(id);
-            if let Err(error) = self.publish_authored_static_write(id) {
+            let reached = self.publish_authored_static_write(id);
+            let current = scope.check_native(self);
+            if current.is_err() || reached.is_err() {
                 self.var_arena.release_operation(id);
-                return Err(error);
+                current?;
+                scope.check_native(self)?;
+                return Ok(reached);
             }
         }
-        // Unset moves the trace list to a dummy `Var` and clears its active
-        // bit, so unsetting the cell from its own write callback still fires
-        // that taken list. Other recursive operations on the cell stay gated.
         let taken_unset = taken.is_some()
             && tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::from_name(invocation.op)
                 .is_some_and(tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::uses_destroyed_cell_callbacks);
@@ -15125,7 +15159,8 @@ impl Vm {
             if publication_hold && let Some(id) = cell.id {
                 self.var_arena.release_operation(id);
             }
-            return Ok(());
+            scope.check_native(self)?;
+            return Ok(Ok(()));
         }
         let array_active = cell
             .array_id()
@@ -15137,8 +15172,8 @@ impl Vm {
             self.active_traces.push(id);
         }
         let global_error_flags = self.capture_native_global_error_flags();
-        let r = self.fire_var_traces_inner(invocation, &cell, array_active, taken);
-        if r.is_ok() {
+        let reached = self.fire_var_traces_inner(invocation, &cell, array_active, taken, &scope);
+        if matches!(reached, Ok(Ok(()))) {
             self.restore_native_global_error_flags(global_error_flags);
         }
         if let Some(id) = cell.id {
@@ -15146,7 +15181,14 @@ impl Vm {
             debug_assert_eq!(popped, Some(id));
             self.var_arena.release_operation(id);
         }
-        r
+        let current = scope.check_native(self);
+        match reached {
+            Err(first) => Err(first),
+            Ok(guest) => {
+                current?;
+                Ok(guest)
+            }
+        }
     }
 
     /// Select the parent-array and reached-cell trace groups in Tcl order.
@@ -15198,11 +15240,13 @@ impl Vm {
         invocation: VarTraceInvocation<'_>,
         cell: &VarTraceCell,
         policy: tcl_syntax::naming::NamePolicyProtocol,
-    ) -> Result<(Completion<Value>, Option<Value>), Completion<Value>> {
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> Result<(Completion<Value>, Option<Value>), tcl_runtime_api::NativeExecutionError> {
+        scope.check_native(self)?;
         if self.observed_names.is_some() {
-            return Err(
-                self.refuse_host_command("observed variable trace operation is unavailable".into())
-            );
+            return Err(self.retain_host_command_refusal(
+                "observed variable trace operation is unavailable".into(),
+            ));
         }
         let VarTraceInvocation {
             op,
@@ -15227,7 +15271,7 @@ impl Vm {
             },
         )
         .map_err(|error| {
-            self.refuse_host_command(format!(
+            self.retain_host_command_refusal(format!(
                 "variable trace reporting is unavailable: {error:?}"
             ))
         })?;
@@ -15237,7 +15281,7 @@ impl Vm {
             };
             let operation =
                 NativeVariableTraceOperation::from_name(op).expect("selected trace operation");
-            match observer.observe(
+            let observed = observer.observe(
                 self,
                 NativeVariableTraceAccess {
                     operation,
@@ -15245,9 +15289,20 @@ impl Vm {
                     name2: reported.name2,
                     destroyed: operation == NativeVariableTraceOperation::Unset,
                 },
-            ) {
+            );
+            if let Err(error) = &observed {
+                if let Some(first) = error.native_execution_refusal() {
+                    self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
+                        first.clone(),
+                    ));
+                } else if let Some(first) = error.native_access_refusal() {
+                    self.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
+                }
+            }
+            scope.check_native(self)?;
+            match observed {
                 Ok(()) => ok(Value::empty()),
-                Err(error) => crate::command::completion_from_cmd_error(self, error),
+                Err(error) => self.variable_trace_command_error(error)?,
             }
         } else {
             self.invoke_script_variable_trace_callback(
@@ -15255,8 +15310,10 @@ impl Vm {
                 op,
                 old_style,
                 (reported.name1, reported.name2),
+                scope,
             )?
         };
+        scope.check_native(self)?;
         Ok((completion, command))
     }
 
@@ -15266,15 +15323,18 @@ impl Vm {
         op: &str,
         old_style: bool,
         reported: (&[u8], &[u8]),
-    ) -> Result<Completion<Value>, Completion<Value>> {
-        let mut script = match self.native_name_operand_bytes(command) {
-            Ok(bytes) => bytes.to_vec(),
-            Err(error) => {
-                return Err(self.refuse_host_command(format!(
-                    "variable trace prefix string is unavailable: {error:?}"
-                )));
-            }
-        };
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        scope.check_native(self)?;
+        let original = self.native_name_operand_bytes(command);
+        scope.check_native(self)?;
+        let mut script = original
+            .map_err(|error| {
+                self.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
+                ))
+            })?
+            .to_vec();
         for argument in [
             reported.0,
             reported.1,
@@ -15287,37 +15347,49 @@ impl Vm {
             .actual_native_invocation_dialect()
             .native_variable_trace_protocol()
             .ok_or_else(|| {
-                self.refuse_host_command(
+                self.retain_host_command_refusal(
                     "variable trace callback source protocol is unavailable".into(),
                 )
             })?;
         let source = Value::new_native_string_bytes(protocol.variable_callback_source(&script));
-        let saved = self
-            .save_native_script_trace_result()
-            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
-        self.reset_native_error_objects_before_trace_script();
-        let mut completion = match self.eval_original_script_value(
-            &source,
-            tcl_registry::native_eval_object::EvalObjectPurpose::TraceCallback,
-            None,
-        ) {
-            Ok(completion) => completion,
-            Err(error) => crate::command::completion_from_tcl_error(self, error),
+        let saved = self.save_native_script_trace_result()?;
+        let reached = (|| {
+            scope.check_native(self)?;
+            self.reset_native_error_objects_before_trace_script();
+            scope.check_native(self)?;
+            let evaluated = self.eval_original_script_value(
+                &source,
+                tcl_registry::native_eval_object::EvalObjectPurpose::TraceCallback,
+                None,
+            );
+            let mut completion = match evaluated {
+                Ok(completion) => completion,
+                Err(crate::error::TclError::Guest(completion)) => completion,
+                Err(crate::error::TclError::Host(first)) => {
+                    return Err(self.retain_tcl_host_failure(first));
+                }
+            };
+            scope.check_native(self)?;
+            if !completion.code.is_ok() {
+                completion.result = completion.result.into_native_reference();
+                scope.check_native(self)?;
+            }
+            Ok(completion)
+        })();
+        let cleanup = if let Some(saved) = saved {
+            self.restore_native_interp_trace_result(saved)
+        } else {
+            Ok(())
         };
-        if !completion.code.is_ok()
-            && self
-                .actual_native_invocation_dialect()
-                .native_variable_trace_protocol()
-                .is_some()
-        {
-            // TraceVarProc returns its original error object with a
-            // real reference until CallVarTraces disposes it.
-            completion.result = completion.result.into_native_reference();
+        let current = scope.check_native(self);
+        match reached {
+            Err(first) => Err(first),
+            Ok(completion) => {
+                cleanup?;
+                current?;
+                Ok(completion)
+            }
         }
-        if let Some(saved) = saved {
-            self.restore_native_interp_trace_result(saved);
-        }
-        Ok(completion)
     }
 
     fn present_variable_trace_failure(
@@ -15326,7 +15398,9 @@ impl Vm {
         command: Option<&Value>,
         op: &str,
         name: &[u8],
-    ) -> Result<(), Completion<Value>> {
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        scope.check_native(self)?;
         let was_error = failure.code == Code::Error;
         if !was_error && let Some(command) = command {
             self.error_stack_restart_with_inner(command.clone());
@@ -15337,6 +15411,7 @@ impl Vm {
         // own `invoked from within` frame as the error
         // unwinds (set-2.4 / set-4.4).
         self.append_var_trace_frame_bytes(op, name);
+        scope.check_native(self)?;
         let verb = match op {
             "write" => "set",
             "array" => "trace array",
@@ -15345,7 +15420,9 @@ impl Vm {
         let mut message = format!("can't {verb} \"").into_bytes();
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": ");
-        message.extend_from_slice(&failure.result.string_bytes());
+        let original_message = failure.result.string_bytes();
+        scope.check_native(self)?;
+        message.extend_from_slice(&original_message);
         failure.code = Code::Error;
         failure.result = Value::from_string_bytes(message);
         if self
@@ -15357,14 +15434,15 @@ impl Vm {
                 .actual_native_invocation_dialect()
                 .native_string_materialization(None)
                 .ok_or_else(|| {
-                    self.refuse_host_command(
+                    self.retain_host_command_refusal(
                         "actual variable-trace String producer".into(),
                     )
                 })?;
             failure
                 .result
                 .retain_native_string_representation(recipe)
-                .map_err(|error| self.refuse_host_command(error.to_string()))?;
+                .map_err(|error| self.retain_variable_trace_value_error(error))?;
+            scope.check_native(self)?;
         }
 
         if op != "array" {
@@ -15378,13 +15456,27 @@ impl Vm {
                 words.push(Value::from_string_bytes(name));
             }
             let code = Value::list(words);
-            let options = crate::command::completion_options(self, &failure)
-                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
-            failure.options =
-                crate::command::with_return_option(self, &options, "-errorcode", code)
-                    .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
+            scope.check_native(self)?;
+            let options = match crate::command::completion_options(self, &failure) {
+                Ok(options) => options,
+                Err(crate::error::TclError::Host(first)) => {
+                    return Err(self.retain_tcl_host_failure(first));
+                }
+                Err(crate::error::TclError::Guest(completion)) => return Ok(completion),
+            };
+            scope.check_native(self)?;
+            let selected = crate::command::with_return_option(self, &options, "-errorcode", code);
+            scope.check_native(self)?;
+            failure.options = match selected {
+                Ok(options) => options,
+                Err(crate::error::TclError::Host(first)) => {
+                    return Err(self.retain_tcl_host_failure(first));
+                }
+                Err(crate::error::TclError::Guest(completion)) => return Ok(completion),
+            };
         }
-        Err(failure)
+        scope.check_native(self)?;
+        Ok(failure)
     }
 
     fn fire_var_traces_inner(
@@ -15393,10 +15485,9 @@ impl Vm {
         cell: &VarTraceCell,
         array_active: bool,
         taken: Option<TakenVarTraces>,
-    ) -> Result<(), Completion<Value>> {
-        if let Some(refused) = self.refused_completion() {
-            return Err(refused);
-        }
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> VariableTraceOutcome {
+        scope.check_native(self)?;
         let VarTraceInvocation {
             leave_error_message,
             name,
@@ -15404,96 +15495,110 @@ impl Vm {
             reported: _,
             element_access,
         } = invocation;
-        // For an element access C walks the containing array's trace list
-        // first and the element's own list second (`TclCallVarTraces`,
-        // tclTrace.c 9.0.4: the `arrayPtr` loop at :2581 precedes the
-        // `varPtr` loop at :2623) — regardless of which was registered first.
         let groups = self.variable_trace_groups(element_access, cell, array_active, taken, op);
-        let Some(policy) = self.name_policy_protocol() else {
-            return Err(self.refuse_host_command(
+        let policy = self.name_policy_protocol().ok_or_else(|| {
+            self.retain_host_command_refusal(
                 "native variable trace reporting policy is unavailable".into(),
-            ));
-        };
-        let saved_native_result = if groups.is_empty() {
+            )
+        })?;
+        let saved = if groups.is_empty() {
             None
         } else {
-            self.save_native_interp_trace_result()
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?
+            self.save_native_interp_trace_result()?
         };
-        for group in groups {
-            // Walk newest-first (the Vec is oldest-first), by identity: a
-            // callback's `trace remove` unlinks its record from the live list
-            // at once, and C's walk then skips it — so the id is re-found in
-            // the table before every callback rather than trusting a snapshot.
-            // A taken list is nobody's to remove any more, so it fires whole.
-            let steps: Vec<Step> = match &group {
-                TraceGroup::Live(key) => self
-                    .variable_observers
-                    .script_traces
-                    .get(key)
-                    .map_or_else(Vec::new, |list| {
-                        list.iter().rev().map(|t| Step::Live(t.id)).collect()
-                    }),
-                TraceGroup::Taken(list) => list
-                    .iter()
-                    .rev()
-                    .filter(|t| t.ops.iter().any(|o| o == op))
-                    .map(|t| Step::Taken(t.clone()))
-                    .collect(),
-            };
-            let live_key = match &group {
-                TraceGroup::Live(key) => Some(*key),
-                TraceGroup::Taken(_) => None,
-            };
-            for step in steps {
-                let entry = match step {
-                    Step::Live(id) => self
+        let reached = (|| {
+            for group in groups {
+                scope.check_native(self)?;
+                let steps: Vec<Step> = match &group {
+                    TraceGroup::Live(key) => self
                         .variable_observers
                         .script_traces
-                        .get(&live_key.expect("live trace group has a key"))
-                        .and_then(|list| list.iter().find(|t| t.id == id))
+                        .get(key)
+                        .map_or_else(Vec::new, |list| {
+                            list.iter().rev().map(|t| Step::Live(t.id)).collect()
+                        }),
+                    TraceGroup::Taken(list) => list
+                        .iter()
+                        .rev()
                         .filter(|t| t.ops.iter().any(|o| o == op))
-                        .cloned(),
-                    Step::Taken(trace) => Some(trace),
+                        .map(|t| Step::Taken(t.clone()))
+                        .collect(),
                 };
-                let Some(trace) = entry else {
-                    continue;
+                let live_key = match &group {
+                    TraceGroup::Live(key) => Some(*key),
+                    TraceGroup::Taken(_) => None,
                 };
-                let (completion, command) =
-                    self.invoke_variable_trace_callback(trace, invocation, cell, policy)?;
-                let failed = (!completion.code.is_ok()).then_some(completion);
-                if let Some(failure) = failed {
-                    if !leave_error_message {
-                        if let Some(saved) = saved_native_result {
-                            self.restore_native_interp_trace_result(saved);
+                for step in steps {
+                    scope.check_native(self)?;
+                    let entry = match step {
+                        Step::Live(id) => self
+                            .variable_observers
+                            .script_traces
+                            .get(&live_key.expect("live trace group has a key"))
+                            .and_then(|list| list.iter().find(|t| t.id == id))
+                            .filter(|t| t.ops.iter().any(|o| o == op))
+                            .cloned(),
+                        Step::Taken(trace) => Some(trace),
+                    };
+                    let Some(trace) = entry else {
+                        continue;
+                    };
+                    let (completion, command) = self
+                        .invoke_variable_trace_callback(trace, invocation, cell, policy, scope)?;
+                    scope.check_native(self)?;
+                    if !completion.code.is_ok() {
+                        if !leave_error_message {
+                            return Ok(Err(err("")));
                         }
-                        return Err(err(""));
-                    }
-
-                    match op {
-                        "write" | "read" | "array" => {
-                            return self.present_variable_trace_failure(
-                                failure,
+                        if matches!(op, "write" | "read" | "array") {
+                            let failure = self.present_variable_trace_failure(
+                                completion,
                                 command.as_ref(),
                                 op,
                                 name,
-                            );
+                                scope,
+                            )?;
+                            return Ok(Err(failure));
                         }
-                        _ => {} // unset trace errors are ignored
+                        // Genuine unset Guest errors are ignored; dropping their original results remains a reached stage.
+                        drop(completion);
+                        scope.check_native(self)?;
+                    }
+                }
+                if let Some(id) = live_key {
+                    self.fire_native_error_variable_trace(id, op);
+                    scope.check_native(self)?;
+                }
+                if live_key.is_some() && live_key == self.variable_observers.precision_cell {
+                    let precision = self.fire_native_precision_trace_bytes(name, op, cell);
+                    scope.check_native(self)?;
+                    if let Err(guest) = precision {
+                        return Ok(Err(guest));
                     }
                 }
             }
-            if let Some(id) = live_key {
-                self.fire_native_error_variable_trace(id, op);
+            Ok(Ok(()))
+        })();
+        let restore = !matches!(reached, Ok(Err(_))) || !leave_error_message;
+        let cleanup = if let Some(saved) = saved {
+            if restore {
+                self.restore_native_interp_trace_result(saved)
+            } else {
+                drop(saved);
+                Ok(())
             }
-            if live_key.is_some() && live_key == self.variable_observers.precision_cell {
-                self.fire_native_precision_trace_bytes(name, op, cell)?;
+        } else {
+            Ok(())
+        };
+        let current = scope.check_native(self);
+        match reached {
+            Err(first) => Err(first),
+            Ok(guest) => {
+                cleanup?;
+                current?;
+                Ok(guest)
             }
         }
-        if let Some(saved) = saved_native_result {
-            self.restore_native_interp_trace_result(saved);
-        }
-        Ok(())
     }
 
     /// Compile original procedure source and formal storage in an actual namespace.
@@ -16302,7 +16407,8 @@ impl Vm {
         &mut self,
         parked: &mut ParkedFlow,
         activations: &mut [crate::exec::Frame],
-    ) {
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self);
         self.swap_flow(parked);
         self.restore_parked_execution_frames(activations);
         while self.frames.len() > 1 {
@@ -16314,6 +16420,7 @@ impl Vm {
             self.pop_ns();
         }
         self.swap_flow(parked);
+        scope?.check_native(self)
     }
 
     /// Push a non-proc call frame for a `namespace eval`/`inscope` body running
@@ -18085,7 +18192,9 @@ impl Vm {
             let _ = self.var_arena.replace_state(id, Local::Scalar(value));
         }
         if self.variable_observers_active() || self.authored_tmm_static.policy.is_some() {
-            self.fire_var_traces_from_cell_bytes(name, "write", reported_name, None, None)?;
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(name, "write", reported_name, None, None)
+            })?;
         }
         Ok(())
     }
@@ -18213,7 +18322,7 @@ impl Vm {
             spelling.push(b'(');
             spelling.extend_from_slice(element.as_bytes());
             spelling.push(b')');
-            self.fire_taken_unset(&spelling, Some(name), cell, false);
+            let _ = self.fire_taken_unset(&spelling, Some(name), cell, false);
             self.var_arena.finish_destroyed_element_trace(id);
             // A whole-array destruction retires the old element even when
             // its callback wrote through an alias. A surviving alias keeps
@@ -18298,7 +18407,7 @@ impl Vm {
             .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
         let mut retired_bindings = Vec::new();
         if let Some(cell) = traced_cell {
-            self.fire_taken_unset(name, None, cell, true);
+            let _ = self.fire_taken_unset(name, None, cell, true);
         }
 
         // An array's old element table is detached from the parent before its
@@ -18384,7 +18493,7 @@ impl Vm {
             .native_c_variable_name_protocol()
             .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
         let mut retired_bindings = Vec::new();
-        self.fire_taken_unset(name, reported_name1, cell, true);
+        let _ = self.fire_taken_unset(name, reported_name1, cell, true);
 
         if let Local::Array(elements) = old_state {
             for (element, raw_element) in elements {
@@ -18405,7 +18514,8 @@ impl Vm {
                 spelling.push(b'(');
                 spelling.extend_from_slice(element.as_bytes());
                 spelling.push(b')');
-                self.fire_taken_unset(&spelling, reported_name1.or(Some(name)), cell, false);
+                let _ =
+                    self.fire_taken_unset(&spelling, reported_name1.or(Some(name)), cell, false);
                 self.var_arena.finish_destroyed_element_trace(element_id);
                 self.purge_variable_cell(raw_element);
                 self.var_arena.retire_array_element_key(raw_element);
@@ -18521,9 +18631,9 @@ impl Vm {
         reported_name1: Option<&[u8]>,
         cell: VarTraceCell,
         include_array: bool,
-    ) {
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         let Some(id) = cell.id else {
-            return;
+            return Ok(());
         };
         let taken = self.variable_observers.script_traces.remove(&id);
         let has_array_trace = include_array
@@ -18532,12 +18642,12 @@ impl Vm {
                 .is_some_and(|array| self.variable_observers.script_traces.contains_key(&array));
         let had_taken = taken.is_some();
         if !had_taken && !has_array_trace {
-            return;
+            return Ok(());
         }
         if had_taken {
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
-        let _ = self.fire_var_traces_from_cell_bytes(
+        let reached = self.fire_var_traces_from_cell_bytes(
             name.as_ref(),
             "unset",
             reported_name1,
@@ -18551,6 +18661,8 @@ impl Vm {
         if had_taken {
             self.var_arena.unpin(id);
         }
+        let _guest = reached?;
+        Ok(())
     }
 
     /// Unset a single variable by name, the shared core of the `unset` command
@@ -19353,9 +19465,13 @@ impl Vm {
     ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
         let cell = &captured.cell;
         let trace = if let Some(key) = key {
-            self.fire_elem_traces_from_cell_bytes(name, key, "read", Some(cell.clone()))
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_elem_traces_from_cell_bytes(name, key, "read", Some(cell.clone()))
+            })
         } else {
-            self.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
+            })
         };
         if let Some(refusal) = self.refused_completion() {
             return Err(refusal);
@@ -19570,17 +19686,19 @@ impl Vm {
         } else {
             (name.to_vec(), (name, None), false)
         };
-        let reached = self.fire_var_traces_from_parts(
-            VarTraceInvocation {
-                leave_error_message,
-                name: &input.0,
-                op: "write",
-                reported: input.1,
-                element_access: input.2,
-            },
-            None,
-            Some(cell.clone()),
-        );
+        let reached = self.variable_trace_guest_or_unwind(|vm| {
+            vm.fire_var_traces_from_parts(
+                VarTraceInvocation {
+                    leave_error_message,
+                    name: &input.0,
+                    op: "write",
+                    reported: input.1,
+                    element_access: input.2,
+                },
+                None,
+                Some(cell.clone()),
+            )
+        });
         scope
             .check(self)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
@@ -19805,9 +19923,13 @@ impl Vm {
         use tcl_registry::native_rmw::NativeRmwReadPolicy;
         let cell = &captured.cell;
         let trace = if let Some(key) = key {
-            self.fire_elem_traces_from_cell_bytes(name, key, "read", Some(cell.clone()))
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_elem_traces_from_cell_bytes(name, key, "read", Some(cell.clone()))
+            })
         } else {
-            self.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
+            })
         };
         if let Some(refusal) = self.refused_completion() {
             return Err(refusal);
@@ -20009,7 +20131,9 @@ impl Vm {
             let cell = self
                 .resolve_var_parts_from_bytes(root, Some(element), start)
                 .and_then(|resolved| self.trace_cell_from_resolved(&resolved));
-            self.fire_elem_traces_from_cell_bytes(root, element, "write", cell)?;
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_elem_traces_from_cell_bytes(root, element, "write", cell)
+            })?;
         }
         Ok(())
     }
@@ -20200,7 +20324,7 @@ impl Vm {
             // Unset callbacks retain their native ignored-error contract.
             let _ = vm.publish_authored_static_unset(publication);
             if traced {
-                vm.fire_taken_unset(&spelling, reported.or(Some(name)), cell.clone(), true);
+                let _ = vm.fire_taken_unset(&spelling, reported.or(Some(name)), cell.clone(), true);
             }
             existed
         });
@@ -21613,10 +21737,7 @@ impl Vm {
             .eval_expr_internal(src)
             .map(|completion| completion.result);
         self.host_execution_depth -= 1;
-        if let Some(refusal) = self.execution_refusal.clone() {
-            if self.activation_depth == 0 && self.host_execution_depth == 0 {
-                self.execution_refusal = None;
-            }
+        if let Some(refusal) = self.take_host_boundary_refusal() {
             return Err(TclError::from_execution_failure(refusal));
         }
         result
@@ -22290,20 +22411,26 @@ impl Vm {
         &mut self,
         failure: crate::error::TclHostFailure,
     ) -> Completion<Value> {
-        match failure {
+        self.retain_tcl_host_failure(failure);
+        err("")
+    }
+
+    fn retain_tcl_host_failure(
+        &mut self,
+        failure: crate::error::TclHostFailure,
+    ) -> tcl_runtime_api::NativeExecutionError {
+        let cause = match failure {
             crate::error::TclHostFailure::ValueAccess(error) => {
-                self.execution_refusal
-                    .get_or_insert(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(error));
-                err("")
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(error)
             }
-            crate::error::TclHostFailure::Execution(error) => {
-                self.execution_refusal.get_or_insert(error);
-                err("")
-            }
+            crate::error::TclHostFailure::Execution(error) => error,
             crate::error::TclHostFailure::PrimitiveErrorStateRequired(error) => {
-                self.refuse_host_command(format!("primitive error state is unavailable at this context-free conversion: {error:?}"))
+                return self.retain_host_command_refusal(format!(
+                    "primitive error state is unavailable at this context-free conversion: {error:?}"
+                ));
             }
-        }
+        };
+        self.execution_refusal.get_or_insert(cause).clone()
     }
 
     /// Retain an explicit host-command refusal outside guest Tcl completion.
@@ -22311,26 +22438,33 @@ impl Vm {
     /// retrieve the diagnostic through `try_*` execution APIs.
     #[must_use]
     pub fn refuse_host_command(&mut self, reason: String) -> Completion<Value> {
-        if self.execution_refusal.is_none() {
-            self.execution_refusal =
-                Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(
-                    Box::new(tcl_runtime_api::NativeHostCommandRefusal {
-                        reason,
-                        source_profile: self.expression_source_profile().cache_key(),
-                        native_profile: self.native_execution_profile().cache_key(),
-                        interpreter:
-                            tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
-                                owner: self.owner_nonce,
-                                interpreter: u64::try_from(self.cur.0)
-                                    .expect("interpreter slot fits u64"),
-                            },
-                        frame: self.current_level(),
-                        namespace: self.current_ns().into(),
-                        namespace_token: u64::from(self.current_ns_id().0),
-                    }),
-                ));
-        }
+        self.retain_host_command_refusal(reason);
         err("")
+    }
+
+    fn retain_host_command_refusal(
+        &mut self,
+        reason: String,
+    ) -> tcl_runtime_api::NativeExecutionError {
+        if let Some(first) = self.execution_refusal.clone() {
+            return first;
+        }
+        let first = tcl_runtime_api::NativeExecutionError::HostCommandRefusal(Box::new(
+            tcl_runtime_api::NativeHostCommandRefusal {
+                reason,
+                source_profile: self.expression_source_profile().cache_key(),
+                native_profile: self.native_execution_profile().cache_key(),
+                interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner: self.owner_nonce,
+                    interpreter: u64::try_from(self.cur.0).expect("interpreter slot fits u64"),
+                },
+                frame: self.current_level(),
+                namespace: self.current_ns().into(),
+                namespace_token: u64::from(self.current_ns_id().0),
+            },
+        ));
+        self.execution_refusal = Some(first.clone());
+        first
     }
 
     pub(crate) fn refused_completion(&self) -> Option<Completion<Value>> {
@@ -22352,7 +22486,10 @@ impl Vm {
         &mut self,
     ) -> Option<tcl_runtime_api::NativeExecutionError> {
         let error = self.execution_refusal.clone()?;
-        if self.activation_depth == 0 && self.host_execution_depth == 0 {
+        if self.activation_depth == 0
+            && self.host_execution_depth == 0
+            && !self.has_entered_native_operation()
+        {
             self.execution_refusal = None;
         }
         Some(error)
@@ -25123,14 +25260,12 @@ impl Traces for Vm {
                     "variable traces",
                 ),
             );
-            let _ = self.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+            let _ = self
+                .refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
             return Err(first);
         }
-        let completion = self.fire_var_traces_from_cell_bytes(var, op, None, None, None);
-        if let Some(first) = self.execution_refusal.clone() {
-            return Err(first);
-        }
-        Ok(completion.map_err(|completion| completion.result))
+        self.fire_var_traces_from_cell_bytes(var, op, None, None, None)
+            .map(|guest| guest.map_err(|completion| completion.result))
     }
 }
 

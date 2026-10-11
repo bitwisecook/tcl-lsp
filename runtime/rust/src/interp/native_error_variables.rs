@@ -20,6 +20,7 @@ pub(super) struct NativeGlobalErrorFlags {
 }
 
 pub(super) struct NativeErrorTraceState {
+    currency: super::native_operation_currency::SavedNativeOperationCurrency,
     originals: NativeErrorObjects,
     info: Option<Vec<u8>>,
     code: Vec<u8>,
@@ -73,8 +74,11 @@ impl Interp {
     pub(super) fn save_native_error_trace_state(&self) -> Option<NativeErrorTraceState> {
         self.native_invocation_dialect()
             .native_error_variable_protocol()?;
+        let currency =
+            super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let exc = self.exc.borrow();
         Some(NativeErrorTraceState {
+            currency,
             originals: exc.native.clone(),
             info: exc.info.clone(),
             code: exc.code.clone(),
@@ -85,18 +89,42 @@ impl Interp {
         })
     }
 
-    pub(super) fn restore_native_error_trace_state(&self, saved: NativeErrorTraceState) {
-        let mut exc = self.exc.borrow_mut();
-        // Tcl_RestoreInterpState restores ERR_ALREADY_LOGGED, not ERR_LEGACY_COPY.
-        let copy = exc.native.legacy_copy;
-        exc.native = saved.originals;
-        exc.native.legacy_copy = copy;
-        exc.info = saved.info;
-        exc.code = saved.code;
-        exc.code_explicit = saved.explicit;
-        exc.already_logged = saved.logged;
-        exc.primitive_getter = saved.primitive_getter;
-        exc.expression_error_stage = saved.expression_error_stage;
+    pub(super) fn restore_native_error_trace_state(
+        &self,
+        saved: NativeErrorTraceState,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        // Saved-state settlement is mandatory after the callback even when its
+        // original entered operation has already refused. Preserve that cause
+        // before retiring any current owner, then check again after cleanup.
+        let cleanup = super::native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &saved.currency,
+            self,
+        )?;
+        let retired = {
+            let mut exc = self.exc.borrow_mut();
+            // Tcl_RestoreInterpState restores ERR_ALREADY_LOGGED, not ERR_LEGACY_COPY.
+            let copy = exc.native.legacy_copy;
+            let retired = std::mem::replace(&mut exc.native, saved.originals);
+            exc.native.legacy_copy = copy;
+            exc.info = saved.info;
+            exc.code = saved.code;
+            exc.code_explicit = saved.explicit;
+            exc.already_logged = saved.logged;
+            exc.primitive_getter = saved.primitive_getter;
+            exc.expression_error_stage = saved.expression_error_stage;
+            retired
+        };
+        drop(retired);
+        cleanup.check()
+    }
+
+    /// C84 SaveResult restoration must reset the reached current episode even
+    /// when its callback has refused. This supplies no continuation permission.
+    pub(super) fn settle_native_global_error_episode(&self) {
+        if self.uses_c84_global_error_info() {
+            let retired = self.exc.replace(super::ExceptionState::default());
+            drop(retired);
+        }
     }
 
     pub(super) fn install_native_error_variable_traces(&mut self) {

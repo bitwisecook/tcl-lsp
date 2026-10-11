@@ -27,6 +27,77 @@ pub(crate) struct NativeOperationCurrency {
     epoch: u64,
 }
 
+/// The stack distinguishes a genuine entered receipt from mandatory cleanup
+/// whose original capture already refused. Cleanup never mints new currency.
+pub(super) enum NativeOperationEntry {
+    Current(Rc<NativeOperationCurrency>),
+    RefusedCleanup(NativeExecutionError),
+}
+
+impl NativeOperationEntry {
+    fn check(&self, interpreter: &Interp) -> Result<(), NativeExecutionError> {
+        match self {
+            Self::Current(currency) => currency.ensure_current_or_refuse(),
+            Self::RefusedCleanup(first) => {
+                interpreter.clone().refuse_native_execution(first.clone());
+                Err(interpreter
+                    .native_execution_refusal()
+                    .unwrap_or_else(|| first.clone()))
+            }
+        }
+    }
+}
+
+/// Actual saved target and original issue result. Saving a receipt does not
+/// keep an operation entered or supply another semantic purpose.
+#[derive(Clone)]
+pub(crate) struct SavedNativeOperationCurrency {
+    interpreter: Weak<InterpState>,
+    original: Result<NativeOperationCurrency, NativeExecutionError>,
+}
+
+impl SavedNativeOperationCurrency {
+    pub(crate) fn capture(interpreter: &Interp) -> Self {
+        // Record the real target before issue can fail. A failed projection
+        // cannot infer its cleanup target from a diagnostic or ambient entry.
+        let target = Rc::downgrade(&interpreter.0);
+        let original = NativeOperationCurrency::issue(interpreter);
+        if let Err(first) = &original {
+            interpreter.clone().refuse_native_execution(first.clone());
+        }
+        Self {
+            interpreter: target,
+            original,
+        }
+    }
+
+    fn ensure_target(&self, actual: &Interp) -> Result<(), NativeExecutionError> {
+        if !Weak::ptr_eq(&self.interpreter, &Rc::downgrade(&actual.0)) {
+            let refusal = NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "saved native operation belongs to another interpreter",
+                ),
+            );
+            actual.clone().refuse_native_execution(refusal.clone());
+            return Err(actual.native_execution_refusal().unwrap_or(refusal));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check(&self, actual: &Interp) -> Result<(), NativeExecutionError> {
+        self.ensure_target(actual)?;
+        match &self.original {
+            Ok(currency) => currency.ensure_current_or_refuse(),
+            Err(first) => {
+                actual.clone().refuse_native_execution(first.clone());
+                Err(actual
+                    .native_execution_refusal()
+                    .unwrap_or_else(|| first.clone()))
+            }
+        }
+    }
+}
+
 fn unavailable() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable(
         "stale entered native operation",
@@ -46,8 +117,11 @@ impl NativeOperationCurrency {
             .last()
             .cloned();
         if let Some(inherited) = inherited {
-            inherited.ensure_current_or_refuse()?;
-            return Ok(inherited.as_ref().clone());
+            inherited.check(interpreter)?;
+            return match inherited.as_ref() {
+                NativeOperationEntry::Current(currency) => Ok(currency.as_ref().clone()),
+                NativeOperationEntry::RefusedCleanup(first) => Err(first.clone()),
+            };
         }
         let host = interpreter.host();
         let epoch = interpreter
@@ -133,19 +207,60 @@ impl NativeOperationCurrency {
 pub(crate) struct NativeOperationScope {
     interpreter: Interp,
     currency: Rc<NativeOperationCurrency>,
+    entry: Rc<NativeOperationEntry>,
+}
+
+/// Mandatory cleanup attaches the saved original entry only for its actual
+/// settlement lifetime. It exposes no fresh receipt or operand authority.
+pub(crate) struct NativeSavedCleanupScope {
+    interpreter: Interp,
+    original: SavedNativeOperationCurrency,
+    entry: Rc<NativeOperationEntry>,
+}
+
+impl NativeSavedCleanupScope {
+    pub(crate) fn check(&self) -> Result<(), NativeExecutionError> {
+        self.original.check(&self.interpreter)
+    }
 }
 
 impl NativeOperationScope {
     pub(crate) fn enter(interpreter: &Interp) -> Result<Self, NativeExecutionError> {
         let currency = Rc::new(NativeOperationCurrency::issue(interpreter)?);
         currency.ensure_current_or_refuse()?;
+        let entry = Rc::new(NativeOperationEntry::Current(currency.clone()));
         interpreter
             .entered_native_operations
             .borrow_mut()
-            .push(currency.clone());
+            .push(entry.clone());
         Ok(Self {
             interpreter: interpreter.clone(),
             currency,
+            entry,
+        })
+    }
+
+    /// Attach the original saved target for mandatory settlement. Foreign
+    /// state is refused before publication. Same-target withdrawal retains the
+    /// first cause while cleanup continues; nested work cannot start fresh.
+    pub(crate) fn enter_saved_cleanup(
+        saved: &SavedNativeOperationCurrency,
+        interpreter: &Interp,
+    ) -> Result<NativeSavedCleanupScope, NativeExecutionError> {
+        saved.ensure_target(interpreter)?;
+        let _ = saved.check(interpreter);
+        let entry = Rc::new(match &saved.original {
+            Ok(currency) => NativeOperationEntry::Current(Rc::new(currency.clone())),
+            Err(first) => NativeOperationEntry::RefusedCleanup(first.clone()),
+        });
+        interpreter
+            .entered_native_operations
+            .borrow_mut()
+            .push(entry.clone());
+        Ok(NativeSavedCleanupScope {
+            interpreter: interpreter.clone(),
+            original: saved.clone(),
+            entry,
         })
     }
 
@@ -166,18 +281,29 @@ impl NativeOperationScope {
     }
 }
 
-impl Drop for NativeOperationScope {
-    fn drop(&mut self) {
-        let mut entered = self.interpreter.entered_native_operations.borrow_mut();
-        // Retained argument and target carriers can retire in a different order
-        // from entry. Withdraw this actual owner without retiring a live sibling.
+fn retire_entry(interpreter: &Interp, entry: &Rc<NativeOperationEntry>) {
+    let retired = {
+        let mut entered = interpreter.entered_native_operations.borrow_mut();
+        // Argument/cleanup carriers can retire out of order. Withdraw only
+        // this actual entry without removing a still-live sibling.
         let original = entered
             .iter()
-            .position(|original| Rc::ptr_eq(original, &self.currency));
+            .position(|original| Rc::ptr_eq(original, entry));
         debug_assert!(original.is_some());
-        if let Some(original) = original {
-            entered.remove(original);
-        }
+        original.map(|original| entered.remove(original))
+    };
+    drop(retired);
+}
+
+impl Drop for NativeOperationScope {
+    fn drop(&mut self) {
+        retire_entry(&self.interpreter, &self.entry);
+    }
+}
+
+impl Drop for NativeSavedCleanupScope {
+    fn drop(&mut self) {
+        retire_entry(&self.interpreter, &self.entry);
     }
 }
 
@@ -221,7 +347,7 @@ impl Interp {
             return Err(first);
         }
         let entered = self.entered_native_operations.borrow().last().cloned();
-        entered.map_or(Ok(()), |currency| currency.ensure_current_or_refuse())
+        entered.map_or(Ok(()), |entry| entry.check(self))
     }
 }
 

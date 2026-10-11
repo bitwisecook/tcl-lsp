@@ -113,15 +113,24 @@ impl Vm {
     ) -> Result<VariableUpdateResult<Value>, Completion<Value>> {
         self.with_variable_operation(&captured.cell, |vm| {
             let trace = if let Some(key) = key {
-                vm.fire_elem_traces_from_cell_bytes(name, key, "read", Some(captured.cell.clone()))
+                vm.variable_trace_guest_or_unwind(|vm| {
+                    vm.fire_elem_traces_from_cell_bytes(
+                        name,
+                        key,
+                        "read",
+                        Some(captured.cell.clone()),
+                    )
+                })
             } else {
-                vm.fire_var_traces_from_cell_bytes(
-                    name,
-                    "read",
-                    None,
-                    None,
-                    Some(captured.cell.clone()),
-                )
+                vm.variable_trace_guest_or_unwind(|vm| {
+                    vm.fire_var_traces_from_cell_bytes(
+                        name,
+                        "read",
+                        None,
+                        None,
+                        Some(captured.cell.clone()),
+                    )
+                })
             };
             if let Some(refusal) = vm.refused_completion() {
                 return Err(refusal);

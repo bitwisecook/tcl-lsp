@@ -93,7 +93,7 @@ fn trace_chain_saves_the_selected_native_result_reference() {
                 assert_eq!(current.resident_string_bytes().unwrap().as_ref(), b"");
             })
             .unwrap();
-            vm.restore_native_interp_trace_result(script_saved);
+            vm.restore_native_interp_trace_result(script_saved).unwrap();
         }
         let saved = vm.save_native_interp_trace_result().unwrap();
         if release == TclVersion::V8_4 {
@@ -107,7 +107,7 @@ fn trace_chain_saves_the_selected_native_result_reference() {
             .publish_native_interp_completion(ok(Value::string("CALLBACK")))
             .unwrap();
         assert_eq!(before.result.native_object_reference_count(), 1);
-        vm.restore_native_interp_trace_result(saved);
+        vm.restore_native_interp_trace_result(saved).unwrap();
         vm.with_native_interp_result(|result| {
             assert!(result.is_same_object(&before.result));
             assert_eq!(result.native_object_reference_count(), 1);
@@ -160,7 +160,7 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
                 .begin_inner(Value::string("INNER"), Value::string("CALLBACK"))
                 .unwrap();
         }
-        vm.restore_native_interp_trace_result(saved);
+        vm.restore_native_interp_trace_result(saved).unwrap();
         assert_eq!(vm.native_errors.native_c_return_state.code, 7);
         assert_eq!(vm.native_errors.native_c_return_state.level, 3);
         assert!(

@@ -106,7 +106,10 @@ impl Vm {
             } else {
                 std::rc::Rc::from(name)
             };
-            vm.fire_original_existence_read(&name, element, cell.clone());
+            vm.fire_original_existence_read(&name, element, cell.clone())
+                .map_err(|first| {
+                    vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
+                })?;
             if let Some(refusal) = vm.refused_completion() {
                 return Err(refusal);
             }
@@ -131,12 +134,12 @@ impl Vm {
         Ok(found)
     }
 
-    fn fire_original_existence_read(
+    pub(in crate::interp) fn fire_original_existence_read(
         &mut self,
         name: &[u8],
         element: Option<&[u8]>,
         cell: Option<super::super::VarTraceCell>,
-    ) {
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         let mut combined = Vec::new();
         let access = if let Some(element) = element {
             combined.extend_from_slice(name);
@@ -155,7 +158,7 @@ impl Vm {
                     .element()
                     .is_some()
             });
-        let _ = self.fire_var_traces_from_parts(
+        let _guest = self.fire_var_traces_from_parts(
             super::super::VarTraceInvocation {
                 leave_error_message: false,
                 name: access,
@@ -165,7 +168,8 @@ impl Vm {
             },
             None,
             cell,
-        );
+        )?;
+        Ok(())
     }
 
     pub(crate) fn original_existence_result(

@@ -214,19 +214,29 @@ impl Interp {
 
 /// The private error headers saved at a reached native dictionary epilogue.
 pub(crate) struct DictionaryScopeErrorState {
+    currency: super::native_operation_currency::SavedNativeOperationCurrency,
     original: Option<super::native_error_variables::NativeErrorTraceState>,
 }
 
 impl Interp {
     pub(crate) fn save_dictionary_scope_error(&self) -> DictionaryScopeErrorState {
         DictionaryScopeErrorState {
+            currency: super::native_operation_currency::SavedNativeOperationCurrency::capture(self),
             original: self.save_native_error_trace_state(),
         }
     }
 
-    pub(crate) fn restore_dictionary_scope_error(&self, state: DictionaryScopeErrorState) {
+    pub(crate) fn restore_dictionary_scope_error(
+        &self,
+        state: DictionaryScopeErrorState,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup = super::native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &state.currency,
+            self,
+        )?;
         if let Some(original) = state.original {
-            self.restore_native_error_trace_state(original);
+            let _ = self.restore_native_error_trace_state(original);
         }
+        cleanup.check()
     }
 }

@@ -6,7 +6,7 @@
 //! with the actual interpreter. Nested operations inherit the original receipt;
 //! neither callback re-entry nor change-and-restore can issue it again.
 
-use super::Vm;
+use super::{InterpId, Vm};
 use std::{
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
@@ -29,6 +29,12 @@ impl Default for NativeOperationContext {
     }
 }
 impl NativeOperationContext {
+    pub(super) fn has_entered_operation(&self) -> bool {
+        let mut entered = self.entered.borrow_mut();
+        entered.retain(|record| record.strong_count() != 0);
+        !entered.is_empty()
+    }
+
     fn advance(&self) {
         self.generation.set(
             self.generation
@@ -63,23 +69,46 @@ fn unavailable() -> NativeExecutionError {
         "entered VM original execution context",
     ))
 }
-fn retain_first(vm: &mut Vm, cause: NativeExecutionError) -> CmdError {
-    CmdError::from_execution_refusal(vm.execution_refusal.get_or_insert(cause).clone())
+fn retain_first(vm: &mut Vm, cause: NativeExecutionError) -> NativeExecutionError {
+    vm.execution_refusal.get_or_insert(cause).clone()
 }
 impl NativeOperationCurrency {
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.check_native(vm)
+            .map_err(CmdError::from_execution_refusal)
+    }
+
+    pub(crate) fn check_native(&self, vm: &mut Vm) -> Result<(), NativeExecutionError> {
+        let interpreter = vm.cur;
+        self.check_saved_target(vm, interpreter)
+    }
+
+    fn owns_saved_target(&self, vm: &Vm, interpreter: InterpId) -> bool {
+        vm.st_of(interpreter).is_some_and(|state| {
+            Rc::ptr_eq(&self.owner, &state.native_operation_context)
+                && self.interpreter.owner == vm.owner_nonce
+                && u64::try_from(interpreter.0).ok() == Some(self.interpreter.interpreter)
+        })
+    }
+
+    pub(super) fn check_saved_target(
+        &self,
+        vm: &mut Vm,
+        interpreter: InterpId,
+    ) -> Result<(), NativeExecutionError> {
         if let Some(first) = vm.execution_refusal.clone() {
-            return Err(CmdError::from_execution_refusal(first));
+            return Err(first);
         }
-        if !Rc::ptr_eq(&self.owner, &vm.native_operation_context)
-            || self.owner.generation.get() != Some(self.generation)
-            || vm.native_interpreter_identity() != self.interpreter
-            || vm.runtime_context() != &self.context
-            || !std::ptr::eq(vm.dialect_profile(), self.profile)
-            || vm.actual_engine_profile.map(std::ptr::from_ref)
-                != self.engine.map(std::ptr::from_ref)
-            || !Rc::ptr_eq(&vm.host_rc(), &self.host)
-        {
+        let current = self.owns_saved_target(vm, interpreter)
+            && vm.st_of(interpreter).is_some_and(|state| {
+                self.owner.generation.get() == Some(self.generation)
+                    && state.pin.context == self.context
+                    && std::ptr::eq(state.pin.profile, self.profile)
+                    && state.actual_engine_profile.map(std::ptr::from_ref)
+                        == self.engine.map(std::ptr::from_ref)
+                    && Rc::ptr_eq(&state.host, &self.host)
+            });
+        if !current {
             return Err(retain_first(vm, unavailable()));
         }
         Ok(())
@@ -87,8 +116,12 @@ impl NativeOperationCurrency {
 }
 impl NativeOperationScope {
     pub(crate) fn enter(vm: &mut Vm) -> Result<Self, CmdError> {
+        Self::enter_native(vm).map_err(CmdError::from_execution_refusal)
+    }
+
+    pub(crate) fn enter_native(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
         if let Some(first) = vm.execution_refusal.clone() {
-            return Err(CmdError::from_execution_refusal(first));
+            return Err(first);
         }
         let owner = Rc::clone(&vm.native_operation_context);
         // Weak scope records never keep a finished operation or Host alive.
@@ -100,7 +133,7 @@ impl NativeOperationScope {
             entered.last().and_then(Weak::upgrade)
         };
         let currency = if let Some(original) = inherited {
-            original.currency.check(vm)?;
+            original.currency.check_native(vm)?;
             original.currency.clone()
         } else {
             let generation = owner
@@ -121,14 +154,50 @@ impl NativeOperationScope {
         owner.entered.borrow_mut().push(Rc::downgrade(&entered));
         Ok(Self { entered })
     }
+    /// Attach only the original saved receipt to its authentic physical target.
+    /// Currency failure is retained but never skips same-target mandatory cleanup.
+    pub(super) fn enter_saved_cleanup(
+        vm: &mut Vm,
+        original: &NativeOperationCurrency,
+        interpreter: InterpId,
+    ) -> Result<Self, NativeExecutionError> {
+        if !original.owns_saved_target(vm, interpreter) {
+            return Err(retain_first(vm, unavailable()));
+        }
+        let entered = Rc::new(EnteredOperation {
+            currency: original.clone(),
+        });
+        original
+            .owner
+            .entered
+            .borrow_mut()
+            .push(Rc::downgrade(&entered));
+        let _ = original.check_saved_target(vm, interpreter);
+        Ok(Self { entered })
+    }
+
     pub(crate) fn currency(&self) -> &NativeOperationCurrency {
         &self.entered.currency
     }
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
-        self.currency().check(vm)
+        self.check_native(vm)
+            .map_err(CmdError::from_execution_refusal)
+    }
+
+    pub(crate) fn check_native(&self, vm: &mut Vm) -> Result<(), NativeExecutionError> {
+        self.currency().check_native(vm)
     }
 }
 impl Vm {
+    pub(super) fn has_entered_native_operation(&self) -> bool {
+        self.state.native_operation_context.has_entered_operation()
+            || self.interps.iter().any(|slot| {
+                slot.parked
+                    .as_deref()
+                    .is_some_and(|state| state.native_operation_context.has_entered_operation())
+            })
+    }
+
     pub(super) fn advance_native_operation_context(&self) {
         self.native_operation_context.advance();
     }

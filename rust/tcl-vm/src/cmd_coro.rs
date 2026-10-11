@@ -172,7 +172,7 @@ pub(crate) fn on_command_deleted(vm: &mut Vm, key: &CommandSidecarKey) {
     // variables). A running coroutine's frames are on the live stack instead, so
     // their traces fire the normal way as those frames pop.
     if state.status == CoroStatus::Suspended {
-        vm.fire_parked_unset_traces(&mut state.parked, &mut state.acts);
+        let _ = vm.fire_parked_unset_traces(&mut state.parked, &mut state.acts);
     }
     vm.retire_parked_lambda_registrations(&mut state.acts);
 }
@@ -800,7 +800,14 @@ pub(crate) fn eval_retained_activation(
     } else {
         // Deletion while entered detached the original sidecar. Retire that
         // original flow, including unset traces, rather than adopting a new name.
-        vm.fire_parked_unset_traces(&mut parked, &mut Vec::new());
+        if let Err(first) = vm.fire_parked_unset_traces(&mut parked, &mut Vec::new()) {
+            return match outcome {
+                ScheduledCallbackOutcome::Host(original) => {
+                    ScheduledCallbackOutcome::Host(original)
+                }
+                _ => ScheduledCallbackOutcome::Host(first),
+            };
+        }
     }
     outcome
 }

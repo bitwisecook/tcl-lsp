@@ -211,15 +211,6 @@ impl Vm {
             logged: self.native_errors.error_logged,
         })
     }
-    pub(super) fn restore_native_error_trace_state(&mut self, saved: NativeErrorTraceState) {
-        self.native_errors.native_error_info = saved.info;
-        self.native_errors.native_error_info_len = saved.info_len;
-        self.native_errors.native_error_result = saved.result;
-        self.native_errors.primitive_error_code = saved.code;
-        self.native_errors.native_return_options = saved.options;
-        self.native_errors.error_info = saved.bytes;
-        self.native_errors.error_logged = saved.logged;
-    }
 
     pub(super) fn install_native_error_variable_traces(&mut self) {
         if self
@@ -1325,5 +1316,28 @@ mod tests {
         ));
         assert_eq!(private.string_bytes().as_ref(), b"seed context");
         assert!(original.byte_array_representation().is_some());
+    }
+}
+
+impl InterpState {
+    pub(super) fn replace_native_error_trace_state(
+        &mut self,
+        saved: NativeErrorTraceState,
+    ) -> NativeErrorTraceState {
+        NativeErrorTraceState {
+            info: std::mem::replace(&mut self.native_errors.native_error_info, saved.info),
+            info_len: std::mem::replace(
+                &mut self.native_errors.native_error_info_len,
+                saved.info_len,
+            ),
+            result: std::mem::replace(&mut self.native_errors.native_error_result, saved.result),
+            code: std::mem::replace(&mut self.native_errors.primitive_error_code, saved.code),
+            options: std::mem::replace(
+                &mut self.native_errors.native_return_options,
+                saved.options,
+            ),
+            bytes: std::mem::replace(&mut self.native_errors.error_info, saved.bytes),
+            logged: std::mem::replace(&mut self.native_errors.error_logged, saved.logged),
+        }
     }
 }

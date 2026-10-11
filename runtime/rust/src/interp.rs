@@ -549,6 +549,7 @@ struct TraceAccess {
 /// accumulation — moved between flows by [`Interp::snapshot_error`] /
 /// [`Interp::restore_error`] (see `coroprobe`).
 pub(crate) struct ErrorSnapshot {
+    currency: native_operation_currency::SavedNativeOperationCurrency,
     native: native_error_variables::NativeErrorObjects,
     jim_error_stack: JimErrorStack<obj::Owned>,
     info: Option<Vec<u8>>,
@@ -558,6 +559,15 @@ pub(crate) struct ErrorSnapshot {
     primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
     expression_error_stage:
         Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
+}
+
+/// Full saved error state for mandatory failed-constructor cleanup. Its real
+/// entered receipt survives callback effects independently of byte projections.
+pub(crate) struct ErrorStateSnapshot {
+    currency: native_operation_currency::SavedNativeOperationCurrency,
+    result: Result<Vec<u8>, tcl_runtime_api::NativeExecutionError>,
+    exception: ExceptionState,
+    jim_stack: JimErrorStack<obj::Owned>,
 }
 
 #[cfg(test)]
@@ -1466,7 +1476,7 @@ pub struct InterpState {
     /// Exhaustion permanently refuses new receipts; ordinary Guest mutations do not move it.
     native_operation_context_epoch: Cell<Option<u64>>,
     /// Original entered ABI operations, inherited by synchronous nested work.
-    entered_native_operations: RefCell<Vec<Rc<native_operation_currency::NativeOperationCurrency>>>,
+    entered_native_operations: RefCell<Vec<Rc<native_operation_currency::NativeOperationEntry>>>,
     deferred_tailcalls: RefCell<Vec<(u32, crate::frame::PendingTailcall)>>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
     /// handler or `finally` script throws, the options dict of the *prior*
@@ -7902,7 +7912,7 @@ impl Interp {
         // `array` trace's error therefore fails the `array` subcommand.
         let propagate = op != b"unset";
         // Preserve the result object across the callbacks.
-        let saved = self.save_native_variable_trace_result(false);
+        let saved = self.save_native_variable_trace_result(false)?;
         let global_error_flags = self.capture_native_global_error_flags();
 
         // The cell is marked active for the whole firing, as C marks `varPtr`
@@ -7968,7 +7978,13 @@ impl Interp {
                         drop_fresh(args);
                         self.reset_native_error_objects_before_trace_script();
                         self.clear_return_options();
-                        let saved = self.save_native_variable_trace_result(true);
+                        let saved = match self.save_native_variable_trace_result(true) {
+                            Ok(saved) => saved,
+                            Err(_) => {
+                                errored = true;
+                                break 'groups;
+                            }
+                        };
                         let code = match self
                             .native_invocation_dialect()
                             .native_variable_trace_protocol()
@@ -7992,7 +8008,7 @@ impl Interp {
                             callback_failure = Some(obj::Owned::retain(self.result.get()));
                         }
                         if let Some(saved) = saved {
-                            self.restore_native_variable_trace_result(saved);
+                            let _ = self.restore_native_variable_trace_result(saved);
                         }
                         code
                     }
@@ -8081,7 +8097,7 @@ impl Interp {
         let refused = self.check_entered_native_operation().is_err();
         if !errored || !leave_error_message || refused {
             if let Some(saved) = saved {
-                self.restore_native_variable_trace_result(saved);
+                let _ = self.restore_native_variable_trace_result(saved);
             }
         } else {
             drop(saved);
@@ -8598,7 +8614,10 @@ impl Interp {
             b"delete"
         };
         // Preserve the result object across the callbacks.
-        let saved = self.save_native_command_trace_result(false);
+        let saved = match self.save_native_command_trace_result(false) {
+            Ok(saved) => saved,
+            Err(_) => return,
+        };
 
         // Only `firing_cmd_traces` is raised, never `exec_firing`: C sets
         // `INTERP_TRACE_IN_PROGRESS` in exactly one place — `TraceExecutionProc`
@@ -8627,10 +8646,15 @@ impl Interp {
             drop_fresh(args);
             self.reset_native_error_objects_before_trace_script();
             self.clear_return_options();
-            let saved_script = self.save_native_command_trace_result(true);
+            let saved_script = match self.save_native_command_trace_result(true) {
+                Ok(saved) => saved,
+                Err(_) => break,
+            };
             let _ = self.eval_native_command_trace_script(false, &line);
             if let Some(saved) = saved_script {
-                self.restore_native_variable_trace_result(saved);
+                if self.restore_native_variable_trace_result(saved).is_err() {
+                    break;
+                }
             }
         }
         {
@@ -8642,7 +8666,7 @@ impl Interp {
         }
 
         if let Some(saved) = saved {
-            self.restore_native_variable_trace_result(saved);
+            let _ = self.restore_native_variable_trace_result(saved);
         }
     }
 
@@ -9408,7 +9432,10 @@ impl Interp {
         if self.host_refusal_pending() || victims.is_empty() {
             return;
         }
-        let saved = self.save_native_variable_trace_result(false);
+        let saved = match self.save_native_variable_trace_result(false) {
+            Ok(saved) => saved,
+            Err(_) => return,
+        };
         for (name, elem, cmd, old_style) in victims {
             if self.check_entered_native_operation().is_err() {
                 break;
@@ -9438,17 +9465,20 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.clear_return_options();
-            let saved_script = self.save_native_variable_trace_result(true);
+            let saved_script = match self.save_native_variable_trace_result(true) {
+                Ok(saved) => saved,
+                Err(_) => break,
+            };
             let _ = self.eval_str(&line);
             if let Some(saved_script) = saved_script {
-                self.restore_native_variable_trace_result(saved_script);
+                let _ = self.restore_native_variable_trace_result(saved_script);
             }
             if self.check_entered_native_operation().is_err() {
                 break;
             }
         }
         if let Some(saved) = saved {
-            self.restore_native_variable_trace_result(saved);
+            let _ = self.restore_native_variable_trace_result(saved);
         }
     }
 
@@ -11130,8 +11160,10 @@ impl Interp {
     /// state, but its error must surface in the *caller's* trace once that state
     /// is swapped back out.
     pub(crate) fn snapshot_error(&self) -> ErrorSnapshot {
+        let currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let exc = self.exc.borrow();
         ErrorSnapshot {
+            currency,
             native: exc.native.clone(),
             jim_error_stack: self.jim_error_stack.borrow().clone(),
             info: exc.info.clone(),
@@ -11146,7 +11178,14 @@ impl Interp {
     /// Restore an [`ErrorSnapshot`] captured by [`snapshot_error`] into this
     /// flow's exception state (the trace continues from there — e.g. `coroprobe`
     /// then appends its own `(injected coroutine probe command)` frame).
-    pub(crate) fn restore_error(&self, snap: ErrorSnapshot) {
+    pub(crate) fn restore_error(
+        &self,
+        snap: ErrorSnapshot,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup = native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &snap.currency,
+            self,
+        )?;
         let retired_stack = self.jim_error_stack.replace(snap.jim_error_stack);
         let retired_native = {
             let mut exc = self.exc.borrow_mut();
@@ -11159,9 +11198,10 @@ impl Interp {
             exc.expression_error_stage = snap.expression_error_stage;
             retired
         };
-        // The captured state is installed before callback-bearing old owners retire.
+        // Publish the complete saved state before mandatory original retirement.
         drop(retired_stack);
         drop(retired_native);
+        cleanup.check()
     }
 
     /// `info frame` (no arg): the depth of the source-location stack.
@@ -11245,22 +11285,38 @@ impl Interp {
     /// `errorInfo`/`errorCode` accumulator) so a side-effecting cleanup (e.g.
     /// running a destructor after a failed constructor) can run and then have
     /// the original error restored.
-    pub(crate) fn error_snapshot(&self) -> (Vec<u8>, ExceptionState, JimErrorStack<obj::Owned>) {
-        (
-            self.result_bytes(),
-            self.exc.borrow().clone(),
-            self.jim_error_stack.borrow().clone(),
-        )
+    pub(crate) fn error_snapshot(&mut self) -> ErrorStateSnapshot {
+        let currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        let result = self.completion_result_bytes_checked();
+        let _ = currency.check(self);
+        ErrorStateSnapshot {
+            currency,
+            result,
+            exception: self.exc.borrow().clone(),
+            jim_stack: self.jim_error_stack.borrow().clone(),
+        }
     }
 
     /// Restore a previously taken [`error_snapshot`](Self::error_snapshot).
     pub(crate) fn error_restore(
         &mut self,
-        snap: (Vec<u8>, ExceptionState, JimErrorStack<obj::Owned>),
-    ) {
-        *self.jim_error_stack.borrow_mut() = snap.2;
-        self.set_result_bytes(&snap.0);
-        *self.exc.borrow_mut() = snap.1;
+        snap: ErrorStateSnapshot,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup = native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &snap.currency,
+            self,
+        )?;
+        let retired_stack = self.jim_error_stack.replace(snap.jim_stack);
+        // Retained result bytes are actual getter output. Missing bytes remain
+        // an explicit first operational failure, never an empty replacement.
+        if let Ok(result) = &snap.result {
+            self.set_result_bytes(result);
+        }
+        let retired_state = self.exc.replace(snap.exception);
+        drop(retired_stack);
+        drop(retired_state);
+        cleanup.check()?;
+        snap.result.map(|_| ())
     }
 
     /// Exact current error-code bytes, with an absent implicit code represented
@@ -17645,7 +17701,7 @@ mod tests {
             let snapshot = interp.snapshot_error();
             interp.error_with_code(b"other", b"OTHER");
             interp.set_result_bytes(&primitive_message);
-            interp.restore_error(snapshot);
+            let _ = interp.restore_error(snapshot);
             interp.log_command_bytes(1, b"getter");
             assert_eq!(interp.result_bytes(), propagated_message);
             assert_eq!(interp.error_code(), b"PROBE BEFORE");
@@ -17722,7 +17778,7 @@ mod tests {
                 let snapshot = interp.snapshot_error();
                 interp.error_with_code(b"other failure", b"OTHER");
                 interp.set_result_bytes(message);
-                interp.restore_error(snapshot);
+                let _ = interp.restore_error(snapshot);
                 interp.log_command_bytes(1, b"expr $probeSource");
                 assert_eq!(interp.error_code(), propagated, "{engine}/{case} Eval");
                 assert_eq!(interp.result_bytes(), message, "{engine}/{case}");

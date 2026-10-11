@@ -316,7 +316,12 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                         )),
                     };
                 }
-                ok(Value::bool(vm.exists_var_traced_bytes(&name)))
+                match vm.exists_var_traced_bytes(&name) {
+                    Ok(found) => ok(Value::bool(found)),
+                    Err(first) => {
+                        vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
+                    }
+                }
             }
             _ => crate::command::native_wrong_arguments_message(
                 vm,

@@ -5,6 +5,7 @@ use super::Interp;
 use crate::obj;
 
 pub(super) struct NativeTraceResultState {
+    currency: super::native_operation_currency::SavedNativeOperationCurrency,
     result: obj::Owned,
     interpreter: Option<NativeTraceInterpreterState>,
     reset_before_restore: bool,
@@ -23,7 +24,7 @@ impl Interp {
     pub(super) fn save_native_variable_trace_result(
         &self,
         script: bool,
-    ) -> Option<NativeTraceResultState> {
+    ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
         use tcl_registry::native_variable_trace::NativeTraceStatePurpose;
         self.save_native_trace_state(if script {
             NativeTraceStatePurpose::VariableScript
@@ -35,7 +36,7 @@ impl Interp {
     pub(super) fn save_native_command_trace_result(
         &self,
         script: bool,
-    ) -> Option<NativeTraceResultState> {
+    ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
         use tcl_registry::native_variable_trace::NativeTraceStatePurpose;
         self.save_native_trace_state(if script {
             NativeTraceStatePurpose::CommandScript
@@ -47,13 +48,19 @@ impl Interp {
     fn save_native_trace_state(
         &self,
         purpose: tcl_registry::native_variable_trace::NativeTraceStatePurpose,
-    ) -> Option<NativeTraceResultState> {
+    ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
         use tcl_registry::native_variable_trace::NativeTraceStateRecipe;
-        let recipe = self
+        let currency =
+            super::native_operation_currency::SavedNativeOperationCurrency::capture(self);
+        currency.check(self)?;
+        let Some(recipe) = self
             .native_invocation_dialect()
-            .native_trace_state_recipe(purpose)?;
+            .native_trace_state_recipe(purpose)
+        else {
+            return Ok(None);
+        };
         if recipe == NativeTraceStateRecipe::None {
-            return None;
+            return Ok(None);
         }
         if matches!(
             recipe,
@@ -63,15 +70,17 @@ impl Interp {
             let original = self.result.replace(replacement.into_raw());
             // SAFETY: SaveResult transfers the interpreter's existing +1.
             let result = unsafe { obj::Owned::from_raw(original) };
-            return Some(NativeTraceResultState {
+            return Ok(Some(NativeTraceResultState {
+                currency,
                 result,
                 interpreter: None,
                 reset_before_restore: true,
                 return_code: (recipe == NativeTraceStateRecipe::MoveResultAndCode)
                     .then(|| self.return_code.get()),
-            });
+            }));
         }
-        Some(NativeTraceResultState {
+        Ok(Some(NativeTraceResultState {
+            currency,
             result: obj::Owned::retain(self.result.get()),
             interpreter: Some(NativeTraceInterpreterState {
                 error: self
@@ -87,10 +96,17 @@ impl Interp {
             }),
             reset_before_restore: false,
             return_code: None,
-        })
+        }))
     }
 
-    pub(super) fn restore_native_variable_trace_result(&self, saved: NativeTraceResultState) {
+    pub(super) fn restore_native_variable_trace_result(
+        &self,
+        saved: NativeTraceResultState,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup = super::native_operation_currency::NativeOperationScope::enter_saved_cleanup(
+            &saved.currency,
+            self,
+        )?;
         if saved.reset_before_restore {
             let current = self.result.get();
             if obj::is_shared(current) {
@@ -101,12 +117,12 @@ impl Interp {
             } else {
                 obj::reset_native_c_result(current);
             }
-            self.reset_native_global_error_episode();
+            self.settle_native_global_error_episode();
         }
         if let Some(state) = saved.interpreter {
             self.return_code.set(state.code);
             self.return_level.set(state.level);
-            self.restore_native_error_trace_state(state.error);
+            let _ = self.restore_native_error_trace_state(state.error);
             if let Some(stack) = state.stack {
                 let retired = self.error_stack.replace(stack);
                 drop(retired);
@@ -120,6 +136,8 @@ impl Interp {
         if let Some(code) = saved.return_code {
             self.return_code.set(code);
         }
+
+        cleanup.check()
     }
 }
 
@@ -142,11 +160,14 @@ mod tests {
             interp.set_result_bytes(b"BEFORE\xff\0TAIL");
             let original = interp.result_obj();
             let script = release == TclVersion::V8_4;
-            let absent = interp.save_native_variable_trace_result(!script);
+            let absent = interp.save_native_variable_trace_result(!script).unwrap();
             assert!(absent.is_none());
             // SAFETY: the interpreter owns this live original result.
             assert_eq!(unsafe { (*original).ref_count }, 1);
-            let saved = interp.save_native_variable_trace_result(script).unwrap();
+            let saved = interp
+                .save_native_variable_trace_result(script)
+                .unwrap()
+                .unwrap();
             // SAFETY: the selected state owns the live original. C84 moves
             // that reference; modern C also keeps the interpreter reference.
             assert_eq!(unsafe { (*original).ref_count }, if script { 1 } else { 2 });
@@ -157,7 +178,7 @@ mod tests {
             interp.set_result_bytes(b"CALLBACK");
             // SAFETY: the saved state still owns the retired result.
             assert_eq!(unsafe { (*original).ref_count }, 1);
-            interp.restore_native_variable_trace_result(saved);
+            interp.restore_native_variable_trace_result(saved).unwrap();
             assert_eq!(interp.result_obj(), original);
             assert_eq!(interp.result_bytes(), b"BEFORE\xff\0TAIL");
             // SAFETY: restoration transfers the saved reference to the interpreter.
@@ -178,12 +199,13 @@ mod tests {
             } else {
                 interp.save_native_variable_trace_result(true)
             }
+            .unwrap()
             .unwrap();
             // SAFETY: the selected saved state owns this original +1.
             assert_eq!(unsafe { (*original).ref_count }, 1);
             interp.set_return_state(0, super::super::Code::Error);
             interp.set_result_bytes(b"CALLBACK");
-            interp.restore_native_variable_trace_result(saved);
+            interp.restore_native_variable_trace_result(saved).unwrap();
             assert_eq!(interp.result_obj(), original);
             assert_eq!(interp.pending_return_level(), 0);
             assert_eq!(
@@ -233,7 +255,10 @@ mod tests {
                 stack.begin_inner(b"INNER".to_vec(), b"ORIGINAL".to_vec());
                 stack.mark_reset();
             }
-            let saved = interp.save_native_variable_trace_result(false).unwrap();
+            let saved = interp
+                .save_native_variable_trace_result(false)
+                .unwrap()
+                .unwrap();
             // SAFETY: shared option backing retains the originals without
             // acquiring extra references to its key or value children.
             assert_eq!(unsafe { (*key_ptr).ref_count }, 1);
@@ -254,7 +279,7 @@ mod tests {
                     .borrow_mut()
                     .begin_inner(b"INNER".to_vec(), b"CALLBACK".to_vec());
             }
-            interp.restore_native_variable_trace_result(saved);
+            interp.restore_native_variable_trace_result(saved).unwrap();
             assert_eq!(interp.pending_return_level(), 3);
             assert_eq!(
                 interp.pending_return_code(),

@@ -219,13 +219,15 @@ impl Vm {
             );
         let (name, captured) = self.capture_compiled_update(root_slot, None)?;
         self.with_variable_operation(&captured.cell, |vm| {
-            let read = vm.fire_var_traces_from_cell_bytes(
-                name.as_bytes(),
-                "read",
-                None,
-                None,
-                Some(captured.cell.clone()),
-            );
+            let read = vm.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(
+                    name.as_bytes(),
+                    "read",
+                    None,
+                    None,
+                    Some(captured.cell.clone()),
+                )
+            });
             if let Some(refusal) = vm.refused_completion() {
                 return Err(refusal);
             }
@@ -330,8 +332,9 @@ impl Vm {
             |receiver| receiver.explicit_array,
         );
         let execute = |vm: &mut Self| {
-            let read =
-                vm.fire_var_traces_from_cell_bytes(name, "read", None, None, selected.clone());
+            let read = vm.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(name, "read", None, None, selected.clone())
+            });
             if let Some(refusal) = vm.refused_completion() {
                 return Err(refusal);
             }
@@ -384,7 +387,9 @@ impl Vm {
         operation: impl FnOnce(&mut Self, O::Prepared) -> Result<Value, Completion<Value>>,
     ) -> Result<VariableUpdateResult<Value>, Completion<Value>> {
         let trace = if let Some(cell) = selected {
-            self.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
+            self.variable_trace_guest_or_unwind(|vm| {
+                vm.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
+            })
         } else {
             Ok(())
         };

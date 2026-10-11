@@ -210,7 +210,7 @@ fn original_error_snapshot_restoration_retires_native_options_after_full_state_p
                 assert_eq!(unsafe { (*value).ref_count }, 1);
                 interpreter.clear_error_logged();
                 assert!(!interpreter.exc.borrow().already_logged);
-                interpreter.restore_error(snapshot);
+                let _ = interpreter.restore_error(snapshot);
                 assert_eq!(calls.get(), 1);
                 assert!(!obj::allocation_is_live(memory.as_ptr()));
                 assert_eq!(&*observed.borrow(), b"SNAPSHOT CODE");
@@ -809,4 +809,294 @@ fn original_error_info_fallback_keeps_the_exact_result_across_its_getter() {
         assert_eq!(frees.get(), 1);
         drop(scope);
     });
+}
+type SavedCleanupOutcome = Rc<RefCell<Option<Result<(), tcl_runtime_api::NativeExecutionError>>>>;
+
+#[derive(Clone)]
+struct SavedCleanupObservation {
+    calls: Rc<Cell<usize>>,
+    entered: Rc<Cell<usize>>,
+    observed: Rc<RefCell<Vec<u8>>>,
+    nested: SavedCleanupOutcome,
+    engine: SavedCleanupOutcome,
+}
+
+struct SavedCleanupRetirement {
+    interpreter: WeakInterp,
+    observation: SavedCleanupObservation,
+    mode: u8,
+}
+
+extern "C" fn retire_saved_cleanup(value: *mut TclObj) {
+    // SAFETY: the original extension owns exactly this boxed observer.
+    let state =
+        unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut SavedCleanupRetirement) };
+    state
+        .observation
+        .calls
+        .set(state.observation.calls.get() + 1);
+    let mut interpreter = state.interpreter.upgrade().unwrap();
+    state
+        .observation
+        .entered
+        .set(interpreter.entered_native_operation_count());
+    *state.observation.observed.borrow_mut() = interpreter.snapshot_error().code_bytes().to_vec();
+    match state.mode {
+        1 => {
+            interpreter.refuse_host_command("saved cleanup original first cause");
+        }
+        2 => {
+            let original = interpreter.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("saved-cleanup".into(), "1.0".into())];
+            interpreter.pin_context(&changed).unwrap();
+            interpreter.pin_context(&original).unwrap();
+        }
+        _ => {}
+    }
+    // These real nested ingress attempts happen after any reached retirement
+    // effect. Neither cleanup nor an engine callback may reset its first cause.
+    *state.observation.nested.borrow_mut() = Some(
+        native_operation_currency::NativeOperationScope::enter(&interpreter)
+            .and_then(|scope| scope.currency().ensure_current_or_refuse()),
+    );
+    *state.observation.engine.borrow_mut() = Some(
+        native_operation_currency::NativeOperationScope::enter_engine_evaluation(&interpreter)
+            .and_then(|scope| scope.currency().ensure_current_or_refuse()),
+    );
+}
+
+static SAVED_CLEANUP_RETIREMENT: obj::TclObjType = obj::TclObjType {
+    name: c"originalSavedCleanupRetirement".as_ptr(),
+    free_int_rep_proc: Some(retire_saved_cleanup),
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+fn install_saved_cleanup_retirement(
+    interpreter: &Interp,
+    mode: u8,
+    checked: bool,
+) -> SavedCleanupObservation {
+    let observation = SavedCleanupObservation {
+        calls: Rc::new(Cell::new(0)),
+        entered: Rc::new(Cell::new(0)),
+        observed: Rc::new(RefCell::new(Vec::new())),
+        nested: Rc::new(RefCell::new(None)),
+        engine: Rc::new(RefCell::new(None)),
+    };
+    let state = Box::new(SavedCleanupRetirement {
+        interpreter: interpreter.downgrade(),
+        observation: observation.clone(),
+        mode,
+    });
+    let value = obj::alloc_typed(
+        &SAVED_CLEANUP_RETIREMENT,
+        Box::into_raw(state) as usize as u64,
+    );
+    // SAFETY: live fresh original extension; this storage role owns its sole +1.
+    unsafe { obj::set_string_rep(value, b"DISPLACED") };
+    if checked {
+        interpreter.retain_native_error_option(false, value);
+    } else {
+        // Model already-reached storage awaiting mandatory settlement. This
+        // fixture bypasses ingress without claiming a new checked operation.
+        let retired = interpreter
+            .exc
+            .borrow_mut()
+            .native
+            .code
+            .replace(obj::Owned::retain(value));
+        drop(retired);
+    }
+    assert_eq!(unsafe { (*value).ref_count }, 1);
+    observation
+}
+
+enum SavedErrorBoundary {
+    Error(ErrorSnapshot),
+    Constructor(ErrorStateSnapshot),
+    Trace(native_error_variables::NativeErrorTraceState),
+    Result(native_trace_result::NativeTraceResultState),
+}
+
+impl SavedErrorBoundary {
+    fn capture(interpreter: &mut Interp, boundary: u8) -> Self {
+        match boundary {
+            0 => Self::Error(interpreter.snapshot_error()),
+            1 => Self::Constructor(interpreter.error_snapshot()),
+            2 => Self::Trace(interpreter.save_native_error_trace_state().unwrap()),
+            _ => Self::Result(
+                interpreter
+                    .save_native_variable_trace_result(false)
+                    .unwrap()
+                    .unwrap(),
+            ),
+        }
+    }
+
+    fn restore(
+        self,
+        interpreter: &mut Interp,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        match self {
+            Self::Error(saved) => interpreter.restore_error(saved),
+            Self::Constructor(saved) => interpreter.error_restore(saved),
+            Self::Trace(saved) => interpreter.restore_native_error_trace_state(saved),
+            Self::Result(saved) => interpreter.restore_native_variable_trace_result(saved),
+        }
+    }
+}
+
+#[test]
+fn original_saved_error_cleanup_attaches_the_expired_entry_before_real_retirement() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Real software saved-state/retirement transport, not a native callback schedule.
+    for boundary in 0..4 {
+        for mode in 0..3 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                interpreter.set_result_bytes(b"SAVED RESULT");
+                interpreter.set_c_error_code(b"SAVED CODE");
+                let entry =
+                    native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+                let saved = SavedErrorBoundary::capture(interpreter, boundary);
+                drop(entry);
+                assert_eq!(interpreter.entered_native_operation_count(), 0);
+                let SavedCleanupObservation {
+                    calls,
+                    entered,
+                    observed,
+                    nested,
+                    engine,
+                } = install_saved_cleanup_retirement(interpreter, mode, true);
+                interpreter.exc.borrow_mut().code = b"DISPLACED CODE".to_vec();
+                let restored = saved.restore(interpreter);
+                assert_eq!(calls.get(), 1);
+                assert!(entered.get() >= 1);
+                assert_eq!(&*observed.borrow(), b"SAVED CODE");
+                assert_eq!(interpreter.entered_native_operation_count(), 0);
+                assert_eq!(interpreter.snapshot_error().code_bytes(), b"SAVED CODE");
+                let first = interpreter.native_execution_refusal();
+                assert_eq!(restored, first.clone().map_or(Ok(()), Err));
+                assert_eq!(*nested.borrow(), Some(first.clone().map_or(Ok(()), Err)));
+                assert_eq!(*engine.borrow(), Some(first.clone().map_or(Ok(()), Err)));
+                if mode == 0 {
+                    assert!(first.is_none());
+                }
+                if mode == 1 {
+                    let Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(first)) =
+                        first
+                    else {
+                        panic!("original saved cleanup Host cause missing");
+                    };
+                    assert_eq!(first.reason, "saved cleanup original first cause");
+                }
+                if mode == 2 {
+                    assert_refusal(interpreter, 2);
+                }
+            });
+        }
+    }
+}
+
+#[test]
+fn original_saved_error_cleanup_preserves_withdrawn_same_target_and_failed_capture() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for failed_capture in [false, true] {
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter.set_c_error_code(b"SAVED CODE");
+            let entry =
+                native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
+            if failed_capture {
+                interpreter.refuse_host_command("saved cleanup original first cause");
+            }
+            let saved = interpreter.snapshot_error();
+            drop(entry);
+            if !failed_capture {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("saved-cleanup".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            let SavedCleanupObservation {
+                calls,
+                entered,
+                observed,
+                nested,
+                engine,
+            } = install_saved_cleanup_retirement(interpreter, 0, false);
+            interpreter.exc.borrow_mut().code = b"DISPLACED CODE".to_vec();
+            let reached = interpreter.restore_error(saved);
+            let first = interpreter.native_execution_refusal().unwrap();
+            assert_eq!(reached, Err(first.clone()));
+            assert!(entered.get() >= 1);
+            assert_eq!(*nested.borrow(), Some(Err(first.clone())));
+            assert_eq!(*engine.borrow(), Some(Err(first.clone())));
+            assert_eq!(calls.get(), 1);
+            assert_eq!(&*observed.borrow(), b"SAVED CODE");
+            assert_eq!(interpreter.snapshot_error().code_bytes(), b"SAVED CODE");
+            assert_eq!(interpreter.entered_native_operation_count(), 0);
+            if failed_capture {
+                let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(first) = first else {
+                    panic!("failed saved capture lost first cause");
+                };
+                assert_eq!(first.reason, "saved cleanup original first cause");
+            } else {
+                assert_refusal(interpreter, 2);
+            }
+        });
+    }
+}
+
+#[test]
+fn original_saved_error_cleanup_refuses_foreign_target_before_any_state_install() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    crate::counters::reset();
+    {
+        let mut source = Interp::new();
+        let mut foreign = Interp::new();
+        source.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        foreign.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        source.set_c_error_code(b"ORIGINAL CODE");
+        foreign.set_c_error_code(b"FOREIGN CODE");
+        foreign.set_result_bytes(b"FOREIGN RESULT");
+        let (foreign_value, foreign_calls, foreign_observed) = original(&foreign, 0);
+        foreign.retain_native_error_option(false, foreign_value);
+        assert_eq!(unsafe { (*foreign_value).ref_count }, 1);
+        for boundary in 0..4 {
+            let saved = SavedErrorBoundary::capture(&mut source, boundary);
+            let reached = saved.restore(&mut foreign);
+            let expected = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "saved native operation belongs to another interpreter",
+                ),
+            );
+            assert_eq!(reached, Err(expected.clone()));
+            assert_eq!(foreign.native_execution_refusal(), Some(expected));
+            assert_eq!(foreign_calls.get(), 0);
+            assert_eq!(
+                foreign.exc.borrow().native.code.as_ref().unwrap().as_ptr(),
+                foreign_value
+            );
+            assert_eq!(unsafe { (*foreign_value).ref_count }, 1);
+            assert_eq!(foreign.snapshot_error().code_bytes(), b"FOREIGN CODE");
+            assert_eq!(obj::bytes_of(foreign.result_obj()), b"FOREIGN RESULT");
+            assert_eq!(source.snapshot_error().code_bytes(), b"ORIGINAL CODE");
+            assert_eq!(foreign.entered_native_operation_count(), 0);
+            assert_eq!(source.entered_native_operation_count(), 0);
+        }
+        let retired = foreign.exc.borrow_mut().native.code.take();
+        drop(retired);
+        assert_eq!(foreign_calls.get(), 1);
+        assert_eq!(&*foreign_observed.borrow(), b"FOREIGN CODE");
+    }
+    assert_eq!(crate::counters::finalize(), 0);
+    assert_eq!(crate::counters::double_free_count(), 0);
 }
