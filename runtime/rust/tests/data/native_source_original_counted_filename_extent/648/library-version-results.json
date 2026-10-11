@@ -1,0 +1,35 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "receipt_sha256": "12b9754bf31c10a259f22403149107acba2ab9c49e636d5d453a86e56c85a370",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.5.19",
+      "receipt_sha256": "b0f5cd9730021ba64d54fefb590d5138a551bf7be8774eaad0955e0a72d66141",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "8.6.18",
+      "receipt_sha256": "2c1e0914427025dc14ec163104b4a6747fe2065012b628139a05329d4d5984dd",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.0.4",
+      "receipt_sha256": "117525df0fe09717d0375277ebb2aa1be18725a191a353b25444ba20fb191f76",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "9.1.0",
+      "receipt_sha256": "cdc91356e46d0e7e4d830c283866f21c920c9571bdc40786ed03fbfd7058605a",
+      "all_after_pins_match": true
+    },
+    {
+      "provider": "Jim",
+      "receipt_sha256": "c864c963e4e643b00175f9cdbee64b1fc529d3f8419b6f20aa0ff5fbd2095a34",
+      "all_after_pins_match": true
+    }
+  ],
+  "scope": "Same-library independent diagnostic observations, not inserted into the original selected public-object processes."
+}

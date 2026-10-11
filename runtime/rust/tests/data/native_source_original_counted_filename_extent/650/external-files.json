@@ -1,0 +1,34 @@
+[
+  {
+    "relative_path_hex": "6b65792d41534349492e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT ASCII; return ASCII\n"
+  },
+  {
+    "relative_path_hex": "6b65792dc3a92e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT E9_UTF8; return E9_UTF8\n"
+  },
+  {
+    "relative_path_hex": "6b65792de92e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT E9_ISO88591; return E9_ISO88591\n"
+  },
+  {
+    "relative_path_hex": "6b65792dff2e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT FF_RAW; return FF_RAW\n"
+  },
+  {
+    "relative_path_hex": "6b65792dc3bf2e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT FF_UTF8; return FF_UTF8\n"
+  },
+  {
+    "relative_path_hex": "6b65792defbfbd2e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT REPLACEMENT_UTF8; return REPLACEMENT_UTF8\n"
+  },
+  {
+    "relative_path_hex": "6b65792de282ac2e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT EURO_UTF8; return EURO_UTF8\n"
+  },
+  {
+    "relative_path_hex": "6b65792d3f2e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT QUESTION_EXTERNAL; return QUESTION_EXTERNAL\n"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "relative_path_hex": "6b65792d41534349492e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT ASCII; return ASCII\n"
+  },
+  {
+    "relative_path_hex": "6b65792deda0bdedb8802e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT PAIR_CESU; return PAIR_CESU\n"
+  },
+  {
+    "relative_path_hex": "6b65792df09f98802e74636c",
+    "ascii_source": "set ::R2286_FILENAME_EFFECT PAIR_UTF8; return PAIR_UTF8\n"
+  }
+]

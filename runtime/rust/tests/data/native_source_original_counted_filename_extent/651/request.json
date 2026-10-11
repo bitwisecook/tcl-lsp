@@ -1,0 +1,39 @@
+{
+  "qid": "naming.source.original-counted-filename-filesystem-extent",
+  "document": "docs/design/analysis/name-resolution-proofs/source-original-counted-filename-filesystem-extent.md",
+  "question": "Under the actual UTF-8 system filename encoding, how does original source classify unpaired high/low surrogate conversion and a counted paired-surrogate control, including exact errno/errorCode/report extent/effect/header bytes?",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "Jim5bac7c99"
+  ],
+  "processes": 6,
+  "fresh_interpreters_each": 4,
+  "expected_total_blocks": 24,
+  "arguments": [
+    "runner-owned-ascii-absolute-directory"
+  ],
+  "external_files": [
+    {
+      "relative_path_hex": "6b65792d41534349492e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT ASCII; return ASCII\n"
+    },
+    {
+      "relative_path_hex": "6b65792deda0bdedb8802e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT PAIR_CESU; return PAIR_CESU\n"
+    },
+    {
+      "relative_path_hex": "6b65792df09f98802e74636c",
+      "ascii_source": "set ::R2286_FILENAME_EFFECT PAIR_UTF8; return PAIR_UTF8\n"
+    }
+  ],
+  "absent_key_suffix_hex": [
+    "eda080",
+    "edb080"
+  ],
+  "execution": "Root alone compiles exact original public object-vector probe and supplies the three exact byte-named ASCII script files. All high/low-only paths remain absent before/after. Each C interpreter selects actual UTF8 independently before source; Jim records unavailable encoding but runs its raw String source path independently. Observe actual selection/version/result/errorCode/effect/input/post-header with same explicit argv/observer role order. Obtain independent same-static-library version diagnostics and verify full header/source/library/tool/executable/raw-file/collector input pins.",
+  "limits": "Unrun request only; native648 and650 original results remain untouched. This separates reached conversion failure from absent filename and compares actually distinct pair target files without guessing the selected external bytes. No callback/refcount/platform-normalization/Rust or appliance claim."
+}
