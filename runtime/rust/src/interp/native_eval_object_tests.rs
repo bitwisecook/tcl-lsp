@@ -65,7 +65,9 @@ impl Host for EvalHost {
                 .unwrap()
                 .clone();
             match self.mode.replace(0) {
-                1 => interp.refuse_host_command("first original eval formatter refusal"),
+                1 => {
+                    interp.refuse_host_command("first original eval formatter refusal");
+                }
                 2 => change_and_restore(&mut interp),
                 _ => {}
             }
@@ -80,7 +82,9 @@ extern "C" fn script_updater(original: *mut TclObj) {
         .unwrap()
         .clone();
     match SCRIPT_GETTER_MODE.with(Cell::get) {
-        1 => interp.refuse_host_command("first original eval updater refusal"),
+        1 => {
+            interp.refuse_host_command("first original eval updater refusal");
+        }
         2 => change_and_restore(&mut interp),
         _ => {}
     }

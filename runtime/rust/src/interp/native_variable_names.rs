@@ -1942,7 +1942,9 @@ mod tests {
             interp.frames.try_borrow_mut().is_ok() && interp.namespaces.try_borrow_mut().is_ok();
         NAME_FREE_BORROWS_RELEASED.with(|previous| previous.set(previous.get() && released));
         match NAME_FREE_MODE.with(std::cell::Cell::get) {
-            1 => interp.refuse_host_command("first original variable-name free callback"),
+            1 => {
+                interp.refuse_host_command("first original variable-name free callback");
+            }
             2 => {
                 let original = interp.runtime_context();
                 let mut changed = original.clone();
