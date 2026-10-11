@@ -61,7 +61,7 @@ impl OriginalSourceFileOps for SourceOps<'_> {
         let host = self.interpreter.host();
         let filesystem = host.filesystem();
         self.check()?;
-        let reached = filesystem.map_or_else(
+        let reached: Result<Vec<u8>, CmdError> = filesystem.map_or_else(
             || {
                 Err(
                     ValueError::CommandProtocolUnavailable("source filesystem filename conversion")
