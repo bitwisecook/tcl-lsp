@@ -2617,12 +2617,12 @@ namespace eval ::caller {
                     } else {
                         let elements = crate::list::list_elements(interp.result_obj()).unwrap();
                         assert_eq!(elements.len(), 4);
-                        assert_eq!(super::obj_bytes(elements[0]), b"::namespace");
-                        assert_eq!(super::obj_bytes(elements[1]), b"inscope");
-                        assert_eq!(super::obj_bytes(elements[2]), b"::");
+                        assert_eq!(crate::interp::obj_bytes(elements[0]), b"::namespace");
+                        assert_eq!(crate::interp::obj_bytes(elements[1]), b"inscope");
+                        assert_eq!(crate::interp::obj_bytes(elements[2]), b"::");
                         assert_eq!(elements[3], script.as_ptr(), "{}: {index}", profile.name);
                     }
-                    assert_eq!(super::obj_bytes(script.as_ptr()), bytes);
+                    assert_eq!(crate::interp::obj_bytes(script.as_ptr()), bytes);
                     rows += 1;
                 }
             });
@@ -2654,7 +2654,7 @@ namespace eval ::caller {
                     crate::list::list_elements(interp.result_obj()).unwrap()[3]
                 };
                 assert_eq!(retained, script.as_ptr());
-                assert_eq!(super::obj_bytes(retained), bytes);
+                assert_eq!(crate::interp::obj_bytes(retained), bytes);
             }
             let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
                 "jim",
