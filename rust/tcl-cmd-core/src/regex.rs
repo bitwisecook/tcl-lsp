@@ -2612,15 +2612,15 @@ fn jim_regsub_callback<O: NativeRegsubObjects>(
         }
         arguments.push(
             ops.regex_jim_bytes(&subject[offset + span.so..offset + span.eo], false)
-                .map_err(regex_execution_error)?,
+                .map_err(host)?,
         );
     }
     let call = ops
         .regex_duplicate(ops.regex_object(prefix))
-        .map_err(regex_execution_error)?;
+        .map_err(host)?;
     ops.regex_eval(ops.regex_object(&call), &arguments)
         .map_err(RegsubError::Eval)?;
-    let current = ops.regex_result_bytes().map_err(regex_execution_error)?;
+    let current = ops.regex_result_bytes().map_err(host)?;
     output.extend_from_slice(tcl_core_types::c_string_extent(&current));
     Ok(())
 }
