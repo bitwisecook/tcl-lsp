@@ -34,7 +34,9 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::{ArgRole, CommandRegistry, InvocationArguments, InvocationWord};
 
 use crate::alias::CommandAliasMap;
-use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings, TrustedPackageLoader};
+use crate::command_binding::{
+    RetainedSourceBodyInventory, SourceAnalysisOptions, SourceCommandBindings, TrustedPackageLoader,
+};
 use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::{
     CommandBindingSite, CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure,
@@ -990,9 +992,9 @@ pub struct Lowerer<'r> {
     /// Compatibility hook argument; semantic aliases are owned by source bindings.
     aliases: CommandAliasMap,
     /// Point-specific command state in the current source span space.
-    source_bindings: Option<SourceCommandBindings>,
+    source_bindings: Option<RetainedSourceBodyInventory>,
     /// Exact entry inventory retained for deferred method extraction.
-    module_source_bindings: Option<Box<SourceCommandBindings>>,
+    module_source_bindings: Option<Box<RetainedSourceBodyInventory>>,
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
     /// Explicit driver-supplied standard-distribution loader contracts.
     trusted_package_loaders: Vec<TrustedPackageLoader>,
@@ -1659,7 +1661,12 @@ impl<'r> Lowerer<'r> {
         namespace: &str,
         bindings: SourceCommandBindings,
     ) -> Script {
-        self.lower_into_script_with_boxed_bindings(source, base, namespace, Box::new(bindings))
+        self.lower_into_script_with_boxed_bindings(
+            source,
+            base,
+            namespace,
+            Box::new(bindings.into()),
+        )
     }
 
     fn lower_into_script_with_boxed_bindings(
@@ -1667,7 +1674,7 @@ impl<'r> Lowerer<'r> {
         source: &str,
         base: u32,
         namespace: &str,
-        bindings: Box<SourceCommandBindings>,
+        bindings: Box<RetainedSourceBodyInventory>,
     ) -> Script {
         let mut positioned_source = " ".repeat(base as usize);
         positioned_source.push_str(source);
@@ -1683,8 +1690,8 @@ impl<'r> Lowerer<'r> {
     #[inline(never)]
     fn exchange_boxed_source_bindings(
         &mut self,
-        bindings: Option<Box<SourceCommandBindings>>,
-    ) -> Option<Box<SourceCommandBindings>> {
+        bindings: Option<Box<RetainedSourceBodyInventory>>,
+    ) -> Option<Box<RetainedSourceBodyInventory>> {
         std::mem::replace(
             &mut self.source_bindings,
             bindings.map(|bindings| *bindings),
@@ -1697,7 +1704,7 @@ impl<'r> Lowerer<'r> {
         &self,
         source: &crate::command_binding::ExecutedScriptSource,
         namespace: &crate::command_binding::SourceNamespaceKey,
-    ) -> Option<Box<SourceCommandBindings>> {
+    ) -> Option<Box<RetainedSourceBodyInventory>> {
         self.source_bindings
             .as_ref()?
             .selected_source_in_context(source, namespace)
@@ -1803,7 +1810,7 @@ impl<'r> Lowerer<'r> {
         let mut lowerer = Self::with_config(registry, module.lexer_config)
             .with_resolved_analysis_input(input.clone());
         lowerer.set_source_analysis_options(module.source_entry.options());
-        lowerer.source_bindings = Some(bindings.clone());
+        lowerer.source_bindings = Some(bindings.clone().into());
         let namespace = lowerer.original_body_namespace_context(parent, argument, &source);
         #[cfg(test)]
         if trace_enabled {
@@ -1812,7 +1819,10 @@ impl<'r> Lowerer<'r> {
         let namespace = namespace?;
         // Preserve the independently selected child stage and namespace issuer
         // before delegating the same original-body semantic owner.
-        let selected = bindings.selected_source_in_context(&source, &namespace);
+        let selected = lowerer
+            .source_bindings
+            .as_ref()?
+            .selected_source_in_context(&source, &namespace);
         #[cfg(test)]
         if trace_enabled {
             trace("original_body.stage", selected.is_some());
@@ -2058,7 +2068,7 @@ impl<'r> Lowerer<'r> {
             0,
             0,
         );
-        let enclosing_bindings = self.source_bindings.replace(bindings);
+        let enclosing_bindings = self.source_bindings.replace(bindings.into());
         let result = self.lower_script_inner(source, namespace, purpose);
         #[cfg(any(test, debug_assertions))]
         trace_source_script_lowering(
@@ -2085,7 +2095,7 @@ impl<'r> Lowerer<'r> {
     }
 
     #[inline(never)]
-    fn restore_script_bindings(&mut self, enclosing: Option<SourceCommandBindings>) {
+    fn restore_script_bindings(&mut self, enclosing: Option<RetainedSourceBodyInventory>) {
         let completed = std::mem::replace(&mut self.source_bindings, enclosing);
         if self.nest_depth == 1 {
             self.module.procedure_implementation_bodies = completed.as_ref().map_or_else(
@@ -2527,7 +2537,7 @@ impl<'r> Lowerer<'r> {
             self.registry,
             self.invocation_metadata_context()?,
             tokens,
-            self.source_bindings.as_ref(),
+            self.source_bindings.as_deref(),
         )
     }
 
@@ -6058,13 +6068,16 @@ pub fn lower_proc_body_isolated(
         namespace: namespace.to_owned(),
         identity: "::body-cache".to_owned(),
     };
-    lowerer.source_bindings = Some(SourceCommandBindings::analyse_in_frame_with_options(
-        body_text,
-        &frame,
-        config,
-        registry,
-        lowerer.module.source_entry.options(),
-    ));
+    lowerer.source_bindings = Some(
+        SourceCommandBindings::analyse_in_frame_with_options(
+            body_text,
+            &frame,
+            config,
+            registry,
+            lowerer.module.source_entry.options(),
+        )
+        .into(),
+    );
     lowerer.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
         lowerer.lower_body(body_text, 0, namespace)
     })

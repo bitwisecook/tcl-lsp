@@ -951,13 +951,7 @@ impl SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<&super::compiled_invocation::SourceNativeStructuredPreparation> {
-        if !tokens.words_align_with_argv_text()
-            || tokens
-                .words()
-                .iter()
-                .zip(&tokens.argv_texts)
-                .any(|(word, text)| word.legacy_text() != *text)
-        {
+        if !tokens.original_words_match_argv_text() {
             return None;
         }
         self.original_compiler_source(tokens)?;
@@ -978,13 +972,7 @@ impl SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<&tcl_registry::native_switch_compilation::NativeSwitchInstruction> {
-        if !tokens.words_align_with_argv_text()
-            || tokens
-                .words()
-                .iter()
-                .zip(&tokens.argv_texts)
-                .any(|(word, text)| word.legacy_text() != *text)
-        {
+        if !tokens.original_words_match_argv_text() {
             return None;
         }
         self.original_compiler_source(tokens)?;

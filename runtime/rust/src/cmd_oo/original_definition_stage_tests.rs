@@ -197,6 +197,8 @@ fn visible(interpreter: &Interp, name: &[u8], export: bool) -> bool {
 
 #[test]
 fn class_operand_withdrawal_cannot_recreate_a_class_facet_on_the_original_object() {
+    // naming.tcloo.original-definition-getter-and-effect-owner
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-definition-getter-and-effect-owner.md
     // Software target/currency controls; C9.1 source supplies the context/getter/effect join.
     for mode in 0..4 {
         let mut interpreter = native("tcl9.1", false);
@@ -229,6 +231,8 @@ fn class_operand_withdrawal_cannot_recreate_a_class_facet_on_the_original_object
 
 #[test]
 fn definition_namespace_checks_original_target_after_kind_and_namespace_getters() {
+    // naming.tcloo.original-definition-getter-and-effect-owner
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-definition-getter-and-effect-owner.md
     for stage in [2, 3] {
         for mode in 0..5 {
             let mut interpreter = native("tcl9.1", true);
@@ -282,6 +286,8 @@ fn definition_namespace_checks_original_target_after_kind_and_namespace_getters(
 
 #[test]
 fn method_deletion_distinguishes_withdrawn_target_before_later_lookup_or_retirement() {
+    // naming.tcloo.original-definition-getter-and-effect-owner
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-definition-getter-and-effect-owner.md
     for class in [false, true] {
         for after_retirement in [false, true] {
             let mut interpreter = native("tcl9.1", class);
@@ -340,6 +346,8 @@ fn method_deletion_distinguishes_withdrawn_target_before_later_lookup_or_retirem
 
 #[test]
 fn selected_c91_visibility_keeps_reached_first_flag_when_a_later_operand_refuses() {
+    // naming.tcloo.original-definition-getter-and-effect-owner
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-definition-getter-and-effect-owner.md
     // C9.1 source orders each hash getter and flag effect before the next operand.
     // Host/ABA outcomes are software controls, not measured native callback chronology.
     for class in [false, true] {
@@ -388,6 +396,8 @@ fn selected_c91_visibility_keeps_reached_first_flag_when_a_later_operand_refuses
 
 #[test]
 fn visibility_compatibility_and_ordinary_metadata_changes_keep_their_selected_stages() {
+    // naming.tcloo.original-definition-getter-and-effect-owner
+    // docs/design/analysis/name-resolution-proofs/tcloo-original-definition-getter-and-effect-owner.md
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [0, 1, 4] {
             let mut interpreter = native(version, true);

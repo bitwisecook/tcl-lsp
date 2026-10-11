@@ -592,3 +592,14 @@ OO borrow before a later operand or invalidation stage. The selected C9.1
 export recipe interleaves each original name getter with its flag effect; a
 later refusal preserves earlier reached flags. Other releases retain their
 explicit compatibility schedule without an original chronology claim.
+
+A Class continuation observes the actual class facet's birth independently of
+its object's creation identity. New Class allocation and genuine class copying
+issue a fresh birth; shallow Rust observations preserve the existing one. A
+class demotion followed by promotion cannot make an earlier Class continuation
+current, even when the same object and operation context survive. Replaced
+facets refuse through the structured execution transport; ordinary method or
+property mutations do not invalidate this lifecycle observation. This Runtime
+owner supplies no Native Class pointer, payload lifetime or source authority.
+Class introspection checks its retained facet after reached option and pattern
+getters before later class access or report derivation.

@@ -180,6 +180,8 @@ struct DeclaredVariable {
 /// A class definition.
 #[derive(Default, Clone)]
 struct Class {
+    /// Actual class-facet birth; a shallow observation shares this owner.
+    facet_birth: Rc<()>,
     /// Stable superclass identities (defaults to `::oo::object`).
     supers: Vec<OoId>,
     methods: native_method_cache::MethodTable,
@@ -2319,13 +2321,16 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 torn_down: false,
             },
         );
-        if let Some(cls) = src_cls {
+        if let Some(mut cls) = src_cls {
+            // The genuine copied Class is a new facet, not a shallow observation.
+            cls.facet_birth = Rc::new(());
             interp.oo.borrow_mut().classes.insert(dst_id, cls);
         }
-        let original = match OriginalObjectPublication::capture(interp, dst_id, originals.currency()) {
-            Ok(original) => original,
-            Err(error) => return interp.oo_refused_publication(dst_id, error),
-        };
+        let original =
+            match OriginalObjectPublication::capture(interp, dst_id, originals.currency()) {
+                Ok(original) => original,
+                Err(error) => return interp.oo_refused_publication(dst_id, error),
+            };
         interp.bind_command_replacement(
             publication.namespace,
             &publication.simple,
@@ -4803,6 +4808,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.extend_from_slice(b"\" is not a class");
             return err(interp, &m);
         }
+        let target_owner = oo_checked!(
+            interp,
+            native_context::OriginalOoTarget::capture(interp, cls, true)
+        );
         match sub {
             b"superclasses" => {
                 let s = interp.oo.borrow().classes[&cls].supers.clone();
@@ -4827,7 +4836,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             b"properties" => {
                 // `info class properties cls ?-all? ?-readable|-writable?` (TIP 558).
-                let (all, writable) = match parse_property_opts(interp, &argv[4..]) {
+                let reached = parse_property_opts(interp, &argv[4..]);
+                oo_original_check!(interp, originals);
+                oo_checked!(interp, target_owner.check(interp));
+                let (all, writable) = match reached {
                     Ok(x) => x,
                     Err(code) => return code,
                 };
@@ -4876,6 +4888,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 } else {
                     None
                 };
+                oo_checked!(interp, target_owner.check(interp));
                 let mut insts: Vec<Vec<u8>> = interp
                     .oo
                     .borrow()
@@ -4897,6 +4910,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 } else {
                     None
                 };
+                oo_checked!(interp, target_owner.check(interp));
                 let mut subs: Vec<Vec<u8>> = interp
                     .oo
                     .borrow()
@@ -4911,7 +4925,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Code::Ok
             }
             b"methods" => {
-                let selected = match method_info_options(interp, &argv[4..]) {
+                let reached = method_info_options(interp, &argv[4..]);
+                oo_original_check!(interp, originals);
+                oo_checked!(interp, target_owner.check(interp));
+                let selected = match reached {
                     Ok(selected) => selected,
                     Err(code) => return code,
                 };
@@ -5017,6 +5034,8 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 } else {
                     Ok(0)
                 };
+                oo_original_check!(interp, originals);
+                oo_checked!(interp, target_owner.check(interp));
                 let ns = match kind {
                     // The namespace used to define this class itself.
                     Ok(0) => interp.oo.borrow().classes[&cls].class_def_ns.clone(),
@@ -7754,6 +7773,9 @@ mod original_declaration_retirement_tests;
 
 #[cfg(test)]
 mod original_definition_stage_tests;
+
+#[cfg(test)]
+mod original_class_facet_tests;
 
 #[cfg(test)]
 mod tests {

@@ -815,6 +815,9 @@ impl super::SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<tcl_lexer::LexerConfig> {
+        if !tokens.original_words_match_argv_text() {
+            return None;
+        }
         if let Some(original) = &self.original_written_words {
             return (original.site == *self.invocation_site()?
                 && original.words.as_ref() == tokens.words())
@@ -878,7 +881,7 @@ impl super::SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         written: usize,
     ) -> Option<SignatureSourceNameInput> {
-        if tokens.synthetic.is_some() {
+        if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
             return None;
         }
         let (words, config) = self.original_recorded_name_words()?;
@@ -1003,7 +1006,7 @@ impl super::SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<SignatureSourceNameInput> {
-        if tokens.synthetic.is_some() {
+        if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
             return None;
         }
         let (words, _) = self.original_recorded_name_words()?;
@@ -1310,6 +1313,56 @@ mod graph_tests {
             .chain([tcl_registry::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::of_dialect_name(Some("jim")).unwrap(),
             )])
+    }
+
+    #[test]
+    fn original_word_issuers_require_the_complete_current_compatibility_vector() {
+        // naming.source.original-direct-token-owner
+        // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
+        for dialect in dialects() {
+            let source = "list ONE";
+            let (bindings, config) = analyse(source, dialect);
+            let original = tokens(source, config, 0);
+            let binding = bindings.invocation_at_source("list", 0);
+            assert_eq!(
+                binding.original_lexer_config_for_tokens(&original),
+                Some(config)
+            );
+            assert!(binding.original_written_name_input(&original, 1).is_some());
+            assert!(binding.original_head_name_input(&original).is_some());
+            for axis in 0..4 {
+                let mut changed = original.clone();
+                match axis {
+                    0 => changed.argv_texts[1] = "OTHER".to_owned(),
+                    1 => {
+                        changed.argv_texts.pop();
+                    }
+                    2 => {
+                        changed.word_exprs.pop();
+                    }
+                    _ => {
+                        let source = changed.word_exprs[1].source().clone();
+                        changed.word_exprs[1] = crate::ir::WordExpr::Opaque {
+                            text: "OTHER".to_owned(),
+                            source,
+                            reason: crate::ir::WordOpacity::LossySnapshot,
+                        };
+                    }
+                }
+                assert!(
+                    binding.original_lexer_config_for_tokens(&changed).is_none(),
+                    "axis={axis}"
+                );
+                assert!(
+                    binding.original_written_name_input(&changed, 1).is_none(),
+                    "axis={axis}"
+                );
+                assert!(
+                    binding.original_head_name_input(&changed).is_none(),
+                    "axis={axis}"
+                );
+            }
+        }
     }
 
     #[test]

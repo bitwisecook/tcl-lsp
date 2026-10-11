@@ -80,7 +80,7 @@ pub(super) fn original_list_members(
 pub(super) struct OriginalOoTarget {
     object: OoId,
     creation: u64,
-    class: bool,
+    class_facet: Option<std::rc::Weak<()>>,
 }
 impl OriginalOoTarget {
     pub(super) fn capture(
@@ -88,16 +88,29 @@ impl OriginalOoTarget {
         object: OoId,
         class: bool,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
-        let creation = interpreter
-            .oo
-            .borrow()
-            .objects
-            .get(&object)
-            .map(|owner| owner.creation_id);
-        let result = Self {
-            object,
-            creation: creation.ok_or_else(Self::unavailable)?,
-            class,
+        let result = {
+            let state = interpreter.oo.borrow();
+            let creation = state
+                .objects
+                .get(&object)
+                .map(|owner| owner.creation_id)
+                .ok_or_else(Self::unavailable)?;
+            let class_facet = if class {
+                Some(Rc::downgrade(
+                    &state
+                        .classes
+                        .get(&object)
+                        .ok_or_else(Self::unavailable)?
+                        .facet_birth,
+                ))
+            } else {
+                None
+            };
+            Self {
+                object,
+                creation,
+                class_facet,
+            }
         };
         result.check(interpreter)?;
         Ok(result)
@@ -113,16 +126,26 @@ impl OriginalOoTarget {
     }
     pub(super) fn check(&self, interpreter: &Interp) -> Result<(), tcl_cmd_core::CmdError> {
         let state = interpreter.oo.borrow();
-        if state
+        if !state
             .objects
             .get(&self.object)
             .is_some_and(|owner| owner.creation_id == self.creation && !owner.torn_down)
-            && (!self.class || state.classes.contains_key(&self.object))
         {
-            Ok(())
-        } else {
-            Err(Self::unavailable())
+            return Err(Self::unavailable());
         }
+        if let Some(original) = &self.class_facet {
+            if !state
+                .classes
+                .get(&self.object)
+                .is_some_and(|current| original.ptr_eq(&Rc::downgrade(&current.facet_birth)))
+            {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original TclOO class facet",
+                )
+                .into());
+            }
+        }
+        Ok(())
     }
     fn unavailable() -> tcl_cmd_core::CmdError {
         tcl_cmd_core::CmdError::with_error_code_bytes(

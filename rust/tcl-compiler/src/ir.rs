@@ -892,6 +892,20 @@ impl CommandTokens {
         self.word_exprs.len() == self.argv_texts.len()
     }
 
+    /// Complete original-word compatibility presentations agree with this
+    /// carrier. This is consistency only: source/config/currentness, synthetic
+    /// purpose, Native identity and effective alias/expansion argv are checked
+    /// separately by the original owner. Count-only compatibility snapshots
+    /// continue to use words_align_with_argv_text.
+    pub(crate) fn original_words_match_argv_text(&self) -> bool {
+        self.words_align_with_argv_text()
+            && self
+                .words()
+                .iter()
+                .zip(&self.argv_texts)
+                .all(|(word, text)| word.legacy_text() == *text)
+    }
+
     /// Whether **argument** `idx` (0-based, so `argv[idx + 1]`) is a
     /// brace-quoted literal word — `{…}`, the one word form Tcl leaves
     /// completely unsubstituted.
@@ -3322,6 +3336,85 @@ mod tests {
         assert!(!tokens.arg_is_braced_literal(2));
         assert!(!tokens.arg_is_braced_literal(3));
         assert!(!tokens.arg_is_braced_literal(usize::MAX));
+    }
+
+    #[test]
+    fn original_word_carrier_keeps_actual_quotes_escapes_and_expansion_presentations() {
+        // naming.source.original-direct-token-owner
+        // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
+        // This only checks a genuine written token carrier's compatibility
+        // projections. It supplies no source provenance or evaluated argv.
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+            for source in [
+                r#"list ONE "λ\u0041" {$value} pre[set v ONE]post"#,
+                r#"list $value "$value" {x\y} \u0000"#,
+            ] {
+                let commands =
+                    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                assert_eq!(commands.len(), 1);
+                let tokens =
+                    CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
+                assert!(
+                    tokens.original_words_match_argv_text(),
+                    "{version:?}: {source}"
+                );
+            }
+            if dialect.lexer_grammar.expand_syntax {
+                let source = "list {*}{ONE TWO}";
+                let commands =
+                    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+                let tokens =
+                    CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
+                assert!(matches!(tokens.words()[1], WordExpr::Expand { .. }));
+                assert!(tokens.original_words_match_argv_text());
+                assert_eq!(
+                    tokens.words().len(),
+                    2,
+                    "written words are not evaluated expansion slots"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_word_carrier_refuses_same_count_text_and_word_changes() {
+        // naming.source.original-direct-token-owner
+        // docs/design/analysis/name-resolution-proofs/original-direct-token-owner.md
+        let source = "list ONE";
+        let config = LexerConfig::default();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let original = CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
+        assert!(original.original_words_match_argv_text());
+        let mut changed = original.clone();
+        changed.argv_texts[1] = "OTHER".to_owned();
+        assert!(
+            changed.words_align_with_argv_text(),
+            "count-only compatibility remains distinct"
+        );
+        assert!(!changed.original_words_match_argv_text());
+        let mut changed = original.clone();
+        changed.argv_texts.pop();
+        assert!(!changed.original_words_match_argv_text());
+        let mut changed = original.clone();
+        changed.word_exprs.pop();
+        assert!(!changed.original_words_match_argv_text());
+        let mut changed = original.clone();
+        let source = changed.word_exprs[1].source().clone();
+        changed.word_exprs[1] = WordExpr::Opaque {
+            text: "OTHER".to_owned(),
+            source,
+            reason: WordOpacity::LossySnapshot,
+        };
+        assert!(changed.words_align_with_argv_text());
+        assert!(!changed.original_words_match_argv_text());
+        let mut consistent = original;
+        consistent.synthetic = Some(SyntheticMarker::EvaluatedWrapper);
+        assert!(
+            consistent.original_words_match_argv_text(),
+            "consistency alone grants no original purpose"
+        );
     }
 
     #[test]

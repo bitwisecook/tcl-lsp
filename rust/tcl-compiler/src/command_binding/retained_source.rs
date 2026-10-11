@@ -184,14 +184,7 @@ impl RetainedSourceModuleBindings {
         let Some(binding) = tokens.source_binding.as_ref() else {
             return false;
         };
-        if binding.original_written_words.is_none()
-            || !tokens.words_align_with_argv_text()
-            || !tokens
-                .words()
-                .iter()
-                .zip(&tokens.argv_texts)
-                .all(|(word, text)| word.legacy_text() == *text)
-        {
+        if binding.original_written_words.is_none() || !tokens.original_words_match_argv_text() {
             return false;
         }
         let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {

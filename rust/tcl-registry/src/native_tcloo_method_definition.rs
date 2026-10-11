@@ -241,6 +241,8 @@ mod export_order_tests {
     use super::*;
     #[test]
     fn selected_export_operand_order_does_not_grant_uninspected_releases() {
+        // naming.tcloo.original-definition-getter-and-effect-owner
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-definition-getter-and-effect-owner.md
         for version in TclVersion::ALL {
             let selected = NativeTclooMethodDefinitionProtocol::select(
                 InvocationDialect::for_version(version),

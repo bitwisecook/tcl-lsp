@@ -2229,12 +2229,7 @@ impl SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
     ) -> Option<&super::SourceNamedInvocationProof> {
         if self.native_compilation_admission == Some(NativeCompilationSelection::Unknown)
-            || !tokens.words_align_with_argv_text()
-            || tokens
-                .words()
-                .iter()
-                .zip(&tokens.argv_texts)
-                .any(|(word, text)| word.legacy_text() != *text)
+            || !tokens.original_words_match_argv_text()
         {
             return None;
         }

@@ -587,6 +587,8 @@ mod execution_transport_tests {
 
     #[test]
     fn native_execution_transport_preserves_complete_cause_through_question_mark_and_into() {
+        // naming.embedding.original-execution-error-conversion-owner
+        // docs/design/analysis/name-resolution-proofs/embedding-original-execution-error-conversion-owner.md
         // Authored diagnostic records test transport only; no entry or interpreter grant.
         let first = NativeExecutionError::HostCommandRefusal(Box::new(
             tcl_runtime_api::NativeHostCommandRefusal {
