@@ -45,9 +45,18 @@ pub(crate) fn install(
     value: *mut TclObj,
     chain: Rc<NativeMethodChain>,
     protocol: tcl_syntax::native_string::NativeStringProtocol,
-) -> Result<(), tcl_syntax::value::ValueError> {
+    check: impl Fn() -> Result<(), tcl_cmd_core::CmdError>,
+) -> Result<(), tcl_cmd_core::CmdError> {
+    check()?;
     check_native_liveness(value)?;
-    crate::dict::native_object_bytes(value, protocol)?;
+    let result = crate::dict::native_object_bytes(value, protocol);
+    check()?;
+    result?;
+    // Retirement is reached before later cache adoption, including auxiliary
+    // header-cache free callbacks. The original world is never recaptured.
+    let retired = discard_native_internal_representation(value);
+    check()?;
+    retired?;
     change_type(value, &TYPE, Box::into_raw(Box::new(chain)) as usize as u64);
-    Ok(())
+    check()
 }

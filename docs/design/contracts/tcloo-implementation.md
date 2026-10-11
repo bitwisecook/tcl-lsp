@@ -397,3 +397,25 @@ outer typed execution error remains distinct from an absent frame, so a
 refused report cannot enter Guest bad-level formatting. Explicit presentation
 uses the existing checked original String producer outside frame borrows;
 frame or native-purpose authority does not follow from operation currency.
+
+### Original method-record cache ownership
+
+Runtime idle method-name primary and table caches keep weak observations of
+the original Method records. A validated call entry retains every original
+record in its reached chain; `next` frames share that entered owner. A missing
+record refuses that cached entry instead of finding a replacement by its
+reported name. Original receiver, table owner, mutation stamp and operation
+checks remain separate from these reference roles. Cache String extraction
+and primary retirement run outside the OO borrow and must preserve the
+original world before later cache publication. The original `StashCallChain`
+String/free stages precede the first `TclOOInvokeContext` ALL-record retain;
+cache construction does not acquire that entered role. A declaration deleted
+during cache installation cannot be revived for the pending entry.
+
+Same-record replacement changes the record's current payload. Retaining an
+entered record does not retain every old clientData payload; real procedure,
+forward and property execution owners keep their independently required
+roles. The original custom MethodType controls distinguish idle deletion,
+self-deletion, inherited `next`, same-record replacement and cache cleanup.
+Their observed native references do not attest a procedure-body activation or
+a generation from a printed method address.

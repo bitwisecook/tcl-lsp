@@ -4767,7 +4767,9 @@ impl Interp {
                 // Roll back a failed definition so the name frees up (C destroys
                 // a partially-created class whose definition script errors).
                 self.oo.borrow_mut().classes.remove(&object);
-                self.oo.borrow_mut().retire_native_properties(object);
+                let retired_method_cache = self.oo.borrow_mut().retire_native_properties(object);
+                drop(retired_method_cache);
+                let _ = self.check_entered_native_operation();
                 self.oo.borrow_mut().objects.remove(&object);
                 self.retire_oo_command_identity(object);
                 self.oo.borrow_mut().names.remove(&object);
@@ -5336,7 +5338,9 @@ impl Interp {
                 }
                 // `oo_destroy_bg` removes the object; clean up the class facet
                 // (a failed metaclass instantiation) and the command too.
-                self.oo.borrow_mut().retire_native_properties(object);
+                let retired_method_cache = self.oo.borrow_mut().retire_native_properties(object);
+                drop(retired_method_cache);
+                let _ = self.check_entered_native_operation();
                 self.oo.borrow_mut().objects.remove(&object);
                 self.oo.borrow_mut().classes.remove(&object);
                 self.retire_oo_command_identity(object);
@@ -5481,6 +5485,7 @@ impl Interp {
             let cached = self.lookup_native_method_chain(obj, method, original, external);
             oo_original_check!(self, originals);
             oo_checked!(self, target_owner.check(self));
+            let cached = oo_checked!(self, cached);
             if let Some(chain) = cached {
                 let invocation = oo_checked!(
                     self,
@@ -6920,7 +6925,9 @@ impl Interp {
         drop(retired_name);
         let class = self.oo.borrow().classes.contains_key(&obj);
         self.native_method_structure_changed(obj, class);
-        self.oo.borrow_mut().retire_native_properties(obj);
+        let retired_method_cache = self.oo.borrow_mut().retire_native_properties(obj);
+        drop(retired_method_cache);
+        let _ = self.check_entered_native_operation();
         self.oo.borrow_mut().objects.remove(&obj);
         self.oo.borrow_mut().classes.remove(&obj);
         self.oo.borrow_mut().names.remove(&obj);
@@ -7001,7 +7008,9 @@ impl Interp {
             .get(&class)
             .and_then(|owner| owner.cached_name.borrow_mut().take());
         drop(retired_name);
-        self.oo.borrow_mut().retire_native_properties(class);
+        let retired_method_cache = self.oo.borrow_mut().retire_native_properties(class);
+        drop(retired_method_cache);
+        let _ = self.check_entered_native_operation();
         self.oo.borrow_mut().objects.remove(&class);
         self.oo.borrow_mut().names.remove(&class);
         if let Some(ns) = var_ns {

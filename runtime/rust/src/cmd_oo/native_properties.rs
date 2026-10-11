@@ -27,10 +27,14 @@ impl PropertyHeaderLease {
     }
 }
 impl OoState {
-    pub(super) fn retire_native_properties(&mut self, target: OoId) {
-        self.native_methods.retire(target);
+    pub(super) fn retire_native_properties(
+        &mut self,
+        target: OoId,
+    ) -> Option<BTreeMap<Vec<u8>, native_method_cache::CacheEntry>> {
+        let retired_method_cache = self.native_methods.retire(target);
         self.property_members.retain(|(id, _, _), _| *id != target);
         self.property_caches.retain(|(id, _), _| *id != target);
+        retired_method_cache
     }
     fn apply_property_invalidation(&mut self, target: OoId, action: NativePropertyInvalidation) {
         match action {
@@ -111,6 +115,9 @@ impl OoState {
 impl Interp {
     pub(super) fn native_property_structure_changed(&mut self, target: OoId, class: bool) {
         self.native_method_structure_changed(target, class);
+        if self.check_entered_native_operation().is_err() {
+            return;
+        }
         let Some(recipe) = self
             .native_invocation_dialect()
             .native_property_lookup_protocol()
