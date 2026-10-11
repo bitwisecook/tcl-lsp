@@ -10,19 +10,30 @@ use tcl_dialect::{TclVersion, model::Family};
 /// Stock descriptor and visibility issued by the genuine root method installer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeTclooCoreMethod {
+    /// Object cloning hook installed by the object root.
     Cloned,
+    /// Public object destruction method.
     Destroy,
+    /// Object namespace evaluation method.
     Eval,
+    /// Unknown-method handler installed by the object root.
     Unknown,
+    /// Object variable linking method.
     Variable,
+    /// Object variable name reporting method.
     Varname,
+    /// Public class object creation method.
     Create,
+    /// Public anonymous object creation method.
     New,
+    /// Class creation method with an explicit namespace.
     CreateWithNamespace,
+    /// Public configurable object method.
     Configure,
 }
 impl NativeTclooCoreMethod {
     #[must_use]
+    /// Original stock method selector used by the installed descriptor.
     pub const fn name(self) -> &'static str {
         match self {
             Self::Cloned => "<cloned>",
@@ -38,6 +49,7 @@ impl NativeTclooCoreMethod {
         }
     }
     #[must_use]
+    /// Visibility supplied by the stock installer for this method.
     pub const fn public(self) -> bool {
         matches!(
             self,
@@ -49,16 +61,26 @@ impl NativeTclooCoreMethod {
 /// Current payload type issued by an actual method installer, independent of its name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeTclooMethodPayloadType {
+    /// Declared procedure method payload.
     Procedure,
+    /// Original retained command-prefix forwarding payload.
     Forward,
+    /// Property getter payload.
     PropertyGetter,
+    /// Property setter payload.
     PropertySetter,
+    /// Stock method payload with its installed descriptor.
     Core(NativeTclooCoreMethod),
+    /// Slot operation payload with its installed slot name.
     SlotOperation(&'static str),
+    /// Slot accessor payload with its installed slot and accessor names.
     SlotAccessor {
+        /// Installed slot name used by this accessor descriptor.
         slot: &'static str,
+        /// Installed accessor name used by this descriptor.
         accessor: &'static str,
     },
+    /// Class root constructor payload.
     ClassConstructor,
 }
 impl NativeTclooMethodPayloadType {
@@ -104,9 +126,13 @@ impl NativeTclooMethodPayloadType {
 /// Call-chain flags issued by the actual chain/filter/unknown producers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeTclooCallReportKind {
+    /// Call step issued by a filter chain.
     Filter,
+    /// Call step issued by the unknown-method chain.
     Unknown,
+    /// Call step whose actual current method record is private.
     Private,
+    /// Ordinary method call step.
     Method,
 }
 impl NativeTclooCallReportKind {
@@ -124,6 +150,7 @@ impl NativeTclooCallReportKind {
         }
     }
     #[must_use]
+    /// Original report label for the selected call-chain flags.
     pub const fn name(self) -> &'static [u8] {
         match self {
             Self::Filter => b"filter",

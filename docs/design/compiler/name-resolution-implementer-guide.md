@@ -8599,6 +8599,42 @@ cover the separate word, cache and entered-frame joins. See the
 [configured source contract](../analysis/name-resolution-proofs/source-original-configured-script-completeness.md)
 and [original receiver body contract](../analysis/name-resolution-proofs/tcloo-original-source-receiver-body-declaration.md).
 
+### Original body extent and argument-only CFG phases
+
+Use the original compiler word span when selecting its written body. The lexer
+excludes a nonempty braced word's closing delimiter from that span; the retained
+Native word covers the complete word. `original_body_source_for_word` joins
+those extents through the shared Lexer `word_span_at` owner while checking the
+exact original compiler span, complete vector, image and configuration. Do not
+add a byte to the span or match decoded text. Extent correspondence supplies no
+namespace or frame: `original_body_namespace_context` separately requires
+the selected current body schema and retained original namespace/frame evidence.
+
+A CFG `EvaluatedArguments` boundary retains its original words and marker but
+performs no enclosing invocation effects. Request
+`SourceInvocationBinding::original_argument_metadata_for_owner` and
+`original_argument_metadata_for_module` for that argv purpose; their common
+original-word kernel preserves the complete CFG owner, Module input, source
+site, configuration and command store checks. Ordinary invocation metadata
+continues to refuse the marker. `unit_scope` uses the checked argument collector
+for lexical substitutions, then joins each genuine child to its own invocation
+metadata before reading selected expression roles. The enclosing braced argv
+cannot borrow a child's Expr or body role.
+
+Missing, foreign or incomplete evaluated-argument ownership retracts caller
+seeds through opaque evidence. A producer-classified phase which does not
+evaluate argv has a complete empty inventory; that is distinct from unavailable
+source. Keep the original captured interpreter owner alive throughout Native
+source fixture queries.
+
+The controls `original_body_word_extent_keeps_inner_and_whole_geometry_separate`,
+`original_argument_caller_phase_keeps_real_return_and_direct_argument_counts`,
+`original_argument_caller_child_keeps_its_own_expression_roles` and
+`original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty`
+cover these software source purposes. See the
+[original operand projection](../analysis/name-resolution-proofs/original-point-operand-projection.md)
+and [metadata contract](../analysis/name-resolution-proofs/original-analysis-metadata-context.md).
+
 ### Executable IR and semantic metadata
 
 Use `build_linear_executable_ir_with_metadata_context` for executable source
