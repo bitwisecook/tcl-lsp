@@ -8795,15 +8795,12 @@ impl Interp {
                     .collect::<Vec<_>>()
             };
             for (ns, tail, generation) in slots {
-                let retired = {
+                {
                     let mut namespaces = self.namespaces.borrow_mut();
                     if namespaces.command_generation(ns, &tail) == Some(generation) {
-                        namespaces.remove_in(ns, &tail)
-                    } else {
-                        None
+                        namespaces.remove_in(ns, &tail);
                     }
-                };
-                drop(retired);
+                }
                 self.retire_pending_native_ensemble_roles();
             }
             // A destructor may publish a distinct new slot. It needs the

@@ -4363,10 +4363,12 @@ mod original_alias_key_tests {
             .collect()
     }
     fn define(interp: &mut Interp, originals: &[Owned], name: usize, jim: bool) {
+        let jim_words = [b"alias".as_slice()];
+        let c_words = [b"interp".as_slice(), b"alias", b"", b"unused", b""];
         let words = super::original_operand_tests::words(if jim {
-            &[b"alias".as_slice()][..]
+            &jim_words
         } else {
-            &[b"interp".as_slice(), b"alias", b"", b"unused", b""][..]
+            &c_words
         });
         let mut argv = words.iter().map(Owned::as_ptr).collect::<Vec<_>>();
         if jim {
@@ -4441,7 +4443,7 @@ mod original_alias_key_tests {
             let selected = interp.alias_query_object(payload(0)).unwrap().unwrap();
             assert_eq!(selected.as_ptr() == current_query.as_ptr(), jim);
             let members =
-                tcl_syntax::value::ValueOps::list_elements(&interp, &current_query.as_ptr())
+                tcl_syntax::value::ValueOps::list_elements(&mut interp, &current_query.as_ptr())
                     .unwrap();
             assert_eq!(
                 members,
@@ -4463,7 +4465,7 @@ mod original_alias_key_tests {
                 assert_eq!(unsafe { (*originals[role].as_ptr()).ref_count }, 1);
             }
             assert_eq!(
-                tcl_syntax::value::ValueOps::list_elements(&interp, &first_query.as_ptr()).unwrap(),
+                tcl_syntax::value::ValueOps::list_elements(&mut interp, &first_query.as_ptr()).unwrap(),
                 members
             );
             assert!(interp.native_execution_refusal().is_none());
