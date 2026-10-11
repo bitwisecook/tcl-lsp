@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-option-index636/8.6.18/probe.elf",
+    "11"
+  ],
+  "cwd": "/workspace/.proofs/root-native-option-index636/8.6.18/case-11",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.004430725995916873,
+  "stdout": "/workspace/.proofs/root-native-option-index636/8.6.18/case-11/execute.stdout",
+  "stdout_sha256": "43af0c5b163c7caefc5ed01c43060ac324c8c6db1e769d339f37e990541d1682",
+  "stderr": "/workspace/.proofs/root-native-option-index636/8.6.18/case-11/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 11,
+  "executable_sha256_before": "3063d6d645d524cea1c72b9e66c0f0d5c8c1906eb10d927e76a7cb1e219ae297",
+  "executable_sha256_after": "3063d6d645d524cea1c72b9e66c0f0d5c8c1906eb10d927e76a7cb1e219ae297"
+}

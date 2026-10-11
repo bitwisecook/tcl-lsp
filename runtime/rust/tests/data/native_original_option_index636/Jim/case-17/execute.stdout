@@ -1,0 +1,27 @@
+provider	Jim
+case	17	original-list-string-member
+operation	lsort
+input-first	30
+input-last	
+input-roles	path-kind=1	nested=0	empty=0	repeat-option=0	observed-child-extra-owner=1
+before-path	list	0	1	0
+before-path-member0	none	1	2	1
+before-container	list	0	1	0
+before-key0	none	1	2	1
+before-key1	none	1	2	1
+before-key2	none	1	2	1
+before-key3	none	1	2	1
+code	0
+reached-path	list	0	1	0
+reached-path-member0	index	1	2	1
+reached-container	list	0	1	0
+reached-key0	string	1	2	1
+reached-key1	none	1	2	1
+reached-key2	string	1	2	1
+reached-key3	none	1	2	1
+reached-result	list	0	1	5
+result-alias	container=0	path=0
+result-bytes	7b4120427d207b4220417d
+materialised-result	list	1	1	11
+path-bytes	30
+path-member0-bytes	30

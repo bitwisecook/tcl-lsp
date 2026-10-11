@@ -1,0 +1,29 @@
+provider	C-Tcl
+case	22	original-list-counted-nul-integer
+operation	lsort
+input-first	30007461696c
+input-last	
+input-roles	path-kind=1	nested=0	empty=0	repeat-option=0	observed-child-extra-owner=1
+before-path	list	0	1	0
+before-path-member0	none	1	2	6
+before-container	list	0	1	0
+before-key0	none	1	2	1
+before-key1	none	1	2	1
+before-key2	none	1	2	1
+before-key3	none	1	2	1
+code	1
+reached-path	list	1	1	6
+reached-path-member0	none	1	2	6
+reached-container	list	1	1	11
+reached-key0	none	1	2	1
+reached-key1	none	1	2	1
+reached-key2	none	1	2	1
+reached-key3	none	1	2	1
+reached-result	none	1	1	81
+result-alias	container=0	path=0
+result-bytes	62616420696e646578202230223a206d75737420626520696e7465676572206f7220656e643f2d696e74656765723f20286c6f6f6b73206c696b6520696e76616c6964206f6374616c206e756d62657229
+materialised-result	none	1	1	81
+error-code-bytes	4e4f4e45
+error-info-bytes	62616420696e646578202230223a206d75737420626520696e7465676572206f7220656e643f2d696e74656765723f20286c6f6f6b73206c696b6520696e76616c6964206f6374616c206e756d626572290a202020207768696c6520657865637574696e670a226c736f7274202d696e6465782030207b7b4220417d207b4120427d7d22
+path-bytes	30007461696c
+path-member0-bytes	30007461696c
