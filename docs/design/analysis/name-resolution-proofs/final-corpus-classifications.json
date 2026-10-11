@@ -43,7 +43,7 @@
       "naming.namespace-compiler.mixed-dynamic-prefix",
       "naming.namespace-compiler.literal-expansion-and-empty-call"
     ],
-    "reason": "Exact20 bodies×5 C original physical compiler observations: probe and all full stdout digests checked; separate hook/opcode/local purposes and bytecode-absence sentinel retained."
+    "reason": "Exact20 bodies\u00d75 C original physical compiler observations: probe and all full stdout digests checked; separate hook/opcode/local purposes and bytecode-absence sentinel retained."
   },
   {
     "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json",
@@ -54,7 +54,7 @@
       "naming.namespace-compiler.global-prefix-residual",
       "naming.namespace-compiler.qualified-variable-value-residual"
     ],
-    "reason": "Independent5 bodies×5 C declined-attempt literal/local observations; exact executed source and whole output checksums verified, distinct from20-body opcode matrix."
+    "reason": "Independent5 bodies\u00d75 C declined-attempt literal/local observations; exact executed source and whole output checksums verified, distinct from20-body opcode matrix."
   },
   {
     "path": "rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json",
@@ -63,7 +63,7 @@
     "proof_ids": [
       "naming.namespace-parser.final-original-token"
     ],
-    "reason": "Exact8 source parser controls×5 release stdout; original source checksum and every retained complete stdout matched, build attribution gaps preserved."
+    "reason": "Exact8 source parser controls\u00d75 release stdout; original source checksum and every retained complete stdout matched, build attribution gaps preserved."
   },
   {
     "path": "rust/tcl-registry/tests/data/native_selected_worker_names/manifest.json",
@@ -118,5 +118,41 @@
       "naming.procedure-error.body-line-context"
     ],
     "reason": "Exact7 C8.4 counted original name/body/call/error-publication windows: probe and whole TSV checksums verified, result-before-metadata order and unmeasured side-store/header limits retained."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_original_list_numeric645_647/software_controls.rs",
+    "sha256": "a31555367fe92c78eb44f015acc4eba3c00c0660fc52b7cc386915d59927c8e2",
+    "classification": "authored-contract",
+    "proof_ids": [
+      "naming.list.original-numeric-pattern-key-getters-and-results"
+    ],
+    "reason": "Literal software comparison fixtures retain the observed Glob/Exact public inputs, results and selected operand/cache categories. The authored integer category projection groups int/wideInt only for its declared comparison; source fixtures provide no execution, private cache, callback or Native role grant."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_original_list_stride644/software_controls.rs",
+    "sha256": "b7761c9d21a5d06b6eb92ef64da3cc2792966cb1d681d462def9660f99869189",
+    "classification": "authored-contract",
+    "proof_ids": [
+      "naming.list.original-stride-primitive-and-results"
+    ],
+    "reason": "Literal software fixtures preserve public stride inputs, operation code/result, observed kind/resident predicates and each original stream association. Source declarations provide no new Rust execution, primitive chronology or external observation."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_original_option_index636/software_controls.rs",
+    "sha256": "c0fe1e3cad6091532785f0d36f0ba9af7e3c46696ee574b130d3be7fbec9e072",
+    "classification": "authored-contract",
+    "proof_ids": [
+      "naming.list.original-option-index-path-preparation-and-results"
+    ],
+    "reason": "Literal authored option/path software fixtures project their counted selectors, path form, result and selected public child kind/resident predicates. EvalObjv temporary roles, private caches, error stacks and callback chronology remain outside this projection."
+  },
+  {
+    "path": "runtime/rust/tests/data/native_original_binary_replacement633/software_controls.rs",
+    "sha256": "067fad858fd3c81728e10b1c1f8b682639c8ca1626b64f9b67ca863674b1db67",
+    "classification": "authored-contract",
+    "proof_ids": [
+      "naming.string.original-binary-replacement-sharing-and-result-roles"
+    ],
+    "reason": "Current literal software fixtures project the declared input/output and public kind/resident fields for independent binary replacement comparisons. Original streams and Native evidence retain their own attribution; source fixtures grant no EvalObjv temporary-reference, result-alias, callback or Rust assertion outcome."
   }
 ]

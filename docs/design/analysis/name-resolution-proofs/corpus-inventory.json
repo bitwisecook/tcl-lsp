@@ -208739,14 +208739,14 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_binary_replacement633/software_controls.rs",
-      "sha256": "972ee83b4c9c567e8c2b41515f2d3849065bf92382c77224f792dd8df2482f0e",
-      "bytes": 30616,
+      "sha256": "067fad858fd3c81728e10b1c1f8b682639c8ca1626b64f9b67ca863674b1db67",
+      "bytes": 30617,
       "candidate": false,
       "classification": "authored-contract",
       "proof_ids": [
         "naming.string.original-binary-replacement-sharing-and-result-roles"
       ],
-      "reason": "Rust implementation controls project only the declared public fields of their independently retained native rows; source definitions convey no actual Rust assertion, private/native reference chronology or external-provider outcome."
+      "reason": "Current literal software fixtures project the declared input/output and public kind/resident fields for independent binary replacement comparisons. Original streams and Native evidence retain their own attribution; source fixtures grant no EvalObjv temporary-reference, result-alias, callback or Rust assertion outcome."
     },
     {
       "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/software_controls.rs",
@@ -234740,6 +234740,39 @@
         "naming.source.original-counted-filename-filesystem-extent"
       ],
       "reason": "Exact original filename conversion and filesystem codec observations, byte file inputs, complete measured input payloads and lossless executable retention; no Rust assertion or Native callback/reference chronology."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_numeric645_647/software_controls.rs",
+      "sha256": "a31555367fe92c78eb44f015acc4eba3c00c0660fc52b7cc386915d59927c8e2",
+      "bytes": 206099,
+      "candidate": false,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.list.original-numeric-pattern-key-getters-and-results"
+      ],
+      "reason": "Literal software comparison fixtures retain the observed Glob/Exact public inputs, results and selected operand/cache categories. The authored integer category projection groups int/wideInt only for its declared comparison; source fixtures provide no execution, private cache, callback or Native role grant."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_list_stride644/software_controls.rs",
+      "sha256": "b7761c9d21a5d06b6eb92ef64da3cc2792966cb1d681d462def9660f99869189",
+      "bytes": 45698,
+      "candidate": false,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.list.original-stride-primitive-and-results"
+      ],
+      "reason": "Literal software fixtures preserve public stride inputs, operation code/result, observed kind/resident predicates and each original stream association. Source declarations provide no new Rust execution, primitive chronology or external observation."
+    },
+    {
+      "path": "runtime/rust/tests/data/native_original_option_index636/software_controls.rs",
+      "sha256": "c0fe1e3cad6091532785f0d36f0ba9af7e3c46696ee574b130d3be7fbec9e072",
+      "bytes": 89840,
+      "candidate": false,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.list.original-option-index-path-preparation-and-results"
+      ],
+      "reason": "Literal authored option/path software fixtures project their counted selectors, path form, result and selected public child kind/resident predicates. EvalObjv temporary roles, private caches, error stacks and callback chronology remain outside this projection."
     }
   ]
 }
