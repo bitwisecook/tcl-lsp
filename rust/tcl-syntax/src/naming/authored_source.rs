@@ -2,21 +2,22 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Bounded Logical source geometry, independently of Native naming authority.
+//! Bounded UTF-8 Logical source geometry, independently of Native naming authority.
 
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 
 fn source_units(current: &ByteNamespacePath, written: &[u8]) -> Option<()> {
-    (written.is_ascii()
+    (std::str::from_utf8(written).is_ok()
         && !written.contains(&0)
         && current
             .as_segments()
             .iter()
-            .all(|segment| segment.as_bytes().is_ascii() && !segment.as_bytes().contains(&0)))
+            .all(|segment| std::str::from_utf8(segment.as_bytes()).is_ok()
+                && !segment.as_bytes().contains(&0)))
     .then_some(())
 }
 
-/// Construct a bounded ASCII authored command slot under a retained Logical
+/// Construct a bounded UTF-8 authored command slot under a retained Logical
 /// source namespace. Written qualifiers use the shared parser; constructed
 /// namespace components are appended without reparsing. No Native name recipe,
 /// namespace existence, table binding or publication follows from this slot.
@@ -148,4 +149,82 @@ mod tests {
             assert!(authored_source_namespace_path(&current, bytes).is_none());
         }
     }
+    #[test]
+    fn original_authored_unicode_scope_keeps_raw_components_and_canonical_colons() {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        // Conditional Logical geometry only; no Native name or table binding.
+        let mut current = ByteNamespacePath::root();
+        current.push(NameBytes::from("λ::retained".as_bytes()));
+        let slot =
+            authored_source_command_slot(&current, "café:::\u{feff}puts".as_bytes()).unwrap();
+        assert_eq!(
+            slot.namespace.as_segments()[0].as_bytes(),
+            "λ::retained".as_bytes()
+        );
+        assert_eq!(
+            slot.namespace.as_segments()[1].as_bytes(),
+            "café".as_bytes()
+        );
+        assert_eq!(slot.simple.as_bytes(), "\u{feff}puts".as_bytes());
+        let empty = authored_source_command_slot(&current, "café::".as_bytes()).unwrap();
+        assert_eq!(empty.namespace, slot.namespace);
+        assert!(empty.simple.as_bytes().is_empty());
+        let namespace = authored_source_namespace_path(&current, "café".as_bytes()).unwrap();
+        assert_eq!(namespace, slot.namespace);
+        let root =
+            authored_source_command_slot(&current, "::café::\u{feff}puts".as_bytes()).unwrap();
+        assert_eq!(root.namespace.as_segments().len(), 1);
+        assert_eq!(
+            root.namespace.as_segments()[0].as_bytes(),
+            "café".as_bytes()
+        );
+        assert_eq!(root.simple, slot.simple);
+        let composed = authored_source_command_slot(&current, "é".as_bytes()).unwrap();
+        let decomposed = authored_source_command_slot(&current, "e\u{301}".as_bytes()).unwrap();
+        assert_ne!(composed.simple, decomposed.simple);
+        let candidates =
+            authored_source_command_candidates(&current, &[namespace.clone()], "λ".as_bytes())
+                .unwrap();
+        assert_eq!(candidates.len(), 3);
+        assert_eq!(candidates[0].namespace, current);
+        assert_eq!(candidates[1].namespace, namespace);
+        assert!(candidates[2].namespace.is_root());
+        assert!(
+            candidates
+                .iter()
+                .all(|slot| slot.simple.as_bytes() == "λ".as_bytes())
+        );
+    }
+
+    #[test]
+    fn original_authored_unicode_scope_refuses_invalid_written_and_retained_units() {
+        // naming.source.original-declared-command-word-contract
+        // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+        let root = ByteNamespacePath::root();
+        for written in [
+            b"name\0suffix".as_slice(),
+            b"name\xff".as_slice(),
+            b"\xc0\x80".as_slice(),
+            b"\xed\xa0\x80".as_slice(),
+        ] {
+            assert!(authored_source_command_slot(&root, written).is_none());
+            assert!(authored_source_command_candidates(&root, &[], written).is_none());
+            assert!(authored_source_namespace_path(&root, written).is_none());
+        }
+        for segment in [
+            b"retained\0suffix".as_slice(),
+            b"retained\xff".as_slice(),
+            b"\xc0\x80".as_slice(),
+        ] {
+            let mut current = ByteNamespacePath::root();
+            current.push(NameBytes::from(segment));
+            assert!(authored_source_command_slot(&current, "λ".as_bytes()).is_none());
+            assert!(authored_source_namespace_path(&current, "λ".as_bytes()).is_none());
+            assert!(
+                authored_source_command_candidates(&root, &[current], "λ".as_bytes()).is_none()
+            );
+        }
+    }
+
 }

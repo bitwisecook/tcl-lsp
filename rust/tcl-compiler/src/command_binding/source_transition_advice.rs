@@ -2455,4 +2455,150 @@ mod tests {
                 .all(|(subject, _)| subject.argument_index().is_some())
         );
     }
+    fn original_unicode_source_input() -> crate::analyser::ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            strict_quoting: true,
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
+    }
+
+    #[test]
+    fn original_logical_unicode_transitions_keep_exact_alias_and_move_inputs() {
+        // naming.source.authored-command-transition-advice
+        // docs/design/analysis/name-resolution-proofs/authored-command-transition-advice.md
+        // Conditional source transitions only; no Native input or successful dispatch.
+        let input = original_unicode_source_input();
+        assert!(input.has_logical_source_name_context());
+        for (source, command, head) in [
+            (
+                "rename puts \u{feff}puts; \u{feff}puts value",
+                "puts",
+                "\u{feff}puts",
+            ),
+            (
+                "interp alias {} café {} puts FIXED; café value",
+                "puts",
+                "café",
+            ),
+            (
+                "namespace eval λ {}; rename puts ::λ::é; ::λ::é value",
+                "puts",
+                "::λ::é",
+            ),
+        ] {
+            let syntax = crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(source, input.clone());
+            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            );
+            let selected = syntax
+                .words(commands.last().unwrap())
+                .expect("exact Logical UTF-8 source target");
+            assert_eq!(selected.command(), command);
+            let OriginalRegistrySource::SourceTransitions(advice) = selected.source() else {
+                panic!("source transition purpose required")
+            };
+            assert_eq!(advice.original_head().bytes(), head.as_bytes());
+            assert!(advice.original_head().native_input().is_none());
+            assert!(advice.original_head().logical_input().is_some());
+            assert_eq!(advice.logical_source_input(), Some(&input));
+            assert!(!selected.operands_preserve_source_lookup());
+            assert!(
+                advice
+                    .lineage()
+                    .iter()
+                    .flat_map(|step| step.inputs())
+                    .all(|(_, input)| input.native_input().is_none())
+            );
+            assert_eq!(advice.original_words()[0].config(), input.lexer_config());
+            assert_eq!(
+                advice.original_words()[0].image().bytes(),
+                source.as_bytes()
+            );
+            let context = input.borrowed_context_registry();
+            let foreign =
+                context.with_command_store(context.commands().snapshot().shared_registry());
+            assert!(selected.with_source_schema(&foreign, |_| ()).is_none());
+        }
+        for source in [
+            "rename puts café; rename café {}; café value",
+            "interp alias {} café {} puts; unknown; café value",
+            "interp alias {} café {} $target; café value",
+            "interp alias {} café {} puts; proc café {args} {}; café value",
+        ] {
+            let syntax = crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(source, input.clone());
+            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            );
+            assert!(syntax.words(commands.last().unwrap()).is_none(), "{source}");
+        }
+    }
+
+    #[test]
+    fn original_logical_nested_expression_keeps_bom_head_and_parent_configuration() {
+        // naming.source.authored-command-transition-advice
+        // docs/design/analysis/name-resolution-proofs/authored-command-transition-advice.md
+        // Original expression child source schema; no entered matcher or output value.
+        let input = original_unicode_source_input();
+        let source = "\u{feff}interp alias {} \u{feff}match {} regexp\nif {![\u{feff}match λ λ out]} {puts $out}";
+        let syntax =
+            crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(
+                source,
+                input.clone(),
+            );
+        let start = u32::try_from(source.find("\u{feff}match λ").unwrap()).unwrap();
+        let end = u32::try_from(source.find("]}").unwrap()).unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[start as usize..end as usize],
+            start,
+            input.lexer_config().nested(),
+        );
+        let [child] = commands.as_slice() else {
+            panic!("one original expression child")
+        };
+        let selected = syntax
+            .words(child)
+            .expect("nested BOM is a retained head unit");
+        assert_eq!(selected.command(), "regexp");
+        let OriginalRegistrySource::SourceTransitions(advice) = selected.source() else {
+            panic!("source transition purpose required")
+        };
+        assert_eq!(advice.original_head().bytes(), "\u{feff}match".as_bytes());
+        assert_eq!(advice.original_words()[0].span().start(), start);
+        assert!(
+            advice
+                .original_words()
+                .iter()
+                .all(|word| word.config() == input.lexer_config()
+                    && word.image().bytes() == source.as_bytes())
+        );
+        assert!(advice.original_head().native_input().is_none());
+        assert_eq!(advice.logical_source_input(), Some(&input));
+        let changed = crate::segmenter::segment_commands_with_offset_and_config(
+            "match λ λ out",
+            start,
+            input.lexer_config().nested(),
+        );
+        assert!(syntax.words(&changed[0]).is_none());
+        let foreign_source = format!("{source} ");
+        let foreign =
+            crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(
+                &foreign_source,
+                input.clone(),
+            );
+        assert!(!advice.matches_source(
+            &tcl_lexer::SourceImage::document(&foreign_source),
+            input.lexer_config()
+        ));
+    }
+
 }

@@ -296,10 +296,11 @@ impl BodyWalk<'_, '_> {
         if depth > MAX_DEPTH {
             return None;
         }
-        let plan = tcl_lexer::native_script_words_in(
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
             self.context.origin.source_image().clone(),
             span,
             self.context.config,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
         )
         .ok()?;
         if plan.fatal_tail.is_some() {

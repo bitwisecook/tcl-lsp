@@ -3784,3 +3784,5 @@ The neutral software worker has its separate adopt-before-retire schedule and
 None fullName reconstruction. C84/Jim original TclOO mapping authority, Native
 Class pointer lifetimes and external callback chronology are not supplied by
 these adapters.
+
+Logical source names retain complete valid UTF-8 bytes and reject literal NUL or invalid UTF-8 in both written names and independently retained namespace components. `authored_source_command_slot`, `authored_source_command_candidates` and `authored_source_namespace_path` share written colon geometry; they preserve constructed components without reparsing or Unicode normalization. These projections supply conditional source scope only. They supply no Native name recipe, current table entry, entered frame, successful handler or Normal result. `source_transition_advice::BodyWalk::script` uses the existing `NestedScript` lexer purpose for original bracket, expression and body regions while preserving each word's full parent image and configuration. Root source tapes retain `WholeInput` purpose; source applicability, target transitions, unknown effects and complete original vectors remain independent guards.
