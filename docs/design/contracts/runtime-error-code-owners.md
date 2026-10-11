@@ -11,3 +11,25 @@ An incoming allocation lease protects header lifetime without adding a visible C
 Callers must preserve the original object and entered interpreter through the call. They must not reconstruct object authority from result text, a dialect name or a descriptive exception stamp. A software completion projection on Tcl 8.4 does not imply availability of `Tcl_GetReturnOptions` on that release.
 
 The [C8.4 error-code publication proof](../analysis/name-resolution-proofs/error-c84-publication-order.md) records its native observer scope. Runtime controls separately check actual software header identity, getter counts, references, retirement and callback error projection. The [embedding proof](../analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md) records the separate Host transport question.
+
+## Counted error-info appends
+
+`NativeErrorInfoAppend::from_accumulated` selects a counted pending suffix
+before the physical error-variable setters can invoke traces. Both runtime
+adapters retain this original suffix and its accumulator extent across those
+callbacks. A callback's own error episode cannot select a different suffix.
+The descriptor supplies no header, receiver or getter authority; the adapters
+retain and check those original owners independently.
+
+The C Tcl 8.4 `Tcl_AddObjErrorInfo` purpose ends after its counted append
+setter. It performs no trailing global-variable or String getter. A consumer
+that needs the global value must use its own actual read purpose. Setter Guest
+failure and Host refusal retain distinct outcomes; reached cleanup and flag
+settlement preserve the first Host cause.
+
+The original callback comparisons are recorded by
+[naming.error.c84-publication-order](../analysis/name-resolution-proofs/error-c84-publication-order.md)
+and the original-object append observations by
+[naming.variable.error-info-append-original-object](../analysis/name-resolution-proofs/variable.error-info-append-original-object.md).
+Those observations cover their exact input and capture frontiers; the shared
+suffix descriptor is software accumulator geometry.

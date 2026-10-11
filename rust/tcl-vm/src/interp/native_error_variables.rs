@@ -470,11 +470,15 @@ impl Vm {
         let Some(bytes) = self.native_errors.error_info.as_ref() else {
             return;
         };
-        let Some(suffix) = bytes.get(self.native_errors.native_error_info_len..) else {
+        let Some(append) = tcl_registry::native_error_log::NativeErrorInfoAppend::from_accumulated(
+            bytes,
+            self.native_errors.native_error_info_len,
+        ) else {
             let _ = self.refuse_host_command("native errorInfo append extent".into());
             return;
         };
-        let length = bytes.len();
+        let suffix = append.suffix();
+        let length = append.accumulated_length();
         let logged = self.native_errors.error_logged;
         if !suffix.is_empty() {
             let source = Value::new_native_string_bytes(suffix);
@@ -485,17 +489,7 @@ impl Vm {
         self.native_errors.native_error_info_len = length;
         self.native_errors.native_error_legacy_copy = true;
         self.native_errors.error_logged = logged;
-        if let Some(original) = self.get_var_from(0, "::errorInfo") {
-            match self.native_string_bytes(&original) {
-                Ok(bytes) => {
-                    self.native_errors.native_error_info_len = bytes.len();
-                    self.native_errors.error_info = Some(bytes.to_vec());
-                }
-                Err(error) => {
-                    let _ = crate::command::completion_from_tcl_error(self, error.into());
-                }
-            }
-        }
+        // The selected native append performs no trailing global getter.
     }
 
     pub(crate) fn clear_return_error_info(&mut self) {

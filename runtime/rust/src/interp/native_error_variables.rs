@@ -878,10 +878,25 @@ impl Interp {
         };
         let original = obj::NativeObjectLifetime::retain(self.result.get());
         let reached = (|| {
-            if !self.exc.borrow().native.legacy_copy {
+            let starting = !self.exc.borrow().native.legacy_copy;
+            let length = if starting {
                 let length = self.completion_result_bytes_checked();
                 self.check_c84_error_info_result(currency, &original)?;
-                let length = length?.len();
+                length?.len()
+            } else {
+                self.exc.borrow().native.info_len
+            };
+            let append = tcl_registry::native_error_log::NativeErrorInfoAppend::from_accumulated(
+                &bytes, length,
+            )
+            .ok_or_else(|| {
+                self.refuse_completion_value_access(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native errorInfo append extent",
+                    ),
+                )
+            })?;
+            if starting {
                 // ERR_IN_PROGRESS is reached before the initial setter callback.
                 {
                     let mut exc = self.exc.borrow_mut();
@@ -889,8 +904,7 @@ impl Interp {
                     exc.native.legacy_copy = true;
                 }
                 let _ = self.var_set(b"::errorInfo", original.as_ptr());
-                // Rearm the reached flags even when callback saved-state cleanup
-                // restored their previous values, before classifying its outcome.
+                // Rearm the reached flags before classifying callback cleanup.
                 {
                     let mut exc = self.exc.borrow_mut();
                     exc.native.info_len = length;
@@ -904,14 +918,7 @@ impl Interp {
                     self.check_c84_error_info_result(currency, &original)?;
                 }
             }
-            let length = self.exc.borrow().native.info_len;
-            let suffix = bytes.get(length..).ok_or_else(|| {
-                self.refuse_completion_value_access(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "native errorInfo append extent",
-                    ),
-                )
-            })?;
+            let suffix = append.suffix();
             let logged = self.exc.borrow().already_logged;
             let appended = if suffix.is_empty() {
                 Ok(super::VariableTraceGuestOutcome::Complete)
@@ -936,45 +943,14 @@ impl Interp {
             // genuine Guest setter failure is ignored by Tcl_AddObjErrorInfo.
             {
                 let mut exc = self.exc.borrow_mut();
-                exc.native.info_len = bytes.len();
+                exc.native.info_len = append.accumulated_length();
                 exc.native.legacy_copy = true;
                 exc.already_logged = logged;
             }
             self.check_c84_error_info_result(currency, &original)?;
             let _ = appended?;
-            let name = obj::Owned::fresh(new_string(b"::errorInfo"));
-            let selected = self.capture_original_c_variable_for(
-                name.as_ptr(),
-                tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::Exists,
-            );
-            self.check_c84_error_info_result(currency, &original)?;
-            if let Ok(captured) = selected {
-                if let Ok(Some(value)) = captured.receiver.read() {
-                    let value = obj::NativeObjectLifetime::retain(value);
-                    use tcl_syntax::value::ValueOps;
-                    let projected = self.native_string_bytes(&value.as_ptr());
-                    self.check_c84_error_info_result(currency, &original)?;
-                    obj::check_native_liveness(value.as_ptr())
-                        .map_err(|error| self.refuse_completion_value_access(error))?;
-                    if captured.receiver.check_current().is_err()
-                        || captured.receiver.read().ok() != Some(Some(value.as_ptr()))
-                    {
-                        return Err(self.refuse_completion_value_access(
-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "original C84 errorInfo changed during getter",
-                            ),
-                        ));
-                    }
-                    let projected =
-                        projected.map_err(|error| self.refuse_completion_value_access(error))?;
-                    let mut exc = self.exc.borrow_mut();
-                    exc.native.info_len = projected.len();
-                    exc.info = Some(projected.to_vec());
-                }
-                drop(captured);
-                self.check_c84_error_info_result(currency, &original)?;
-            }
-            drop(name);
+            // Tcl_AddObjErrorInfo ends at the counted setter. A subsequent
+            // global getter belongs to its own caller, not this append purpose.
             currency.ensure_current_or_refuse()
         })();
         drop(original);

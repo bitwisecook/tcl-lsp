@@ -29,6 +29,37 @@ pub enum NativeErrorLogProtocol {
     C(tcl_dialect::TclVersion),
 }
 
+/// A counted suffix retained before an error-variable setter can run traces.
+/// This is accumulator geometry, not permission to read a native header or cell.
+pub struct NativeErrorInfoAppend<'a> {
+    suffix: &'a [u8],
+    accumulated_length: usize,
+}
+
+impl<'a> NativeErrorInfoAppend<'a> {
+    /// Select the original pending suffix without consulting callback state.
+    #[must_use]
+    pub fn from_accumulated(accumulated: &'a [u8], appended_length: usize) -> Option<Self> {
+        Some(Self {
+            suffix: accumulated.get(appended_length..)?,
+            accumulated_length: accumulated.len(),
+        })
+    }
+
+    /// Exact counted bytes supplied to the selected append worker.
+    #[must_use]
+    pub const fn suffix(&self) -> &'a [u8] {
+        self.suffix
+    }
+
+    /// Software accumulator extent after the reached append, independent of
+    /// any global cell changes made by a trace callback.
+    #[must_use]
+    pub const fn accumulated_length(&self) -> usize {
+        self.accumulated_length
+    }
+}
+
 impl NativeErrorLogProtocol {
     /// `Tcl_ResetResult` clears the active global error episode in C8.4.
     /// The global variable headers remain owned by their existing cells.
