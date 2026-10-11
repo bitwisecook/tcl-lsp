@@ -141,13 +141,16 @@ pub(in crate::analyser) mod version_gate;
 pub(in crate::analyser) mod widget_command;
 
 /// Local body availability at the original invocation, separate from effects.
-/// Native rows use the retained implementation allocation/Registry identity;
-/// explicit Logical compatibility alone may consult reporting procedure names.
+/// Execution rows use the retained implementation allocation/Registry identity.
+/// Logical rows require a closed original call and its complete retained input;
+/// reporting procedure names corroborate that target without selecting one.
 struct UnitCommandResolver<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     generation: std::sync::Arc<tcl_registry::model::ContextRegistry>,
     procedures: HashSet<crate::command_binding::CommandAllocationSite>,
     logical_definitions: Option<HashSet<String>>,
+    logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    logical_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
 }
 
 impl UnitCommandResolver<'_> {
@@ -171,35 +174,67 @@ impl UnitCommandResolver<'_> {
                     .as_ref()
                     .is_some_and(|allocation| self.procedures.contains(&allocation.site));
         }
-        let Some(definitions) = &self.logical_definitions else {
+        let Some(input) = &self.logical_input else {
             return false;
         };
-        let (crate::ir::Statement::Call { command, .. }
-        | crate::ir::Statement::Barrier { command, .. }) = statement
+        let Some(realm) = &self.logical_realm else {
+            return false;
+        };
+        if !realm.matches_resolved_analysis_input(input) {
+            return false;
+        }
+        let Some(tokens) = statement.tokens() else {
+            return false;
+        };
+        let Some(binding) = &tokens.source_binding else {
+            return false;
+        };
+        let Some(site) = binding.invocation_site() else {
+            return false;
+        };
+        if !realm.matches_original_source_image(site.source.source_image(), input.lexer_config()) {
+            return false;
+        }
+        let Some(metadata) =
+            binding.original_invocation_metadata_for_input(tokens, input, self.registry)
         else {
             return false;
         };
-        // A retained Logical source binding supplies its own lexical
-        // namespace. Tokenless compatibility statements belong to the root;
-        // an explicitly unknown positioned namespace remains unavailable.
-        let namespace = match statement
-            .tokens()
-            .and_then(|tokens| tokens.source_binding.as_ref())
+        if !metadata.permits_logical_source_names()
+            || metadata.context() != self.generation.context()
         {
-            Some(binding) if binding.variable_context.namespace_known => {
-                binding.variable_context.namespace.as_str()
-            }
-            Some(_) => return false,
-            None => "::",
+            return false;
+        }
+        let Some(targets) =
+            binding.original_logical_declaration_call_targets(tokens, input, self.registry)
+        else {
+            return false;
         };
-        crate::naming::bareword_resolution_candidates(namespace, command)
-            .iter()
-            .any(|candidate| definitions.contains(candidate))
-            || self
-                .generation
-                .context()
-                .resolve_spec(self.registry, command)
-                .is_some()
+        let [target] = targets.as_slice() else {
+            return false;
+        };
+        // The original table selects the callee. The retained unit inventory
+        // only establishes that its body is available for diagnostic analysis;
+        // missing source ownership never retries a reporting-name lookup.
+        if target.registry_backed {
+            return target.registry_identity().is_some_and(|identity| {
+                metadata
+                    .context()
+                    .resolve_spec(self.registry, identity)
+                    .is_some()
+            });
+        }
+        target.kind == crate::command_binding::BindingKind::Proc
+            && self
+                .procedures
+                .contains(&crate::command_binding::CommandAllocationSite {
+                    source: std::sync::Arc::clone(&site.source),
+                    offset: target.implementation_generation,
+                })
+            && self
+                .logical_definitions
+                .as_ref()
+                .is_some_and(|definitions| definitions.contains(&target.command))
     }
 }
 
@@ -220,6 +255,16 @@ impl Analyser {
                 .result
                 .allows_retained_logical_declaration_advice()
                 .then(|| self.result.all_procs.keys().cloned().collect()),
+            logical_input: self
+                .result
+                .allows_retained_logical_declaration_advice()
+                .then(|| self.result.resolved_input.clone())
+                .flatten(),
+            logical_realm: self
+                .result
+                .allows_retained_logical_declaration_advice()
+                .then(|| self.result.retained_command_realm_arc().cloned())
+                .flatten(),
         }
     }
 }
@@ -1420,5 +1465,271 @@ mod complete_cu_input_tests {
         unowned.emit_cfg_ssa_diagnostics(SOURCE);
         assert!(unowned.result.diagnostics.is_empty());
         assert!(unowned.result.resolved_input.is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_logical_command_availability_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use std::sync::Arc;
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                .expect("known fixture availability")
+                .default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        )
+    }
+
+    pub(super) fn lowered_statement(
+        source: &str,
+        input: &ResolvedAnalysisInput,
+        selected: &str,
+    ) -> crate::ir::Statement {
+        let mut lowerer = crate::lowering::Lowerer::with_config(
+            input.borrowed_context_registry().commands(),
+            input.lexer_config(),
+        )
+        .with_resolved_analysis_input(input.clone());
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        assert_eq!(module.source_metadata_input.as_ref(), Some(input));
+        assert_eq!(module.lexer_config, input.lexer_config());
+        let offset = u32::try_from(source.rfind(selected).unwrap()).unwrap();
+        let mut statements = Vec::new();
+        let mut visit = |statement: &crate::ir::Statement| {
+            if statement.span().start() == offset {
+                statements.push(statement.clone());
+            }
+        };
+        crate::ir::for_each_statement(&module.top_level, &mut visit);
+        for procedure in module.procedures.values() {
+            crate::ir::for_each_statement(&procedure.body, &mut visit);
+        }
+        assert_eq!(statements.len(), 1, "one original statement at {offset}");
+        statements.pop().unwrap()
+    }
+
+    fn analysis(source: &str, input: &ResolvedAnalysisInput) -> Analyser {
+        let mut analyser = Analyser::new()
+            .with_resolved_input(input.clone())
+            .structure_only();
+        analyser.analyse_and_retain_result_for_test(source, "display-only");
+        assert!(analyser.result.allows_retained_logical_declaration_advice());
+        assert_eq!(analyser.result.resolved_input.as_ref(), Some(input));
+        analyser
+    }
+
+    #[test]
+    fn original_logical_body_availability_uses_closed_root_and_nested_captured_targets() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        for (source, selected, captured) in [
+            ("package require Tcl", "package require Tcl", false),
+            (
+                "interp alias {} ensure {} package require; ensure Tcl",
+                "ensure Tcl",
+                true,
+            ),
+            (
+                "proc subject {} {package require Tcl}",
+                "package require Tcl",
+                false,
+            ),
+            (
+                "interp alias {} ensure {} package require; proc subject {} {ensure Tcl}",
+                "ensure Tcl",
+                true,
+            ),
+        ] {
+            let analyser = analysis(source, &input);
+            let statement = lowered_statement(source, &input, selected);
+            let tokens = statement.tokens().expect("original complete argv");
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let targets = binding
+                .original_logical_declaration_call_targets(
+                    tokens,
+                    &input,
+                    input.borrowed_context_registry().commands(),
+                )
+                .unwrap();
+            let [target] = targets.as_slice() else {
+                panic!("one original callee: {source}");
+            };
+            assert!(target.registry_backed);
+            assert_eq!(target.prepended.len(), usize::from(captured));
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.native_compiler_admission.is_none());
+            assert!(
+                analyser
+                    .unit_command_resolver(input.borrowed_context_registry().commands())
+                    .resolves(&statement),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_logical_procedure_body_availability_keeps_the_selected_declaration_separate_from_allocation()
+     {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        for (source, selected) in [
+            (
+                "proc available {} {}; available local_name",
+                "available local_name",
+            ),
+            (
+                "proc available {} {}; interp alias {} ensure {} available; ensure local_name",
+                "ensure local_name",
+            ),
+        ] {
+            let analyser = analysis(source, &input);
+            let statement = lowered_statement(source, &input, selected);
+            let tokens = statement.tokens().unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let targets = binding
+                .original_logical_declaration_call_targets(tokens, &input, registry)
+                .expect("closed actual source declaration");
+            let [target] = targets.as_slice() else {
+                panic!("one original procedure");
+            };
+            assert_eq!(target.kind, crate::command_binding::BindingKind::Proc);
+            assert!(!target.registry_backed);
+            assert!(target.implementation_allocation.is_none());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.declaration_call_layout_advice(tokens).is_none());
+            let resolver = analyser.unit_command_resolver(registry);
+            assert!(resolver.resolves(&statement), "{source}");
+            let mut missing_declaration = analyser.unit_command_resolver(registry);
+            missing_declaration.procedures.clear();
+            assert!(!missing_declaration.resolves(&statement));
+        }
+    }
+
+    #[test]
+    fn original_logical_body_availability_refuses_absent_and_opaque_original_callees() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        for (source, selected) in [
+            ("rename puts hidden; puts local_name", "puts local_name"),
+            (
+                "proc available {} {}; rename available {}; available local_name",
+                "available local_name",
+            ),
+            ("mystery; puts local_name", "puts local_name"),
+            ("puts [rename puts {}]", "puts [rename puts {}]"),
+        ] {
+            let analyser = analysis(source, &input);
+            let statement = lowered_statement(source, &input, selected);
+            assert!(
+                !analyser
+                    .unit_command_resolver(input.borrowed_context_registry().commands())
+                    .resolves(&statement),
+                "{source}"
+            );
+        }
+        // A final Catalogue row cannot resurrect a withdrawn original slot.
+        assert!(
+            input
+                .borrowed_context_registry()
+                .context()
+                .resolve_spec(input.borrowed_context_registry().commands(), "puts")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn original_logical_body_availability_requires_full_input_vector_and_actual_generation() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let input = input();
+        let source = "interp alias {} ensure {} package require; proc subject {} {ensure Tcl}";
+        let analyser = analysis(source, &input);
+        let statement = lowered_statement(source, &input, "ensure Tcl");
+        let registry = input.borrowed_context_registry().commands();
+        assert!(
+            analyser
+                .unit_command_resolver(registry)
+                .resolves(&statement)
+        );
+
+        let mut changed_config = input.lexer_config();
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            changed_config,
+        );
+        let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .expect("known foreign availability")
+            .default_context_registry();
+        for replacement in [
+            None,
+            Some(changed),
+            Some(ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                Arc::clone(&foreign),
+                input.lexer_config(),
+            )),
+        ] {
+            let mut resolver = analyser.unit_command_resolver(registry);
+            resolver.logical_input = replacement;
+            assert!(!resolver.resolves(&statement));
+        }
+        let mut resolver = analyser.unit_command_resolver(registry);
+        resolver.generation = foreign;
+        assert!(!resolver.resolves(&statement));
+        let mut missing_realm = analyser.unit_command_resolver(registry);
+        missing_realm.logical_realm = None;
+        assert!(!missing_realm.resolves(&statement));
+        let foreign_statement =
+            lowered_statement("package require Tcl", &input, "package require Tcl");
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&foreign_statement)
+        );
+
+        let mut changed_vector = statement.clone();
+        changed_vector.tokens_mut().unwrap().word_exprs.pop();
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&changed_vector)
+        );
+        let mut missing_binding = statement.clone();
+        missing_binding.tokens_mut().unwrap().source_binding = None;
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&missing_binding)
+        );
+        let tokenless = crate::ir::Statement::Barrier {
+            span: statement.span(),
+            reason: "unowned compatibility label".into(),
+            command: "package".into(),
+            canonical_command: Some("package".into()),
+            args: vec!["require".into(), "Tcl".into()],
+            tokens: None,
+        };
+        assert!(
+            !analyser
+                .unit_command_resolver(registry)
+                .resolves(&tokenless)
+        );
     }
 }

@@ -547170,6 +547170,534 @@
         "command": [],
         "limitations": "This is a bounded source/API contract with exact current source hashes and actual body bindings. No original external provider experiment or owned matching Rust test execution is attached. Independently measured native method/source/transport evidence does not complete Logical source target, visibility, editing or physical dispatch requirements."
       }
+    },
+    {
+      "id": "naming.tcloo.original-definition-getter-and-effect-owner",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/tcloo-original-definition-getter-and-effect-owner.md",
+      "problem_statement": "An original definition operand getter or retired method body can withdraw its selected Object/Class target, change operation currency or report the first Host refusal. Continuing with a fresh spelling lookup or applying later flags can act on the wrong target or erase a reached earlier effect.",
+      "question": "Does the shared definition continuation retain its exact selected Object/Class target across original operand getters and outside-borrow retirement, preserve first typed refusal and already reached effects, and stop later getters/publication after withdrawal? Which C9.1 sequential export stages are inspected source facts rather than externally executed callback parity?",
+      "conclusion": "The current source/API owner retains the selected definition target and object creation stamp, checks it at the described getter/retirement boundaries, and preserves the original argument currency and first typed refusal. The retained original C9.1 source shows context selection, object-hash String access before method flags, per-operand export/unexport effects and final epoch update. Six finite linked software controls are unrun on an attached matching owned image. All seven external execution statuses are not tested. No Native callback parity, Method record/name/key reference count, Class-facet allocation lifetime, frame entry, dynamic lookup or class-proof grant follows.",
+      "scope": "Selected definition class operand, definition namespace operands, method deletion and visibility flag continuations, plus the exact Registry release schedule. Eight physical-LF C9.1 source joins are independently retained and byte-verified; source facts remain distinct from software Host/ABA/withdrawal controls and external execution. Runtime Object/Class target checks and flag sets do not reproduce the original C object-hash/Method storage roles. Compatibility C8.6/C9.0 schedules have no inspected chronology grant here. Class-facet lifecycle and introspection/report continuations require independent questions.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded definition target/getter/effect owner contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No original tcl8.4 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded definition target/getter/effect owner contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No original tcl8.5 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded definition target/getter/effect owner contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No original tcl8.6 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded definition target/getter/effect owner contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No original tcl9.0 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded definition target/getter/effect owner contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No original tcl9.1 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded definition target/getter/effect owner contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No original jim process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded definition target/getter/effect owner contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No original bigip process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "original-source-joins",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/original-source-joins.json",
+          "sha256": "7262a4c75a226dd1293174840b3911f3e64a281c69d3fdea155485e706a5a11f",
+          "description": "Exact inspected C9.1 source association records. Their absolute original paths and physical LF line basis are retained; no external execution receipt is attached."
+        },
+        {
+          "id": "full-source-tclOODefineCmds",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclOODefineCmds.c.gz",
+          "sha256": "ba3c1ac83506d4f059ee8617ab4310049ca33152ad80f3a19e1f81bd863a44e3",
+          "description": "Whole exact original C9.1 source bytes retained losslessly. This source inspection supplies no configure/build replay, binary/source equivalence or external callback execution."
+        },
+        {
+          "id": "source-window-0",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1228-1324.c",
+          "sha256": "2e953f41392a03678f43cd1ab1705eb77a9fe57a26441807dba66a6d07a633a3",
+          "description": "GetOrCreateMethod and class/instance export helpers: authentic object-hash lookup before flags; distinct record/name/key roles are not donated to Runtime flag sets. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "source-window-1",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1704-1795.c",
+          "sha256": "0c5036ee717dabc6389a44dc1d88413a686ae5f8f36617b8a68c7ccc2677ae99",
+          "description": "Class worker retains selected object context before original class operand and class-facet effects. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "source-window-2",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1872-1940.c",
+          "sha256": "453b0d897e9f352264074e43f359e0285d75de4f3b330e6c34cc4444689964ad",
+          "description": "Definition-namespace worker context, kind and namespace operand/publication stages. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "source-window-3",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1951-1990.c",
+          "sha256": "541bf91a9f0476912cfaf0652cefc575fa105740f13428a86e834ede6692b465",
+          "description": "DeleteMethod sequential original source removal and final epoch stage. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "source-window-4",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-2064-2115.c",
+          "sha256": "f2de57a00919d444ad79b967dc59ea20ba4a8d4e79f73a3f0350542aac3fb713",
+          "description": "C91 Export per-original-operand flag effect then final epoch. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "source-window-5",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-2451-2497.c",
+          "sha256": "0316faf11b0d91501c66d654ecc07a30ddf1466bca7ae3d4c7ba9024e587ea7a",
+          "description": "C91 Unexport per-original-operand flag effect then final epoch. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "full-source-tclObj",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclObj.c.gz",
+          "sha256": "6819a79ab8be653325f72f5fec504ed36b2de8f4b6228788ca759effc7578078",
+          "description": "Whole exact original C9.1 source bytes retained losslessly. This source inspection supplies no configure/build replay, binary/source equivalence or external callback execution."
+        },
+        {
+          "id": "source-window-6",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclObj-264-272.c",
+          "sha256": "c167b9015c563218a4da5cfa0fd47c6bd8359ca79c2e6aea2f0aaeb3ce6f0ab4",
+          "description": "Authentic object hash key type links TclHashObjKey/AllocObjEntry. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "source-window-7",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclObj-4189-4200.c",
+          "sha256": "19229f023df16d336262846ac5c16d7d52c6ea7f642914b1a597e8abf73a7e7c",
+          "description": "Reached object-hash function uses actual Tcl_GetStringFromObj before hash traversal. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested."
+        },
+        {
+          "id": "full-source-storage-map",
+          "role": "source-anchor",
+          "path": "runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/full-source-storage-map.json",
+          "sha256": "2a6dfc7d09c3f204c038925297b2a8a8f1a1925db62320f5a29b1fcbc4ab3b62",
+          "description": "Exact full-source gzip byte/hash mapping. Restore complete original source bytes before source replay; no executable or provider process is represented."
+        },
+        {
+          "id": "implementation-source-0",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "sha256": "468b1a396ee4792022d5bbff6f1b6652032d46a4baaf9b7884aa2db8e5d3953b",
+          "description": "Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome."
+        },
+        {
+          "id": "implementation-source-1",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "sha256": "85a6f6a22a16cc8a7a8152a4732be282677102b725359dd444cafbe00bbcb9b6",
+          "description": "Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome."
+        },
+        {
+          "id": "implementation-source-2",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/original_definition_stage_tests.rs",
+          "sha256": "e227d6fed01e43916261c9a3dc7378517612c933a5ab73386b21a56ef8f6b081",
+          "description": "Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome."
+        },
+        {
+          "id": "implementation-source-3",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+          "sha256": "90f6be393d15f5c3b0a49e4eac59d980e9425d8aa724fd65fe32c036c5f14796",
+          "description": "Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome."
+        }
+      ],
+      "source_anchors": [
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "GetOrCreateMethod and ExportMethod/UnexportMethod helpers",
+          "lines": [
+            1228,
+            1324
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "\n// Make a blank method record or look up the existing one.\nstatic inline Method *\nGetOrCreateMethod(\n    Tcl_HashTable *tablePtr,\n    Tcl_Obj *namePtr,\n    int *isNew)\n{\n    Tcl_HashEntry *hPtr = Tcl_CreateHashEntry(tablePtr, namePtr, isNew);\n    if (*isNew) {\n\tMethod *mPtr = (Method *) Tcl_Alloc(sizeof(Method));\n\tmemset(mPtr, 0, sizeof(Method));\n\tmPtr->refCount = 1;\n\tmPtr->namePtr = namePtr;\n\tTcl_IncrRefCount(namePtr);\n\tTcl_SetHashValue(hPtr, mPtr);\n\treturn mPtr;\n    } else {\n\treturn (Method *) Tcl_GetHashValue(hPtr);\n    }\n}\n\nstatic bool\nExportMethod(\n    Class *clsPtr,\n    Tcl_Obj *namePtr)\n{\n    int isNew;\n    Method *mPtr = GetOrCreateMethod(&clsPtr->classMethods, namePtr, &isNew);\n    if (isNew || !(mPtr->flags & (PUBLIC_METHOD | PRIVATE_METHOD))) {\n\tmPtr->flags |= PUBLIC_METHOD;\n\tmPtr->flags &= ~TRUE_PRIVATE_METHOD;\n\tisNew = 1;\n    }\n    return isNew;\n}\n\nstatic bool\nUnexportMethod(\n    Class *clsPtr,\n    Tcl_Obj *namePtr)\n{\n    int isNew;\n    Method *mPtr = GetOrCreateMethod(&clsPtr->classMethods, namePtr, &isNew);\n    if (isNew || mPtr->flags & (PUBLIC_METHOD | TRUE_PRIVATE_METHOD)) {\n\tmPtr->flags &= ~(PUBLIC_METHOD | TRUE_PRIVATE_METHOD);\n\tisNew = 1;\n    }\n    return isNew;\n}\n\n// Make the table of methods in the instance if it doesn't already exist.\nstatic inline void\nInitMethodTable(\n    Object *oPtr)\n{\n    if (!oPtr->methodsPtr) {\n\toPtr->methodsPtr = (Tcl_HashTable *) Tcl_Alloc(sizeof(Tcl_HashTable));\n\tTcl_InitObjHashTable(oPtr->methodsPtr);\n\toPtr->flags &= ~USE_CLASS_CACHE;\n    }\n}\n\nstatic bool\nExportInstanceMethod(\n    Object *oPtr,\n    Tcl_Obj *namePtr)\n{\n    InitMethodTable(oPtr);\n\n    int isNew;\n    Method *mPtr = GetOrCreateMethod(oPtr->methodsPtr, namePtr, &isNew);\n    if (isNew || !(mPtr->flags & (PUBLIC_METHOD | PRIVATE_METHOD))) {\n\tmPtr->flags |= PUBLIC_METHOD;\n\tmPtr->flags &= ~TRUE_PRIVATE_METHOD;\n\tisNew = 1;\n    }\n    return isNew;\n}\n\nstatic bool\nUnexportInstanceMethod(\n    Object *oPtr,\n    Tcl_Obj *namePtr)\n{\n    InitMethodTable(oPtr);\n\n    int isNew;\n    Method *mPtr = GetOrCreateMethod(oPtr->methodsPtr, namePtr, &isNew);\n    if (isNew || mPtr->flags & (PUBLIC_METHOD | TRUE_PRIVATE_METHOD)) {\n\tmPtr->flags &= ~(PUBLIC_METHOD | TRUE_PRIVATE_METHOD);\n\tisNew = 1;\n    }\n    return isNew;\n}\n\nbool\n",
+          "snippet_sha256": "2e953f41392a03678f43cd1ab1705eb77a9fe57a26441807dba66a6d07a633a3",
+          "evidence": "source-window-0"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "TclOODefineClassObjCmd",
+          "lines": [
+            1704,
+            1795
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "TclOODefineClassObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    Object *oPtr;\n    Class *clsPtr;\n    Foundation *fPtr = TclOOGetFoundation(interp);\n\n    /*\n     * Parse the context to get the object to operate on.\n     */\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (oPtr->flags & ROOT_OBJECT) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"may not modify the class of the root object class\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n    if (oPtr->flags & ROOT_CLASS) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"may not modify the class of the class of classes\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Parse the argument to get the class to set the object's class to.\n     */\n\n    if (objc != 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"className\");\n\treturn TCL_ERROR;\n    }\n    clsPtr = GetClassInOuterContext(interp, objv[1],\n\t    \"the class of an object must be a class\");\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (oPtr == clsPtr->thisPtr) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"may not change classes into an instance of themselves\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Set the object's class.\n     */\n\n    bool wasClass = (oPtr->classPtr != NULL);\n    bool willBeClass = TclOOIsReachable(fPtr->classCls, clsPtr);\n\n    if (oPtr->selfCls != clsPtr) {\n\tTclOORemoveFromInstances(oPtr, oPtr->selfCls);\n\tTclOODecrRefCount(oPtr->selfCls->thisPtr);\n\toPtr->selfCls = clsPtr;\n\tAddRef(oPtr->selfCls->thisPtr);\n\tTclOOAddToInstances(oPtr, oPtr->selfCls);\n\n\t/*\n\t * Create or delete the class guts if necessary.\n\t */\n\n\tif (wasClass && !willBeClass) {\n\t    /*\n\t     * This is the most global of all epochs. Bump it! No cache can be\n\t     * trusted!\n\t     */\n\n\t    TclOORemoveFromMixins(oPtr->classPtr, oPtr);\n\t    oPtr->fPtr->epoch++;\n\t    oPtr->flags |= DONT_DELETE;\n\t    TclOODeleteDescendants(interp, oPtr);\n\t    oPtr->flags &= ~DONT_DELETE;\n\t    TclOOReleaseClassContents(interp, oPtr);\n\t    Tcl_Free(oPtr->classPtr);\n\t    oPtr->classPtr = NULL;\n\t} else if (!wasClass && willBeClass) {\n\t    TclOOAllocClass(interp, oPtr);\n\t}\n\n\tif (oPtr->classPtr != NULL) {\n\t    BumpGlobalEpoch(interp, oPtr->classPtr);\n",
+          "snippet_sha256": "0c5036ee717dabc6389a44dc1d88413a686ae5f8f36617b8a68c7ccc2677ae99",
+          "evidence": "source-window-1"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "TclOODefineDefnNsObjCmd",
+          "lines": [
+            1872,
+            1940
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "\nint\nTclOODefineDefnNsObjCmd(\n    TCL_UNUSED(void *),\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    static const char *const kindList[] = {\n\t\"-class\",\n\t\"-instance\",\n\tNULL\n    };\n    int kind = 0;\n    Class *clsPtr = TclOOGetClassDefineCmdContext(interp);\n    Tcl_Namespace *nsPtr;\n    Tcl_Obj *nsNamePtr, **storagePtr;\n\n    if (clsPtr == NULL) {\n\treturn TCL_ERROR;\n    } else if (clsPtr->thisPtr->flags & (ROOT_OBJECT | ROOT_CLASS)) {\n\tTcl_SetObjResult(interp, Tcl_NewStringObj(\n\t\t\"may not modify the definition namespace of the root classes\",\n\t\tTCL_AUTO_LENGTH));\n\tOO_ERROR(interp, MONKEY_BUSINESS);\n\treturn TCL_ERROR;\n    }\n\n    /*\n     * Parse the arguments and work out what the user wants to do.\n     */\n\n    if (objc != 2 && objc != 3) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"?kind? namespace\");\n\treturn TCL_ERROR;\n    }\n    if (objc == 3 && Tcl_GetIndexFromObj(interp, objv[1], kindList, \"kind\", 0,\n\t    &kind) != TCL_OK) {\n\treturn TCL_ERROR;\n    }\n    if (!TclGetString(objv[objc - 1])[0]) {\n\tnsNamePtr = NULL;\n    } else {\n\tnsPtr = GetNamespaceInOuterContext(interp, objv[objc - 1]);\n\tif (nsPtr == NULL) {\n\t    return TCL_ERROR;\n\t}\n\tnsNamePtr = TclNewNamespaceObj(nsPtr);\n\tTcl_IncrRefCount(nsNamePtr);\n    }\n\n    /*\n     * Update the correct field of the class definition.\n     */\n\n    if (kind) {\t\t\t// -instance\n\tstoragePtr = &clsPtr->objDefinitionNs;\n    } else {\t\t\t// -class\n\tstoragePtr = &clsPtr->clsDefinitionNs;\n    }\n    if (*storagePtr != NULL) {\n\tTcl_DecrRefCount(*storagePtr);\n    }\n    *storagePtr = nsNamePtr;\n    return TCL_OK;\n}\n\f\n/*\n * ----------------------------------------------------------------------\n",
+          "snippet_sha256": "453b0d897e9f352264074e43f359e0285d75de4f3b330e6c34cc4444689964ad",
+          "evidence": "source-window-2"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "TclOODefineDeleteMethodObjCmd",
+          "lines": [
+            1951,
+            1990
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "TclOODefineDeleteMethodObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    bool isInstanceDeleteMethod = (clientData != NULL);\n    Object *oPtr;\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name ?name ...?\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    if (!isInstanceDeleteMethod && !oPtr->classPtr) {\n\treturn ReportAbuse(interp);\n    }\n\n    for (Tcl_Size i = 1; i < objc; i++) {\n\t/*\n\t * Delete the method structure from the appropriate hash table.\n\t */\n\n\tif (RenameDeleteMethod(interp, oPtr, !isInstanceDeleteMethod,\n\t\tobjv[i], NULL) != TCL_OK) {\n\t    return TCL_ERROR;\n\t}\n    }\n\n    if (isInstanceDeleteMethod) {\n\tBumpInstanceEpoch(oPtr);\n    } else {\n\tBumpGlobalEpoch(interp, oPtr->classPtr);\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "541bf91a9f0476912cfaf0652cefc575fa105740f13428a86e834ede6692b465",
+          "evidence": "source-window-3"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "TclOODefineExportObjCmd",
+          "lines": [
+            2064,
+            2115
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "TclOODefineExportObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    bool isInstanceExport = (clientData != NULL), changed = false;\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name ?name ...?\");\n\treturn TCL_ERROR;\n    }\n\n    Object *oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    Class *clsPtr = oPtr->classPtr;\n    if (!isInstanceExport && !clsPtr) {\n\treturn ReportAbuse(interp);\n    }\n\n    for (Tcl_Size i = 1; i < objc; i++) {\n\t/*\n\t * Exporting is done by adding the PUBLIC_METHOD flag to the method\n\t * record. If there is no such method in this object or class (i.e.\n\t * the method comes from something inherited from or that we're an\n\t * instance of) then we put in a blank record with that flag; such\n\t * records are skipped over by the call chain engine *except* for\n\t * their flags member.\n\t */\n\n\tif (isInstanceExport) {\n\t    changed |= ExportInstanceMethod(oPtr, objv[i]);\n\t} else {\n\t    changed |= ExportMethod(clsPtr, objv[i]);\n\t}\n    }\n\n    /*\n     * Bump the right epoch if we actually changed anything.\n     */\n\n    if (changed) {\n\tif (isInstanceExport) {\n\t    BumpInstanceEpoch(oPtr);\n\t} else {\n\t    BumpGlobalEpoch(interp, clsPtr);\n\t}\n    }\n    return TCL_OK;\n}\n",
+          "snippet_sha256": "f2de57a00919d444ad79b967dc59ea20ba4a8d4e79f73a3f0350542aac3fb713",
+          "evidence": "source-window-4"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+          "function": "TclOODefineUnexportObjCmd",
+          "lines": [
+            2451,
+            2497
+          ],
+          "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+          "snippet": "TclOODefineUnexportObjCmd(\n    void *clientData,\n    Tcl_Interp *interp,\n    Tcl_Size objc,\n    Tcl_Obj *const *objv)\n{\n    bool isInstanceUnexport = (clientData != NULL), changed = false;\n    Object *oPtr;\n    Class *clsPtr;\n\n    if (objc < 2) {\n\tTcl_WrongNumArgs(interp, 1, objv, \"name ?name ...?\");\n\treturn TCL_ERROR;\n    }\n\n    oPtr = (Object *) TclOOGetDefineCmdContext(interp);\n    if (oPtr == NULL) {\n\treturn TCL_ERROR;\n    }\n    clsPtr = oPtr->classPtr;\n    if (!isInstanceUnexport && !clsPtr) {\n\treturn ReportAbuse(interp);\n    }\n\n    for (Tcl_Size i = 1; i < objc; i++) {\n\tif (isInstanceUnexport) {\n\t    changed |= UnexportInstanceMethod(oPtr, objv[i]);\n\t} else {\n\t    changed |= UnexportMethod(clsPtr, objv[i]);\n\t}\n    }\n\n    /*\n     * Bump the right epoch if we actually changed anything.\n     */\n\n    if (changed) {\n\tif (isInstanceUnexport) {\n\t    BumpInstanceEpoch(oPtr);\n\t} else {\n\t    BumpGlobalEpoch(interp, clsPtr);\n\t}\n    }\n    return TCL_OK;\n}\n\f\n/*\n",
+          "snippet_sha256": "0316faf11b0d91501c66d654ecc07a30ddf1466bca7ae3d4c7ba9024e587ea7a",
+          "evidence": "source-window-5"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+          "function": "tclObjHashKeyType",
+          "lines": [
+            264,
+            272
+          ],
+          "source_sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+          "snippet": "const Tcl_HashKeyType tclObjHashKeyType = {\n    TCL_HASH_KEY_TYPE_VERSION,\t/* version */\n    TCL_HASH_KEY_DIRECT_COMPARE,/* allows compare keys by pointers */\n    TclHashObjKey,\t\t/* hashKeyProc */\n    TclCompareObjKeys,\t\t/* compareKeysProc */\n    AllocObjEntry,\t\t/* allocEntryProc */\n    TclFreeObjEntry\t\t/* freeEntryProc */\n};\n\n",
+          "snippet_sha256": "c167b9015c563218a4da5cfa0fd47c6bd8359ca79c2e6aea2f0aaeb3ce6f0ab4",
+          "evidence": "source-window-6"
+        },
+        {
+          "provider": "tcl9.1",
+          "version": "9.1.0",
+          "revision": "Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt",
+          "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+          "function": "TclHashObjKey",
+          "lines": [
+            4189,
+            4200
+          ],
+          "source_sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+          "snippet": "size_t\nTclHashObjKey(\n    TCL_UNUSED(Tcl_HashTable *),\n    void *keyPtr)\t\t/* Key from which to compute hash value. */\n{\n    Tcl_Obj *objPtr = (Tcl_Obj *)keyPtr;\n    Tcl_Size length;\n    const char *string = Tcl_GetStringFromObj(objPtr, &length);\n    size_t result = 0;\n\n    /*\n     * I tried a zillion different hash functions and asked many other people\n",
+          "snippet_sha256": "19229f023df16d336262846ac5c16d7d52c6ea7f642914b1a597e8abf73a7e7c",
+          "evidence": "source-window-7"
+        }
+      ],
+      "tests": [
+        {
+          "path": "runtime/rust/src/cmd_oo/original_definition_stage_tests.rs",
+          "selector": "cmd_oo::original_definition_stage_tests::class_operand_withdrawal_cannot_recreate_a_class_facet_on_the_original_object",
+          "status": "linked",
+          "assertion": "The actual selected object definition target is retained before the class-name getter. Getter Host/ABA and actual object withdrawal preserve reached bytes and stop later class-facet effects; ordinary success remains a separate software branch. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_definition_stage_tests.rs",
+          "selector": "cmd_oo::original_definition_stage_tests::definition_namespace_checks_original_target_after_kind_and_namespace_getters",
+          "status": "linked",
+          "assertion": "Actual kind and namespace getters preserve original argument slots, retained target checks, first typed refusal and unreached later getter/publication; ordinary metadata edits remain separate from target withdrawal. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_definition_stage_tests.rs",
+          "selector": "cmd_oo::original_definition_stage_tests::method_deletion_distinguishes_withdrawn_target_before_later_lookup_or_retirement",
+          "status": "linked",
+          "assertion": "Actual Object/Class method removal checks the retained definition target after original name or outside-borrow body retirement; target withdrawal stops later lookup/getter and keeps the software deleted-target Guest presentation distinct from Host refusal. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_definition_stage_tests.rs",
+          "selector": "cmd_oo::original_definition_stage_tests::selected_c91_visibility_keeps_reached_first_flag_when_a_later_operand_refuses",
+          "status": "linked",
+          "assertion": "The selected C9.1 software schedule preserves the first reached export/unexport flag when a later original header updater yields Host/ABA refusal; later operand getters and flag effects stay unreached. This callback mode is not measured in original C. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/original_definition_stage_tests.rs",
+          "selector": "cmd_oo::original_definition_stage_tests::visibility_compatibility_and_ordinary_metadata_changes_keep_their_selected_stages",
+          "status": "linked",
+          "assertion": "Finite authored C8.6/C9.0 compatibility and C9.1 sequential schedules distinguish ordinary metadata edits from first typed refusal without asserting inspected chronology for the compatibility releases. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+          "selector": "native_tcloo_method_definition::export_order_tests::selected_export_operand_order_does_not_grant_uninspected_releases",
+          "status": "linked",
+          "assertion": "The selected Registry protocol confines OperandThenEffect to the represented C9.1 release and keeps older supported releases on the explicitly unmeasured CompatibilityReadAll recipe. Protocol labels issue no Method record, object-hash key or callback execution authority. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        }
+      ],
+      "owners": [
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "symbol": "OriginalOoTarget",
+          "purpose": "Retain the exact selected Object/Class definition target and its original object creation stamp; check current existence/torn-down state and required class membership instead of reconstructing by spelling. This is not an independent Class-facet allocation, frame, lookup or invocation grant."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "symbol": "with_original_arguments",
+          "purpose": "Retain the entered original argument tape and operation currency while getters and the selected definition worker run; completion checks do not manufacture a Native issuer."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "def_class",
+          "purpose": "Check the retained definition target after the selected original class operand and before target effects; actual withdrawal and typed first refusal remain distinct."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "def_definitionnamespace",
+          "purpose": "Retain the selected definition target across kind and namespace operand getters and before namespace publication."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "def_deletemethod",
+          "purpose": "Preserve sequential original name/removal stages and check the original target after outside-borrow method retirement before continuing."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "def_export",
+          "purpose": "Keep the selected original operand getter/effect schedule, reached early flags and first refusal; Runtime flag sets do not attest original C Method record/name/object-hash key roles."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_tcloo_method_definition.rs",
+          "symbol": "NativeTclooMethodExportOperandOrder",
+          "purpose": "Describe the independently selected per-operand C9.1 source schedule versus explicitly unmeasured compatibility recipes, without issuing method/flag or Native execution authority."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Source/API inspection and exact finite definitions only. All external processes and matching owned assertion outcomes for this question are absent. The retained original C9.1 source and complete gzip hashes supply neither a compiled-source equivalence claim nor callback, frame, Method-payload or class lifecycle outcomes."
+      }
+    },
+    {
+      "id": "naming.embedding.original-execution-error-conversion-owner",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/embedding-original-execution-error-conversion-owner.md",
+      "problem_statement": "Implicit question-mark or Into conversion can project a complete operational refusal down to message bytes and lose its original typed first cause. Matching diagnostic fields alone cannot restore the stopped owner or manufacture a Guest completion.",
+      "question": "Do the shared NativeExecutionError-to-CmdError conversion routes preserve the complete original first-cause record through question-mark and Into, keep Host metadata separate from Guest fields, and refuse text/detail projection without treating authored diagnostic profiles, interpreter, frame or namespace tokens as execution authority?",
+      "conclusion": "The current conversion delegates to CmdError::from_execution_refusal and retains the complete typed NativeExecutionError metadata with empty message bytes. One finite linked source control covers authored HostCommandRefusal and ValueAccessRefusal records through question-mark, Into and fallible message/error-code/detail access. It has no attached matching owned assertion outcome. All seven external execution statuses are not tested. Preserved fields grant no real interpreter/context identity, live frame, Guest completion, replay, Native entry or all-variant runtime outcome.",
+      "scope": "Pure shared Rust typed-error conversion and readonly diagnostic projections. The finite control uses authored records with independent source/native profile keys and explicit interpreter/frame/namespace fields; these are model data rather than captured provider state. Other NativeExecutionError variants remain declarations only for this control. Actual first-cause issuance, entered operation currency, owning Guest completion and physical runtime transport retain independent requirements.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded typed execution-error conversion contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "No original tcl8.4 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded typed execution-error conversion contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "No original tcl8.5 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded typed execution-error conversion contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "No original tcl8.6 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded typed execution-error conversion contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "No original tcl9.0 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded typed execution-error conversion contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "No original tcl9.1 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded typed execution-error conversion contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "No original jim process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not tested for this source/API question",
+          "build": "No external process executes this bounded typed execution-error conversion contract",
+          "input_channel": "Source/API inspection and authored software records only; no external worker input for this question",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "No original bigip process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-source-0",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/error.rs",
+          "sha256": "0c87b47833429807e65d4a1bcf95fe628bc6234421b215b227c996a6e30e458c",
+          "description": "Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution."
+        },
+        {
+          "id": "implementation-source-1",
+          "role": "implementation",
+          "path": "rust/tcl-runtime-api/src/native_execution_error.rs",
+          "sha256": "5a49272a36b727372ebfa24fd06283b83f6760030abb334adfc9691af17bf0a0",
+          "description": "Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-cmd-core/src/error.rs",
+          "selector": "error::execution_transport_tests::native_execution_transport_preserves_complete_cause_through_question_mark_and_into",
+          "status": "linked",
+          "assertion": "Authored HostCommandRefusal and ValueAccessRefusal records preserve complete first-cause equality through the actual question-mark and Into conversion routes. Distinct source/native profile keys, interpreter identity, frame and namespace token remain diagnostic data; empty message and fallible text/detail projections cannot turn the retained Host cause into a Guest completion or issue an entered owner. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-cmd-core/src/error.rs",
+          "symbol": "CmdError::from_execution_refusal",
+          "purpose": "Retain the complete original NativeExecutionError in CmdError metadata with empty Guest message bytes; the diagnostic record is not an interpreter or Native execution issuer."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/error.rs",
+          "symbol": "CmdError::native_execution_refusal",
+          "purpose": "Expose the full retained typed failure before any Guest field projection; preserving diagnostic fields supplies no authority to resume or replay effects."
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_execution_error.rs",
+          "symbol": "NativeExecutionError",
+          "purpose": "Carry distinct typed compilation, service, expression, value-access and Host-command refusal variants. The finite authored control covers HostCommandRefusal and ValueAccessRefusal only, without an execution or all-variant runtime outcome."
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_execution_error.rs",
+          "symbol": "NativeHostCommandRefusal",
+          "purpose": "Retain immutable diagnostic source/native profiles, interpreter identity, logical frame and namespace token without turning those values into a future activation lease or verified issuer."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "A bounded source/API contract and one authored software definition, with no external input, original provider process or matching owned assertion run attached. Complete typed diagnostic transport does not authenticate the record, issue an original context or establish Native/Guest execution parity."
+      }
     }
   ]
 }

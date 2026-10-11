@@ -147,6 +147,34 @@ impl OriginalOoTarget {
         }
         Ok(())
     }
+    /// Join a selected instance namespace to the same original object and ledger.
+    pub(super) fn check_instance_namespace(
+        &self,
+        interpreter: &Interp,
+        namespace: NsId,
+        holder: &tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check(interpreter)?;
+        let same_namespace = interpreter
+            .oo
+            .borrow()
+            .objects
+            .get(&self.object)
+            .is_some_and(|owner| owner.var_ns == namespace);
+        let namespaces = interpreter.namespaces();
+        if same_namespace
+            && namespaces.owns_namespace_name_token(holder)
+            && holder.lifecycle()
+                != tcl_syntax::native_namespace_name::NativeNamespaceLifecycle::Dead
+        {
+            Ok(())
+        } else {
+            Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original OO report namespace retired",
+            )
+            .into())
+        }
+    }
     fn unavailable() -> tcl_cmd_core::CmdError {
         tcl_cmd_core::CmdError::with_error_code_bytes(
             b"this command cannot be called when the object has been deleted".to_vec(),

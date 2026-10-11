@@ -1435,95 +1435,108 @@ pub(crate) fn native_jim_wide_expression(
     interp: &mut Interp,
     original: *mut TclObj,
 ) -> Result<i64, tcl_cmd_core::CmdError> {
-    use tcl_syntax::scalar_getter::{
-        NativeScalarCache, NativeScalarGetterKind, NativeScalarGetterValue,
-    };
-    let dialect = interp.native_invocation_dialect();
-    let context = interp.native_jim_object_context()?;
-    crate::native_source::bind_context(original, &context)?;
-    let kind = obj::obj_type_ptr(original);
-    if kind.is_null() || kind == &crate::native_source::JIM_SOURCE_TYPE {
-        let _ = crate::typed_value::native_scalar_probe(
-            original,
-            dialect,
-            NativeScalarGetterKind::Wide,
-        )?;
-    }
-    if let Some(NativeScalarCache::Number(tcl_syntax::number::Number::Int(value))) =
-        obj::native_scalar_cache(original)?
-    {
-        return Ok(value);
-    }
-    #[cfg(not(have_tommath))]
-    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-        "native Jim integer expression backend",
-    )
-    .into());
-    #[cfg(have_tommath)]
-    {
-        let source = crate::dict::native_object_bytes(
-            original,
-            tcl_syntax::native_string::NativeStringProtocol::Jim084,
-        )?;
-        let evaluated = match parse_runtime_expr_cached(interp, Some(original), &source) {
-            Ok(node) => {
-                let _lease = crate::expr::retain_expression_primary(original);
-                let objects = crate::expr::native_jim_expression_objects(original).ok_or(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "original Jim integer expression terms",
-                    ),
-                )?;
-                let mut ctx = InterpExprCtx {
-                    interp,
-                    propagated: false,
-                    propagated_code: Code::Error,
-                };
-                crate::expr::eval_jim_expr(&node, &mut ctx, objects, true)
-            }
-            Err(error) => Err(error),
+    let arguments = OriginalArguments::enter(interp, &[original])?;
+    let reached = (|| {
+        use tcl_syntax::scalar_getter::{
+            NativeScalarCache, NativeScalarGetterKind, NativeScalarGetterValue,
         };
-        match evaluated {
-            Ok(result) => {
-                crate::native_source::bind_context(result.as_ptr(), &context)?;
-                interp.set_result(result.as_ptr());
-                if let Ok(NativeScalarGetterValue::Wide(value)) =
-                    crate::typed_value::native_scalar_probe(
+        let dialect = interp.native_invocation_dialect();
+        let context = interp.native_jim_object_context()?;
+        let bound = crate::native_source::bind_context(original, &context);
+        arguments.check()?;
+        bound?;
+        let kind = obj::obj_type_ptr(original);
+        if kind.is_null() || kind == &crate::native_source::JIM_SOURCE_TYPE {
+            let reached = crate::typed_value::native_scalar_probe(
+                original,
+                dialect,
+                NativeScalarGetterKind::Wide,
+            );
+            arguments.check()?;
+            reached?;
+        }
+        let cached = obj::native_scalar_cache(original);
+        arguments.check()?;
+        if let Some(NativeScalarCache::Number(tcl_syntax::number::Number::Int(value))) = cached? {
+            return Ok(value);
+        }
+        #[cfg(not(have_tommath))]
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native Jim integer expression backend",
+        )
+        .into());
+        #[cfg(have_tommath)]
+        {
+            let source = arguments.bytes(0)?;
+            let parsed = parse_runtime_expr_cached(interp, Some(original), &source);
+            arguments.check()?;
+            let evaluated = match parsed {
+                Ok(node) => {
+                    let _lease = crate::expr::retain_expression_primary(original);
+                    let objects = crate::expr::native_jim_expression_objects(original).ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original Jim integer expression terms",
+                        ),
+                    )?;
+                    let mut ctx = InterpExprCtx {
+                        interp,
+                        propagated: false,
+                        propagated_code: Code::Error,
+                    };
+                    crate::expr::eval_jim_expr(&node, &mut ctx, objects, true)
+                }
+                Err(error) => Err(error),
+            };
+            arguments.check()?;
+            match evaluated {
+                Ok(result) => {
+                    let bound = crate::native_source::bind_context(result.as_ptr(), &context);
+                    arguments.check()?;
+                    bound?;
+                    interp.set_result(result.as_ptr());
+                    arguments.check()?;
+                    let reached = crate::typed_value::native_scalar_probe(
                         result.as_ptr(),
                         dialect,
                         NativeScalarGetterKind::Wide,
-                    )?
-                {
-                    return Ok(value);
+                    );
+                    arguments.check()?;
+                    if let Ok(NativeScalarGetterValue::Wide(value)) = reached? {
+                        return Ok(value);
+                    }
                 }
+                Err(error) if error.native_execution_refusal.is_some() => {
+                    return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                        error
+                            .native_execution_refusal
+                            .expect("matched original host refusal"),
+                    ));
+                }
+                Err(error) if error.native_access_refusal.is_some() => {
+                    return Err(error
+                        .native_access_refusal
+                        .expect("matched exact native refusal")
+                        .into());
+                }
+                Err(_) => {}
             }
-            Err(error) if error.native_execution_refusal.is_some() => {
-                return Err(tcl_cmd_core::CmdError::from_execution_refusal(
-                    error
-                        .native_execution_refusal
-                        .expect("matched original host refusal"),
-                ));
-            }
-            Err(error) if error.native_access_refusal.is_some() => {
-                return Err(error
-                    .native_access_refusal
-                    .expect("matched exact native refusal")
-                    .into());
-            }
-            Err(_) => {}
+            let message = tcl_syntax::expr::native_objects::jim_integer_expression_message(&source);
+            interp.set_result_bytes(&message);
+            Err(tcl_cmd_core::CmdError::from_byte_details(
+                tcl_cmd_core::CmdErrorDetails {
+                    string_result: None,
+                    message,
+                    error_code: tcl_cmd_core::CmdErrorCodeUpdate::Unchanged,
+                    error_info: None,
+                    error_line: None,
+                    primitive_getter: None,
+                },
+            ))
         }
-        let message = tcl_syntax::expr::native_objects::jim_integer_expression_message(&source);
-        interp.set_result_bytes(&message);
-        Err(tcl_cmd_core::CmdError::from_byte_details(
-            tcl_cmd_core::CmdErrorDetails {
-                string_result: None,
-                message,
-                error_code: tcl_cmd_core::CmdErrorCodeUpdate::Unchanged,
-                error_info: None,
-                error_line: None,
-                primitive_getter: None,
-            },
-        ))
-    }
+    })();
+    // Retire evaluated temporaries under the same original operation before settlement.
+    arguments.check()?;
+    reached
 }
 
 /// Jim prepares all functions before substitution and executes its native term tree.

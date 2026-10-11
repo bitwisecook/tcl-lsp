@@ -50,12 +50,18 @@ fn reporting_procedure_compatibility_requires_positive_logical_inputs() {
     // naming.compiler.original-positioned-callee-body-availability
     // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
     let mut analyser = Analyser::new();
-    analyser.result = analyser.analyse("proc available {} {}", "tcl");
+    let source = "proc available {} {}; available";
+    analyser.result = analyser.analyse(source, "tcl");
+    let original = super::original_logical_command_availability_tests::lowered_statement(
+        source,
+        analyser.result.resolved_input.as_ref().unwrap(),
+        "available",
+    );
     let context = analyser.analysis_context();
     let registry = context.commands();
     let resolver = analyser.unit_command_resolver(registry);
     assert!(resolver.logical_definitions.is_some());
-    assert!(resolver.resolves(&unproved_call("available")));
+    assert!(resolver.resolves(&original));
     assert!(!resolver.resolves(&unproved_call("missing")));
 }
 
@@ -64,10 +70,16 @@ fn reporting_procedure_compatibility_refuses_missing_input_and_uses_shared_quali
     // naming.compiler.original-positioned-callee-body-availability
     // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
     let mut analyser = Analyser::new();
-    analyser.result = analyser.analyse("namespace eval ns {proc available {} {}}", "tcl");
+    let source = "namespace eval ns {proc available {} {}}; ::ns::available";
+    analyser.result = analyser.analyse(source, "tcl");
+    let original = super::original_logical_command_availability_tests::lowered_statement(
+        source,
+        analyser.result.resolved_input.as_ref().unwrap(),
+        "::ns::available",
+    );
     let context = analyser.analysis_context();
     let resolver = analyser.unit_command_resolver(context.commands());
-    assert!(resolver.resolves(&unproved_call("::ns::available")));
+    assert!(resolver.resolves(&original));
     assert!(!resolver.resolves(&unproved_call("available")));
     analyser.result.resolved_input = None;
     analyser.result.lexical_declaration_advice = true;

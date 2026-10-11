@@ -218,9 +218,14 @@ pub(crate) fn jim_fixture_namespace(interpreter: &mut Interp, name: &[u8]) -> Ji
     interpreter.register_builtin(b"consumerFixtureCurrentNamespace", capture_namespace);
     let namespace = text(name);
     let body = text(b"consumerFixtureCurrentNamespace");
+    let code = namespace_call(interpreter, b"eval", &[&namespace, &body]);
     assert_eq!(
-        namespace_call(interpreter, b"eval", &[&namespace, &body]),
-        Code::Ok
+        code,
+        Code::Ok,
+        "original Jim namespace fixture: refusal={:?}, callback_captured={}, result={:?}",
+        interpreter.native_execution_refusal(),
+        CAPTURED_NAMESPACE.with(|captured| captured.borrow().is_some()),
+        obj::native_object_snapshot(interpreter.get_obj_result()),
     );
     let captured = CAPTURED_NAMESPACE
         .with(|captured| captured.borrow_mut().take())

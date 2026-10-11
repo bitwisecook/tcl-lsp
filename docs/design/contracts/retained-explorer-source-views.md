@@ -4,6 +4,24 @@ Explorer source views consume the `CompilationUnit` attached to the result.
 The result's dialect string is a presentation label. It does not select a
 replacement profile, lexer configuration or command registry.
 
+## Fresh document input
+
+The fresh Explorer pipeline consumes a complete document and selects
+`LexerConfig::for_file_grammar` from the resolved environment's grammar.
+Only the actual grammar's file policy can skip a leading U+FEFF. Later
+U+FEFF characters and extracted script bodies retain their content role.
+Configured or rewritten source retains its supplied full policy rather than
+selecting another default.
+
+Database document compilation uses the same whole-document constructor in
+`LexerCfgKey::to_config`. A supplied document's complete analysis input must
+agree with that requested policy before `compilation_unit_for_config`
+publishes a unit. Changed config, environment or command store remains a
+terminal refusal. The scalar `compiler_check_diagnostics_uncached` entry
+has its own explicitly fresh whole-document builder; supplied analysis uses
+`compiler_check_diagnostics_uncached_from_analysis` and cannot enter that
+scalar route after a refused owner.
+
 ## Ownership and selection
 
 `retained_explorer_source` is the common checked projection for event order,

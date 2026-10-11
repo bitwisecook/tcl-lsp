@@ -2278,6 +2278,53 @@ impl super::SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         source_calls: bool,
     ) -> Option<OriginalCompilationLookupAdvice> {
+        self.original_unanimous_declared_layout_advice(
+            tokens,
+            if source_calls {
+                super::original_declaration_call_layout_advice
+            } else {
+                super::original_operand_layout_advice
+            },
+        )
+    }
+
+    /// Closed conditional callees in a positively retained Logical source
+    /// world. Original vectors, input, namespace and every declaration row
+    /// must agree. A source procedure target is not a physical allocation;
+    /// callers separately join its original declaration/body inventory.
+    pub(crate) fn original_logical_declaration_call_targets(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<super::SourceCommandTarget>> {
+        self.original_invocation_metadata_for_input(tokens, input, registry)?
+            .permits_logical_source_names()
+            .then_some(())?;
+        let advice = self.original_unanimous_declared_layout_advice(
+            tokens,
+            super::original_logical_declaration_call_layout_advice,
+        )?;
+        advice.closed_logical_source_lookup().then_some(())?;
+        // A closed pre-operand source row cannot revive a target withdrawn
+        // by the same invocation's arguments or its retained source join.
+        if self.unknown || self.may_be_absent || self.targets.as_slice() != advice.targets() {
+            return None;
+        }
+        Some(advice.targets().to_vec())
+    }
+
+    fn original_unanimous_declared_layout_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        project: fn(
+            &super::SourceInvocationBinding,
+            &crate::ir::CommandTokens,
+            &Arc<super::SourceLookupSnapshot>,
+            &super::SourceNamespaceKey,
+            tcl_lexer::LexerConfig,
+        ) -> Option<OriginalCompilationLookupAdvice>,
+    ) -> Option<OriginalCompilationLookupAdvice> {
         let binding = self;
         let site = binding.invocation_site()?;
         let observations =
@@ -2289,11 +2336,6 @@ impl super::SourceInvocationBinding {
             if !observation.entry.owns_source(&site.source, site.offset) {
                 return None;
             }
-            let project = if source_calls {
-                super::original_declaration_call_layout_advice
-            } else {
-                super::original_operand_layout_advice
-            };
             let advice = project(
                 binding,
                 tokens,

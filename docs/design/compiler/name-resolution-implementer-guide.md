@@ -8787,10 +8787,23 @@ target. Registry targets retain authentic identity under the actual generation
 and context; procedure targets require their exact implementation allocation site
 in the canonical original declaration inventory. Final reporting names, future
 procedures, stubs, factories, aliases and namespace tails cannot supply a Native
-local body. Positive Logical source naming selects its separate procedure-name
-compatibility. Unavailable local bodies retain literal variable-name argument
-candidates for opaque-callee assistance. Body availability does not close callee
-name effects or establish an entered frame, Native execution, Normal or edits.
+local body.
+
+Logical body availability retains the actual result realm and complete
+`ResolvedAnalysisInput`. Pass the original tokens to
+`original_logical_declaration_call_targets`: its shared source layout owner
+checks full input, original vector, source world and unanimous target agreement,
+including the point's retained post-argument target. Registry targets use the
+captured descriptor identity under that same availability context. Source
+procedure targets must correspond to the unit's original declaration source and
+offset; the procedure inventory only corroborates the already-selected target.
+A Logical source declaration is independent of a physical implementation
+allocation. Missing, changed, foreign, opaque, absent and tokenless ownership
+remains unavailable without retrying catalogue or reporting names.
+
+Unavailable local bodies retain literal variable-name argument candidates for
+opaque-callee assistance. Body availability does not close callee name effects
+or establish an entered frame, Native execution, Normal or edits.
 See the [positioned callee contract](../analysis/name-resolution-proofs/original-positioned-callee-body-availability.md).
 
 ## Source instance completion and authentic callback scanning

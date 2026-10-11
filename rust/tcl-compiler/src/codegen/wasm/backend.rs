@@ -3283,6 +3283,15 @@ mod tests {
         );
         let mut missing = selected.clone();
         missing.cfg.command_binding_sites.clear();
+        // AssignValue retains its own original carrier beside the consumed
+        // command sites. This fixture withdraws both real sources of evidence.
+        for block in missing.cfg.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if let Statement::AssignValue { tokens, .. } = statement {
+                    *tokens = None;
+                }
+            }
+        }
         assert!(
             assignment_facts(&missing, &unit, registry)
                 .direct_assignments

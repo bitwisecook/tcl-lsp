@@ -1726,6 +1726,7 @@ mod tests {
                 let image = tcl_lexer::SourceImage::native(source.as_bytes());
                 let tokens = increment_tokens(&image, config);
                 let mut context = CodegenCtx::new(false, &[], &registry);
+                context.ingress_lexer_config = Some(config);
                 context.invocation_dialect = Some(dialect);
                 context.source_string_protocol = dialect.native_source_string_protocol();
                 context.set_source_image(image);

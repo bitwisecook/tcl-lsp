@@ -228,7 +228,7 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
         tcl_compiler::compilation_unit::UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
             dialect: Some(profile),
             external_call_sites: None,
             declared_commands: Some(&declared),
@@ -252,6 +252,84 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_document_pipeline_keeps_root_and_later_bom_roles() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original document carriers supply no Native handler receipt.
+        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let environment = tcl_registry::model::ingress::resolve_known_environment(name)
+                .expect("actual known provider source policy");
+            let grammar = environment.grammar();
+            let result = run_pipeline(source, name);
+            let module = &result.unit.ir_module;
+            assert_eq!(
+                module.source,
+                tcl_lexer::SourceImage::document(source),
+                "{name}"
+            );
+            assert_eq!(
+                module.lexer_config,
+                tcl_lexer::LexerConfig::for_file_grammar(grammar),
+                "{name}"
+            );
+            assert_eq!(
+                module
+                    .source_metadata_input
+                    .as_ref()
+                    .unwrap()
+                    .lexer_config(),
+                module.lexer_config,
+                "{name}"
+            );
+            assert!(
+                crate::serialise::retained_explorer_source(&result, source).is_some(),
+                "{name}"
+            );
+            assert_eq!(module.top_level.statements.len(), 2, "{name}");
+            let first = module.top_level.statements[0]
+                .tokens()
+                .expect("original root command");
+            let expected = if grammar.script_skips_leading_bom {
+                "probe"
+            } else {
+                "\u{feff}probe"
+            };
+            assert_eq!(first.argv_texts[0], expected, "{name}");
+            assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
+            let later = module.top_level.statements[1]
+                .tokens()
+                .expect("original later command");
+            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+        }
+    }
+
+    #[test]
+    fn original_document_pipeline_keeps_config_withdrawal_terminal() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let source = "\u{feff}probe root";
+        let mut result = run_pipeline(source, "tcl9.1");
+        assert!(crate::serialise::retained_explorer_source(&result, source).is_some());
+        result.unit.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Content;
+        assert!(crate::serialise::retained_explorer_source(&result, source).is_none());
+        assert!(
+            crate::serialise::retained_explorer_source(&result, &format!("{source} ")).is_none()
+        );
+    }
 
     #[test]
     fn run_pipeline_top_level_only() {

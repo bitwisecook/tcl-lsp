@@ -1,0 +1,90 @@
+[
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 1228,
+    "end": 1324,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclOODefineCmds-1228-1324.c",
+    "excerpt_sha256": "2e953f41392a03678f43cd1ab1705eb77a9fe57a26441807dba66a6d07a633a3",
+    "purpose": "GetOrCreateMethod and class/instance export helpers: authentic object-hash lookup before flags; distinct record/name/key roles are not donated to Runtime flag sets",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 1704,
+    "end": 1795,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclOODefineCmds-1704-1795.c",
+    "excerpt_sha256": "0c5036ee717dabc6389a44dc1d88413a686ae5f8f36617b8a68c7ccc2677ae99",
+    "purpose": "Class worker retains selected object context before original class operand and class-facet effects",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 1872,
+    "end": 1940,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclOODefineCmds-1872-1940.c",
+    "excerpt_sha256": "453b0d897e9f352264074e43f359e0285d75de4f3b330e6c34cc4444689964ad",
+    "purpose": "Definition-namespace worker context, kind and namespace operand/publication stages",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 1951,
+    "end": 1990,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclOODefineCmds-1951-1990.c",
+    "excerpt_sha256": "541bf91a9f0476912cfaf0652cefc575fa105740f13428a86e834ede6692b465",
+    "purpose": "DeleteMethod sequential original source removal and final epoch stage",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 2064,
+    "end": 2115,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclOODefineCmds-2064-2115.c",
+    "excerpt_sha256": "f2de57a00919d444ad79b967dc59ea20ba4a8d4e79f73a3f0350542aac3fb713",
+    "purpose": "C91 Export per-original-operand flag effect then final epoch",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c",
+    "source_sha256": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "start": 2451,
+    "end": 2497,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclOODefineCmds-2451-2497.c",
+    "excerpt_sha256": "0316faf11b0d91501c66d654ecc07a30ddf1466bca7ae3d4c7ba9024e587ea7a",
+    "purpose": "C91 Unexport per-original-operand flag effect then final epoch",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+    "source_sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+    "start": 264,
+    "end": 272,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclObj-264-272.c",
+    "excerpt_sha256": "c167b9015c563218a4da5cfa0fd47c6bd8359ca79c2e6aea2f0aaeb3ce6f0ab4",
+    "purpose": "Authentic object hash key type links TclHashObjKey/AllocObjEntry",
+    "evidence": "inspected source/API only; external execution NT"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+    "source_sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+    "start": 4189,
+    "end": 4200,
+    "line_basis": "physical newline bytes, not splitlines/form-feed",
+    "excerpt": "/tmp/receiver-oo-definition-stages532/source-C91-tclObj-4189-4200.c",
+    "excerpt_sha256": "19229f023df16d336262846ac5c16d7d52c6ea7f642914b1a597e8abf73a7e7c",
+    "purpose": "Reached object-hash function uses actual Tcl_GetStringFromObj before hash traversal",
+    "evidence": "inspected source/API only; external execution NT"
+  }
+]

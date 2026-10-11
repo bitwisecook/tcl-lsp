@@ -296,6 +296,19 @@ fn original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages
                 let occupied_name = word(occupied);
                 declaration(&mut interpreter, declared_name.as_ptr());
                 declaration(&mut interpreter, occupied_name.as_ptr());
+                // The original probe declares both Method records with an explicit public flag.
+                let export = word(b"export");
+                assert_eq!(
+                    def_export(
+                        &mut interpreter,
+                        &[
+                            export.as_ptr(),
+                            declared_name.as_ptr(),
+                            occupied_name.as_ptr()
+                        ],
+                    ),
+                    Code::Ok
+                );
                 let record = Rc::downgrade(&owner(&interpreter, target, object, declared).unwrap());
                 TEXT.with(|text| {
                     text.borrow_mut()[0] = from.to_vec();

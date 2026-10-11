@@ -1496,8 +1496,8 @@ fn empty_source_class(
 fn caller_safe_factory_invocation(
     metadata: TypePropagationMetadata<'_>,
     tokens: &crate::ir::CommandTokens,
-    head: &str,
-    args: &[&str],
+    _head: &str,
+    _args: &[&str],
 ) -> bool {
     let registry = metadata.registry;
     let Some(context) = metadata
@@ -1540,21 +1540,21 @@ fn caller_safe_factory_invocation(
     }) {
         return false;
     }
-    let Some(resolved) = tcl_registry::model::resolve_invocation_in_context(
-        registry,
-        metadata
-            .context
-            .map(crate::registry_invocation::InvocationMetadataContext::context),
-        head,
-        args,
-    ) else {
+    // Metadata ownership retains unknown lookup as a separate axis. Select
+    // the actual original invocation before reading its Registry facts; a
+    // written reporting head cannot repair a missing or clobbered binding.
+    let Some(selected) =
+        crate::registry_invocation::original_structured_invocation_with_metadata_context(
+            registry, context, tokens,
+        )
+    else {
         return false;
     };
-    !resolved.semantics.traits.intersects(
+    !selected.facts.traits.intersects(
         tcl_registry::Traits::EVALUATES_CODE
             | tcl_registry::Traits::CREATES_BARRIER
             | tcl_registry::Traits::CREATES_DYNAMIC_BARRIER,
-    ) && !resolved.semantics.state_transitions.is_declared()
+    ) && !selected.facts.state_transitions.is_declared()
 }
 
 /// Prove the narrow straight-line case of empty source class factories.
@@ -2826,6 +2826,179 @@ mod tests {
             config: tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
             numbers: registry.numbers(),
         }
+    }
+
+    #[test]
+    fn original_generic_precision_uses_current_builtin_alias_and_rename_selection() {
+        // naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        // This is the branch-level source metadata/precision gate. It proves
+        // no Normal completion, handler effects or whole-function precision.
+        let version = tcl_dialect::TclVersion::V9_1;
+        let metadata = standalone_factory_metadata(version);
+        for (source, marker, head) in [
+            ("info patchlevel", "info patchlevel", "info"),
+            (
+                "rename info inspect; inspect patchlevel",
+                "inspect patchlevel",
+                "inspect",
+            ),
+            (
+                "interp alias {} inspect {} info; inspect patchlevel",
+                "inspect patchlevel",
+                "inspect",
+            ),
+        ] {
+            let tokens = original_factory_tokens(source, version, marker, head);
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .proved_target()
+                    .is_some()
+            );
+            assert!(
+                caller_safe_factory_invocation(metadata, &tokens, head, &["patchlevel"]),
+                "{source}"
+            );
+            assert!(
+                caller_safe_factory_invocation(
+                    metadata,
+                    &tokens,
+                    "unrelated_reported_head",
+                    &["unrelated_reported_argument"],
+                ),
+                "metadata comes from the authentic selected original invocation"
+            );
+        }
+    }
+
+    #[test]
+    fn original_generic_precision_does_not_repair_unknown_or_absent_lookup_from_metadata() {
+        // naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        // The whole-function gate separately refuses the preceding mutation.
+        // This checks this helper's actual lookup barrier, without claiming an
+        // observed wrong whole-function result in the previous source state.
+        let version = tcl_dialect::TclVersion::V9_1;
+        let metadata = standalone_factory_metadata(version);
+        for source in [
+            "unknown_original_mutation; info patchlevel",
+            "rename info {}; info patchlevel",
+        ] {
+            let tokens = original_factory_tokens(source, version, "info patchlevel", "info");
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.unknown || binding.may_be_absent, "{source}");
+            assert!(binding.proved_target().is_none());
+            assert!(
+                binding
+                    .original_invocation_metadata_at_point(&tokens, metadata.registry)
+                    .is_ok(),
+                "original metadata retains unknown lookup independently"
+            );
+            assert!(
+                !caller_safe_factory_invocation(metadata, &tokens, "info", &["patchlevel"]),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_generic_precision_withdraws_foreign_and_changed_source_owners() {
+        // naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        let version = tcl_dialect::TclVersion::V9_1;
+        let metadata = standalone_factory_metadata(version);
+        let tokens = original_factory_tokens("info patchlevel", version, "info patchlevel", "info");
+        assert!(caller_safe_factory_invocation(
+            metadata,
+            &tokens,
+            "info",
+            &["patchlevel"]
+        ));
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(!caller_safe_factory_invocation(
+            metadata,
+            &missing,
+            "info",
+            &["patchlevel"]
+        ));
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(!caller_safe_factory_invocation(
+            metadata,
+            &changed,
+            "info",
+            &["patchlevel"]
+        ));
+        let mut changed = tokens.clone();
+        let foreign =
+            original_factory_tokens("info tclversion", version, "info tclversion", "info");
+        changed.source_binding = foreign.source_binding;
+        assert!(!caller_safe_factory_invocation(
+            metadata,
+            &changed,
+            "info",
+            &["patchlevel"]
+        ));
+        let mut config = metadata.config;
+        config.strict_quoting = !config.strict_quoting;
+        assert!(!caller_safe_factory_invocation(
+            TypePropagationMetadata { config, ..metadata },
+            &tokens,
+            "info",
+            &["patchlevel"],
+        ));
+        assert!(!caller_safe_factory_invocation(
+            TypePropagationMetadata {
+                context: None,
+                ..metadata
+            },
+            &tokens,
+            "info",
+            &["patchlevel"],
+        ));
+        let mut foreign = CommandRegistry::build_default();
+        let mut changed_spec = foreign.get("info").unwrap().clone();
+        changed_spec.return_type = Some(TclType::String);
+        foreign.insert(changed_spec);
+        assert!(!caller_safe_factory_invocation(
+            TypePropagationMetadata {
+                registry: &foreign,
+                ..metadata
+            },
+            &tokens,
+            "info",
+            &["patchlevel"],
+        ));
+    }
+
+    #[test]
+    fn original_generic_precision_retains_the_independent_declared_transition_predicate() {
+        // naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        // Authenticated selection does not alter the separate predicate. This
+        // control records its current declared-transition refusal, not a claim
+        // that this ordinary list invocation mutates Tcl's command names.
+        let version = tcl_dialect::TclVersion::V9_1;
+        let metadata = standalone_factory_metadata(version);
+        let tokens = original_factory_tokens("list ONE", version, "list ONE", "list");
+        let selected =
+            crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                metadata.registry,
+                metadata.context.unwrap(),
+                &tokens,
+            )
+            .expect("authentic original selected list metadata");
+        assert!(selected.facts.state_transitions.is_declared());
+        assert!(!caller_safe_factory_invocation(
+            metadata,
+            &tokens,
+            "list",
+            &["ONE"]
+        ));
     }
 
     #[test]

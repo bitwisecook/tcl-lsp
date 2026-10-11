@@ -154,6 +154,7 @@ mod tests {
     }
 
     // Implementation contract: naming.source.namespace-inventory-selection-sharing
+    // docs/design/analysis/name-resolution-proofs/namespace-inventory-selection-sharing.md
     #[test]
     fn original_body_projection_shares_exact_namespace_inventory_and_keeps_body_ranges() {
         let source = "namespace eval a {set x VALUE; set y $x; expr {1 + 2}; expr {3 + 4}}; namespace eval b {expr {5 + 6}}";
@@ -230,6 +231,7 @@ mod tests {
     }
 
     // Implementation contract: naming.source.namespace-inventory-selection-sharing
+    // docs/design/analysis/name-resolution-proofs/namespace-inventory-selection-sharing.md
     #[test]
     fn original_body_projection_children_cannot_restore_filtered_or_foreign_origins() {
         let source = "namespace eval a {expr {1 + 2}}; namespace eval b {expr {3 + 4}}";
@@ -278,6 +280,7 @@ mod tests {
     }
 
     // Implementation contract: naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     #[test]
     fn original_body_projection_keeps_full_logical_input_and_withdrawn_owner_separate() {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
@@ -355,6 +358,7 @@ mod tests {
     }
 
     // Implementation contract: naming.source.namespace-inventory-selection-sharing
+    // docs/design/analysis/name-resolution-proofs/namespace-inventory-selection-sharing.md
     #[test]
     fn original_body_projection_uses_actual_native_namespace_incarnation() {
         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");

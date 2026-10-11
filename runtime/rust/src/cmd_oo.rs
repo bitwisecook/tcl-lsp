@@ -4115,7 +4115,13 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // whether `className` is in the object's precedence (its class MRO +
                 // mixins), like `info object isa typeof` (C's `InfoObjectClassCmd`).
                 if argv.get(4).is_some() {
-                    let want = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 4));
+                    let target_owner = oo_checked!(
+                        interp,
+                        native_context::OriginalOoTarget::capture(interp, obj, false)
+                    );
+                    let wanted_name = oo_original_bytes!(interp, originals, 4);
+                    oo_checked!(interp, target_owner.check(interp));
+                    let want = interp.oo_resolve_object(&wanted_name);
                     let yes = interp.method_chain(obj).iter().skip(1).any(|p| *p == want);
                     interp.set_result_bytes(if yes { b"1" } else { b"0" });
                     return Code::Ok;
@@ -4162,6 +4168,20 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // Resolve the object name following import aliases to the origin
                 // command, so an imported object command is recognised (oo-1.10).
                 let target = interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 4));
+                let target_owner = if interp.oo.borrow().objects.contains_key(&target) {
+                    Some(oo_checked!(
+                        interp,
+                        native_context::OriginalOoTarget::capture(interp, target, false)
+                    ))
+                } else {
+                    None
+                };
+                // An initially missing receiver is the selected false precondition;
+                // it does not reach a later relation operand.
+                let Some(target_owner) = target_owner else {
+                    interp.set_result_bytes(b"0");
+                    return Code::Ok;
+                };
                 let yes = match cat {
                     b"object" => interp.oo.borrow().objects.contains_key(&target),
                     b"class" => interp.oo.borrow().classes.contains_key(&target),
@@ -4178,8 +4198,9 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     // `mixin`: `mixinClass` is mixed into the object directly or via
                     // its class.
                     b"mixin" => {
-                        let mixin =
-                            interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 5));
+                        let relation = oo_original_bytes!(interp, originals, 5);
+                        oo_checked!(interp, target_owner.check(interp));
+                        let mixin = interp.oo_resolve_object(&relation);
                         let oo = interp.oo.borrow();
                         oo.objects.get(&target).is_some_and(|o| {
                             o.mixins.contains(&mixin)
@@ -4193,8 +4214,9 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         // The object's full precedence list (mixins included), not
                         // just its class's superclass MRO (oo-16.9). The chain leads
                         // with the object itself, so drop it before matching classes.
-                        let want =
-                            interp.oo_resolve_object(&oo_original_bytes!(interp, originals, 5));
+                        let relation = oo_original_bytes!(interp, originals, 5);
+                        oo_checked!(interp, target_owner.check(interp));
+                        let want = interp.oo_resolve_object(&relation);
                         interp.oo.borrow().objects.contains_key(&target)
                             && interp
                                 .method_chain(target)
@@ -4215,6 +4237,18 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let Some(ns) = ns else {
                     return not_object(interp, &oo_original_bytes!(interp, originals, 3));
                 };
+                let target_owner = oo_checked!(
+                    interp,
+                    native_context::OriginalOoTarget::capture(interp, obj, false)
+                );
+                let namespace_owner = oo_checked!(
+                    interp,
+                    interp.native_namespace_token_at(ns).ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original OO report namespace",
+                        )
+                    )
+                );
                 // `info object vars obj ?pattern?` — the optional glob filters the
                 // (simple) variable names (oo-16.10).
                 let pat = if argv.len() > 4 {
@@ -4222,6 +4256,10 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 } else {
                     None
                 };
+                oo_checked!(
+                    interp,
+                    target_owner.check_instance_namespace(interp, ns, &namespace_owner)
+                );
                 let mut names: Vec<Vec<u8>> = interp
                     .namespaces()
                     .var_names(ns)
@@ -4253,7 +4291,14 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 if !interp.oo.borrow().objects.contains_key(&obj) {
                     return not_object(interp, &oo_original_bytes!(interp, originals, 3));
                 }
-                let (all, writable) = match parse_property_opts(interp, &argv[4..]) {
+                let target_owner = oo_checked!(
+                    interp,
+                    native_context::OriginalOoTarget::capture(interp, obj, false)
+                );
+                let reached = parse_property_opts(interp, &argv[4..]);
+                oo_original_check!(interp, originals);
+                oo_checked!(interp, target_owner.check(interp));
+                let (all, writable) = match reached {
                     Ok(x) => x,
                     Err(code) => return code,
                 };
@@ -4298,7 +4343,14 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 if !interp.oo.borrow().objects.contains_key(&obj) {
                     return not_object(interp, &oo_original_bytes!(interp, originals, 3));
                 }
-                let selected = match method_info_options(interp, &argv[4..]) {
+                let target_owner = oo_checked!(
+                    interp,
+                    native_context::OriginalOoTarget::capture(interp, obj, false)
+                );
+                let reached = method_info_options(interp, &argv[4..]);
+                oo_original_check!(interp, originals);
+                oo_checked!(interp, target_owner.check(interp));
+                let selected = match reached {
                     Ok(selected) => selected,
                     Err(code) => return code,
                 };
@@ -4429,6 +4481,32 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     })
 }
 
+/// Validate the already selected receiver before retaining its continuation.
+fn original_info_target(
+    interp: &mut Interp,
+    originals: &crate::interp::native_arguments::OriginalArguments,
+    id: OoId,
+    class: bool,
+) -> Result<native_context::OriginalOoTarget, Code> {
+    if !interp.oo.borrow().objects.contains_key(&id) {
+        let name = originals
+            .bytes(3)
+            .map_err(|error| interp.report_cmd_error(error))?;
+        return Err(not_object(interp, &name));
+    }
+    if class && !interp.oo.borrow().classes.contains_key(&id) {
+        let name = originals
+            .bytes(3)
+            .map_err(|error| interp.report_cmd_error(error))?;
+        let mut message = b"\"".to_vec();
+        message.extend_from_slice(&name);
+        message.extend_from_slice(b"\" is not a class");
+        return Err(err(interp, &message));
+    }
+    native_context::OriginalOoTarget::capture(interp, id, class)
+        .map_err(|error| interp.report_cmd_error(error))
+}
+
 /// `info object|class forward objName methodName` — the forward prefix list.
 fn info_forward(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
@@ -4440,7 +4518,12 @@ fn info_forward(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool
             };
             return wrong_args(interp, u);
         }
+        let target_owner = match original_info_target(interp, originals, id, class) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
         let name = oo_original_bytes!(interp, originals, 4);
+        oo_checked!(interp, target_owner.check(interp));
         let method_owner = {
             let oo = interp.oo.borrow();
             if class {
@@ -4488,7 +4571,12 @@ fn info_definition(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: b
             };
             return wrong_args(interp, u);
         }
+        let target_owner = match original_info_target(interp, originals, id, class) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
         let name = oo_original_bytes!(interp, originals, 4);
+        oo_checked!(interp, target_owner.check(interp));
         let m = {
             let oo = interp.oo.borrow();
             if class {
@@ -4520,7 +4608,12 @@ fn info_methodtype(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: b
             };
             return wrong_args(interp, u);
         }
+        let target_owner = match original_info_target(interp, originals, id, class) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
         let name = oo_original_bytes!(interp, originals, 4);
+        oo_checked!(interp, target_owner.check(interp));
         let m = {
             let oo = interp.oo.borrow();
             if class {
@@ -4572,18 +4665,12 @@ fn info_call(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -
             };
             return wrong_args(interp, u);
         }
-        // The target must exist (oo-call-1.17): a non-object reports "X does not
-        // refer to an object"; a non-class object reports `"X" is not a class`.
-        if !interp.oo.borrow().objects.contains_key(&id) {
-            return not_object(interp, &oo_original_bytes!(interp, originals, 3));
-        }
-        if class && !interp.oo.borrow().classes.contains_key(&id) {
-            let mut m = b"\"".to_vec();
-            m.extend_from_slice(&oo_original_bytes!(interp, originals, 3));
-            m.extend_from_slice(b"\" is not a class");
-            return err(interp, &m);
-        }
+        let target_owner = match original_info_target(interp, originals, id, class) {
+            Ok(target) => target,
+            Err(code) => return code,
+        };
         let method = oo_original_bytes!(interp, originals, 4);
+        oo_checked!(interp, target_owner.check(interp));
         let elems = oo_checked!(interp, build_call_chain(interp, id, &method, class));
         set_list(interp, &elems);
         Code::Ok
@@ -7776,6 +7863,9 @@ mod original_definition_stage_tests;
 
 #[cfg(test)]
 mod original_class_facet_tests;
+
+#[cfg(test)]
+mod original_info_target_tests;
 
 #[cfg(test)]
 mod tests {

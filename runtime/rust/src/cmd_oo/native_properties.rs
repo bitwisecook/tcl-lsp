@@ -1828,9 +1828,13 @@ mod original_slot_boundary_tests {
             );
             drop(input);
             drop(old);
-            let cached = interpreter
+            let reported = interpreter
                 .native_all_property_header(target, true, false)
                 .unwrap();
+            reported.check(&interpreter).unwrap();
+            // Observe header retirement with an allocation lease after completing the report operation.
+            let cached = obj::NativeObjectLifetime::retain(reported.header);
+            drop(reported);
             assert_eq!(unsafe { (*pointer).ref_count }, 2);
             let new = obj::Owned::fresh(obj::new_string_bytes(b"new"));
             let input = obj::Owned::fresh(crate::list::new_list_obj_native(
@@ -1845,7 +1849,7 @@ mod original_slot_boundary_tests {
             assert_eq!(FREES.with(Cell::get), 1);
             assert!(RETIREMENT_OUTSIDE_BORROW.with(Cell::get));
             assert!(!obj::allocation_is_live(pointer));
-            assert!(!obj::allocation_is_live(cached.header));
+            assert!(!obj::allocation_is_live(cached.as_ptr()));
             assert_eq!(interpreter.entered_native_operation_count(), 0);
             if mode == 0 {
                 assert!(result.is_ok());

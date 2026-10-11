@@ -27,6 +27,8 @@ extern "C" fn retire(original: *mut TclObj) {
     let incoming = INCOMING.with(Cell::get);
     let before = unsafe { (*incoming).ref_count };
     assert!(before >= 2);
+    // Retain the actual preceding result List while observing the new report's member role.
+    let preceding_result = obj::Owned::retain(interpreter.get_obj_result());
     assert_eq!(
         slot_inst_get(&mut interpreter, SLOT.with(Cell::get), &[]),
         Code::Ok
@@ -40,6 +42,7 @@ extern "C" fn retire(original: *mut TclObj) {
     interpreter.set_result_bytes(b"REACHED DECLARATION RETIREMENT");
     let after = unsafe { (*incoming).ref_count };
     assert_eq!(after, before);
+    drop(preceding_result);
     REPORT_COUNTS.with(|counts| counts.borrow_mut().push((before, reported, after)));
     match MODE.with(Cell::get) {
         1 => {

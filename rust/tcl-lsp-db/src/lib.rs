@@ -4327,30 +4327,12 @@ fn top_level_only_unit(
     }
 }
 
-/// Interned identity of the lexer grammar a [`compilation_unit`] build lexes
-/// under: **the resolved environment id**, not an expanded
-/// [`tcl_lexer::LexerConfig`].  The call-site knobs (`strict_quoting = false`,
-/// zero base offsets) are genuinely the default on every path.
-///
-/// Interning only three of the six dialect-derived `LexerConfig` fields
-/// (`expand_syntax`, `irules_brace_separator`, `brace_line_continuation`) and
-/// letting `to_config` restore the rest from
-/// [`tcl_lexer::LexerConfig::default`] would pin the memoised path's
-/// `braced_var` to `Tcl9Nesting` and `escapes` to `Tcl90` regardless of the
-/// document's dialect, so a `tcl8.6` document would lex `${a{b}c}` under the
-/// 9.0 close rule.  Keying on the environment id
-/// instead of the expanded fields makes `to_config` name
-/// [`tcl_lexer::LexerConfig::for_dialect`] itself, so every field is the
-/// document's.
-///
-/// **And it keeps the sharing**, which widening the tuple would have cost:
-/// with all four hosts of the CFG/SSA tail's unit (this crate's
-/// [`analyse_per_item_with`], `Analyser::emit_cfg_ssa_diagnostics`'s own
-/// build, `tcl diag`'s `collect_rows`, and `xtask fp_sweep`) lexing under the
-/// document's environment, both diagnostics consumers intern the **same** id
-/// for a document and demand one [`compilation_unit`] build per edit — for
-/// every environment, where the truncated tuple shared for 15 of the 20 and
-/// built twice for the other five.
+/// Interned complete-document lexer policy for the resolved environment.
+/// The environment owns every grammar axis and the file BOM boundary; strict
+/// quoting and sub-lexing offsets retain their default entry-point values.
+/// Supplied document builds compare this policy with their genuine complete
+/// analysis input before issuing a compilation unit. Nested bodies receive
+/// their separately retained child input and policy.
 #[salsa::interned]
 pub struct LexerCfgKey<'db> {
     /// The resolved environment id (`tcl8.6`, `f5-irules`, …) whose grammar
@@ -4360,10 +4342,9 @@ pub struct LexerCfgKey<'db> {
 }
 
 impl LexerCfgKey<'_> {
-    /// The full [`tcl_lexer::LexerConfig`] this key represents: the
-    /// environment's own grammar plus the invariant call-site knobs.
+    /// The full complete-document policy selected by this environment key.
     fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::from_grammar(
+        tcl_lexer::LexerConfig::for_file_grammar(
             tcl_lsp_core::environment_for_dialect(self.environment(db)).grammar(),
         )
     }
@@ -4511,12 +4492,9 @@ pub fn declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<Declare
 /// declarations reach every lattice of the file and a pack edit, which
 /// changes the overlay, invalidates them.  Tracked + keyed on
 /// `(file, cfg, overlay)` so the analyser tail ([`file_analysis_incremental`]) and the
-/// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
-/// build per edit** whenever their configs coincide — every dialect bar
-/// `tcl8.4` and the three `f5-tcl`-grammar dialects (`f5-irules`, `f5-tmsh`,
-/// `f5-iapps`, all of which select `GRAMMAR_F5_TCL`);
-/// for those four the configs differ, so each consumer builds its own.  Byte-identical to a direct
-/// `memoised_compilation_unit` call.
+/// compiler-checks pass share the same complete-document config key when
+/// their supplied source inputs agree. Original full-input guards remain
+/// independent of memo sharing.
 ///
 /// **`None` is an abstention, not an error page.** A non-zero `overlay` names a
 /// pack generation only the pack loader can build, so when nothing has
@@ -4772,10 +4750,8 @@ pub fn compiler_check_diagnostics(
     };
     let registry: &CommandRegistry = input.borrowed_context_registry().commands();
     let dialect_opt = Some(input.unit_profile());
-    // Share the analyser tail's build via the [`compilation_unit`] query when the
-    // dialect's lexer config matches the default (every dialect but `tcl8.4` /
-    // `f5-irules`): the optimiser lowers with the dialect config, so a matching
-    // config interns the same `LexerCfgKey` and reuses the same per-edit build.
+    // The analyser tail and compiler checks share the complete document
+    // policy key. The supplied input must still pass its exact guard.
     let cfg_key = lexer_cfg_key(db, &dialect);
     let Some(cu) = compilation_unit_for_config(db, file, cfg_key, config) else {
         return abstain_diagnostics();
@@ -4821,17 +4797,31 @@ pub fn compiler_check_diagnostics_uncached(
     generic_patterns: Option<&[String]>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
+    let cu = standalone_compiler_unit(text, registry, dialect, external_call_sites);
+    compiler_diagnostics_from_unit(
+        &cu,
+        registry,
+        tcl_lsp_core::stated_profile_for_dialect(dialect),
+        generic_patterns,
+    )
+}
+
+/// Explicit fresh complete-document source ingress for scalar compiler checks.
+/// This supplies source analysis independently of a supplied retained owner.
+fn standalone_compiler_unit(
+    text: &str,
+    registry: &CommandRegistry,
+    dialect: &str,
+    external_call_sites: Option<&CallSiteEvidence>,
+) -> CompilationUnit {
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    // No `SourceFile` here means no path, so only the document's own inline
-    // block is reachable; a command only a sidecar declares answers as the
-    // catalogue has it.
     let declared = tcl_compiler::analyser::utils::document_declared_surface(text, None, dialect);
-    let cu = CompilationUnit::build_with_options(
+    CompilationUnit::build_with_options(
         text,
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::from_grammar(
+            config: tcl_lexer::LexerConfig::for_file_grammar(
                 tcl_lsp_core::environment_for_dialect(dialect).grammar(),
             ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
@@ -4839,13 +4829,7 @@ pub fn compiler_check_diagnostics_uncached(
             declared_commands: Some(&declared),
         },
     )
-    .with_interprocedural(registry, dialect_opt);
-    compiler_diagnostics_from_unit(
-        &cu,
-        registry,
-        tcl_lsp_core::stated_profile_for_dialect(dialect),
-        generic_patterns,
-    )
+    .with_interprocedural(registry, dialect_opt)
 }
 
 /// Build a source-advice unit from the document's complete retained analysis.
@@ -5770,6 +5754,161 @@ p\uD801 ordinary";
             got.optimisations, want.optimisations,
             "per-proc optimise memo diverged from the whole-module build"
         );
+    }
+
+    #[test]
+    fn original_document_policy_key_admits_actual_input_and_root_bom_geometry() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // The actual memoised source build supplies no Native entry or execution.
+        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let db = TclDatabase::default();
+            let file = SourceFile::new(&db, source.to_owned(), name.to_owned(), None);
+            let policy = cfg(&db);
+            let input =
+                document_analysis_input(&db, file, policy).expect("actual document source input");
+            let key = lexer_cfg_key(&db, name);
+            assert_eq!(key.to_config(&db), input.lexer_config(), "{name}");
+            let unit = compilation_unit_for_config(&db, file, key, policy)
+                .expect("complete document policy must join its actual input");
+            assert_eq!(
+                unit.ir_module.source,
+                tcl_lexer::SourceImage::document(source),
+                "{name}"
+            );
+            assert_eq!(
+                unit.ir_module.source_metadata_input.as_ref(),
+                Some(input.as_ref()),
+                "{name}"
+            );
+            assert_eq!(unit.ir_module.lexer_config, input.lexer_config(), "{name}");
+            assert_eq!(unit.ir_module.top_level.statements.len(), 2, "{name}");
+            let first = unit.ir_module.top_level.statements[0]
+                .tokens()
+                .expect("original root command");
+            let expected = if input.unit_profile().grammar.script_skips_leading_bom {
+                "probe"
+            } else {
+                "\u{feff}probe"
+            };
+            assert_eq!(first.argv_texts[0], expected, "{name}");
+            assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
+            let later = unit.ir_module.top_level.statements[1]
+                .tokens()
+                .expect("original later command");
+            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+        }
+    }
+
+    #[test]
+    fn original_document_policy_key_refuses_foreign_or_changed_full_input() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        let db = TclDatabase::default();
+        let file = SourceFile::new(
+            &db,
+            "\u{feff}probe root".to_owned(),
+            "tcl9.1".to_owned(),
+            None,
+        );
+        let policy = cfg(&db);
+        let input = document_analysis_input(&db, file, policy).unwrap();
+        let key = lexer_cfg_key(&db, "tcl9.1");
+        let registry = input.borrowed_context_registry().commands();
+        let declared = declared_command_surface(&db, file);
+        assert!(
+            supplied_unit_build_options(&db, file, key, registry, None, &declared, &input)
+                .is_some()
+        );
+        let foreign_key = lexer_cfg_key(&db, "tcl8.6");
+        assert!(compilation_unit_for_config(&db, file, foreign_key, policy).is_none());
+        for config in [
+            tcl_lexer::LexerConfig {
+                leading_bom: tcl_lexer::LeadingBom::Content,
+                ..input.lexer_config()
+            },
+            tcl_lexer::LexerConfig {
+                strict_quoting: !input.lexer_config().strict_quoting,
+                ..input.lexer_config()
+            },
+        ] {
+            let changed = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                config,
+            );
+            assert!(
+                supplied_unit_build_options(&db, file, key, registry, None, &declared, &changed)
+                    .is_none()
+            );
+        }
+        let mut foreign_registry = registry.project_for_profile(input.unit_profile());
+        let mut changed_spec = foreign_registry.get("puts").unwrap().clone();
+        changed_spec.traits ^= tcl_registry::Traits::EVALUATES_CODE;
+        foreign_registry.insert(changed_spec);
+        assert!(
+            supplied_unit_build_options(&db, file, key, &foreign_registry, None, &declared, &input)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_standalone_compiler_document_keeps_root_and_later_bom_roles() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // The scalar diagnostics route shares this genuine fresh source builder.
+        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+            "f5-iapps",
+            "f5-tmsh",
+        ] {
+            let environment = tcl_registry::model::ingress::resolve_known_environment(name)
+                .expect("actual known source policy");
+            let context = environment.default_context_registry();
+            let unit = standalone_compiler_unit(source, context.commands(), name, None);
+            assert_eq!(
+                unit.ir_module.lexer_config,
+                tcl_lexer::LexerConfig::for_file_grammar(environment.grammar()),
+                "{name}"
+            );
+            assert_eq!(
+                unit.ir_module.source,
+                tcl_lexer::SourceImage::document(source),
+                "{name}"
+            );
+            assert_eq!(unit.ir_module.top_level.statements.len(), 2, "{name}");
+            let first = unit.ir_module.top_level.statements[0].tokens().unwrap();
+            let expected = if environment.grammar().script_skips_leading_bom {
+                "probe"
+            } else {
+                "\u{feff}probe"
+            };
+            assert_eq!(first.argv_texts[0], expected, "{name}");
+            assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
+            let later = unit.ir_module.top_level.statements[1].tokens().unwrap();
+            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+        }
     }
 
     #[test]

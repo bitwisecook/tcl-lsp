@@ -2008,6 +2008,26 @@ fn original_declaration_call_layout_advice(
     )
 }
 
+// Logical source declarations have no physical implementation allocation.
+// This projection shares the exact original geometry and source world checks,
+// while the allocation-bearing declaration/formal purpose stays separate.
+fn original_logical_declaration_call_layout_advice(
+    binding: &SourceInvocationBinding,
+    tokens: &crate::ir::CommandTokens,
+    snapshot: &Arc<SourceLookupSnapshot>,
+    namespace: &SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+) -> Option<OriginalCompilationLookupAdvice> {
+    original_site_layout_advice(
+        binding.invocation_site()?,
+        tokens,
+        snapshot,
+        namespace,
+        OriginalOperandLayoutPurpose::LogicalDeclarationTargets,
+        config,
+    )
+}
+
 fn original_site_operand_layout_advice(
     site: &CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
@@ -2029,6 +2049,7 @@ fn original_site_operand_layout_advice(
 enum OriginalOperandLayoutPurpose {
     RegistryMetadata,
     DeclarationTargets,
+    LogicalDeclarationTargets,
 }
 
 fn original_replay_words_match(
@@ -2075,6 +2096,13 @@ fn original_site_layout_advice(
             input.lexer_config() == config
                 && source_analysis_entry::source_input_dialect(input) == dialect
         });
+    if matches!(
+        purpose,
+        OriginalOperandLayoutPurpose::LogicalDeclarationTargets
+    ) && !logical_source
+    {
+        return None;
+    }
     // Conditional Logical command layout uses its retained source namespace
     // and lookup world. It does not require or issue a physical variable frame.
     if snapshot.state.current_source_origin.as_ref() != Some(&site.source)
@@ -2134,9 +2162,16 @@ fn original_site_layout_advice(
     if projection.targets.is_empty()
         || projection.targets.iter().any(|target| {
             !target.registry_backed
-                && (!matches!(purpose, OriginalOperandLayoutPurpose::DeclarationTargets)
-                    || target.kind != BindingKind::Proc
-                    || target.implementation_allocation.is_none())
+                && match purpose {
+                    OriginalOperandLayoutPurpose::RegistryMetadata => true,
+                    OriginalOperandLayoutPurpose::DeclarationTargets => {
+                        target.kind != BindingKind::Proc
+                            || target.implementation_allocation.is_none()
+                    }
+                    OriginalOperandLayoutPurpose::LogicalDeclarationTargets => {
+                        target.kind != BindingKind::Proc
+                    }
+                }
         })
     {
         return None;

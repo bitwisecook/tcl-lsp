@@ -357,12 +357,18 @@ fn active_forward_record_retains_its_existing_payload_until_real_chain_cleanup()
     );
     let class = interpreter.oo_resolve_object(b"RetireClass");
     select(&interpreter, class);
-    let forward = payload(8, b"::DestroyActiveClass");
+    let forward = payload(8, b"unreadActivePayload");
     let lease = obj::NativeObjectLifetime::retain(forward.as_ptr());
     ACTIVE_HEADER.with(|slot| slot.set(forward.as_ptr()));
     dispatch_original(
         &mut interpreter,
-        &[b"oo::define", b"RetireClass", b"forward", b"active"],
+        &[
+            b"oo::define",
+            b"RetireClass",
+            b"forward",
+            b"active",
+            b"::DestroyActiveClass",
+        ],
         forward.as_ptr(),
     );
     drop(forward);

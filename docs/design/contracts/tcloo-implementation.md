@@ -603,3 +603,12 @@ property mutations do not invalidate this lifecycle observation. This Runtime
 owner supplies no Native Class pointer, payload lifetime or source authority.
 Class introspection checks its retained facet after reached option and pattern
 getters before later class access or report derivation.
+
+Method-specific introspection retains the selected Object or Class before its
+method-name getter. Object method, property, membership and variable reports
+also keep their original receiver through later operands; instance-variable
+reports join its namespace to the existing namespace ledger before reading the
+table. Withdrawn receivers cannot become missing-method reports or successful
+relation results. An initially absent `isa` receiver remains a false
+precondition and leaves the later relation operand unread. Materialized reports
+remain independent of subsequent ordinary metadata changes.

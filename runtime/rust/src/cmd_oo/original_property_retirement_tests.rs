@@ -310,8 +310,9 @@ fn property_retirement_keeps_its_originating_release_recipe_after_profile_change
     let target = interpreter.oo_resolve_object(b"RetirementObject");
     install_members(&mut interpreter, target, false);
     let _leases = cache_headers(&mut interpreter);
-    let mut changed = interpreter.runtime_context();
-    changed.release = "8.6".into();
+    let changed = tcl_registry::model::runtime_context_for_profile(
+        crate::environment::profile_for_dialect("tcl8.6"),
+    );
     interpreter.pin_context(&changed).unwrap();
     assert!(interpreter
         .native_invocation_dialect()
