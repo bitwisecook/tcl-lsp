@@ -185,3 +185,43 @@ fn original_pending_host_keeps_result_exception_and_retirement_unreached() {
         assert_eq!(calls.get(), 1);
     });
 }
+
+#[test]
+fn original_error_snapshot_restoration_retires_native_options_after_full_state_publication() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Software snapshot ownership and callback transport; no Native cleanup chronology claim.
+    for info in [false, true] {
+        for mode in 0..3 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                assert_eq!(
+                    interpreter.eval_str(b"error SNAPSHOT_ERROR {} {SNAPSHOT CODE}"),
+                    Code::Error
+                );
+                assert!(interpreter.exc.borrow().already_logged);
+                let snapshot = interpreter.snapshot_error();
+                let result = interpreter.get_obj_result();
+                let scope = native_operation_currency::NativeOperationScope::enter(interpreter)
+                    .unwrap();
+                let (value, calls, observed) = original(interpreter, mode);
+                let memory = obj::NativeObjectLifetime::retain(value);
+                interpreter.retain_native_error_option(info, value);
+                assert_eq!(unsafe { (*value).ref_count }, 1);
+                interpreter.clear_error_logged();
+                assert!(!interpreter.exc.borrow().already_logged);
+                interpreter.restore_error(snapshot);
+                assert_eq!(calls.get(), 1);
+                assert!(!obj::allocation_is_live(memory.as_ptr()));
+                assert_eq!(&*observed.borrow(), b"SNAPSHOT CODE");
+                assert_eq!(interpreter.snapshot_error().code_bytes(), b"SNAPSHOT CODE");
+                assert!(interpreter.exc.borrow().already_logged);
+                assert_eq!(interpreter.get_obj_result(), result);
+                assert_eq!(scope.currency().ensure_current_or_refuse().is_ok(), mode == 0);
+                assert_refusal(interpreter, mode);
+                drop(scope);
+                assert_eq!(interpreter.entered_native_operation_count(), 0);
+            });
+        }
+    }
+}

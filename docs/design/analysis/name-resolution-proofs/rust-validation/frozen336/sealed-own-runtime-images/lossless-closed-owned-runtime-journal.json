@@ -1,0 +1,39 @@
+{
+  "rule": "Only closed owned images after own producer/list/admission or full isolated outcomes, full bytes retained. Restore and full-SHA verify before any further executable replay. Pin/admission/outcome receipts remain separate and unchanged.",
+  "files": [
+    {
+      "source": "/tmp/naming-owned336/pinned-runtime336.elf",
+      "archive": "/tmp/closed-owned-runtime343/pinned-runtime336.elf.gz",
+      "pin": "/workspace/.proofs/pinned-runtime336.json",
+      "pin_sha256": "a666028c4bfdae75b2e61cc0c41c01b29ba37b5d43f2de5eccbcdf0c8da3d4ed",
+      "sha256": "5ed9740c431a0d6d7e6046607a76717eefb313101b32ede81d7074430e3ed98d",
+      "gzip_sha256": "9932f5552467332c0bd210c4ef6f248e027599a3651783eb7cb19b15faea9a63",
+      "size": 71918816,
+      "gzip_size": 17341374,
+      "mode": 33216,
+      "uid": 1000,
+      "gid": 1000,
+      "atime_ns": 1791703608325581061,
+      "mtime_ns": 1791703425693350529,
+      "inode": 936614,
+      "roundtrip": true
+    },
+    {
+      "source": "/tmp/naming-owned336/pinned-runtime336e.elf",
+      "archive": "/tmp/closed-owned-runtime343/pinned-runtime336e.elf.gz",
+      "pin": "/workspace/.proofs/pinned-runtime336e.json",
+      "pin_sha256": "eb34bf7d54211e0d1070ffbdd970029e8e35a51b2a82090ebdae61683a8f7f82",
+      "sha256": "2c4abb772b6f97de8cbe3874568a33898f9a573f6fb28c68f2c8ac9806f1bd07",
+      "gzip_sha256": "cf3fa307d028a9e6f543355b3843ed4ea8b7ab57a352d6edb3507d30d416d27d",
+      "size": 72455496,
+      "gzip_size": 17507566,
+      "mode": 33216,
+      "uid": 1000,
+      "gid": 1000,
+      "atime_ns": 1791703963965276959,
+      "mtime_ns": 1791703803914514679,
+      "inode": 938389,
+      "roundtrip": true
+    }
+  ]
+}

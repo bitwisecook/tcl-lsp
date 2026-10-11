@@ -1,0 +1,6 @@
+
+running 1 test
+test state_traits::native_array_default_tests::original_array_default_replacement_retires_outside_borrows_after_actual_publication ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.48s
+

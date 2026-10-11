@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::original_property_retirement_tests::exhausted_property_cleanup_retains_entry_refusal_before_all_payload_callbacks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.10s
+

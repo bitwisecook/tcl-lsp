@@ -1,0 +1,17 @@
+
+running 1 test
+test interp::native_jim_increment::selected_dictionary_root_tests::original_jim_member_root_and_retained_alias_publish_through_the_same_original_parent ... 
+thread 'interp::native_jim_increment::selected_dictionary_root_tests::original_jim_member_root_and_retained_alias_publish_through_the_same_original_parent' (1256411) panicked at src/interp/native_jim_increment/selected_dictionary_root_tests.rs:419:5:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::native_jim_increment::selected_dictionary_root_tests::original_jim_member_root_and_retained_alias_publish_through_the_same_original_parent
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.44s
+

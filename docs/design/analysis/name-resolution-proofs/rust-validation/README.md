@@ -4192,3 +4192,54 @@ retains both original retirement journals, modes, ownership and timestamps.
 The raw executable paths require exact verified restoration before original
 argv replay; inode identity cannot be restored. Restoration or a separate
 execution supplies no replacement result for this closed invocation.
+
+## Source336 default and Engine Runtime images
+
+Two independent own library-test producers close successfully over the
+same original 38,335-leaf source. The default-feature producer closes exit
+`0` after 86.09678174799774 seconds; the Engine-feature producer closes exit
+`0` after 36.97699719801312 seconds. Each original Cargo log records one
+`fresh: false` test artifact. No-run producers execute no assertion.
+
+The default image lists 1,669 unique tests. Its requested 354-selector union
+has **14 missing Engine selectors**, so its retained admission supplies no
+assertion outcome. The Engine image independently lists 1,683 unique tests
+and admits all 354 selectors with no missing filters.
+
+The Engine image's 354 separate selector processes close over
+768.2356494429987 seconds with uniform source `true`: **325 passed, 25 failed
+and four aborted or incomplete**. Each completed process has one terminal
+assertion and 1,682 filtered tests. Each abnormal process exits `SIGABRT`
+(`-6`) without a terminal assertion summary. The counts summarize these
+separately retained processes; they establish no whole 1,683-test Runtime
+result, later-source acceptance, signal cause, performance outcome or
+external Native provider observation.
+
+| Original closed operation | Bounded result | Original receipt | Whole output |
+| --- | --- | --- | --- |
+| Default own producer | own image; no assertions | [receipt](frozen336/integration-runtime-own-test-build336/receipt.json.gz) | [build](frozen336/integration-runtime-own-test-build336/build.log) |
+| Default inventory | 1669 listed;14 missing requested selectors | [receipt](frozen336/integration-runtime-own-inventory336/receipt.json.gz) | [inventory](frozen336/integration-runtime-own-inventory336/inventory.log) |
+| Engine own producer | distinct own image; no assertions | [receipt](frozen336/integration-runtime-own-test-build336e/receipt.json.gz) | [build](frozen336/integration-runtime-own-test-build336e/build.log) |
+| Engine inventory | 1683 listed;354 admitted | [receipt](frozen336/integration-runtime-own-inventory336e/receipt.json.gz) | [inventory](frozen336/integration-runtime-own-inventory336e/inventory.log) |
+| Engine isolated processes | 325 passed /25 failed /4 abnormal | [whole receipt](frozen336/runtime-isolated-exact336e/receipt.json.gz) | [354 original logs](frozen336/runtime-isolated-exact336e/logs/000.log) |
+
+The [default admission](frozen336/selections/runtime-admitted-union336.json)
+and [Engine admission](frozen336/selections/runtime-admitted-union336e.json)
+retain their exact image and inventory joins. The ledger selects each
+isolated process at its original `/records/<index>` JSON pointer. The
+[whole source snapshot](frozen336/source-snapshot.json.gz) equals every
+closed receipt's complete source object and is retained once. Whole receipts
+and source gzip files round-trip to their complete original bytes. The
+[inspected driver](frozen336/runtime-isolated-exact336e/inspected-run-isolated-runtime336e.py)
+supplies source context only: its hash is not pinned in the original receipt,
+and inherited environment bytes are not enumerated completely.
+
+The distinct [default image](frozen336/sealed-own-runtime-images/pinned-runtime336.elf.gz)
+and [Engine image](frozen336/sealed-own-runtime-images/pinned-runtime336e.elf.gz)
+retain their exact compressed bytes and independently verified full
+decompressed SHA and size. Pin metadata and the
+[lossless retirement journal](frozen336/sealed-own-runtime-images/lossless-closed-owned-runtime-journal.json)
+preserve original path, mode, ownership and timestamps. Exact verified
+restoration is required before original argv replay; inode identity cannot
+be restored. A separate replay supplies no replacement result for a closed
+operation.

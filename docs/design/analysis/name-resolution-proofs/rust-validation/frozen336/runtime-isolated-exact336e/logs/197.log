@@ -1,0 +1,6 @@
+
+running 1 test
+test engine_abi::command_receipts::tests::original_restriction_identity_rejects_foreign_equal_generation_before_effects ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.67s
+

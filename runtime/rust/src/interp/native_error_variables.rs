@@ -216,13 +216,7 @@ impl Interp {
         if let Some(value) = value {
             // The outer read trace marks this cell active: the intrinsic's
             // ObjSetVar2 cannot recursively run traces on the same cell.
-            let _ = crate::vars::set(
-                &mut self.frames.borrow_mut(),
-                &mut self.namespaces.borrow_mut(),
-                GLOBAL,
-                name,
-                value.as_ptr(),
-            );
+            let _ = self.store_captured_byte_variable(GLOBAL, None, name, None, value.as_ptr());
         }
     }
 
@@ -264,13 +258,8 @@ impl Interp {
         if !self.uses_c84_global_error_info() {
             return;
         }
-        let stored = crate::vars::set(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            GLOBAL,
-            b"::errorCode",
-            original,
-        );
+        let stored =
+            self.store_captured_byte_variable(GLOBAL, None, b"::errorCode", None, original);
         if stored.is_ok() && self.has_variable_traces() {
             let home = self.trace_identity(b"::errorCode");
             let access = self.trace_access(b"errorCode", b"errorCode", None, &home, false);

@@ -148,10 +148,7 @@ impl Interp {
     }
 
     fn each_store_temporary(&mut self, slot: usize, value: *mut TclObj) -> Result<(), Code> {
-        let stored = self
-            .frames
-            .borrow_mut()
-            .store_native_compiled_temporary(slot, value);
+        let stored = self.store_native_compiled_temporary_checked(slot, value);
         stored.map_err(|_| {
             self.report_cmd_error(unavailable("native iterator actual temporary cell").into())
         })

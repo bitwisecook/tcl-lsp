@@ -299,10 +299,7 @@ impl Interp {
                 for (index, pair) in members.chunks_exact(2).enumerate() {
                     iteration.advance(index + 1);
                     for (slot, value) in temporary.into_iter().zip(pair.iter().copied()) {
-                        let result = self
-                            .frames
-                            .borrow_mut()
-                            .store_native_compiled_temporary(slot, value);
+                        let result = self.store_native_compiled_temporary_checked(slot, value);
                         result.map_err(|_| {
                             self.report_cmd_error(
                                 unavailable("Array iterator original temporary").into(),

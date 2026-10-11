@@ -1,0 +1,6 @@
+
+running 1 test
+test engine::tests::host_retirement_context_change_stops_later_definition_and_preserves_original_generation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.56s
+

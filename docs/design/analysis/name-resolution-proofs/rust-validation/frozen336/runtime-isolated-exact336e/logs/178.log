@@ -1,0 +1,6 @@
+
+running 1 test
+test completion::tests::retained_host_cause_never_reads_null_transport_objects_or_changes_guest_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.56s
+

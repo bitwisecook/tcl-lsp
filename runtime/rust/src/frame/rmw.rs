@@ -294,6 +294,24 @@ impl VariableReceiver {
             .flatten())
     }
 
+    pub(crate) fn check_current(&self) -> Result<(), VarError> {
+        let contents = self.contents.borrow();
+        if let Some(error) = contents.rmw_retirement {
+            return Err(error);
+        }
+        if let Some(array) = &self.retained_array {
+            return if array.is_live() {
+                Ok(())
+            } else {
+                Err(VarError::DeletedArray)
+            };
+        }
+        if self.element.is_some() && contents.rmw_array_epoch != self.array_epoch {
+            return Err(VarError::DeletedArray);
+        }
+        Ok(())
+    }
+
     pub(crate) fn is_element(&self) -> bool {
         self.element.is_some()
     }

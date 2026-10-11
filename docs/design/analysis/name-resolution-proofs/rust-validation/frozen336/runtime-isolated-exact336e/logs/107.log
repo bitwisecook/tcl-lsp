@@ -1,0 +1,98 @@
+
+running 1 test
+test cmd_oo::original_declaration_retirement_tests::declaration_callback_can_replace_metadata_without_rejecting_current_target ... 
+thread 'cmd_oo::original_declaration_retirement_tests::declaration_callback_can_replace_metadata_without_rejecting_current_target' (1254415) panicked at src/cmd_oo/original_declaration_retirement_tests.rs:39:5:
+assertion `left == right` failed
+  left: 5
+ right: 6
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'cmd_oo::original_declaration_retirement_tests::declaration_callback_can_replace_metadata_without_rejecting_current_target' (1254415) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:225:5:
+panic in a function that cannot unwind
+stack backtrace:
+   0:     0x56439802cdd1 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x5643980459fa - core[a9090a07a7fa7517]::fmt::write
+   2:     0x564398033ddc - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x564398004b76 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x564398022a31 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x564398022d5b - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x564398004c54 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x564397ffd499 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x564398005aed - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x56439804609d - core[a9090a07a7fa7517]::panicking::panic_nounwind_fmt
+  10:     0x56439804601b - core[a9090a07a7fa7517]::panicking::panic_nounwind
+  11:     0x5643980461a7 - core[a9090a07a7fa7517]::panicking::panic_cannot_unwind
+  12:     0x564397392655 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_declaration_retirement_tests::retire
+  13:     0x564396e79e93 - tcl_runtime[e1d35d11b6bab1d6]::obj::free_obj
+  14:     0x564396e6fa2d - tcl_runtime[e1d35d11b6bab1d6]::obj::decr_ref_count
+  15:     0x564396edf359 - <tcl_runtime[e1d35d11b6bab1d6]::obj::Owned as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  16:     0x564397559876 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::obj::Owned>
+  17:     0x56439755ab11 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::DeclaredVariable>
+  18:     0x564397566692 - core[a9090a07a7fa7517]::ptr::drop_glue::<[tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::DeclaredVariable]>
+  19:     0x5643972e14a1 - <alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::DeclaredVariable> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  20:     0x56439754a2bd - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::DeclaredVariable>>
+  21:     0x564397267bce - core[a9090a07a7fa7517]::mem::drop::<alloc[12ca63220423dfc2]::vec::Vec<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::DeclaredVariable>>
+  22:     0x5643970c1215 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::write_declared_variables
+  23:     0x5643970c023a - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::slot_inst_set_original
+  24:     0x56439702d0e2 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::slot_inst_set::{closure#0}
+  25:     0x564396f2df06 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_context::with_original_arguments::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::slot_inst_set::{closure#0}>
+  26:     0x5643970b1771 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::slot_inst_set
+  27:     0x5643967f4bc7 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_run::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_method_cache::ReachedMethodChain>
+  28:     0x5643968afbf4 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_original_entered
+  29:     0x5643970110ae - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_with_original::{closure#1}
+  30:     0x564396f30c0e - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_context::with_original_arguments::<<tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_with_original::{closure#1}>
+  31:     0x5643968ac37c - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_with_original
+  32:     0x5643968b1ec7 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke
+  33:     0x5643970c61fd - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::slot_call
+  34:     0x5643970b0327 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::slot_run_op
+  35:     0x5643970aef43 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::slot_m_set
+  36:     0x5643967f4bc7 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_run::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_method_cache::ReachedMethodChain>
+  37:     0x5643968ae111 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_original_entered
+  38:     0x5643970110ae - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_with_original::{closure#1}
+  39:     0x564396f30c0e - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_context::with_original_arguments::<<tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_with_original::{closure#1}>
+  40:     0x5643968ac37c - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_invoke_with_original
+  41:     0x56439700c859 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_dispatch::{closure#0}
+  42:     0x564396f30596 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_context::with_original_arguments::<<tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_dispatch::{closure#0}>
+  43:     0x5643968a05b1 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_dispatch
+  44:     0x56439693a839 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::invoke_bound_body
+  45:     0x56439682b434 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::invoke_bound::{closure#0}
+  46:     0x564396917db0 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::invoke_bound
+  47:     0x5643969384a6 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_inner_at
+  48:     0x564396921665 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_inner
+  49:     0x564396963fab - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_prebound_inner
+  50:     0x564396833349 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_selection_with_entry::{closure#0}
+  51:     0x5643969794c3 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_selection_with_entry
+  52:     0x56439697699f - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_prebound_with_entry
+  53:     0x56439698ac9b - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch
+  54:     0x564396f40711 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_magic_definition_invoke::{closure#0}
+  55:     0x564396f30e26 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_context::with_original_arguments::<<tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_magic_definition_invoke::{closure#0}>
+  56:     0x5643968b79b4 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_magic_definition_invoke
+  57:     0x56439700b4a9 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_run_def::{closure#0}
+  58:     0x564396f30386 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_context::with_original_arguments::<<tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_run_def::{closure#0}>
+  59:     0x5643968a055c - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::oo_run_def
+  60:     0x564397034685 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::oo_objdefine_cmd::{closure#0}
+  61:     0x564396f2ef31 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_context::with_original_arguments::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::oo_objdefine_cmd::{closure#0}>
+  62:     0x5643970b5092 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::oo_objdefine_cmd
+  63:     0x56439693a994 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::invoke_bound_body
+  64:     0x56439682b434 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::invoke_bound::{closure#0}
+  65:     0x564396917db0 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::invoke_bound
+  66:     0x5643969384a6 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_inner_at
+  67:     0x564396921665 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_inner
+  68:     0x564396963fab - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_prebound_inner
+  69:     0x564396833349 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_selection_with_entry::{closure#0}
+  70:     0x5643969794c3 - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_selection_with_entry
+  71:     0x56439697699f - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch_prebound_with_entry
+  72:     0x56439698ac9b - <tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>::dispatch
+  73:     0x564397392e08 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_declaration_retirement_tests::replace
+  74:     0x564397393bb9 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_declaration_retirement_tests::declaration_callback_can_replace_metadata_without_rejecting_current_target
+  75:     0x564397365763 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_declaration_retirement_tests::declaration_callback_can_replace_metadata_without_rejecting_current_target::{closure#0}
+  76:     0x56439763ec56 - <tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_declaration_retirement_tests::declaration_callback_can_replace_metadata_without_rejecting_current_target::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  77:     0x56439764ffab - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  78:     0x56439765d615 - test[de0ab365ed256f3]::run_test::{closure#0}
+  79:     0x564397657fd4 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  80:     0x564397660772 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  81:     0x56439802bcd9 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  82:     0x7fb839c19b7b - <unknown>
+  83:     0x7fb839c977f8 - <unknown>
+  84:                0x0 - <unknown>
+thread caused non-unwinding panic. aborting.

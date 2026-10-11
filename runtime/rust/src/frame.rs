@@ -59,8 +59,8 @@ use tcl_runtime_api::{FrameLinkOrigin, VarId};
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
 
-mod jim_lookup;
 mod jim_link_store;
+mod jim_lookup;
 pub(crate) use jim_link_store::{CapturedJimLinkRoot, JimLinkStoreError};
 pub(crate) use jim_lookup::{CapturedJimDictionaryCell, JimVariableRead, WeakJimVariableCell};
 mod container;
@@ -312,6 +312,26 @@ struct CellContents {
     /// Epoch `0` is the never-computed sentinel; the interpreter's epoch starts
     /// at `1`.
     traced: core::cell::Cell<(u64, bool)>,
+}
+
+/// Previous genuine stored ownership extracted before releasing owner borrows.
+pub(crate) enum RetiredVariableContents {
+    Value(Option<Var>),
+    Dictionary(Option<container::RetiredRootContents>),
+}
+impl Drop for RetiredVariableContents {
+    fn drop(&mut self) {
+        match self {
+            Self::Value(previous) => {
+                if let Some(previous) = previous.take() {
+                    previous.release();
+                }
+            }
+            Self::Dictionary(previous) => {
+                drop(previous.take());
+            }
+        }
+    }
 }
 
 /// A raw physical variable slot whose contents survive removal of its name.
@@ -943,11 +963,24 @@ impl VarTable {
 
     /// `set name value` into this table directly. The cell takes a **+1**.
     pub(crate) fn store_scalar(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        let previous = self.publish_scalar(name, obj)?;
+        drop(previous);
+        Ok(())
+    }
+
+    /// The same scalar store, returning its displaced owning contents.
+    pub(crate) fn publish_scalar(
+        &mut self,
+        name: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<RetiredVariableContents, VarError> {
         if self.is_constant(name) {
             return Err(VarError::IsConstant);
         }
         if self.dictionary_variables() {
-            return self.store_dictionary_root(name, obj);
+            return self
+                .publish_dictionary_root(name, obj)
+                .map(|previous| RetiredVariableContents::Dictionary(Some(previous)));
         }
         let slot = self.slot_for(name);
         let contents = self.cells[slot].contents.clone();
@@ -955,29 +988,25 @@ impl VarTable {
         match cell.var.as_mut() {
             Some(Var::Array(_)) => Err(VarError::IsArray),
             Some(Var::Scalar(old)) => {
-                unsafe {
-                    obj::incr_ref_count(obj);
-                    obj::decr_ref_count(*old);
-                }
-                *old = obj;
-                Ok(())
+                unsafe { obj::incr_ref_count(obj) };
+                let previous = std::mem::replace(old, obj);
+                drop(cell);
+                Ok(RetiredVariableContents::Value(Some(Var::Scalar(previous))))
             }
             Some(Var::Link(link)) if link.name == name && link.elem.is_none() => {
                 drop(cell);
-                unsafe {
-                    obj::incr_ref_count(obj);
-                }
-                self.put(name, Var::Scalar(obj));
-                Ok(())
+                unsafe { obj::incr_ref_count(obj) };
+                Ok(RetiredVariableContents::Value(
+                    self.put(name, Var::Scalar(obj)),
+                ))
             }
             Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
             None => {
                 drop(cell);
-                unsafe {
-                    obj::incr_ref_count(obj);
-                }
-                self.put(name, Var::Scalar(obj));
-                Ok(())
+                unsafe { obj::incr_ref_count(obj) };
+                Ok(RetiredVariableContents::Value(
+                    self.put(name, Var::Scalar(obj)),
+                ))
             }
         }
     }
@@ -997,31 +1026,40 @@ impl VarTable {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
+        let previous = self.publish_elem(name, key, obj)?;
+        drop(previous);
+        Ok(())
+    }
+
+    /// The same member store, returning its displaced owning contents.
+    pub(crate) fn publish_elem(
+        &mut self,
+        name: &[u8],
+        key: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<RetiredVariableContents, VarError> {
         if self.dictionary_variables() {
-            return self.store_dictionary_element(name, key, obj);
+            return self
+                .publish_dictionary_element(name, key, obj)
+                .map(|previous| RetiredVariableContents::Dictionary(Some(previous)));
         }
         if let Some(contents) = self.contents(name).cloned() {
-            let mut borrowed = contents.borrow_mut();
-            let cell = &mut *borrowed;
+            let mut cell = contents.borrow_mut();
             match cell.var.as_mut() {
                 Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
                 Some(Var::Array(map)) => {
-                    // SAFETY: retain the new element value; release any prior one.
                     unsafe { obj::incr_ref_count(obj) };
                     let fresh = !map.contains_key(key);
-                    if let Some(old) = map.insert(key.to_vec(), obj) {
-                        unsafe { obj::decr_ref_count(old) };
-                    }
+                    let previous = map.insert(key.to_vec(), obj);
                     cell.insert_member_entry(key);
                     cell.rmw_member_shells.remove(key);
                     if fresh && !cell.element_ids.contains_key(key) {
                         cell.element_ids.insert(key.to_vec(), fresh_var_id());
                     }
-                    return Ok(());
+                    drop(cell);
+                    return Ok(RetiredVariableContents::Value(previous.map(Var::Scalar)));
                 }
-                // The declared-but-undefined marker: the first element write
-                // defines the array over it (see `store_scalar`).
-                Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {}
+                Some(Var::Link(link)) if link.name == name && link.elem.is_none() => {}
                 Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
                 None => {}
             }
@@ -1029,8 +1067,9 @@ impl VarTable {
         let mut map = BTreeMap::new();
         unsafe { obj::incr_ref_count(obj) };
         map.insert(key.to_vec(), obj);
-        self.put(name, Var::Array(map));
-        Ok(())
+        Ok(RetiredVariableContents::Value(
+            self.put(name, Var::Array(map)),
+        ))
     }
 
     /// `set name(key)` — borrowed.

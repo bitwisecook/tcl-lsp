@@ -1,0 +1,130 @@
+
+running 1 test
+test cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change ... 
+thread 'cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change' (1254523) panicked at src/cmd_oo/original_property_retirement_tests.rs:315:39:
+called `Result::unwrap()` on an `Err` value: ReleaseDisagrees { environment: "tcl9.1", named: "8.6", resolved: "9.1" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change' (1254523) panicked at src/cmd_oo/original_property_retirement_tests.rs:24:89:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0:     0x557a4a6bfdd1 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x557a4a6d89fa - core[a9090a07a7fa7517]::fmt::write
+   2:     0x557a4a6c6ddc - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x557a4a697b76 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x557a4a6b5a31 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x557a4a6b5d5b - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x557a4a697c54 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x557a4a690499 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x557a4a698aed - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x557a4a6d929c - core[a9090a07a7fa7517]::panicking::panic_fmt
+  10:     0x557a4a6d9262 - core[a9090a07a7fa7517]::panicking::panic
+  11:     0x557a4a6d8f99 - core[a9090a07a7fa7517]::option::unwrap_failed
+  12:     0x557a49c58ac6 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::retire::{closure#1}
+  13:     0x557a49153ecf - <std[c29fa2d9dbea2b0e]::thread::local::LocalKey<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[e1d35d11b6bab1d6]::interp::WeakInterp>>>>::try_with::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::retire::{closure#1}, tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>
+  14:     0x557a491520a6 - <std[c29fa2d9dbea2b0e]::thread::local::LocalKey<core[a9090a07a7fa7517]::cell::RefCell<core[a9090a07a7fa7517]::option::Option<tcl_runtime[e1d35d11b6bab1d6]::interp::WeakInterp>>>>::with::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::retire::{closure#1}, tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>
+  15:     0x557a49c88a26 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::retire
+  16:     0x557a4950ce93 - tcl_runtime[e1d35d11b6bab1d6]::obj::free_obj
+  17:     0x557a49502a2d - tcl_runtime[e1d35d11b6bab1d6]::obj::decr_ref_count
+  18:     0x557a49569c84 - <tcl_runtime[e1d35d11b6bab1d6]::list::NativeListStorage as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  19:     0x557a49becd8d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::list::NativeListStorage>
+  20:     0x557a49bece6d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::list::TclList>
+  21:     0x557a49be1380 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::boxed::Box<tcl_runtime[e1d35d11b6bab1d6]::list::TclList>>
+  22:     0x557a498fad4d - core[a9090a07a7fa7517]::mem::drop::<alloc[12ca63220423dfc2]::boxed::Box<tcl_runtime[e1d35d11b6bab1d6]::list::TclList>>
+  23:     0x557a495135b8 - tcl_runtime[e1d35d11b6bab1d6]::list::list_free
+  24:     0x557a4950ce93 - tcl_runtime[e1d35d11b6bab1d6]::obj::free_obj
+  25:     0x557a49502a2d - tcl_runtime[e1d35d11b6bab1d6]::obj::decr_ref_count
+  26:     0x557a49572359 - <tcl_runtime[e1d35d11b6bab1d6]::obj::Owned as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  27:     0x557a49bec876 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::obj::Owned>
+  28:     0x557a49bd71aa - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime[e1d35d11b6bab1d6]::obj::Owned>>
+  29:     0x557a49bf288d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>
+  30:     0x557a48e67d89 - <<alloc[12ca63220423dfc2]::collections::btree::node::Handle<alloc[12ca63220423dfc2]::collections::btree::node::NodeRef<alloc[12ca63220423dfc2]::collections::btree::node::marker::Dying, _, _, _>, alloc[12ca63220423dfc2]::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  31:     0x557a49be6e1e - core[a9090a07a7fa7517]::ptr::drop_glue::<<alloc[12ca63220423dfc2]::collections::btree::node::Handle<alloc[12ca63220423dfc2]::collections::btree::node::NodeRef<alloc[12ca63220423dfc2]::collections::btree::node::marker::Dying, _, _, _>, alloc[12ca63220423dfc2]::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>>
+  32:     0x557a48e151f1 - <alloc[12ca63220423dfc2]::collections::btree::node::Handle<alloc[12ca63220423dfc2]::collections::btree::node::NodeRef<alloc[12ca63220423dfc2]::collections::btree::node::marker::Dying, (tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache, alloc[12ca63220423dfc2]::collections::btree::node::marker::LeafOrInternal>, alloc[12ca63220423dfc2]::collections::btree::node::marker::KV>>::drop_key_val
+  33:     0x557a4957ac99 - <alloc[12ca63220423dfc2]::collections::btree::map::IntoIter<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  34:     0x557a49be642e - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::collections::btree::map::IntoIter<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>>
+  35:     0x557a49566748 - <alloc[12ca63220423dfc2]::collections::btree::map::BTreeMap<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  36:     0x557a49be62d6 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::collections::btree::map::BTreeMap<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>>
+  37:     0x557a49bee440 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>
+  38:     0x557a49bd3966 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>
+  39:     0x557a49bd50aa - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>
+  40:     0x557a4922f8c4 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>>::drop_slow
+  41:     0x557a492c1a54 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  42:     0x557a49bdb546 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>>
+  43:     0x557a49bef0b5 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState>
+  44:     0x557a49230014 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState>>::drop_slow
+  45:     0x557a492c1de4 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  46:     0x557a49bdb606 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState>>
+  47:     0x557a49befc73 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>
+  48:     0x557a49c8be28 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change
+  49:     0x557a49c58ba3 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change::{closure#0}
+  50:     0x557a49cd1bf6 - <tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  51:     0x557a49ce2fab - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  52:     0x557a49cf0615 - test[de0ab365ed256f3]::run_test::{closure#0}
+  53:     0x557a49ceafd4 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  54:     0x557a49cf3772 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  55:     0x557a4a6becd9 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  56:     0x7fc82287fb7b - <unknown>
+  57:     0x7fc8228fd7f8 - <unknown>
+  58:                0x0 - <unknown>
+
+thread 'cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change' (1254523) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/panicking.rs:225:5:
+panic in a function that cannot unwind
+stack backtrace:
+   0:     0x557a4a6bfdd1 - <<std[c29fa2d9dbea2b0e]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[a9090a07a7fa7517]::fmt::Display>::fmt
+   1:     0x557a4a6d89fa - core[a9090a07a7fa7517]::fmt::write
+   2:     0x557a4a6c6ddc - <std[c29fa2d9dbea2b0e]::sys::stdio::unix::Stderr as core[a9090a07a7fa7517]::io::write::Write>::write_fmt
+   3:     0x557a4a697b76 - std[c29fa2d9dbea2b0e]::panicking::default_hook::{closure#0}
+   4:     0x557a4a6b5a31 - std[c29fa2d9dbea2b0e]::panicking::default_hook
+   5:     0x557a4a6b5d5b - std[c29fa2d9dbea2b0e]::panicking::panic_with_hook
+   6:     0x557a4a697c54 - std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}
+   7:     0x557a4a690499 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_end_short_backtrace::<std[c29fa2d9dbea2b0e]::panicking::panic_handler::{closure#0}, !>
+   8:     0x557a4a698aed - __rustc[9d087a5ab36ea756]::rust_begin_unwind
+   9:     0x557a4a6d909d - core[a9090a07a7fa7517]::panicking::panic_nounwind_fmt
+  10:     0x557a4a6d901b - core[a9090a07a7fa7517]::panicking::panic_nounwind
+  11:     0x557a4a6d91a7 - core[a9090a07a7fa7517]::panicking::panic_cannot_unwind
+  12:     0x557a49c889f9 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::retire
+  13:     0x557a4950ce93 - tcl_runtime[e1d35d11b6bab1d6]::obj::free_obj
+  14:     0x557a49502a2d - tcl_runtime[e1d35d11b6bab1d6]::obj::decr_ref_count
+  15:     0x557a49569c84 - <tcl_runtime[e1d35d11b6bab1d6]::list::NativeListStorage as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  16:     0x557a49becd8d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::list::NativeListStorage>
+  17:     0x557a49bece6d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::list::TclList>
+  18:     0x557a49be1380 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::boxed::Box<tcl_runtime[e1d35d11b6bab1d6]::list::TclList>>
+  19:     0x557a498fad4d - core[a9090a07a7fa7517]::mem::drop::<alloc[12ca63220423dfc2]::boxed::Box<tcl_runtime[e1d35d11b6bab1d6]::list::TclList>>
+  20:     0x557a495135b8 - tcl_runtime[e1d35d11b6bab1d6]::list::list_free
+  21:     0x557a4950ce93 - tcl_runtime[e1d35d11b6bab1d6]::obj::free_obj
+  22:     0x557a49502a2d - tcl_runtime[e1d35d11b6bab1d6]::obj::decr_ref_count
+  23:     0x557a49572359 - <tcl_runtime[e1d35d11b6bab1d6]::obj::Owned as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  24:     0x557a49bec876 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::obj::Owned>
+  25:     0x557a49bd71aa - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::option::Option<tcl_runtime[e1d35d11b6bab1d6]::obj::Owned>>
+  26:     0x557a49bf288d - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>
+  27:     0x557a48e67d89 - <<alloc[12ca63220423dfc2]::collections::btree::node::Handle<alloc[12ca63220423dfc2]::collections::btree::node::NodeRef<alloc[12ca63220423dfc2]::collections::btree::node::marker::Dying, _, _, _>, alloc[12ca63220423dfc2]::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  28:     0x557a49be6e1e - core[a9090a07a7fa7517]::ptr::drop_glue::<<alloc[12ca63220423dfc2]::collections::btree::node::Handle<alloc[12ca63220423dfc2]::collections::btree::node::NodeRef<alloc[12ca63220423dfc2]::collections::btree::node::marker::Dying, _, _, _>, alloc[12ca63220423dfc2]::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>>
+  29:     0x557a48e151f1 - <alloc[12ca63220423dfc2]::collections::btree::node::Handle<alloc[12ca63220423dfc2]::collections::btree::node::NodeRef<alloc[12ca63220423dfc2]::collections::btree::node::marker::Dying, (tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache, alloc[12ca63220423dfc2]::collections::btree::node::marker::LeafOrInternal>, alloc[12ca63220423dfc2]::collections::btree::node::marker::KV>>::drop_key_val
+  30:     0x557a4957ac99 - <alloc[12ca63220423dfc2]::collections::btree::map::IntoIter<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  31:     0x557a49be642e - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::collections::btree::map::IntoIter<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>>
+  32:     0x557a49566748 - <alloc[12ca63220423dfc2]::collections::btree::map::BTreeMap<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  33:     0x557a49be62d6 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::collections::btree::map::BTreeMap<(tcl_core_types[78830761f3038b96]::OoId, bool), tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::native_properties::NativePropertyCache>>
+  34:     0x557a49bee440 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>
+  35:     0x557a49bd3966 - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::UnsafeCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>
+  36:     0x557a49bd50aa - core[a9090a07a7fa7517]::ptr::drop_glue::<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>
+  37:     0x557a4922f8c4 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>>::drop_slow
+  38:     0x557a492c1a54 - <alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  39:     0x557a49bdb546 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<core[a9090a07a7fa7517]::cell::RefCell<tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::OoState>>>
+  40:     0x557a49bef0b5 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState>
+  41:     0x557a49230014 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState>>::drop_slow
+  42:     0x557a492c1de4 - <alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState> as core[a9090a07a7fa7517]::ops::drop::Drop>::drop
+  43:     0x557a49bdb606 - core[a9090a07a7fa7517]::ptr::drop_glue::<alloc[12ca63220423dfc2]::rc::Rc<tcl_runtime[e1d35d11b6bab1d6]::interp::InterpState>>
+  44:     0x557a49befc73 - core[a9090a07a7fa7517]::ptr::drop_glue::<tcl_runtime[e1d35d11b6bab1d6]::interp::Interp>
+  45:     0x557a49c8be28 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change
+  46:     0x557a49c58ba3 - tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change::{closure#0}
+  47:     0x557a49cd1bf6 - <tcl_runtime[e1d35d11b6bab1d6]::cmd_oo::original_property_retirement_tests::property_retirement_keeps_its_originating_release_recipe_after_profile_change::{closure#0} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once
+  48:     0x557a49ce2fab - test[de0ab365ed256f3]::__rust_begin_short_backtrace::<core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>, fn() -> core[a9090a07a7fa7517]::result::Result<(), alloc[12ca63220423dfc2]::string::String>>
+  49:     0x557a49cf0615 - test[de0ab365ed256f3]::run_test::{closure#0}
+  50:     0x557a49ceafd4 - std[c29fa2d9dbea2b0e]::sys::backtrace::__rust_begin_short_backtrace::<test[de0ab365ed256f3]::run_test::{closure#1}, ()>
+  51:     0x557a49cf3772 - <std[c29fa2d9dbea2b0e]::thread::lifecycle::spawn_unchecked<test[de0ab365ed256f3]::run_test::{closure#1}, ()>::{closure#1} as core[a9090a07a7fa7517]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  52:     0x557a4a6becd9 - <std[c29fa2d9dbea2b0e]::sys::thread::unix::Thread>::new::thread_start
+  53:     0x7fc82287fb7b - <unknown>
+  54:     0x7fc8228fd7f8 - <unknown>
+  55:                0x0 - <unknown>
+thread caused non-unwinding panic. aborting.

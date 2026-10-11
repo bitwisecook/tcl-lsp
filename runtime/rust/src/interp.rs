@@ -39,6 +39,8 @@
 #[cfg(test)]
 mod bootstrap_context_tests;
 #[cfg(test)]
+mod byte_store_retirement_tests;
+#[cfg(test)]
 mod c_api_error_tests;
 mod captured_rmw;
 mod jim_local;
@@ -530,6 +532,7 @@ pub(crate) struct ErrorSnapshot {
     info: Option<Vec<u8>>,
     code: Vec<u8>,
     code_explicit: bool,
+    already_logged: bool,
     primitive_getter: Option<Box<tcl_syntax::scalar_getter::NativeScalarGetterError>>,
     expression_error_stage:
         Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
@@ -2894,6 +2897,13 @@ impl Interp {
     /// (C does this in `Tcl_CreateInterp`) and again whenever
     /// [`Self::set_runtime_version`] changes the answer.
     pub(crate) fn write_release_globals(&mut self) {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         let version = self.runtime_version();
         // These are owned bootstrap slots, not guest name-lookup operations.
         // Installing an unsupported native profile must not manufacture an
@@ -2903,10 +2913,17 @@ impl Interp {
             (b"tcl_patchLevel", version.patchlevel()),
         ] {
             let value = obj::Owned::fresh(new_string(val.as_bytes()));
-            let _ = self
+            let previous = self
                 .namespaces_mut()
                 .var_table_mut(GLOBAL)
-                .store_scalar(name, value.as_ptr());
+                .publish_scalar(name, value.as_ptr());
+            // Release the actual displaced owner after the namespace borrow.
+            drop(previous);
+            drop(value);
+            if let Err(first) = scope.currency().ensure_current_or_refuse() {
+                self.refuse_native_execution(first);
+                return;
+            }
         }
     }
 
@@ -6561,6 +6578,125 @@ impl Interp {
         )
     }
 
+    fn byte_store_failure(&self, error: crate::frame::JimLinkStoreError) -> VarError {
+        match error {
+            crate::frame::JimLinkStoreError::Variable(error) => error,
+            crate::frame::JimLinkStoreError::Command(error) => {
+                if let Some(first) = error.native_execution_refusal() {
+                    self.refuse_native_execution(first.clone());
+                }
+                VarError::NameProtocolUnavailable
+            }
+        }
+    }
+
+    /// Storage-only port for an already selected byte-name context. It grants
+    /// no original header, native lookup or Jim dictionary path purpose.
+    pub(crate) fn store_captured_byte_variable(
+        &mut self,
+        current: NsId,
+        level: Option<usize>,
+        name: &[u8],
+        element: Option<&[u8]>,
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.require_variable_name_protocol()?;
+        obj::check_native_liveness(value).map_err(|error| self.byte_store_failure(error.into()))?;
+        let allocation = obj::NativeObjectLifetime::retain(value);
+        self.associate_native_jim_variable_value(value)?;
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let captured = {
+            let mut frames = self.frames.borrow_mut();
+            let mut namespaces = self.namespaces.borrow_mut();
+            crate::vars::capture_byte_store(
+                &mut frames,
+                &mut namespaces,
+                current,
+                level,
+                name,
+                element,
+            )
+        };
+        let mut captured = captured?;
+        let reached = captured.store(value, scope.currency());
+        let current = captured.check(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            scope.currency(),
+        );
+        // Receiver cleanup can retire a genuine native alias/shell owner.
+        drop(captured);
+        drop(allocation);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        current.map_err(|error| self.byte_store_failure(error))?;
+        reached.map_err(|error| self.byte_store_failure(error))
+    }
+
+    /// The admitted anonymous-cell worker keeps its original frame through
+    /// displaced-value retirement. A reported name supplies no indexed grant.
+    pub(crate) fn store_native_compiled_temporary_checked(
+        &mut self,
+        slot: usize,
+        value: *mut TclObj,
+    ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        obj::check_native_liveness(value).map_err(|error| self.byte_store_failure(error.into()))?;
+        let allocation = obj::NativeObjectLifetime::retain(value);
+        let (receiver, frame) = {
+            let mut frames = self.frames.borrow_mut();
+            let frame = frames.current_activation_owner();
+            (
+                frames.capture_native_compiled_temporary_receiver(slot)?,
+                frame,
+            )
+        };
+        let reached = receiver.store(value);
+        let receiver_current = receiver.check_current();
+        drop(receiver);
+        drop(allocation);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        let frame_current = {
+            let frames = self.frames.borrow();
+            std::rc::Weak::ptr_eq(&frame, &frames.current_activation_owner())
+                && frame.strong_count() != 0
+        };
+        if !frame_current {
+            let failure = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "captured native anonymous frame",
+            );
+            return Err(self.byte_store_failure(failure.into()));
+        }
+        receiver_current?;
+        reached
+    }
+
     /// Frame-addressed [`var_set`](Self::var_set) — the cell takes a **+1**.
     pub(crate) fn var_set_at(
         &mut self,
@@ -6574,15 +6710,7 @@ impl Interp {
         if self.observed_names.borrow().is_some() {
             return self.observed_variable_set(name, level, obj);
         }
-        self.require_variable_name_protocol()?;
-        self.associate_native_jim_variable_value(obj)?;
-        crate::vars::set_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            name,
-            obj,
-            level,
-        )
+        self.store_captured_byte_variable(self.current_ns.get(), Some(level), name, None, obj)
     }
 
     /// Frame-addressed `set name(key) value`. The table takes its +1 on `obj`.
@@ -6596,16 +6724,7 @@ impl Interp {
         if self.store_escapes_at(name, level) {
             return Err(VarError::Confined);
         }
-        self.require_variable_name_protocol()?;
-        self.associate_native_jim_variable_value(obj)?;
-        crate::vars::set_elem_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            name,
-            key,
-            obj,
-            level,
-        )
+        self.store_captured_byte_variable(self.current_ns.get(), Some(level), name, Some(key), obj)
     }
 
     /// Operational byte removal in a genuine addressed variable frame.
@@ -6699,24 +6818,35 @@ impl Interp {
             let level = self.frames.borrow().current_level();
             return self.observed_variable_set(name, level, obj);
         }
-        self.require_variable_name_protocol()?;
-        self.associate_native_jim_variable_value(obj)?;
-        crate::vars::set(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-            obj,
-        )?;
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.store_captured_byte_variable(self.current_ns.get(), None, name, None, obj)?;
         if self.has_variable_traces() {
             let input = self.separate_variable_input(name, None)?;
             if self.fire_var_trace(input.root().selected(), None, b"write") {
                 // A write trace errored: the value is set, but the command
                 // fails (C's TclObjCallVarTraces). `var_error` wraps the
                 // message from `pending_err` as `can't set "name": <msg>`.
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| {
+                        self.refuse_native_execution(first);
+                        VarError::NameProtocolUnavailable
+                    })?;
                 return Err(VarError::TraceError);
             }
         }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         Ok(())
     }
 
@@ -6730,16 +6860,12 @@ impl Interp {
         if self.store_escapes(name) {
             return Err(VarError::Confined);
         }
-        self.require_variable_name_protocol()?;
-        self.associate_native_jim_variable_value(obj)?;
-        crate::vars::set_elem(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            self.current_ns.get(),
-            name,
-            key,
-            obj,
-        )?;
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
+        self.store_captured_byte_variable(self.current_ns.get(), None, name, Some(key), obj)?;
         let input = self.separate_variable_input(name, Some(key))?;
         if self.has_variable_traces()
             && self.fire_var_trace(
@@ -6748,8 +6874,22 @@ impl Interp {
                 b"write",
             )
         {
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| {
+                    self.refuse_native_execution(first);
+                    VarError::NameProtocolUnavailable
+                })?;
             return Err(VarError::TraceError);
         }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         Ok(())
     }
 
@@ -6769,6 +6909,11 @@ impl Interp {
         elem: Option<&[u8]>,
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
+        let scope =
+            native_operation_currency::NativeOperationScope::enter(self).map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         // SAFETY: `obj` is a live object the caller just built or read; the
         // increment/decrement bracket keeps it alive across the trace firing.
         unsafe { obj::incr_ref_count(obj) };
@@ -6793,6 +6938,13 @@ impl Interp {
         // SAFETY: balances the protective increment above (the store retained its
         // own reference on success; `set_result` retained the result's).
         unsafe { obj::decr_ref_count(obj) };
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| {
+                self.refuse_native_execution(first);
+                VarError::NameProtocolUnavailable
+            })?;
         stored
     }
 
@@ -10641,6 +10793,7 @@ impl Interp {
             info: exc.info.clone(),
             code: exc.code.clone(),
             code_explicit: exc.code_explicit,
+            already_logged: exc.already_logged,
             primitive_getter: exc.primitive_getter.clone(),
             expression_error_stage: exc.expression_error_stage.clone(),
         }
@@ -10650,14 +10803,21 @@ impl Interp {
     /// flow's exception state (the trace continues from there — e.g. `coroprobe`
     /// then appends its own `(injected coroutine probe command)` frame).
     pub(crate) fn restore_error(&self, snap: ErrorSnapshot) {
-        *self.jim_error_stack.borrow_mut() = snap.jim_error_stack;
-        let mut exc = self.exc.borrow_mut();
-        exc.native = snap.native;
-        exc.info = snap.info;
-        exc.code = snap.code;
-        exc.code_explicit = snap.code_explicit;
-        exc.primitive_getter = snap.primitive_getter;
-        exc.expression_error_stage = snap.expression_error_stage;
+        let retired_stack = self.jim_error_stack.replace(snap.jim_error_stack);
+        let retired_native = {
+            let mut exc = self.exc.borrow_mut();
+            let retired = std::mem::replace(&mut exc.native, snap.native);
+            exc.info = snap.info;
+            exc.code = snap.code;
+            exc.code_explicit = snap.code_explicit;
+            exc.already_logged = snap.already_logged;
+            exc.primitive_getter = snap.primitive_getter;
+            exc.expression_error_stage = snap.expression_error_stage;
+            retired
+        };
+        // The captured state is installed before callback-bearing old owners retire.
+        drop(retired_stack);
+        drop(retired_native);
     }
 
     /// `info frame` (no arg): the depth of the source-location stack.

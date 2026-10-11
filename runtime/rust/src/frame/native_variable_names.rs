@@ -240,24 +240,32 @@ impl FrameStack {
     }
     /// Store into an installed unnamed native local without name lookup or traces.
     /// The real frame cell retains the value until replacement or frame teardown.
-    pub(crate) fn store_native_compiled_temporary(
+    #[cfg(test)]
+pub(crate) fn store_native_compiled_temporary(
         &mut self,
         slot: usize,
         value: *mut crate::obj::TclObj,
     ) -> Result<(), super::VarError> {
+        crate::obj::check_native_liveness(value)
+            .map_err(|_| super::VarError::NameProtocolUnavailable)?;
+        let receiver = self.capture_native_compiled_temporary_receiver(slot)?;
+        receiver.store(value)
+    }
+
+    pub(crate) fn capture_native_compiled_temporary_receiver(
+        &mut self,
+        slot: usize,
+    ) -> Result<super::VariableReceiver, super::VarError> {
         let (frame, cell) = self
             .compiled_cell(slot)
             .ok_or(super::VarError::NameProtocolUnavailable)?;
         if !self.frames[frame].table.cells[cell].anonymous {
             return Err(super::VarError::NameProtocolUnavailable);
         }
-        crate::obj::check_native_liveness(value)
-            .map_err(|_| super::VarError::NameProtocolUnavailable)?;
-        let receiver = self.frames[frame]
+        self.frames[frame]
             .table
             .capture_receiver_at(cell, None, true)?
-            .ok_or(super::VarError::NameProtocolUnavailable)?;
-        receiver.store(value)
+            .ok_or(super::VarError::NameProtocolUnavailable)
     }
 
     /// Clear the actual installed anonymous compiler cell.

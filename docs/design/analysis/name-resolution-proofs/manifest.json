@@ -228845,10 +228845,10 @@
       "id": "naming.source.namespace-inventory-selection-sharing",
       "kind": "implementation-contract",
       "document": "docs/design/analysis/name-resolution-proofs/source-namespace-inventory-selection-sharing.md",
-      "problem_statement": "Selecting the same authentic source body and namespace can request mutable access to collections even when their retained contents do not change. Source inventory sharing must preserve exact namespace filtering, original views and refusal boundaries while avoiding unnecessary collection detachment.",
-      "question": "How can an exact original source/namespace selection retain shared inventory storage when its contents are unchanged, while changed facets still detach and unrelated namespaces gain no dispatch or preparation proof?",
-      "conclusion": "SharedSourceInventory::update_if_needed inspects the whole current collection before requesting Arc::make_mut; an unchanged selected facet retains its original shared storage. SourceCommandBindings::selected_source_in_context selects the authentic original script first, then applies the existing exact namespace-incarnation filters. Points and dispatch indexes rebuild only if point membership changes; the retained compiler and implicit-math visits, expression preparations, unrepresented entries, pre-handler failures and other collection fields keep their independent selected origin/namespace conditions. Empty alternative removal and nonempty variable-read alternative selection keep their existing shared context owner and refusal rules. Changed facets detach before mutation, leaving the original view intact. The deterministic storage assertions count eight collection identities across 32 identical whole-source namespace selections and require zero detachments; mixed-namespace selection requires changed point/preparation storage to detach, repeated unchanged selection to share it, and unrelated selection to remain unknown with no expression preparation. These are software collection correspondence controls, not measured elapsed-time improvement, native namespace identity, reached child/body entry, dispatch, variable read, compiler admission or execution.",
-      "scope": "Current conditional source inventory sharing. Two marked fixed controls assert exact shared collection identities and unchanged invocation correspondence, plus mixed-namespace filtering, original-view preservation and unrelated-namespace refusal. Collection detach counts concern these eight selected Rust inventories only; they make no universal allocation, wall-clock speedup or whole deep-test performance claim. All seven native providers are not tested; actual Rust command outcomes remain separate validation receipts.",
+      "problem_statement": "Selecting the same authentic source body and namespace can request mutable access to collections even when their retained contents do not change. Source inventory sharing must preserve exact namespace filtering, original views and refusal boundaries while avoiding unnecessary collection detachment. Repeated body queries can also filter the same completed immutable inventory. Reusing a selection from a different source origin, namespace incarnation or ancestor can restore observations that the selected child does not own; sharing must leave per-body ranges and current execution guards independent.",
+      "question": "How can an exact original source/namespace selection retain shared inventory storage when its contents are unchanged, while changed facets still detach and unrelated namespaces gain no dispatch or preparation proof? Within one completed immutable inventory, do complete origin and typed namespace keys share the exact cold structural selection while filtered children and independent body ranges retain their own observations?",
+      "conclusion": "SharedSourceInventory::update_if_needed inspects the whole current collection before requesting Arc::make_mut; an unchanged selected facet retains its original shared storage. SourceCommandBindings::selected_source_in_context selects the authentic original script first, then applies the existing exact namespace-incarnation filters. Points and dispatch indexes rebuild only if point membership changes; the retained compiler and implicit-math visits, expression preparations, unrepresented entries, pre-handler failures and other collection fields keep their independent selected origin/namespace conditions. Empty alternative removal and nonempty variable-read alternative selection keep their existing shared context owner and refusal rules. Changed facets detach before mutation, leaving the original view intact. The deterministic storage assertions count eight collection identities across 32 identical whole-source namespace selections and require zero detachments; mixed-namespace selection requires changed point/preparation storage to detach, repeated unchanged selection to share it, and unrelated selection to remain unknown with no expression preparation. These are software collection correspondence controls, not measured elapsed-time improvement, native namespace identity, reached child/body entry, dispatch, variable read, compiler admission or execution. RetainedSourceBodyInventory keeps a completed immutable SourceCommandBindings owner and memoizes only its existing namespace-wide structural selector under full source-origin and typed namespace equality. Matching entries share the selected immutable inventory. Each selected child has its own memo over its filtered owner, so it cannot recover ancestor or sibling observations. Three additional finite linked controls compare complete cold-selector output, actual Arc sharing, one software capture for two requests, independent per-body preparation ranges, foreign/filtered empty selections and distinct held Rust VM namespace incarnations. These definitions attach no matching owned assertion outcome. They establish neither measured time or memory improvement nor original C namespace identity, physical reference counts or present Native admission.",
+      "scope": "Current conditional source inventory sharing. Two marked fixed controls assert exact shared collection identities and unchanged invocation correspondence, plus mixed-namespace filtering, original-view preservation and unrelated-namespace refusal. Collection detach counts concern these eight selected Rust inventories only; they make no universal allocation, wall-clock speedup or whole deep-test performance claim. All seven native providers are not tested; actual Rust command outcomes remain separate validation receipts. The readonly memo is confined to one immutable owner retaining its complete source interpretation, input/store/configuration/origin and typed namespace receipts. It performs no fresh parse or registry reconstruction and executes no callback under the memo lock. Foreign and filtered selections retain the existing cold-selector empty-inventory behavior. Original body mapping/ranges, full current metadata/input, selected handler policy and Native generation/admission remain independently checked. The separate complete Logical-input/withdrawn-owner control belongs to original-analysis-metadata-context and is not rebound here.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -228942,6 +228942,34 @@
           "path": "rust/tcl-compiler/src/command_binding/shared_inventory.rs",
           "sha256": "ca79b99c5450149e0eb269d5d05f09e57dd597535f003149f4151ba45be02a49",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
+        },
+        {
+          "id": "implementation-source-0",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "sha256": "936c422c9abe44c837a665ac04e877edaf94cb7c56b2b9350a51c10528d291c6",
+          "description": "Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission."
+        },
+        {
+          "id": "implementation-source-1",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/namespace_context.rs",
+          "sha256": "f10f446e0076bac46970a2c63d4c28562a16b6d70a6e064734fad17d5aad4268",
+          "description": "Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission."
+        },
+        {
+          "id": "implementation-source-2",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "sha256": "83e641f4f8b4cb7738f717c19aac398e7183e18a33adbfbc8d9c06006b05b86f",
+          "description": "Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission."
+        },
+        {
+          "id": "implementation-source-3",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "sha256": "f96a2f7a39927cf1187bd55f0bc2d9d776907032eca0f7666230dec33b6b2a72",
+          "description": "Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission."
         }
       ],
       "source_anchors": [],
@@ -228960,6 +228988,26 @@
           "path": "rust/tcl-compiler/src/command_binding/pre_handler_failure.rs",
           "symbol": "SourceCommandBindings::retain_pre_handler_failure_namespace",
           "purpose": "Preserve exact source-origin/namespace failure alternatives and empty-row removal while sharing unchanged inventories."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "symbol": "RetainedSourceBodyInventory",
+          "purpose": "Keep one completed immutable SourceCommandBindings owner with a readonly derived projection memo. Changed source interpretation constructs an independent owner; sharing does not cache current operation validity."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "symbol": "RetainedSourceBodyInventory::selected_source_in_context",
+          "purpose": "Memoize only the existing structural namespace selector under complete origin and typed namespace equality within this owner. Each selected child receives its own memo over its filtered inventory; hashes choose buckets only."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/namespace_context.rs",
+          "symbol": "SourceNamespaceKey",
+          "purpose": "Keep semantic authored/typed namespace identity, including actual Native namespace incarnation, rather than using a displayed namespace label as a cache identity."
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "symbol": "Lowerer::selected_source_bindings_boxed_in_context",
+          "purpose": "Use the retained immutable source owner for the actual selected body, with original body mapping and lowering checks kept outside the namespace-wide projection memo."
         }
       ],
       "tests": [
@@ -228974,6 +229022,24 @@
           "selector": "command_binding::origin_inventory::tests::namespace_selection_detaches_changed_points_and_preserves_original_views",
           "assertion": "Mixed authentic namespaces detach changed point/preparation facets, retain only the selected namespace, then share a repeated unchanged projection. Original view stays intact; unrelated namespace returns unknown dispatch and no preparation proof.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "selector": "command_binding::retained_body_inventory::tests::original_body_projection_shares_exact_namespace_inventory_and_keeps_body_ranges",
+          "status": "linked",
+          "assertion": "Two different original body ranges select one exact origin/namespace entry from a completed immutable inventory. The finite control compares full cold-selector output, actual shared Arc storage and one recorded capture for two requests, while each body keeps its independent expression-preparation range. Software counters are not elapsed-time or memory measurements. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "selector": "command_binding::retained_body_inventory::tests::original_body_projection_children_cannot_restore_filtered_or_foreign_origins",
+          "status": "linked",
+          "assertion": "Different namespace keys keep distinct selected inventories. A child selects from its already filtered owner and cannot recover the sibling points or expression preparations; a foreign original source selection remains empty under the existing cold-selector semantics. The control does not require structural selection to authenticate current execution. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_body_inventory.rs",
+          "selector": "command_binding::retained_body_inventory::tests::original_body_projection_uses_actual_native_namespace_incarnation",
+          "status": "linked",
+          "assertion": "Two held genuine Rust VM entries have equal namespace display and different typed namespace identities. The exact cold-selector parity and shared same-key view are preserved, while the other actual namespace incarnation selects an empty point/preparation inventory. Holding software entry metadata grants no original C execution, current handler admission or physical reference-count parity. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant."
         }
       ],
       "replay": {

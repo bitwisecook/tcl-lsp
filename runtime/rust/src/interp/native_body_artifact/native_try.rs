@@ -134,15 +134,22 @@ impl BodyProtectedCompletion {
                 });
             }
         };
-        let stored = {
-            let mut frames = interp.frames.borrow_mut();
-            frames
-                .store_native_compiled_temporary(*options_slot, options.as_ptr())
-                .and_then(|()| {
-                    frames.store_native_compiled_temporary(*result_slot, result.as_ptr())
-                })
-                .map(|()| frames.current_activation())
-        };
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+            .map_err(|first| interp.refuse_native_execution(first))?;
+        let original_activation = interp.frames.borrow().current_activation();
+        let stored = interp
+            .store_native_compiled_temporary_checked(*options_slot, options.as_ptr())
+            .and_then(|()| {
+                if interp.frames.borrow().current_activation() != original_activation {
+                    return Err(crate::frame::VarError::NameProtocolUnavailable);
+                }
+                interp.store_native_compiled_temporary_checked(*result_slot, result.as_ptr())
+            })
+            .map(|()| original_activation);
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| interp.refuse_native_execution(first))?;
         let activation = stored.map_err(|_| {
             interp.report_cmd_error(unavailable("native try anonymous completion cells").into())
         })?;

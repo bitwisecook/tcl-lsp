@@ -86,6 +86,7 @@ fn exists_retained(place: &Place) -> Option<bool> {
         Err(_) => false,
     })
 }
+#[cfg(test)]
 fn store_retained(place: &Place, value: *mut TclObj) -> Option<Result<(), VarError>> {
     if let Some(entry) = &place.scalar_entry {
         return Some(
@@ -1242,8 +1243,114 @@ pub(crate) fn capture_static_source(
     table(frames, ns, resolved.home)?.capture_cell(&resolved.name)
 }
 
+pub(crate) enum CapturedByteStore {
+    Retained(crate::frame::VariableReceiver),
+    Generic {
+        home: VarHome,
+        root: crate::frame::CapturedJimLinkRoot,
+    },
+}
+impl CapturedByteStore {
+    pub(crate) fn store(
+        &mut self,
+        value: *mut TclObj,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), crate::frame::JimLinkStoreError> {
+        match self {
+            Self::Retained(receiver) => {
+                currency.ensure_current_or_refuse().map_err(|error| {
+                    crate::frame::JimLinkStoreError::Command(
+                        tcl_cmd_core::CmdError::from_execution_refusal(error),
+                    )
+                })?;
+                let reached = receiver.store(value);
+                currency.ensure_current_or_refuse().map_err(|error| {
+                    crate::frame::JimLinkStoreError::Command(
+                        tcl_cmd_core::CmdError::from_execution_refusal(error),
+                    )
+                })?;
+                receiver.check_current()?;
+                reached.map_err(Into::into)
+            }
+            Self::Generic { root, .. } => root.store(value, currency),
+        }
+    }
+    pub(crate) fn check(
+        &self,
+        frames: &FrameStack,
+        ns: &Namespaces,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+    ) -> Result<(), crate::frame::JimLinkStoreError> {
+        currency.ensure_current_or_refuse().map_err(|error| {
+            crate::frame::JimLinkStoreError::Command(
+                tcl_cmd_core::CmdError::from_execution_refusal(error),
+            )
+        })?;
+        match self {
+            Self::Retained(receiver) => receiver.check_current().map_err(Into::into),
+            Self::Generic { home, root } => {
+                root.check(currency)?;
+                if !table(frames, ns, *home).is_some_and(|table| root.matches_table(table)) {
+                    return Err(crate::frame::JimLinkStoreError::Command(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "captured byte variable table",
+                        )
+                        .into(),
+                    ));
+                }
+                Ok(())
+            }
+        }
+    }
+}
+pub(crate) fn capture_byte_store(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current: NsId,
+    level: Option<usize>,
+    name: &[u8],
+    element: Option<&[u8]>,
+) -> Result<CapturedByteStore, VarError> {
+    // Keep the explicit element projection before resolving its root, as in set_elem.
+    let key = element
+        .map(|key| separate_element(ns, name, key))
+        .transpose()?;
+    let mut place = match level.map_or_else(
+        || resolve(frames, ns, current, name),
+        |level| resolve_at(frames, ns, name, level),
+    ) {
+        Resolved::Place(place) => place,
+        Resolved::Error(error) => return Err(error),
+    };
+    if let Some(key) = key {
+        if place.elem.is_some() {
+            return Err(VarError::IsScalar);
+        }
+        place.elem = Some(key);
+    }
+    if let (Some(array), Some(element)) = (&place.array_cell, &place.elem) {
+        return Ok(CapturedByteStore::Retained(
+            array.capture_receiver(element.clone()),
+        ));
+    }
+    if let Some(entry) = place.scalar_entry {
+        return Ok(CapturedByteStore::Retained(
+            entry
+                .capture_receiver(place.elem, true)?
+                .ok_or(VarError::NameProtocolUnavailable)?,
+        ));
+    }
+    let root =
+        table_mut(frames, ns, place.home).capture_byte_store_root(&place.name, place.elem)?;
+    Ok(CapturedByteStore::Generic {
+        home: place.home,
+        root,
+    })
+}
+
 /// `set name value` — write through links to wherever `name` resolves. The cell
 /// takes a **+1** on `obj`. A qualified write into a missing namespace errors.
+#[cfg(test)]
 pub(crate) fn set(
     frames: &mut FrameStack,
     ns: &mut Namespaces,
@@ -1269,6 +1376,7 @@ pub(crate) fn set(
 }
 
 /// `set name(key) value`. Errors if `name` is a scalar / its ns is missing.
+#[cfg(test)]
 pub(crate) fn set_elem(
     frames: &mut FrameStack,
     ns: &mut Namespaces,
@@ -1379,6 +1487,7 @@ pub(crate) fn get_elem_at(
 }
 
 /// Frame-addressed [`set`] — the cell takes a **+1** on `obj`.
+#[cfg(test)]
 pub(crate) fn set_at(
     frames: &mut FrameStack,
     ns: &mut Namespaces,
@@ -1405,6 +1514,7 @@ pub(crate) fn set_at(
 
 /// Frame-addressed array-element write. The caller retains ownership on an
 /// error, matching [`set_at`].
+#[cfg(test)]
 pub(crate) fn set_elem_at(
     frames: &mut FrameStack,
     ns: &mut Namespaces,

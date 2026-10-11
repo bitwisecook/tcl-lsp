@@ -51,7 +51,7 @@
 //! *assigns* a constructor result to it — it is `[lindex $args 0]`, guarded
 //! by a runtime `info object isa` test.  The analyser's
 //! `instance_classes` therefore has no binding for it, and the reference
-//! scan ([`crate::references::find_obj_method_call_sites`]) correctly does
+//! scan ([`crate::references::method_references_for_class`]) correctly does
 //! not match the site.  An edit set that touched only the declaration would,
 //! applied and run under both interpreters, give
 //! `unknown method "X": must be Get, GetX, Y or destroy`.

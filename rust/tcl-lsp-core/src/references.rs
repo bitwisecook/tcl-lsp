@@ -2036,7 +2036,7 @@ pub(crate) fn destructor_next_chain_references(
 /// of which class names are valid bare-dispatch heads for `method` when it is
 /// a `classmethod` — a pure-consumer document has no local `ClassDef` for
 /// `class_q` to derive this from (unlike the same-document path, whose
-/// [`find_obj_method_call_sites`] derives it from `analysis.all_classes`
+/// [`method_references_for_class`] derives it from `analysis.all_classes`
 /// directly), so the caller supplies it from the workspace index's
 /// [`WorkspaceMethod`](crate::workspace_index::WorkspaceMethod) `kind`
 /// instead.  Empty when `method` is not a classmethod, or the caller has no
@@ -3294,6 +3294,7 @@ fn find_class_member_references(
 /// `puts [$d bark]`, calls inside procs / methods).  Method
 /// names embedded in quoted / word tokens
 /// (`"prefix[$d bark]"`) are not descended — a rare form.
+#[cfg(test)]
 pub(crate) fn find_obj_method_call_sites(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -3397,7 +3398,7 @@ fn dispatch_receivers(
     receivers
 }
 
-/// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
+/// External method selector with `extra_cmd_names` — bare command
 /// names to treat as valid classmethod-dispatch heads for `method`
 /// regardless of what this document's own `analysis.all_classes` knows.
 ///

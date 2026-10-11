@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::original_definition_stage_tests::class_operand_withdrawal_cannot_recreate_a_class_facet_on_the_original_object ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.20s
+

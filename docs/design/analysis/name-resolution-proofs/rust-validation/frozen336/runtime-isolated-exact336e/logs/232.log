@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::bootstrap_context_tests::original_bootstrap_and_setter_preserve_prior_host_refusal_without_callbacks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.25s
+

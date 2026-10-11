@@ -47,6 +47,14 @@ pub(crate) struct CapturedJimLinkRoot {
     ledger: Weak<RefCell<tcl_core_types::NativeEntryLedger>>,
 }
 impl VarTable {
+    pub(crate) fn capture_byte_store_root(
+        &mut self,
+        name: &[u8],
+        element: Option<Vec<u8>>,
+    ) -> Result<CapturedJimLinkRoot, VarError> {
+        self.slot_for(name);
+        self.capture_jim_link_root(name, element)
+    }
     pub(crate) fn capture_jim_link_root(
         &self,
         name: &[u8],
@@ -72,12 +80,19 @@ impl VarTable {
     }
 }
 impl CapturedJimLinkRoot {
-    fn check(&self, currency: &NativeOperationCurrency) -> Result<(), JimLinkStoreError> {
+    pub(crate) fn check(
+        &self,
+        currency: &NativeOperationCurrency,
+    ) -> Result<(), JimLinkStoreError> {
         currency
             .ensure_current_or_refuse()
             .map_err(|error| JimLinkStoreError::Command(CmdError::from_execution_refusal(error)))?;
         self.check_storage()
             .map_err(|error| JimLinkStoreError::Command(error.into()))
+    }
+    pub(crate) fn matches_table(&self, table: &VarTable) -> bool {
+        Weak::ptr_eq(&self.ledger, &std::rc::Rc::downgrade(&table.entry_order))
+            && self.ledger.strong_count() != 0
     }
     fn check_storage(&self) -> Result<(), ValueError> {
         let current = self.cell.upgrade().is_some_and(|cell| {

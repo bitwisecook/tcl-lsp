@@ -1,0 +1,17 @@
+
+running 1 test
+test codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion ... 
+thread 'codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion' (1254838) panicked at src/codegen_abi.rs:4495:17:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.19s
+

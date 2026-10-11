@@ -56,7 +56,7 @@
 //! every external `$obj method` / `[$obj method]` call site
 //! where `$obj`'s class (per `analysis.instance_classes`)
 //! matches.  Renaming can also be triggered from an external
-//! call site.  See [`crate::references::find_obj_method_call_sites`]
+//! call site.  See [`crate::references::method_references_for_class`]
 //! for the external-site scan's coverage.
 //!
 //! Cross-document rename: procs and classes rewrite their sibling-document

@@ -1,0 +1,26 @@
+{
+  "format": "gzip",
+  "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen336/sealed-own-runtime-images/pinned-runtime336.elf.gz",
+  "sha256": "9932f5552467332c0bd210c4ef6f248e027599a3651783eb7cb19b15faea9a63",
+  "bytes": 17341374,
+  "original_executable": "/tmp/naming-owned336/pinned-runtime336.elf",
+  "original_sha256": "5ed9740c431a0d6d7e6046607a76717eefb313101b32ede81d7074430e3ed98d",
+  "original_bytes": 71918816,
+  "pin_metadata": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen336/sealed-own-runtime-images/pinned-runtime336.json",
+    "sha256": "a666028c4bfdae75b2e61cc0c41c01b29ba37b5d43f2de5eccbcdf0c8da3d4ed"
+  },
+  "original_retirement_journal": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen336/sealed-own-runtime-images/lossless-closed-owned-runtime-journal.json",
+    "sha256": "131f47c4eddd2fc4cea3c4a1f49a379aafed9e77c5f75fa53279c6a28b095946"
+  },
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen336/source-snapshot.json.gz",
+    "sha256": "5df716509c39e910add01686300fe1f2401b3d2e324554112036aa300641c043",
+    "compression": "gzip",
+    "uncompressed_sha256": "9abbe992e2ddb059ff8ca4124f64f1fe2ca2406d248fe2d77f303f34491a67a8"
+  },
+  "build_receipt_id": "rust.frozen336.integration-runtime-own-test-build336",
+  "verification": "The original successful no-run producer emits exactly one fresh:false library-test artifact with its recorded features. Strict pin metadata and the retained retirement journal join its whole executable SHA and size. Full gzip decompression independently verifies all original bytes. Only compressed files are hardlinked; no raw executable is created.",
+  "restoration": "Verify compressed SHA/size and full decompressed SHA/size, then restore the exact original path, mode, ownership and nanosecond timestamps from the journal before original argv replay. Original inode identity cannot be restored. Never replace an active executable. A separate replay supplies no replacement result for these closed operations."
+}

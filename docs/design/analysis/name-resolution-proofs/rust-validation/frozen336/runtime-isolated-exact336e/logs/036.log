@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_alias::original_alias_storage_tests::original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role ... 
+thread 'cmd_alias::original_alias_storage_tests::original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role' (1253731) panicked at src/cmd_alias.rs:4284:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_alias::original_alias_storage_tests::original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 5.59s
+

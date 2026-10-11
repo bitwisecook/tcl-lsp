@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::c_api_error_tests::original_exception_retirement_observes_reached_state_without_a_live_borrow ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 2.88s
+

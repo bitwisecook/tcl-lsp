@@ -222,10 +222,8 @@ impl Interp {
                     let value = stack
                         .last()
                         .ok_or_else(|| self.report_cmd_error(failure().into()))?;
-                    let stored = self
-                        .frames
-                        .borrow_mut()
-                        .store_native_compiled_temporary(*slot, value.as_ptr());
+                    let stored =
+                        self.store_native_compiled_temporary_checked(*slot, value.as_ptr());
                     stored.map_err(|_| self.report_cmd_error(failure().into()))?;
                 }
                 MathopStep::LoadTemporary(slot) => {

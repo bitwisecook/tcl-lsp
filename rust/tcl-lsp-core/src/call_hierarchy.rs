@@ -220,13 +220,18 @@ pub struct LogicalCallTarget<'a> {
 pub enum LogicalCallDeclaration<'a> {
     /// The actual procedure and its retained qualified source key.
     Procedure {
+        /// Qualified source key retained by the selected current declaration.
         qualified: &'a str,
+        /// Actual procedure declaration borrowed from the current analysis.
         definition: &'a ProcDef,
     },
     /// The actual class/member declaration and the table containing it.
     Member {
+        /// Actual class containing the selected current source member.
         class: &'a ClassDef,
+        /// Actual member declaration borrowed from the current analysis.
         definition: &'a MethodDef,
+        /// Declared member table, without runtime dispatch or export authority.
         side: MemberSide,
     },
 }

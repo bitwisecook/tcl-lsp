@@ -1,0 +1,6 @@
+
+running 1 test
+test codegen_abi::original_frame_owner::tests::real_frame_retirement_runs_on_original_owner_and_keeps_first_cause_during_reentrant_exit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.24s
+

@@ -3729,9 +3729,12 @@ impl Interp {
     /// Retire the allocated partial object without dispatching later creation work.
     fn oo_refused_publication(&mut self, object: OoId, error: tcl_cmd_core::CmdError) -> Code {
         let code = self.report_cmd_error(error);
-        let snapshot = self.error_snapshot();
+        let result = obj::Owned::retain(self.get_obj_result());
+        let snapshot = self.snapshot_error();
         self.oo_destroy_bg(object);
-        self.error_restore(snapshot);
+        self.set_result(result.as_ptr());
+        self.restore_error(snapshot);
+        drop(result);
         let _ = self.check_entered_native_operation();
         code
     }
@@ -6712,6 +6715,8 @@ impl Interp {
     /// Copy the procedures and variables of namespace `src_ns` into `dst_ns`
     /// (C's `TclCopyNamespaceProcedures`/`Variables`, used by `<cloned>`).
     fn oo_clone_namespace(&mut self, src_ns: NsId, dst_ns: NsId) -> Result<(), Code> {
+        let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(self)
+            .map_err(|first| self.refuse_native_execution(first))?;
         // Procedures (skip built-ins like the per-object `my`/`myclass`).
         let names: Vec<Vec<u8>> = self
             .namespaces()
@@ -6738,44 +6743,72 @@ impl Interp {
                 let mut fqn = dst_qual.clone();
                 fqn.extend_from_slice(b"::");
                 fqn.extend_from_slice(n);
-                let duplicate = def
-                    .duplicate(dst_ns, fqn)
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                let duplicate = def.duplicate(dst_ns, fqn);
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                let duplicate = duplicate.map_err(|error| self.report_cmd_error(error.into()))?;
                 self.namespaces_mut()
                     .bind(dst_ns, n, Command::Proc(duplicate));
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
             }
         }
         // Variables (scalars and array elements; `store_*` retains the values).
-        type ArrayCopy = (Vec<u8>, Vec<(Vec<u8>, *mut TclObj)>);
-        let mut scalars: Vec<(Vec<u8>, *mut TclObj)> = Vec::new();
+        type ArrayCopy = (Vec<u8>, Vec<(Vec<u8>, obj::NativeObjectLifetime)>);
+        let mut scalars: Vec<(Vec<u8>, obj::NativeObjectLifetime)> = Vec::new();
         let mut arrays: Vec<ArrayCopy> = Vec::new();
         {
             let ns = self.namespaces();
             let table = ns.var_table(src_ns);
             for name in ns.var_names(src_ns) {
                 match table.cell(&name).as_deref() {
-                    Some(crate::frame::Var::Scalar(p)) => scalars.push((name, *p)),
+                    Some(crate::frame::Var::Scalar(p)) => {
+                        scalars.push((name, obj::NativeObjectLifetime::retain(*p)))
+                    }
                     Some(crate::frame::Var::Array(map)) => {
-                        arrays.push((name, map.iter().map(|(k, v)| (k.clone(), *v)).collect()));
+                        arrays.push((
+                            name,
+                            map.iter()
+                                .map(|(k, v)| (k.clone(), obj::NativeObjectLifetime::retain(*v)))
+                                .collect(),
+                        ));
                     }
                     _ => {}
                 }
             }
         }
-        for (name, p) in scalars {
-            let _ = self
-                .namespaces_mut()
-                .var_table_mut(dst_ns)
-                .store_scalar(&name, p);
+        for (name, value) in scalars {
+            let _ = self.store_captured_byte_variable(dst_ns, None, &name, None, value.as_ptr());
+            drop(value);
+            scope
+                .currency()
+                .ensure_current_or_refuse()
+                .map_err(|first| self.refuse_native_execution(first))?;
         }
         for (name, elems) in arrays {
-            for (k, p) in elems {
-                let _ = self
-                    .namespaces_mut()
-                    .var_table_mut(dst_ns)
-                    .store_elem(&name, &k, p);
+            for (key, value) in elems {
+                let _ = self.store_captured_byte_variable(
+                    dst_ns,
+                    None,
+                    &name,
+                    Some(&key),
+                    value.as_ptr(),
+                );
+                drop(value);
+                scope
+                    .currency()
+                    .ensure_current_or_refuse()
+                    .map_err(|first| self.refuse_native_execution(first))?;
             }
         }
+        scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|first| self.refuse_native_execution(first))?;
         Ok(())
     }
 

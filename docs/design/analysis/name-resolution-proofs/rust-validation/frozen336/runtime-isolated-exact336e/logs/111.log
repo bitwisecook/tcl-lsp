@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::original_definition_stage_tests::definition_namespace_checks_original_target_after_kind_and_namespace_getters ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.42s
+

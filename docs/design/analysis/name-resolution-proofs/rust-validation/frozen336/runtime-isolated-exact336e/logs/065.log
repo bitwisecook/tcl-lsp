@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions ... 
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions' (1254005) panicked at src/cmd_namespace/original_argument_tests.rs:221:5:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.37s
+

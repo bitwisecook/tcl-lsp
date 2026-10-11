@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_jim_lookup::active_retirement_tests::original_jim_previous_workers_retire_after_current_outside_namespace_borrows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.39s
+

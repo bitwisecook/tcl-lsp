@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::native_method_cache::original_ownership_tests::original_entered_chain_retains_every_inherited_record_until_last_next_owner ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 3.77s
+

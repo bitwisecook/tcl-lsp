@@ -1,0 +1,6 @@
+
+running 1 test
+test codegen_abi::original_ingress_tests::original_argv_callback_refusal_keeps_borrowed_words_and_completion_output ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 1.20s
+

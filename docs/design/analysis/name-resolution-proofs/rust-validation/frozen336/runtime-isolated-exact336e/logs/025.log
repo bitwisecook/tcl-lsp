@@ -1,0 +1,6 @@
+
+running 1 test
+test capi::scalar::tests::scalar_jim_context_cannot_borrow_a_foreign_original_numeric_host ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.39s
+

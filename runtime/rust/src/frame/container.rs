@@ -84,32 +84,33 @@ impl VarTable {
         name: &[u8],
         value: *mut TclObj,
     ) -> Result<(), VarError> {
+        let previous = self.publish_dictionary_root(name, value)?;
+        drop(previous);
+        Ok(())
+    }
+
+    pub(super) fn publish_dictionary_root(
+        &mut self,
+        name: &[u8],
+        value: *mut TclObj,
+    ) -> Result<RetiredRootContents, VarError> {
         let slot = self.slot_for(name);
         self.entry_order.borrow_mut().insert(name);
         let mut cell = self.cells[slot].contents.borrow_mut();
         if cell.constant {
             return Err(VarError::IsConstant);
         }
-        if cell.binding_id.is_none() {
-            cell.binding_id = Some(fresh_var_id());
-        }
-        unsafe { obj::incr_ref_count(value) };
-        if let Some(old) = cell.var.replace(Var::Scalar(value)) {
-            old.release();
-        }
-        // Logical element names will be selected from the replacement value.
-        cell.element_ids.clear();
-        cell.native_member_keys.clear();
-        cell.element_operation_refs.clear();
-        Ok(())
+        let previous = cell.publish_dictionary_root(value);
+        drop(cell);
+        Ok(previous)
     }
 
-    pub(super) fn store_dictionary_element(
+    pub(super) fn publish_dictionary_element(
         &mut self,
         name: &[u8],
         key: &[u8],
         value: *mut TclObj,
-    ) -> Result<(), VarError> {
+    ) -> Result<RetiredRootContents, VarError> {
         if self.is_constant(name) {
             return Err(VarError::IsConstant);
         }
@@ -118,7 +119,7 @@ impl VarTable {
             obj::new_string_obj(key.as_ptr().cast(), key.len() as obj::TclSize)
         });
         dict::dict_set(root.as_ptr(), key.as_ptr(), value).map_err(|_| VarError::IsScalar)?;
-        self.store_dictionary_root(name, root.as_ptr())
+        self.publish_dictionary_root(name, root.as_ptr())
     }
 
     fn dictionary_copy(&self, name: &[u8]) -> Result<Owned, VarError> {
@@ -150,7 +151,7 @@ impl VarTable {
 
 /// Ownership removed from a published root. Retirement happens after the caller
 /// releases every cell, frame and namespace borrow.
-pub(super) struct RetiredRootContents {
+pub(crate) struct RetiredRootContents {
     previous: Option<Var>,
     _member_keys: super::native_element_entry::NativeElementEntries,
 }

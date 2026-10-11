@@ -1,0 +1,6 @@
+
+running 1 test
+test frame::jim_link_store::tests::captured_compatibility_link_does_not_adopt_missing_or_recreated_target ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1682 filtered out; finished in 0.39s
+
