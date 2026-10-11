@@ -89,10 +89,12 @@ fn quiet_dictionary_initial_read_stops_first_refusal_before_key_getter_or_public
                 let prior = interpreter.result_obj();
                 UPDATES.with(|value| value.set(0));
                 assert_eq!(
-                    crate::cmd_dict::dict_cmd(
-                        &mut interpreter,
-                        &[command.as_ptr(), sub.as_ptr(), name.as_ptr(), key.as_ptr()],
-                    ),
+                    interpreter.dispatch(&[
+                        command.as_ptr(),
+                        sub.as_ptr(),
+                        name.as_ptr(),
+                        key.as_ptr(),
+                    ]),
                     Code::Error
                 );
                 assert_eq!(calls.get(), 1);

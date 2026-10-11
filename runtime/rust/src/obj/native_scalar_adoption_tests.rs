@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Software controls of the original scalar retirement/adoption boundary.
 use super::*;
-use crate::interp::{Interp, native_operation_currency::NativeOperationScope};
+use crate::interp::{native_operation_currency::NativeOperationScope, Interp};
 use std::cell::Cell;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::{
@@ -277,11 +277,11 @@ impl tcl_platform::NumericEnvironment for JimNumericHost {
     fn double(
         &self,
         input: &[u8],
-        offset: usize,
+        reset_errno: bool,
     ) -> Result<tcl_platform::DoubleNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
     {
         self.later_calls.set(self.later_calls.get() + 1);
-        self.actual().double(input, offset)
+        self.actual().double(input, reset_errno)
     }
 }
 #[test]
@@ -364,7 +364,7 @@ impl tcl_platform::NumericEnvironment for ForeignNumericEnvironment {
     fn double(
         &self,
         _: &[u8],
-        _: usize,
+        _: bool,
     ) -> Result<tcl_platform::DoubleNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
     {
         self.0.set(self.0.get() + 1);

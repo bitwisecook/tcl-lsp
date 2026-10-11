@@ -20,6 +20,7 @@ pub(super) struct PreparedNativeExpression {
     logical_left84: HashMap<tcl_syntax::expr::NativeExprNode, [usize; 2]>,
 }
 
+#[cfg(have_tommath)]
 struct ConstantExpressionContext {
     // Literal cleanup runs while the actual original entry is still held.
     literals: HashMap<(u32, u32), obj::Owned>,
@@ -28,6 +29,7 @@ struct ConstantExpressionContext {
     dialect: tcl_registry::InvocationDialect,
     host: Rc<dyn tcl_platform::Host>,
 }
+#[cfg(have_tommath)]
 impl ConstantExpressionContext {
     fn prepare(
         tree: &tcl_syntax::expr::NativeExprNode,
@@ -107,6 +109,7 @@ impl ConstantExpressionContext {
         })
     }
 }
+#[cfg(have_tommath)]
 impl crate::expr::ExprCtx for ConstantExpressionContext {
     fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
         Some(&mut self.interpreter)
@@ -316,6 +319,7 @@ impl Builder<'_> {
                     return Err((self.reject_native_compilation(failure)).into());
                 }
             };
+            #[cfg(have_tommath)]
             if tcl_registry::runtime_expr_validation::native_expression_pooled_subtrees(
                 node,
                 program.context.native_syntax,
@@ -412,6 +416,8 @@ impl Builder<'_> {
             match node {
                 ExprNode::Literal { text, start, end } => {
                     let index = if self.stamp.physical >= tcl_dialect::TclVersion::V8_5 {
+                        #[cfg(have_tommath)]
+                        {
                         let original = ConstantExpressionContext::prepare(node, self.interp)?;
                         let original = &original.literals[&(*start, *end)];
                         if let Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(number)) =
@@ -428,6 +434,12 @@ impl Builder<'_> {
                                 number,
                             )
                         } else {
+                            self.literals.intern_bytes(text)
+                        }
+
+                        }
+                        #[cfg(not(have_tommath))]
+                        {
                             self.literals.intern_bytes(text)
                         }
                     } else {
@@ -636,6 +648,7 @@ impl Builder<'_> {
     }
 }
 
+#[cfg(have_tommath)]
 struct CompiledExpressionContext<'a> {
     interp: &'a mut Interp,
     artifact: &'a NativeBodyArtifact,
@@ -643,6 +656,7 @@ struct CompiledExpressionContext<'a> {
     execution: &'a mut BodyExecution,
     propagated: Option<Code>,
 }
+#[cfg(have_tommath)]
 impl CompiledExpressionContext<'_> {
     fn error(&mut self, code: Code) -> crate::expr_error::ExprError {
         self.propagated = Some(code);
@@ -652,6 +666,7 @@ impl CompiledExpressionContext<'_> {
         }
     }
 }
+#[cfg(have_tommath)]
 impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
     fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
         Some(self.interp)
@@ -899,6 +914,13 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
 }
 
 impl Interp {
+    #[cfg(not(have_tommath))]
+    pub(super) fn refuse_missing_compiled_expression_backend(&mut self) -> Code {
+        self.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable,
+        )
+    }
+
     pub(super) fn execute_body_expression(
         &mut self,
         artifact: &NativeBodyArtifact,
@@ -935,41 +957,49 @@ impl Interp {
             }
             return Err(code);
         }
-        let NativeExpressionTree::Parsed(tree) = &prepared.program.tree else {
-            unreachable!()
-        };
-        let mut context = CompiledExpressionContext {
-            interp: self,
-            artifact,
-            prepared,
-            execution,
-            propagated: None,
-        };
-        let result =
-            crate::expr::eval_compiled_expression_node(tree, &mut context).and_then(|value| {
-                if prepared.program.context.native_syntax
-                    == tcl_syntax::expr::parser::NativeExprSyntax::Tcl(
-                        tcl_dialect::TclVersion::V8_4,
-                    )
-                    && matches!(
-                        tree,
-                        ExprNode::Literal { .. }
-                            | ExprNode::String { .. }
-                            | ExprNode::Var { .. }
-                            | ExprNode::Command { .. }
-                            | ExprNode::Call { .. }
-                    )
-                {
-                    crate::expr::normalize_compiled_primary84(value, context.interp)
-                } else {
-                    Ok(value)
+        #[cfg(not(have_tommath))]
+        {
+            let _ = execution;
+            return Err(self.refuse_missing_compiled_expression_backend());
+        }
+        #[cfg(have_tommath)]
+        {
+            let NativeExpressionTree::Parsed(tree) = &prepared.program.tree else {
+                unreachable!()
+            };
+            let mut context = CompiledExpressionContext {
+                interp: self,
+                artifact,
+                prepared,
+                execution,
+                propagated: None,
+            };
+            let result =
+                crate::expr::eval_compiled_expression_node(tree, &mut context).and_then(|value| {
+                    if prepared.program.context.native_syntax
+                        == tcl_syntax::expr::parser::NativeExprSyntax::Tcl(
+                            tcl_dialect::TclVersion::V8_4,
+                        )
+                        && matches!(
+                            tree,
+                            ExprNode::Literal { .. }
+                                | ExprNode::String { .. }
+                                | ExprNode::Var { .. }
+                                | ExprNode::Command { .. }
+                                | ExprNode::Call { .. }
+                        )
+                    {
+                        crate::expr::normalize_compiled_primary84(value, context.interp)
+                    } else {
+                        Ok(value)
+                    }
+                });
+            match result {
+                Ok(value) => Ok(value),
+                Err(error) => {
+                    let code = context.propagated;
+                    Err(code.unwrap_or_else(|| self.report_expr_error(error)))
                 }
-            });
-        match result {
-            Ok(value) => Ok(value),
-            Err(error) => {
-                let code = context.propagated;
-                Err(code.unwrap_or_else(|| self.report_expr_error(error)))
             }
         }
     }
@@ -1047,7 +1077,16 @@ impl Interp {
             }
         }
         let source = self.concatenate_body_values(parts)?;
-        Ok(crate::builtins::eval_expr_original(self, source.as_ptr()))
+        #[cfg(have_tommath)]
+        {
+            Ok(crate::builtins::eval_expr_original(self, source.as_ptr()))
+        }
+        #[cfg(not(have_tommath))]
+        {
+            let first = self.refuse_missing_compiled_expression_backend();
+            drop(source);
+            Err(first)
+        }
     }
     fn control_boolean(
         &mut self,
@@ -1348,7 +1387,7 @@ impl ControlOperation {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, have_tommath))]
 mod constant_owner_tests {
     use super::*;
 
@@ -1448,3 +1487,6 @@ mod constant_owner_tests {
         }
     }
 }
+
+#[cfg(all(test, not(have_tommath)))]
+mod no_tower_owner_tests;

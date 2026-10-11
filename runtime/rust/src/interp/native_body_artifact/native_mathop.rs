@@ -67,7 +67,9 @@ impl Builder<'_> {
         })
     }
 }
+#[cfg(have_tommath)]
 struct PrimitiveContext<'a>(&'a mut Interp);
+#[cfg(have_tommath)]
 impl crate::expr::ExprCtx for PrimitiveContext<'_> {
     fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
         Some(self.0)
@@ -117,43 +119,54 @@ impl Interp {
                 )
                 .map_err(|error| self.report_cmd_error(error.into()));
         }
-        let boolean = matches!(
-            operator,
-            M::Not
-                | M::NotEqual
-                | M::In
-                | M::NotIn
-                | M::Less
-                | M::LessEqual
-                | M::Greater
-                | M::GreaterEqual
-                | M::Equal
-                | M::StringLess
-                | M::StringLessEqual
-                | M::StringGreater
-                | M::StringGreaterEqual
-        );
-        let result =
-            crate::expr::eval_mathop(operator.spelling(), operands, &mut PrimitiveContext(self))
-                .map_err(|error| match error {
-                    tcl_cmd_core::mathop::MathopError::Op(error) => self.report_expr_error(error),
-                    tcl_cmd_core::mathop::MathopError::WrongArgs(_) => self.report_cmd_error(
-                        unavailable("native math primitive operand geometry").into(),
-                    ),
-                })?;
-        if boolean {
-            let truth = crate::typed_value::native_boolean_for_interp(
-                self,
-                result.as_ptr(),
-                tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
-            )
-            .map_err(|error| self.report_cmd_error(error))?;
-            return self
-                .native_execution_boolean_constant(truth)
-                .map(obj::Owned::retain)
-                .map_err(|error| self.report_cmd_error(error.into()));
+        #[cfg(not(have_tommath))]
+        {
+            let first = self.refuse_missing_compiled_expression_backend();
+            drop(operands);
+            Err(first)
         }
-        Ok(result)
+        #[cfg(have_tommath)]
+        {
+            let boolean = matches!(
+                operator,
+                M::Not
+                    | M::NotEqual
+                    | M::In
+                    | M::NotIn
+                    | M::Less
+                    | M::LessEqual
+                    | M::Greater
+                    | M::GreaterEqual
+                    | M::Equal
+                    | M::StringLess
+                    | M::StringLessEqual
+                    | M::StringGreater
+                    | M::StringGreaterEqual
+            );
+            let result = crate::expr::eval_mathop(
+                operator.spelling(),
+                operands,
+                &mut PrimitiveContext(self),
+            )
+            .map_err(|error| match error {
+                tcl_cmd_core::mathop::MathopError::Op(error) => self.report_expr_error(error),
+                tcl_cmd_core::mathop::MathopError::WrongArgs(_) => self
+                    .report_cmd_error(unavailable("native math primitive operand geometry").into()),
+            })?;
+            if boolean {
+                let truth = crate::typed_value::native_boolean_for_interp(
+                    self,
+                    result.as_ptr(),
+                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+                )
+                .map_err(|error| self.report_cmd_error(error))?;
+                return self
+                    .native_execution_boolean_constant(truth)
+                    .map(obj::Owned::retain)
+                    .map_err(|error| self.report_cmd_error(error.into()));
+            }
+            Ok(result)
+        }
     }
     fn mathop_stack_primitive(
         &mut self,
@@ -259,3 +272,6 @@ impl Interp {
         Ok(Code::Ok)
     }
 }
+
+#[cfg(all(test, not(have_tommath)))]
+mod no_tower_primitive_tests;

@@ -569,3 +569,15 @@ allocation-only, and generation/currentness checks precede later members and
 results. The authored route keeps its configured parser and pure String policy;
 an inherited operation supplies currency only. Existing public neutral List
 conversion APIs keep their independent policies and role order.
+
+
+A Runtime build without TomMath retains the original body compiler, source,
+literal, local, control and non-expression instruction owners. It does not run
+the missing constant evaluator or manufacture its numeric literal primaries.
+Existing rejected-syntax records keep their separate reporting route. A reached
+parsed expression, dynamic expression evaluator or numeric primitive returns
+the typed `ExpressionEngineUnavailable`, preserving the actual first cause and
+mandatory operand cleanup. The existing independent String equality worker
+remains available. Descriptive expression syntax or a source cache supplies no
+missing evaluator capability. Genuine `have_tommath` and absent-backend control
+requests are separate build profiles; source declarations alone prove neither.
