@@ -531,7 +531,9 @@ fn original_variable_name_dictionary_worker_refuses_retired_header_before_public
     let first = vm.execution_refusal.clone().unwrap();
     assert!(matches!(
         first,
-        NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::Header(_))
+        NativeExecutionError::ValueAccessRefusal(
+            NativeValueAccessRefusal::CommandProtocolUnavailable("retired native object header")
+        )
     ));
     assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
     assert_eq!(args[0].native_object_snapshot(), before);
