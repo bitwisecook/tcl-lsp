@@ -17,7 +17,7 @@ struct IndexedBinaryRow {
     resident: bool,
     output: Option<&'static str>,
 }
-const INDEXED_BINARY_ROWS: &[IndexedBinaryRow] = [
+const INDEXED_BINARY_ROWS: &[IndexedBinaryRow] = &[
     IndexedBinaryRow {
         dialect: "tcl8.4",
         case: 0,
