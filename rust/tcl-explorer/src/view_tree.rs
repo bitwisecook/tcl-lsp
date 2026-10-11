@@ -2352,6 +2352,9 @@ mod retained_source_view_tests {
     // controls; they do not prove Native execution or provider behaviour.
     #[test]
     fn unavailable_source_fields_are_distinct_from_completed_empty_views() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Wire/render observation only; no Native execution or provider claim.
         let empty = json!({
             "optimisations": [], "optimiserPasses": [],
             "eventOrder": [], "annotations": [], "irulesFlow": [],
@@ -2384,6 +2387,9 @@ mod retained_source_view_tests {
 
     #[test]
     fn unavailable_event_section_preserves_independent_irules_warnings() {
+        // naming.source.retained-explorer-consumers
+        // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+        // Wire/render observation only; no Native execution or provider claim.
         let data = json!({
             "eventOrder": null,
             "irulesFlow": [{"code": "W-test", "message": "independent warning", "range": null}],
