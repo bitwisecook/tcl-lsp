@@ -1,0 +1,156 @@
+    }
+    TclSkipTailcall(interp);
+    return Tcl_NREvalObj(interp, listPtr, flags);
+}
+
+int
+TclAliasObjCmd(
+    void *clientData,		/* Alias record. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument vector. */
+{
+#define ALIAS_CMDV_PREALLOC 10
+    Alias *aliasPtr = (Alias *) clientData;
+    Tcl_Interp *targetInterp = aliasPtr->targetInterp;
+    int result;
+    Tcl_Size prefc, cmdc, i;
+    Tcl_Obj **prefv, **cmdv;
+    Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+    int isRootEnsemble;
+
+    /*
+     * Append the arguments to the command prefix and invoke the command in
+     * the target interp's global namespace.
+     */
+
+    prefc = aliasPtr->objc;
+    prefv = &aliasPtr->objPtr;
+    cmdc = prefc + objc - 1;
+    if (cmdc <= ALIAS_CMDV_PREALLOC) {
+	cmdv = cmdArr;
+    } else {
+	cmdv = (Tcl_Obj **) TclStackAlloc(interp, cmdc * sizeof(Tcl_Obj *));
+    }
+
+    memcpy(cmdv, prefv, prefc * sizeof(Tcl_Obj *));
+    memcpy(cmdv+prefc, objv+1, (objc-1) * sizeof(Tcl_Obj *));
+
+    Tcl_ResetResult(targetInterp);
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_IncrRefCount(cmdv[i]);
+    }
+
+    /*
+     * Use the ensemble rewriting machinery to ensure correct error messages:
+     * only the source command should show, not the full target prefix.
+     */
+
+    isRootEnsemble = TclInitRewriteEnsemble(targetInterp, 1, prefc, objv);
+
+    /*
+     * Protect the target interpreter if it isn't the same as the source
+     * interpreter so that we can continue to work with it after the target
+     * command completes.
+     */
+
+    if (targetInterp != interp) {
+	Tcl_Preserve(targetInterp);
+    }
+
+    /*
+     * Execute the target command in the target interpreter.
+     */
+
+    result = Tcl_EvalObjv(targetInterp, cmdc, cmdv, TCL_EVAL_INVOKE);
+
+    /*
+     * Clean up the ensemble rewrite info if we set it in the first place.
+     */
+
+    if (isRootEnsemble) {
+	TclResetRewriteEnsemble(targetInterp, 1);
+    }
+
+    /*
+     * If it was a cross-interpreter alias, we need to transfer the result
+     * back to the source interpreter and release the lock we previously set
+     * on the target interpreter.
+     */
+
+    if (targetInterp != interp) {
+	Tcl_TransferResult(targetInterp, result, interp);
+	Tcl_Release(targetInterp);
+    }
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_DecrRefCount(cmdv[i]);
+    }
+    if (cmdv != cmdArr) {
+	TclStackFree(interp, cmdv);
+    }
+    return result;
+#undef ALIAS_CMDV_PREALLOC
+}
+
+int
+TclLocalAliasObjCmd(
+    void *clientData,		/* Alias record. */
+    Tcl_Interp *interp,		/* Current interpreter. */
+    int objc,			/* Number of arguments. */
+    Tcl_Obj *const objv[])	/* Argument vector. */
+{
+#define ALIAS_CMDV_PREALLOC 10
+    Alias *aliasPtr = (Alias *) clientData;
+    int result;
+    Tcl_Size prefc, cmdc, i;
+    Tcl_Obj **prefv, **cmdv;
+    Tcl_Obj *cmdArr[ALIAS_CMDV_PREALLOC];
+    int isRootEnsemble;
+
+    /*
+     * Append the arguments to the command prefix and invoke the command in
+     * the global namespace.
+     */
+
+    prefc = aliasPtr->objc;
+    prefv = &aliasPtr->objPtr;
+    cmdc = prefc + objc - 1;
+    if (cmdc <= ALIAS_CMDV_PREALLOC) {
+	cmdv = cmdArr;
+    } else {
+	cmdv = (Tcl_Obj **) TclStackAlloc(interp, cmdc * sizeof(Tcl_Obj *));
+    }
+
+    memcpy(cmdv, prefv, prefc * sizeof(Tcl_Obj *));
+    memcpy(cmdv+prefc, objv+1, (objc-1) * sizeof(Tcl_Obj *));
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_IncrRefCount(cmdv[i]);
+    }
+
+    /*
+     * Use the ensemble rewriting machinery to ensure correct error messages:
+     * only the source command should show, not the full target prefix.
+     */
+
+    isRootEnsemble = TclInitRewriteEnsemble(interp, 1, prefc, objv);
+
+    /*
+     * Execute the target command in the target interpreter.
+     */
+
+    result = Tcl_EvalObjv(interp, cmdc, cmdv, TCL_EVAL_INVOKE);
+
+    /*
+     * Clean up the ensemble rewrite info if we set it in the first place.
+     */
+
+    if (isRootEnsemble) {
+	TclResetRewriteEnsemble(interp, 1);
+    }
+
+    for (i=0; i<cmdc; i++) {
+	Tcl_DecrRefCount(cmdv[i]);
+    }

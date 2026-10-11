@@ -1,0 +1,152 @@
+ *	interpreter.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+AliasObjCmdDeleteProc(
+    ClientData clientData)	/* The alias record for this alias. */
+{
+    Alias *aliasPtr = (Alias *)clientData;
+    Target *targetPtr;
+    int i;
+    Tcl_Obj **objv;
+
+    Tcl_DecrRefCount(aliasPtr->token);
+    objv = &aliasPtr->objPtr;
+    for (i = 0; i < aliasPtr->objc; i++) {
+	Tcl_DecrRefCount(objv[i]);
+    }
+    Tcl_DeleteHashEntry(aliasPtr->aliasEntryPtr);
+
+    /*
+     * Splice the target record out of the target interpreter's parent list.
+     */
+
+    targetPtr = aliasPtr->targetPtr;
+    if (targetPtr->prevPtr != NULL) {
+	targetPtr->prevPtr->nextPtr = targetPtr->nextPtr;
+    } else {
+	Parent *parentPtr = &((InterpInfo *) ((Interp *)
+		aliasPtr->targetInterp)->interpInfo)->parent;
+
+	parentPtr->targetsPtr = targetPtr->nextPtr;
+    }
+    if (targetPtr->nextPtr != NULL) {
+	targetPtr->nextPtr->prevPtr = targetPtr->prevPtr;
+    }
+
+    ckfree(targetPtr);
+    ckfree(aliasPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_CreateChild --
+ *
+ *	Creates a child interpreter. The childPath argument denotes the name
+ *	of the new child relative to the current interpreter; the child is a
+ *	direct descendant of the one-before-last component of the path,
+ *	e.g. it is a descendant of the current interpreter if the childPath
+ *	argument contains only one component. Optionally makes the child
+ *	interpreter safe.
+ *
+ * Results:
+ *	Returns the interpreter structure created, or NULL if an error
+ *	occurred.
+ *
+ * Side effects:
+ *	Creates a new interpreter and a new interpreter object command in the
+ *	interpreter indicated by the childPath argument.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Interp *
+Tcl_CreateChild(
+    Tcl_Interp *interp,		/* Interpreter to start search at. */
+    const char *childPath,	/* Name of child to create. */
+    int isSafe)			/* Should new child be "safe" ? */
+{
+    Tcl_Obj *pathPtr;
+    Tcl_Interp *childInterp;
+
+    pathPtr = Tcl_NewStringObj(childPath, -1);
+    childInterp = ChildCreate(interp, pathPtr, isSafe);
+    Tcl_DecrRefCount(pathPtr);
+
+    return childInterp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetChild --
+ *
+ *	Finds a child interpreter by its path name.
+ *
+ * Results:
+ *	Returns a Tcl_Interp * for the named interpreter or NULL if not found.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Interp *
+Tcl_GetChild(
+    Tcl_Interp *interp,		/* Interpreter to start search from. */
+    const char *childPath)	/* Path of child to find. */
+{
+    Tcl_Obj *pathPtr;
+    Tcl_Interp *childInterp;
+
+    pathPtr = Tcl_NewStringObj(childPath, -1);
+    childInterp = GetInterp(interp, pathPtr);
+    Tcl_DecrRefCount(pathPtr);
+
+    return childInterp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetParent --
+ *
+ *	Finds the parent interpreter of a child interpreter.
+ *
+ * Results:
+ *	Returns a Tcl_Interp * for the parent interpreter or NULL if none.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Interp *
+Tcl_GetParent(
+    Tcl_Interp *interp)		/* Get the parent of this interpreter. */
+{
+    Child *childPtr;		/* Child record of this interpreter. */
+
+    if (interp == NULL) {
+	return NULL;
+    }
+    childPtr = &((InterpInfo *) ((Interp *) interp)->interpInfo)->child;
+    return childPtr->parentInterp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclSetChildCancelFlags --
+ *
+ *	This function marks all child interpreters belonging to a given
+ *	interpreter as being canceled or not canceled, depending on the
+ *	provided flags.
+ *
+ * Results:
+ *	None.

@@ -1,0 +1,380 @@
+{
+  "question_id": "naming.alias.original-object-prefix-capture-query-invocation-lifetime",
+  "closed_original_process_records": [
+    {
+      "run": "415",
+      "provider": "compiler",
+      "channel": "compiler-version",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "--version"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.002316126017831266,
+      "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/compiler-version.receipt.json",
+      "receipt_sha256": "e3107486600dac2fd990d9c3fedef5581ffac758341547cf3036df89d03aa7ee"
+    },
+    {
+      "run": "415",
+      "provider": "8.4.20",
+      "channel": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "/workspace/.proofs/consumer-native-alias-objects415/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-Wl,-Map,/workspace/.proofs/consumer-native-alias-objects415/providers/8.4.20/link.map",
+        "-o",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.4.20/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.12351220200071111,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "8b37c6a26fcc29d045ea878745123faf591183d82f72049411d43d3566fdb896",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/compile.receipt.json",
+      "receipt_sha256": "0c96523aaa6cb830c9d2ed9e92c3cf7dcc3e015e69eba7c8ead6d307093b46c4"
+    },
+    {
+      "run": "415",
+      "provider": "8.4.20",
+      "channel": "dependencies",
+      "command": [
+        "/usr/bin/ldd",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.4.20/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.008075263001956046,
+      "stdout_sha256": "1c971319a65a5f798a7798a2e579938bcd06c4d1755e1eedd538e45c0ccce9cb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/dependencies.receipt.json",
+      "receipt_sha256": "124af1ab5e53ad2ab8b86bbfc5e9fea52ff623a102406b88661796145bf01951"
+    },
+    {
+      "run": "415",
+      "provider": "8.4.20",
+      "channel": "execute",
+      "command": [
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.4.20/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.005097696004668251,
+      "stdout_sha256": "f7a20027291bcea739671ea7e8ab5c57d3b1098008d01f92a11a0d28e703100c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.4.20/execute.receipt.json",
+      "receipt_sha256": "9ea4cc160655daac063fc4ea5ffc1aa34ad0a2b0126b0cd2612e620cbc0b277b"
+    },
+    {
+      "run": "415",
+      "provider": "8.5.19",
+      "channel": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "/workspace/.proofs/consumer-native-alias-objects415/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-Wl,-Map,/workspace/.proofs/consumer-native-alias-objects415/providers/8.5.19/link.map",
+        "-o",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.5.19/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.14917889301432297,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "8b37c6a26fcc29d045ea878745123faf591183d82f72049411d43d3566fdb896",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/compile.receipt.json",
+      "receipt_sha256": "628d85b16788e214575a6faf0658f93fb3aba41b5bfee62f7b90ddc7e014f120"
+    },
+    {
+      "run": "415",
+      "provider": "8.5.19",
+      "channel": "dependencies",
+      "command": [
+        "/usr/bin/ldd",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.5.19/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.007300625002244487,
+      "stdout_sha256": "ad62d54e5efff295285771437cf5605f0e96c92523fbdbcd76603cc03d77fa60",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/dependencies.receipt.json",
+      "receipt_sha256": "41e569fa91f8f1fd6c07296ecac043fdee0cf43f79aab0a5284d55b8faf98a9b"
+    },
+    {
+      "run": "415",
+      "provider": "8.5.19",
+      "channel": "execute",
+      "command": [
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.5.19/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.009718072979012504,
+      "stdout_sha256": "15023528ffb76188ab11319ddcd64d9962fe9c6b47cff8692a4eabec018ccce5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.5.19/execute.receipt.json",
+      "receipt_sha256": "b35d8ad0e468e585224cf7719ace3c8aae71eb077eb65133110d6707528cf52d"
+    },
+    {
+      "run": "415",
+      "provider": "8.6.18",
+      "channel": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "/workspace/.proofs/consumer-native-alias-objects415/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-Wl,-Map,/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/link.map",
+        "-o",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.10860617601429112,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/compile.receipt.json",
+      "receipt_sha256": "1c95fbac7faa0e9bcbb3d6e31a99406f669c6375a921588682116923257bf509"
+    },
+    {
+      "run": "415",
+      "provider": "8.6.18",
+      "channel": "dependencies",
+      "command": [
+        "/usr/bin/ldd",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.00947842001914978,
+      "stdout_sha256": "7288156369f76bde603fc21eb2d8fb834971c853a084d25414588186bf95dbc7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/dependencies.receipt.json",
+      "receipt_sha256": "9310d1f8d61dc25a082b4055ae905511e308ff3bb2d6862c3fd50aac6b277c1c"
+    },
+    {
+      "run": "415",
+      "provider": "8.6.18",
+      "channel": "execute",
+      "command": [
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/8.6.18/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.010705943015636876,
+      "stdout_sha256": "403cd86b4fba692c942d56b9f9af9a8fe83b7c7445e16eccc6c59ed35bc1ddfa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/8.6.18/execute.receipt.json",
+      "receipt_sha256": "53d0f030aa730cb205258cc8ce8c8a204dba4781202ca1bb5fac824a858d746f"
+    },
+    {
+      "run": "415",
+      "provider": "9.0.4",
+      "channel": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/consumer-native-alias-objects415/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-Wl,-Map,/workspace/.proofs/consumer-native-alias-objects415/providers/9.0.4/link.map",
+        "-o",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/9.0.4/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.1275703749852255,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/compile.receipt.json",
+      "receipt_sha256": "e42b13fecd12bca191b6d5b0d2833e7b22dddf4f2e70d61a3a67ded60da28011"
+    },
+    {
+      "run": "415",
+      "provider": "9.0.4",
+      "channel": "dependencies",
+      "command": [
+        "/usr/bin/ldd",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/9.0.4/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.009921677003148943,
+      "stdout_sha256": "cbd6623c36d77788b8293086a870b6226422fe13bab53d0c374568590dbec5f4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/dependencies.receipt.json",
+      "receipt_sha256": "03d4d7858104adba1d289284c9dfe799ee0c8135e586d5ad3ab9b96c3dde768d"
+    },
+    {
+      "run": "415",
+      "provider": "9.0.4",
+      "channel": "execute",
+      "command": [
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/9.0.4/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.018845692015020177,
+      "stdout_sha256": "d2826d802857d046017e3b8c8b6c38cef216f1c3d58f93fd83da6bb253e3c952",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.0.4/execute.receipt.json",
+      "receipt_sha256": "04dd8d4930a6857e4c8785a6675725fbb63fe931188539297cb9464930739f43"
+    },
+    {
+      "run": "415",
+      "provider": "9.1.0",
+      "channel": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/consumer-native-alias-objects415/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-Wl,-Map,/workspace/.proofs/consumer-native-alias-objects415/providers/9.1.0/link.map",
+        "-o",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/9.1.0/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.20369110599858686,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/compile.receipt.json",
+      "receipt_sha256": "ab5993ef1d96746461bb3996e8bc2fbdda60dec0a34a814900b98261c7f22e83"
+    },
+    {
+      "run": "415",
+      "provider": "9.1.0",
+      "channel": "dependencies",
+      "command": [
+        "/usr/bin/ldd",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/9.1.0/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.009952158987289295,
+      "stdout_sha256": "38b30640d8c45b4390112626fdcc4fefb433343016a123170d58622ed97f54ca",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/dependencies.receipt.json",
+      "receipt_sha256": "997dfb69f1b4a17bc67d1df39f14d704a1149ee195f059cf5b20610831e9be18"
+    },
+    {
+      "run": "415",
+      "provider": "9.1.0",
+      "channel": "execute",
+      "command": [
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/9.1.0/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.012768574990332127,
+      "stdout_sha256": "08b781c15bf5b80b7ba61722998a718daa291767f535f81cb8b88f4e6ee6f221",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/9.1.0/execute.receipt.json",
+      "receipt_sha256": "dd204c6f55f81c49336c5542843a0d4dedebbf72328cd43bbc5379ab69b32802"
+    },
+    {
+      "run": "415",
+      "provider": "jim",
+      "channel": "compile",
+      "command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-std=c99",
+        "-DJIM_PROBE",
+        "-I/workspace/.proofs/native-providers/jimtcl",
+        "/workspace/.proofs/consumer-native-alias-objects415/probe.c",
+        "/workspace/.proofs/native-providers/jimtcl/libjim.a",
+        "-lm",
+        "-lssl",
+        "-lcrypto",
+        "-lz",
+        "-ldl",
+        "-Wl,-Map,/workspace/.proofs/consumer-native-alias-objects415/providers/jim/link.map",
+        "-o",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/jim/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.2028117529989686,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/compile.receipt.json",
+      "receipt_sha256": "fdc8106ed3185f9608313af70e4495059d88c12dad635800f1068abeeff1defb"
+    },
+    {
+      "run": "415",
+      "provider": "jim",
+      "channel": "dependencies",
+      "command": [
+        "/usr/bin/ldd",
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/jim/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.03899751201970503,
+      "stdout_sha256": "fcb489b4f04078033028292675485c27cdbff17982397b30fc0db8ad00c8b5af",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/dependencies.receipt.json",
+      "receipt_sha256": "9ad7a272f578a03627733e6adac0306526ffedfc22a40b284c7b9ffd944a0a9d"
+    },
+    {
+      "run": "415",
+      "provider": "jim",
+      "channel": "execute",
+      "command": [
+        "/workspace/.proofs/consumer-native-alias-objects415/providers/jim/probe.elf"
+      ],
+      "cwd": "/workspace/.proofs/consumer-native-alias-objects415",
+      "returncode": 0,
+      "seconds": 0.006063038017600775,
+      "stdout_sha256": "aec5609017d65951e081e66db80cdfb489d98711002200f3c120800a1952579c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_path": "runtime/rust/tests/data/native_alias_object_prefix_capture_original/415/providers/jim/execute.receipt.json",
+      "receipt_sha256": "8d70a049e68ab904d51114319881f7fb82dc79f0a3a50cd2556e4391433f6351"
+    }
+  ],
+  "original_rows": 538,
+  "whole_raw_interpretation_locations_verified": 1099,
+  "limits": [
+    "No Rust assertion outcome, inferred Native authority or C/Jim equivalence.",
+    "Jim core alias/info-alias ownership measured; C interp-alias query/child header purpose unavailable under different actual Jim API.",
+    "Capture closures record Guest errors rather than interpreting them as probe success for a semantic assertion.",
+    "Original caller holds and raw query holds are genuine reference-count owners; after release only counters and live query members are accessed.",
+    "OO same-header observations are not reused for C alias query List identity."
+  ],
+  "independent_manifest_sha256": "3f97685b7c5641062d0b4b965472f62b928142b8302310ad2c381f295590195b"
+}
