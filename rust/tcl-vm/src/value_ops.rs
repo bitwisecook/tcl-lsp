@@ -808,12 +808,11 @@ impl ValueOps for Vm {
     }
 
     fn native_string_bytes(&mut self, value: &Value) -> Result<Rc<[u8]>, ValueError> {
-        value.check_native_header()?;
-        self.native_name_operand_bytes(value).map_err(|error| {
-            ValueError::NativeStringAccess(
-                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-            )
-        })
+        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
+        let protocol = ops.dialect().native_string_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("original VM String operation"),
+        )?;
+        ops.string_value(value, protocol)
     }
 
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {

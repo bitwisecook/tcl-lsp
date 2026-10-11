@@ -171,6 +171,10 @@ impl OriginalNameConsumerScope {
         })
     }
 
+    pub(crate) fn operation_scope(&self) -> &NativeOperationScope {
+        &self.operation
+    }
+
     pub(super) fn currency(&self) -> &super::native_operation_currency::NativeOperationCurrency {
         self.operation.currency()
     }

@@ -1067,7 +1067,7 @@ fn check_renamed_alias_loop(
             Ok(loops) => loops,
             Err(error) => {
                 vm.forget_rename_destination(key);
-                return Err(vm.refuse_host_command(error.to_string()));
+                return Err(completion_from_cmd_error(vm, error));
             }
         }
     } else {

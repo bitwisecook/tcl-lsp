@@ -3434,3 +3434,40 @@ payloads under short Method borrows and release them after those borrows end.
 Unnamed slot replacement creates its genuine new record while entered original
 chains retain their earlier record. These software roles do not provide a
 Native MethodType callback or physical reference-count equivalence.
+
+
+Original VM Name consumers retain `OriginalNameConsumerScope` through the whole
+selected worker, including cross-interpreter flow restoration and mandatory
+retirement. Its borrowed `operation_scope` is the same entered owner used by
+`OriginalNumericOps`; it issues no new physical, namespace, object or command
+role. Full Name checks preserve the actual frame, namespace incarnation and
+world before subsequent lookup, publication or Guest interpretation. Typed
+`CmdError` and `TclError` outcomes are checked on both success and failure. A
+legacy `ValueOps::native_string_bytes` call delegates the same node-aware
+original String owner and leaves the full cause in the Vm; its `ValueError`
+unwind must reach a real checked completion boundary. Explicit authored Name
+helpers and pure String constructors keep their separate neutral purposes.
+
+Procedure declarations call the mutable `capture_procedure_declaration_body`
+owner before formal List and body String stages. It chooses actual Jim formal
+List order independently from C body creation, and observes the original body
+sharing count before the working definition reference. C shared bodies use the
+same counted String copy; unshared C bodies and Jim bodies retain the same
+original object. Scope and header withdrawal stop before later capture or
+compiler publication. Preparation retains the original source, selected
+namespace, real compiler entry and service; unavailable admission is terminal.
+Jim static construction preserves the existing copied-member reference roles
+and discards fresh unbound cells on failed installation. These software
+callbacks do not measure an external extension object's reference/free ABI.
+
+Alias loop queries use the selected physical algorithm independently from
+source name policy. C refuses missing or deleted actual target owners before any word query. It reads each original target word in its genuine live target
+interpreter and queries that target's global namespace; missing commands remain
+legal late binding. The defining slot, generation and world remain original
+through restoration. This query executes no command and issues no Native lookup
+receipt. Jim creation has no C loop validation worker. Full failures pass through
+the typed creation and rename boundaries after mandatory alias retirement. The
+[alias contract](../analysis/name-resolution-proofs/alias-original-command-key-replacement-child-capture-and-rename.md)
+and [body capture contract](../analysis/name-resolution-proofs/procedure-counted-body-header-selection.md)
+state the bounded physical observations; software embedding controls remain
+separate from those provider answers.
