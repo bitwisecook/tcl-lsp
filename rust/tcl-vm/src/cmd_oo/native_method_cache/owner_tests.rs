@@ -318,3 +318,168 @@ fn original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_pa
         Some(&first)
     );
 }
+
+
+#[test]
+fn original_method_creation_epoch_refuses_after_actual_same_record_payload_retirement() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual VM record and header roles; no external Native free or epoch claim.
+    let mut vm = native("tcl9.1");
+    source(&mut vm, "oo::class create C {}");
+    let class = object(&mut vm, "C");
+    let before = Value::new_native_string_bytes(b"return BEFORE".as_slice());
+    let old_body = before.native_lifetime_lease();
+    assert_eq!(
+        super::super::def_method(
+            &mut vm,
+            true,
+            class,
+            &[Value::string("m"), Value::empty(), before]
+        )
+        .code,
+        Code::Ok
+    );
+    assert_eq!(old_body.value().native_object_reference_count(), 1);
+    let owner = vm.oo.classes[&class].methods.owner("m").unwrap();
+    let record = Rc::downgrade(&owner);
+    drop(owner);
+    vm.oo.native_methods.foundation = u64::MAX;
+    let property_epoch = vm.oo.property_foundation_epoch;
+    let scope = NativeOperationScope::enter(&mut vm).unwrap();
+    let incoming = Value::new_native_string_bytes(b"return AFTER".as_slice());
+    let reached = super::super::def_method(
+        &mut vm,
+        true,
+        class,
+        &[Value::string("m"), Value::empty(), incoming.clone()],
+    );
+    assert_eq!(reached.code, Code::Error);
+    assert!(!old_body.value().native_object_is_live());
+    assert_eq!(old_body.value().native_object_reference_count(), 0);
+    let current = vm.oo.classes[&class].methods.owner("m").unwrap();
+    assert!(Rc::ptr_eq(&record.upgrade().unwrap(), &current));
+    assert!(current.borrow().body_src.is_same_object(&incoming));
+    drop(current);
+    assert_eq!(record.strong_count(), 1);
+    assert_eq!(incoming.native_object_reference_count(), 2);
+    assert_eq!(vm.oo.property_foundation_epoch, property_epoch);
+    let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+            "original OO method Foundation epoch",
+        ),
+    );
+    assert_eq!(vm.execution_refusal, Some(first.clone()));
+    let later = Value::new_native_string_bytes(b"return LATER".as_slice());
+    assert_eq!(
+        super::super::def_method(
+            &mut vm,
+            true,
+            class,
+            &[Value::string("later"), Value::empty(), later.clone()]
+        )
+        .code,
+        Code::Error
+    );
+    assert!(vm.oo.classes[&class].methods.owner("later").is_none());
+    assert_eq!(later.native_object_reference_count(), 1);
+    assert_eq!(
+        scope.check(&mut vm).unwrap_err().native_execution_refusal(),
+        Some(&first)
+    );
+    assert_eq!(vm.execution_refusal, Some(first));
+}
+
+#[test]
+fn original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_continuation() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Same real definition consumers and MethodSlot roles; software order only.
+    for constructor in [true, false] {
+        for exhausted in [false, true] {
+            let mut vm = native("tcl9.1");
+            source(&mut vm, "oo::class create C {}");
+            let class = object(&mut vm, "C");
+            let before = Value::new_native_string_bytes(b"return BEFORE".as_slice());
+            let old_body = before.native_lifetime_lease();
+            let reached = if constructor {
+                super::super::def_constructor(&mut vm, true, class, &[Value::empty(), before])
+            } else {
+                super::super::def_destructor(&mut vm, true, class, &[before])
+            };
+            assert_eq!(reached.code, Code::Ok);
+            assert_eq!(old_body.value().native_object_reference_count(), 1);
+            let old = if constructor {
+                vm.oo.classes[&class].constructor.owner()
+            } else {
+                vm.oo.classes[&class].destructor.owner()
+            }
+            .unwrap();
+            let record = Rc::downgrade(&old);
+            drop(old);
+            if exhausted {
+                vm.oo.native_methods.foundation = u64::MAX;
+            }
+            let scope = NativeOperationScope::enter(&mut vm).unwrap();
+            let incoming = Value::new_native_string_bytes(b"return AFTER".as_slice());
+            let reached = if constructor {
+                super::super::def_constructor(
+                    &mut vm,
+                    true,
+                    class,
+                    &[Value::empty(), incoming.clone()],
+                )
+            } else {
+                super::super::def_destructor(&mut vm, true, class, &[incoming.clone()])
+            };
+            assert_eq!(reached.code, if exhausted { Code::Error } else { Code::Ok });
+            assert!(record.upgrade().is_none());
+            assert!(!old_body.value().native_object_is_live());
+            assert_eq!(old_body.value().native_object_reference_count(), 0);
+            let current = if constructor {
+                vm.oo.classes[&class].constructor.owner()
+            } else {
+                vm.oo.classes[&class].destructor.owner()
+            }
+            .unwrap();
+            assert!(current.borrow().body_src.is_same_object(&incoming));
+            drop(current);
+            assert_eq!(incoming.native_object_reference_count(), 2);
+            if exhausted {
+                let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original OO method Foundation epoch",
+                    ),
+                );
+                assert_eq!(vm.execution_refusal, Some(first.clone()));
+                assert_eq!(
+                    scope.check(&mut vm).unwrap_err().native_execution_refusal(),
+                    Some(&first)
+                );
+            } else {
+                let cleared = if constructor {
+                    super::super::def_constructor(
+                        &mut vm,
+                        true,
+                        class,
+                        &[Value::empty(), Value::empty()],
+                    )
+                } else {
+                    super::super::def_destructor(&mut vm, true, class, &[Value::empty()])
+                };
+                assert_eq!(cleared.code, Code::Ok);
+                assert_eq!(incoming.native_object_reference_count(), 1);
+                assert!(
+                    if constructor {
+                        vm.oo.classes[&class].constructor.owner()
+                    } else {
+                        vm.oo.classes[&class].destructor.owner()
+                    }
+                    .is_none()
+                );
+                scope.check(&mut vm).unwrap();
+                assert!(vm.execution_refusal.is_none());
+            }
+        }
+    }
+}

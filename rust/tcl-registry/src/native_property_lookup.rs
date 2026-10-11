@@ -184,6 +184,19 @@ pub enum NativePropertyStorageRetirementStep {
     /// Release the actual writable member roles.
     WritableMembers,
 }
+/// Source-inspected C9.1 member setter stages, independent of whole-storage
+/// destruction. This recipe grants no physical header or incoming reference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativePropertyMemberInstallationStep {
+    /// Retire the selected direction's cached List before acquiring members.
+    Cache,
+    /// Acquire each actual incoming member role in its original operand order.
+    IncomingReferences,
+    /// Retire the actual old member array roles outside owner borrows.
+    OldMembers,
+    /// Reach each original String/hash, retaining the first equal member only.
+    UniqueHash,
+}
 /// Actual Foundation graph links affected by a class structure mutation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativePropertyGraphDependents {
@@ -211,6 +224,16 @@ impl NativePropertyLookupProtocol {
             ReadableMembers,
             WritableMembers,
         ]
+    }
+    /// `TclOOInstallReadable/WritableProperties` and `SetPropertyList` retire
+    /// the selected cache, acquire incoming headers, retire old members, then
+    /// hash originals sequentially. The original C9.1 source supplies this
+    /// schedule only; neither a member owner nor Native callback chronology is
+    /// issued by the pure recipe.
+    #[must_use]
+    pub const fn member_installation(self) -> [NativePropertyMemberInstallationStep; 4] {
+        use NativePropertyMemberInstallationStep::*;
+        [Cache, IncomingReferences, OldMembers, UniqueHash]
     }
     /// `Tcl_NewMethod` always changes Foundation; instance method creation only
     /// changes its method-chain epoch, leaving property headers resident.

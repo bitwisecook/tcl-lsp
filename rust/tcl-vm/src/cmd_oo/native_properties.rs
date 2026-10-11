@@ -12,6 +12,7 @@ use tcl_registry::native_property_lookup::{
 };
 use tcl_syntax::value::ValueError;
 mod original_stages;
+pub(super) mod mutation;
 use original_stages::{OriginalPropertyOperation, PropertyDerivation};
 
 #[derive(Default)]
@@ -87,22 +88,27 @@ impl OoState {
             recipes,
         }
     }
-    fn apply_property_invalidation(&mut self, target: OoId, action: NativePropertyInvalidation) {
-        match action {
-            NativePropertyInvalidation::None => {}
+    fn apply_property_invalidation(
+        &mut self,
+        target: OoId,
+        action: NativePropertyInvalidation,
+    ) -> Result<Option<NativePropertyCache>, ValueError> {
+        Ok(match action {
+            NativePropertyInvalidation::None => None,
             NativePropertyInvalidation::Foundation => {
                 self.property_foundation_epoch = self
                     .property_foundation_epoch
                     .checked_add(1)
-                    .expect("Foundation epoch exhausted");
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original OO property Foundation epoch",
+                    ))?;
+                None
             }
-            NativePropertyInvalidation::Instance => {
-                self.property_caches.remove(&(target, false));
-            }
+            NativePropertyInvalidation::Instance => self.property_caches.remove(&(target, false)),
             NativePropertyInvalidation::ClassRepresentative => {
-                self.property_caches.remove(&(target, true));
+                self.property_caches.remove(&(target, true))
             }
-        }
+        })
     }
     fn collect_native_class_properties<'a>(
         &'a self,
@@ -271,81 +277,29 @@ impl Vm {
         let retired = owner.oo_mut(self)?.take_native_properties(target);
         retired.finish(self, owner)
     }
-    pub(super) fn native_property_structure_changed(&mut self, target: OoId, class: bool) {
-        self.native_method_structure_changed(target, class);
-        let Some(recipe) = self
-            .actual_native_invocation_dialect()
-            .native_property_lookup_protocol()
-        else {
-            return;
-        };
-        let subclasses = self
-            .oo
-            .classes
-            .iter()
-            .any(|(id, c)| *id != target && c.supers.contains(&target));
-        let instances = self
-            .oo
-            .objects
-            .values()
-            .any(|o| o.class == target || o.mixins.contains(&target));
-        let mixins = self.oo.classes.values().any(|c| c.mixins.contains(&target));
-        let representative = self
-            .oo
-            .objects
-            .get(&target)
-            .is_some_and(|o| !o.mixins.is_empty());
-        let action = recipe.structure_changed(
-            class,
-            NativePropertyGraphDependents {
-                subclasses,
-                instances,
-                mixin_dependents: mixins,
-            },
-            representative,
-        );
-        self.oo.apply_property_invalidation(target, action);
+    pub(super) fn native_property_structure_changed(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), CmdError> {
+        mutation::invalidate(self, target, class, false)
     }
-    pub(super) fn native_property_method_created(&mut self, target: OoId, class: bool) {
-        self.native_method_created(target, class);
-        if let Some(recipe) = self
-            .actual_native_invocation_dialect()
-            .native_property_lookup_protocol()
-        {
-            self.oo
-                .apply_property_invalidation(target, recipe.method_created(class));
-        }
+    pub(super) fn native_property_method_created(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), CmdError> {
+        mutation::invalidate(self, target, class, true)
     }
     pub(super) fn install_original_property_members(
         &mut self,
         target: OoId,
         class: bool,
         writable: bool,
-        members: Vec<(String, Value)>,
-    ) {
-        let mut originals = BTreeMap::new();
-        for (name, original) in members {
-            originals.entry(name).or_insert(original);
-        }
-        if let Some(recipe) = self
-            .actual_native_invocation_dialect()
-            .native_property_lookup_protocol()
-        {
-            self.oo
-                .property_origins
-                .entry((target, class))
-                .or_insert(recipe);
-        }
-        self.oo
-            .property_members
-            .insert((target, class, writable), originals);
-        if let Some(cache) = self.oo.property_caches.get_mut(&(target, class)) {
-            if writable {
-                cache.writable = None;
-            } else {
-                cache.readable = None;
-            }
-        }
+        operation: &OriginalPropertyOperation,
+        headers: &[crate::value::NativeObjectLifetimeLease],
+    ) -> Result<BTreeSet<String>, CmdError> {
+        mutation::install_members(self, target, class, writable, operation, headers)
     }
     pub(super) fn native_all_property_header(
         &mut self,
@@ -697,61 +651,8 @@ pub(super) fn register_property(
     name: &[u8],
     readable: bool,
     writable: bool,
-) -> Result<(), ValueError> {
-    let Some(recipe) = vm
-        .actual_native_invocation_dialect()
-        .native_property_lookup_protocol()
-    else {
-        return Ok(());
-    };
-    let mut bytes = b"-".to_vec();
-    bytes.extend_from_slice(tcl_core_types::c_string_extent(name));
-    let dashed = vm
-        .oo
-        .intern_method_key(tcl_core_types::NameBytes::from(bytes.clone()));
-    let original = Value::new_native_string_bytes(bytes);
-    let materialization = vm
-        .actual_native_invocation_dialect()
-        .native_string_materialization(None)
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "property formatted name issuer",
-        ))?;
-    original.retain_native_string_representation(materialization)?;
-    vm.oo
-        .property_origins
-        .entry((target, class))
-        .or_insert(recipe);
-    let mut changed = false;
-    for (direction, adding) in [(false, readable), (true, writable)] {
-        let slot = vm
-            .oo
-            .property_members
-            .entry((target, class, direction))
-            .or_default();
-        let present = slot.contains_key(&dashed);
-        if !present && adding {
-            slot.insert(dashed.clone(), original.clone());
-            changed = true;
-        }
-        if present && !adding {
-            slot.remove(&dashed);
-            changed = true;
-        }
-        if present != adding
-            && let Some(cache) = vm.oo.property_caches.get_mut(&(target, class))
-        {
-            if direction {
-                cache.writable = None;
-            } else {
-                cache.readable = None;
-            }
-        }
-    }
-    if changed && class {
-        vm.native_property_structure_changed(target, true);
-    }
-    let _ = recipe;
-    Ok(())
+) -> Result<(), CmdError> {
+    mutation::register(vm, target, class, name, readable, writable)
 }
 
 pub(super) fn set_property_slot(
@@ -761,59 +662,8 @@ pub(super) fn set_property_slot(
     writable: bool,
     operation: tcl_registry::definer::SlotOp,
     names: &[Value],
-) -> Result<BTreeSet<String>, ValueError> {
-    let recipe = vm
-        .actual_native_invocation_dialect()
-        .native_property_lookup_protocol()
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "property metadata slot issuer",
-        ))?;
-    let mut incoming = Vec::new();
-    for original in names {
-        let bytes = original
-            .native_string_bytes(recipe.strings())
-            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
-        let name = vm
-            .oo
-            .intern_method_key(tcl_core_types::NameBytes::from(bytes.as_ref()));
-        incoming.push((name, original));
-    }
-    let mut members = if matches!(
-        operation,
-        tcl_registry::definer::SlotOp::Set | tcl_registry::definer::SlotOp::Clear
-    ) {
-        BTreeMap::new()
-    } else {
-        vm.oo
-            .property_members
-            .get(&(target, class, writable))
-            .cloned()
-            .unwrap_or_default()
-    };
-    match operation {
-        tcl_registry::definer::SlotOp::Set | tcl_registry::definer::SlotOp::Append => {
-            for (name, original) in incoming {
-                members.entry(name).or_insert_with(|| original.clone());
-            }
-        }
-        tcl_registry::definer::SlotOp::Remove => {
-            for (name, _) in incoming {
-                members.remove(&name);
-            }
-        }
-        tcl_registry::definer::SlotOp::Clear => {}
-        _ => {
-            return Err(ValueError::CommandProtocolUnavailable(
-                "native property slot operation",
-            ));
-        }
-    }
-    let names = members.keys().cloned().collect();
-    vm.install_original_property_members(target, class, writable, members.into_iter().collect());
-    if class {
-        vm.native_property_structure_changed(target, true);
-    }
-    Ok(names)
+) -> Result<BTreeSet<String>, CmdError> {
+    mutation::slot(vm, target, class, writable, operation, names)
 }
 
 pub(super) fn configure_all(vm: &mut Vm, target: OoId) -> Completion<Value> {
@@ -1504,7 +1354,7 @@ mod tests {
         let header = vm.native_all_property_header(id, false, false).unwrap();
         let old = header.value().native_object_identity();
         let epoch = vm.oo.property_foundation_epoch;
-        vm.native_property_method_created(id, false);
+        vm.native_property_method_created(id, false).unwrap();
         assert_eq!(vm.oo.property_foundation_epoch, epoch);
         assert_eq!(
             vm.native_all_property_header(id, false, false)
@@ -1534,7 +1384,7 @@ mod tests {
             old
         );
         let epoch = vm.oo.property_foundation_epoch;
-        vm.native_property_structure_changed(class, true);
+        vm.native_property_structure_changed(class, true).unwrap();
         assert_eq!(vm.oo.property_foundation_epoch, epoch + 1);
     }
 }

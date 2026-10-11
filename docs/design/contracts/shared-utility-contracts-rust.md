@@ -3605,3 +3605,31 @@ original input order and existing result references stay with the cat worker.
 A legacy `ValueError` only unwinds to a real completion boundary that observes
 the retained full Host cause. These software controls grant no opaque extension
 callback or physical reference/free chronology.
+
+
+VM OO property mutation uses `native_properties::mutation` and the existing
+`OriginalPropertyOperation` for the actual target, class-facet birth, current
+frame and entered currency. The selected C9.1 setter keeps cache retirement,
+all incoming header references, old member retirement, then sequential canonical
+String/hash uniqueness in that order. Allocation-only input leases do not
+supply the incoming reference stage. Append and Remove retain the actual
+GetPropertyList caller List and original members; empty Append/Remove are
+no-ops. Registration compares each original member before acquiring that
+working List member reference, then delegates the same member installer.
+These stages are inspected C9.1 source facts and independent software controls,
+not external Native free-callback chronology.
+
+Method/property metadata invalidation returns full `CmdError` through its
+method, forward, constructor, destructor, superclass, mixin, export, property,
+method-rename and method-delete consumers. The same pure metadata kernel checks
+Foundation/object epoch exhaustion before extracting a retired cache; its
+first typed cause is retained before payload cleanup. `MethodTable` and
+`MethodSlot` transfer replaced payloads/slot roles out of the short OO access;
+actual publishers retire them before later invalidation or result work.
+Superclass and mixin selection additionally retain original target and Weak
+selected class-facet identities through their sequential original getters.
+The genuine bootstrap intrinsic installers and test setup keep their separate
+fresh-record purpose. Whole physical cleanup uses `OriginalOoCleanup`; mutation
+owners do not grant lifecycle or Native Class/MethodType authority. Frozen
+configure reports and retained configure name tables preserve their existing
+legal Guest roster mutations and original-table/current-header index roles.

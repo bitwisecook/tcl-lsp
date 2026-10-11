@@ -33,8 +33,12 @@ impl MethodSlot {
         self.0.as_ref().map(|owner| owner.borrow().clone())
     }
     pub(super) fn install(&mut self, method: Method) {
-        // Constructors and destructors have no name-table entry to replace.
-        self.0 = Some(Rc::new(RefCell::new(method)));
+        drop(self.install_for_retirement(method));
+    }
+    pub(super) fn install_for_retirement(&mut self, method: Method) -> Option<MethodOwner> {
+        // Transfer only the real replaced slot role; callers retire it outside
+        // their actual OO access before checking the original continuation.
+        self.0.replace(Rc::new(RefCell::new(method)))
     }
 }
 
@@ -76,15 +80,17 @@ impl MethodTable {
         self.1
     }
     pub(super) fn insert(&mut self, key: String, method: Method) {
+        drop(self.insert_for_retirement(key, method));
+    }
+    pub(super) fn insert_for_retirement(&mut self, key: String, method: Method) -> Option<Method> {
         self.1 = true;
-        let retired = if let Some(owner) = self.0.get(&key) {
+        if let Some(owner) = self.0.get(&key) {
             let mut current = owner.borrow_mut();
             Some(std::mem::replace(&mut *current, method))
         } else {
             self.0.insert(key, Rc::new(RefCell::new(method)));
             None
-        };
-        drop(retired);
+        }
     }
     pub(super) fn remove(&mut self, key: &str) -> Option<MethodOwner> {
         self.0.remove(key)
@@ -242,27 +248,24 @@ impl NativeMethodWorld {
     pub(super) fn instance_table_created(&mut self, target: OoId) {
         self.class_flags.insert(target, false);
     }
-    pub(super) fn method_created(&mut self, target: OoId, class: bool) {
-        if class {
-            self.foundation = self
-                .foundation
-                .checked_add(1)
-                .expect("native OO Foundation epoch exhausted");
-        } else {
-            self.bump_object(target);
-            self.class_flags.insert(target, false);
-        }
-    }
-    pub(super) fn structure_changed(
+    pub(super) fn method_created_checked(
         &mut self,
         target: OoId,
         class: bool,
-        dependents: bool,
-        representative_mixins: bool,
-    ) -> Option<RetiredMethodTable> {
-        self.structure_changed_checked(target, class, dependents, representative_mixins)
-            .expect("native OO structure epoch exhausted")
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        if class {
+            self.foundation = self.foundation.checked_add(1).ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original OO method Foundation epoch",
+                ),
+            )?;
+        } else {
+            self.bump_object_checked(target)?;
+            self.class_flags.insert(target, false);
+        }
+        Ok(())
     }
+
     pub(super) fn structure_changed_checked(
         &mut self,
         target: OoId,
@@ -287,10 +290,7 @@ impl NativeMethodWorld {
         }
         Ok(None)
     }
-    fn bump_object(&mut self, target: OoId) {
-        self.bump_object_checked(target)
-            .expect("native OO object epoch exhausted");
-    }
+
     fn bump_object_checked(&mut self, target: OoId) -> Result<(), tcl_syntax::value::ValueError> {
         let epoch = self.epochs.entry(target).or_default();
         *epoch = epoch.checked_add(1).ok_or(
@@ -622,42 +622,19 @@ pub(super) fn remember(
     Ok(entered)
 }
 impl Vm {
-    pub(super) fn native_method_created(&mut self, target: OoId, class: bool) {
-        if self
-            .actual_native_invocation_dialect()
-            .native_tcloo_method_cache_protocol()
-            .is_some()
-        {
-            self.oo.native_methods.method_created(target, class);
-        }
+    pub(super) fn native_method_created(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        super::native_properties::mutation::method_invalidation(self, target, class, true)
     }
-    pub(super) fn native_method_structure_changed(&mut self, target: OoId, class: bool) {
-        if self
-            .actual_native_invocation_dialect()
-            .native_tcloo_method_cache_protocol()
-            .is_none()
-        {
-            return;
-        }
-        let dependents = self.oo.classes.iter().any(|(id, c)| {
-            *id != target && (c.supers.contains(&target) || c.mixins.contains(&target))
-        }) || self
-            .oo
-            .objects
-            .values()
-            .any(|o| o.class == target || o.mixins.contains(&target));
-        let representative_mixins = self
-            .oo
-            .objects
-            .get(&target)
-            .is_some_and(|o| !o.mixins.is_empty());
-        let retired = self.oo.native_methods.structure_changed(
-            target,
-            class,
-            dependents,
-            representative_mixins,
-        );
-        drop(retired);
+    pub(super) fn native_method_structure_changed(
+        &mut self,
+        target: OoId,
+        class: bool,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        super::native_properties::mutation::method_invalidation(self, target, class, false)
     }
 }
 
@@ -712,7 +689,10 @@ pub(super) fn delete_method(
                 object.exported.remove(&key);
                 object.unexported.remove(&key);
             }
-            vm.native_property_structure_changed(target, class);
+            if let Err(error) = vm.native_property_structure_changed(target, class) {
+                drop(owner);
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
             drop(owner);
             if let Err(error) = original_names.check_target(vm) {
                 return crate::command::completion_from_cmd_error(vm, error);
@@ -815,7 +795,9 @@ pub(super) fn rename_method(
         if unexported.remove(&from) {
             unexported.insert(to.clone());
         }
-        vm.native_property_structure_changed(target, class);
+        if let Err(error) = vm.native_property_structure_changed(target, class) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         if let Err(error) = source.check_at(vm, original_names, &to) {
             return crate::command::completion_from_cmd_error(vm, error);
         }

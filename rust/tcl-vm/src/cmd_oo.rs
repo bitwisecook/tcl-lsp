@@ -782,86 +782,92 @@ fn apply_property_bytes(
     getter: Option<Value>,
     setter: Option<Value>,
 ) -> Result<(), Completion<Value>> {
-    let (name, original) = property_name;
-    let (dashed, read_method, write_method) = property_accessor_keys(vm, name);
-    let (readable, writable) = match kind {
-        TclOoPropertyKind::Readable => (true, false),
-        TclOoPropertyKind::Writable => (false, true),
-        TclOoPropertyKind::ReadWrite => (true, true),
-    };
-    let get_m = match getter {
-        Some(body) => Some(build_method(vm, &Value::empty(), &body, false)?),
-        None if readable => {
-            original.map(|original| native_properties::default_method(original, false))
-        }
-        None => None,
-    };
-    let set_m = match setter {
-        Some(body) => Some(build_method(vm, &Value::string("value"), &body, false)?),
-        None if writable => {
-            original.map(|original| native_properties::default_method(original, true))
-        }
-        None => None,
-    };
-    if readable {
-        vm.native_property_method_created(target, is_class);
-    }
-    if writable {
-        vm.native_property_method_created(target, is_class);
-    }
-    if let Err(error) =
-        native_properties::register_property(vm, target, is_class, name, readable, writable)
-    {
-        return Err(crate::command::completion_from_cmd_error(vm, error.into()));
-    }
-    let apply = |methods: &mut native_method_cache::MethodTable,
-                 rset: &mut BTreeSet<String>,
-                 wset: &mut BTreeSet<String>| {
-        rset.remove(&dashed);
-        wset.remove(&dashed);
+    original_name_operands::run_result(vm, Some((is_class, target)), |vm, original_names| {
+        let (name, original) = property_name;
+        let (dashed, read_method, write_method) = property_accessor_keys(vm, name);
+        let (readable, writable) = match kind {
+            TclOoPropertyKind::Readable => (true, false),
+            TclOoPropertyKind::Writable => (false, true),
+            TclOoPropertyKind::ReadWrite => (true, true),
+        };
+        let get_m = match getter {
+            Some(body) => Some(build_method(vm, &Value::empty(), &body, false)?),
+            None if readable => {
+                original.map(|original| native_properties::default_method(original, false))
+            }
+            None => None,
+        };
+        original_names
+            .check_target(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let set_m = match setter {
+            Some(body) => Some(build_method(vm, &Value::string("value"), &body, false)?),
+            None if writable => {
+                original.map(|original| native_properties::default_method(original, true))
+            }
+            None => None,
+        };
+        original_names
+            .check_target(vm)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         if readable {
-            rset.insert(dashed.clone());
+            vm.native_property_method_created(target, is_class)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         }
         if writable {
-            wset.insert(dashed.clone());
+            vm.native_property_method_created(target, is_class)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         }
-        match get_m {
-            Some(m) => {
-                methods.insert(read_method.clone(), m);
-            }
-            None => {
-                methods.remove(&read_method);
-            }
+        if let Err(error) =
+            native_properties::register_property(vm, target, is_class, name, readable, writable)
+        {
+            return Err(crate::command::completion_from_cmd_error(vm, error.into()));
         }
-        match set_m {
-            Some(m) => {
-                methods.insert(write_method.clone(), m);
-            }
-            None => {
-                methods.remove(&write_method);
-            }
+        for (key, method) in [(read_method, get_m), (write_method, set_m)] {
+            original_names
+                .check_target(vm)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            let (payload, record) = if is_class {
+                let entry = vm
+                    .oo
+                    .classes
+                    .get_mut(&target)
+                    .expect("retained class facet");
+                entry.readable_properties.remove(&dashed);
+                entry.writable_properties.remove(&dashed);
+                if readable {
+                    entry.readable_properties.insert(dashed.clone());
+                }
+                if writable {
+                    entry.writable_properties.insert(dashed.clone());
+                }
+                match method {
+                    Some(method) => (entry.methods.insert_for_retirement(key, method), None),
+                    None => (None, entry.methods.remove(&key)),
+                }
+            } else {
+                let entry = vm.oo.objects.get_mut(&target).expect("retained object");
+                entry.readable_properties.remove(&dashed);
+                entry.writable_properties.remove(&dashed);
+                if readable {
+                    entry.readable_properties.insert(dashed.clone());
+                }
+                if writable {
+                    entry.writable_properties.insert(dashed.clone());
+                }
+                match method {
+                    Some(method) => (entry.methods.insert_for_retirement(key, method), None),
+                    None => (None, entry.methods.remove(&key)),
+                }
+            };
+            drop(payload);
+            drop(record);
+            original_names
+                .check_target(vm)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         }
-    };
-    if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            let Class {
-                methods,
-                readable_properties,
-                writable_properties,
-                ..
-            } = c;
-            apply(methods, readable_properties, writable_properties);
-        }
-    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-        let Object {
-            methods,
-            readable_properties,
-            writable_properties,
-            ..
-        } = o;
-        apply(methods, readable_properties, writable_properties);
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 /// The `configure` instance method of a configurable object. Forms:
@@ -3295,14 +3301,24 @@ fn def_method(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Comp
             return crate::command::completion_from_cmd_error(vm, error);
         }
         method.private = visibility == NativeTclooMethodVisibility::Private;
-        if is_class {
-            if let Some(c) = vm.oo.classes.get_mut(&target) {
-                c.methods.insert(name, method);
-            }
-        } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-            o.methods.insert(name, method);
+        let retired = if is_class {
+            vm.oo
+                .classes
+                .get_mut(&target)
+                .and_then(|entry| entry.methods.insert_for_retirement(name, method))
+        } else {
+            vm.oo
+                .objects
+                .get_mut(&target)
+                .and_then(|entry| entry.methods.insert_for_retirement(name, method))
+        };
+        drop(retired);
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        vm.native_property_method_created(target, is_class);
+        if let Err(error) = vm.native_property_method_created(target, is_class) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         ok(Value::empty())
     })
 }
@@ -3322,10 +3338,19 @@ fn def_constructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) ->
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         if body_bytes.is_empty() {
-            if let Some(c) = vm.oo.classes.get_mut(&target) {
-                let changed = c.constructor.take().is_some();
-                if changed {
-                    vm.native_property_structure_changed(target, true);
+            let retired = vm
+                .oo
+                .classes
+                .get_mut(&target)
+                .and_then(|entry| entry.constructor.take());
+            let changed = retired.is_some();
+            drop(retired);
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            if changed {
+                if let Err(error) = vm.native_property_structure_changed(target, true) {
+                    return crate::command::completion_from_cmd_error(vm, error);
                 }
             }
             return ok(Value::empty());
@@ -3337,11 +3362,21 @@ fn def_constructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) ->
         if let Err(error) = original_names.check_target(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            c.constructor.install(method);
+        let retired = vm
+            .oo
+            .classes
+            .get_mut(&target)
+            .and_then(|entry| entry.constructor.install_for_retirement(method));
+        drop(retired);
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        vm.native_property_method_created(target, true);
-        vm.native_property_structure_changed(target, true);
+        if let Err(error) = vm.native_property_method_created(target, true) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if let Err(error) = vm.native_property_structure_changed(target, true) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         ok(Value::empty())
     })
 }
@@ -3359,10 +3394,19 @@ fn def_destructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> 
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
         if body_bytes.is_empty() {
-            if let Some(c) = vm.oo.classes.get_mut(&target) {
-                let changed = c.destructor.take().is_some();
-                if changed {
-                    vm.native_property_structure_changed(target, true);
+            let retired = vm
+                .oo
+                .classes
+                .get_mut(&target)
+                .and_then(|entry| entry.destructor.take());
+            let changed = retired.is_some();
+            drop(retired);
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            if changed {
+                if let Err(error) = vm.native_property_structure_changed(target, true) {
+                    return crate::command::completion_from_cmd_error(vm, error);
                 }
             }
             return ok(Value::empty());
@@ -3374,37 +3418,81 @@ fn def_destructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> 
         if let Err(error) = original_names.check_target(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            c.destructor.install(method);
+        let retired = vm
+            .oo
+            .classes
+            .get_mut(&target)
+            .and_then(|entry| entry.destructor.install_for_retirement(method));
+        drop(retired);
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        vm.native_property_method_created(target, true);
-        vm.native_property_structure_changed(target, true);
+        if let Err(error) = vm.native_property_method_created(target, true) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if let Err(error) = vm.native_property_structure_changed(target, true) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         ok(Value::empty())
     })
 }
 
 fn def_superclass(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
-    if !is_class {
-        return err("superclass is only for classes");
-    }
-    let mut supers = Vec::new();
-    for a in args {
-        let Some(s) = (match resolve_class_value(vm, a) {
-            Ok(class) => class,
-            Err(completion) => return completion,
-        }) else {
-            return err("only a class can be a superclass");
-        };
-        if s == target {
-            return err("attempt to form circular dependency graph");
+    original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
+        if !is_class {
+            return err("superclass is only for classes");
         }
-        supers.push(s);
-    }
-    if let Some(c) = vm.oo.classes.get_mut(&target) {
-        c.supers = supers;
-    }
-    vm.native_property_structure_changed(target, is_class);
-    ok(Value::empty())
+        let mut selected = Vec::new();
+        let mut facets = Vec::new();
+        for argument in args {
+            let Some(selected_class) = (match resolve_class_value(vm, argument) {
+                Ok(class) => class,
+                Err(completion) => return completion,
+            }) else {
+                return err("only a class can be a superclass");
+            };
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let facet = vm
+                .oo
+                .classes
+                .get(&selected_class)
+                .map(|entry| Rc::downgrade(&entry.birth));
+            if let Err(error) = original_names.require_current(
+                vm,
+                facet.is_some(),
+                "original OO relation class facet",
+            ) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            facets.push((selected_class, facet.unwrap()));
+            if selected_class == target {
+                return err("attempt to form circular dependency graph");
+            }
+            selected.push(selected_class);
+        }
+        let current = facets.iter().all(|(id, original)| {
+            original.upgrade().is_some_and(|birth| {
+                vm.oo
+                    .classes
+                    .get(id)
+                    .is_some_and(|entry| Rc::ptr_eq(&birth, &entry.birth))
+            })
+        });
+        if let Err(error) =
+            original_names.require_current(vm, current, "original OO relation class facet")
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if let Some(entry) = vm.oo.classes.get_mut(&target) {
+            entry.supers = selected;
+        }
+        if let Err(error) = vm.native_property_structure_changed(target, is_class) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        ok(Value::empty())
+    })
 }
 
 fn def_export(
@@ -3457,35 +3545,71 @@ fn def_export(
             }
         }
         if changed {
-            vm.native_property_structure_changed(target, is_class);
+            if let Err(error) = vm.native_property_structure_changed(target, is_class) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
         }
         ok(Value::empty())
     })
 }
 
 fn def_mixin(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
-    let mut mixins = Vec::new();
-    for a in args {
-        let Some(s) = (match resolve_class_value(vm, a) {
-            Ok(class) => class,
-            Err(completion) => return completion,
-        }) else {
-            return err("may only mix in classes");
-        };
-        mixins.push(s);
-    }
-    if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(&target) {
-            c.mixins = mixins;
+    original_name_operands::run(vm, Some((is_class, target)), |vm, original_names| {
+        let mut selected = Vec::new();
+        let mut facets = Vec::new();
+        for argument in args {
+            let Some(selected_class) = (match resolve_class_value(vm, argument) {
+                Ok(class) => class,
+                Err(completion) => return completion,
+            }) else {
+                return err("may only mix in classes");
+            };
+            if let Err(error) = original_names.check_target(vm) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let facet = vm
+                .oo
+                .classes
+                .get(&selected_class)
+                .map(|entry| Rc::downgrade(&entry.birth));
+            if let Err(error) = original_names.require_current(
+                vm,
+                facet.is_some(),
+                "original OO relation class facet",
+            ) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            facets.push((selected_class, facet.unwrap()));
+            selected.push(selected_class);
         }
-    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-        o.mixins = mixins;
-    }
-    if !is_class {
-        vm.oo.recompute_native_method_class_cache(target);
-    }
-    vm.native_property_structure_changed(target, is_class);
-    ok(Value::empty())
+        let current = facets.iter().all(|(id, original)| {
+            original.upgrade().is_some_and(|birth| {
+                vm.oo
+                    .classes
+                    .get(id)
+                    .is_some_and(|entry| Rc::ptr_eq(&birth, &entry.birth))
+            })
+        });
+        if let Err(error) =
+            original_names.require_current(vm, current, "original OO relation class facet")
+        {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        if is_class {
+            if let Some(entry) = vm.oo.classes.get_mut(&target) {
+                entry.mixins = selected;
+            }
+        } else {
+            if let Some(entry) = vm.oo.objects.get_mut(&target) {
+                entry.mixins = selected;
+            }
+            vm.oo.recompute_native_method_class_cache(target);
+        }
+        if let Err(error) = vm.native_property_structure_changed(target, is_class) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        ok(Value::empty())
+    })
 }
 
 fn def_forward(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
@@ -3526,14 +3650,24 @@ fn def_forward(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Com
             exported: visibility == NativeTclooMethodVisibility::Public,
             private: visibility == NativeTclooMethodVisibility::Private,
         };
-        if is_class {
-            if let Some(c) = vm.oo.classes.get_mut(&target) {
-                c.methods.insert(name, method);
-            }
-        } else if let Some(o) = vm.oo.objects.get_mut(&target) {
-            o.methods.insert(name, method);
+        let retired = if is_class {
+            vm.oo
+                .classes
+                .get_mut(&target)
+                .and_then(|entry| entry.methods.insert_for_retirement(name, method))
+        } else {
+            vm.oo
+                .objects
+                .get_mut(&target)
+                .and_then(|entry| entry.methods.insert_for_retirement(name, method))
+        };
+        drop(retired);
+        if let Err(error) = original_names.check_target(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
         }
-        vm.native_property_method_created(target, is_class);
+        if let Err(error) = vm.native_property_method_created(target, is_class) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
         ok(Value::empty())
     })
 }
