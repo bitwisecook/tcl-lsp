@@ -424,6 +424,13 @@ impl<'a, S> CallSiteScanCtx<'a, S> {
             if module.source_analysis_input() != Some(input) {
                 return Err(refusal);
             }
+            // The Module is the original producer. Only its exact input or
+            // explicit nested projection can own this caller; projecting an
+            // independently changed file input cannot authenticate the owner.
+            let caller_input = owner.source_analysis_input().ok_or(refusal)?;
+            if caller_input != input && caller_input != &input.for_nested_source() {
+                return Err(refusal);
+            }
             if purpose == OriginalWordSourcePurpose::ArgumentEvaluation {
                 binding
                     .original_argument_metadata_for_owner(tokens, owner, self.registry)?
@@ -5322,6 +5329,95 @@ mod tests {
             Some(&residual),
         );
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn original_argument_caller_metadata_joins_from_the_module_to_its_nested_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual retained Native source and CFG argv phase; no handler entry or
+        // runtime variable result follows from this metadata-only observation.
+        let (context, unit) = native_argument_caller_unit(
+            "proc add {b c} {catch {return [expr {$b + $c}]}}; add 2 4",
+        );
+        let module = &unit.ir_module;
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let function = &unit.cfg_module.procedures["::add"];
+        let phase = function
+            .blocks
+            .iter()
+            .find_map(|(&block, data)| {
+                data.statements.iter().enumerate().find_map(|(index, _)| {
+                    function.source_tokens_at(block, index).filter(|tokens| {
+                        tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+                            && tokens
+                                .argv_texts
+                                .first()
+                                .is_some_and(|head| head == "return")
+                    })
+                })
+            })
+            .expect("actual return argv boundary");
+        let identities =
+            crate::realm::document_realm_bindings_for_module(module, context.commands()).unwrap();
+        let known = HashSet::from(["::add".to_owned()]);
+        let reach = vec!["::add".to_owned()];
+        let facts = ModuleVarFacts::default();
+        let previous = CallSiteEvidence::default();
+        let ctx = CallSiteScanCtx {
+            known: &known,
+            registry: context.commands(),
+            module,
+            source_input: Some(input),
+            identities: &identities,
+            declared: None,
+            var_facts: &facts,
+            previous: &previous,
+            procedures: &module.procedures,
+            unenumerable_reach: &reach,
+            unresolved_handler: None,
+        };
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
+        for owner in [
+            Owner::for_source_input(Some(input)),
+            Owner::for_source_input(Some(&input.for_nested_source())),
+            function.metadata_context.clone(),
+        ] {
+            assert!(
+                ctx.original_argument_metadata(phase, &owner)
+                    .unwrap()
+                    .is_some()
+            );
+        }
+        let mut changed_config = input.lexer_config();
+        changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        let changed_file_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            changed_config,
+        );
+        assert_ne!(changed_file_input, *input);
+        assert_eq!(
+            changed_file_input.for_nested_source(),
+            input.for_nested_source()
+        );
+        let foreign = supplied_unit_input(
+            input,
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+                .unwrap()
+                .default_context_registry(),
+        );
+        for owner in [
+            Owner::SuppliedSource(Box::new(changed_file_input)),
+            Owner::SuppliedSource(Box::new(foreign)),
+            Owner::Unavailable,
+            Owner::Standalone,
+        ] {
+            assert!(ctx.original_argument_metadata(phase, &owner).is_err());
+            // Invocation purpose remains independently refused for an argv phase.
+            assert!(ctx.original_metadata(phase, &owner).is_err());
+        }
     }
 
     #[test]
