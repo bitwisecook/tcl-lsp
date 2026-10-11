@@ -1628,7 +1628,7 @@ impl Analyser {
                         target_span: tok.span,
                         local_span: tok.span,
                         original_target_namespace: self.original_variable_namespace_at(scope_path),
-                        original_target_receiver: if self.head_identities.source_bindings_ref().original_variable_uses_global_frame_at_span(tok.span, self.lexer_config())
+                        original_target_receiver: if self.head_identities.source_bindings_ref().original_variable_uses_global_frame_at_span(tok.span, self.file_lexer_config())
                         && self.original_variable_namespace_at(scope_path).is_some_and(|namespace| match namespace {
                             crate::signature_scan::scope::SignatureNamespaceScope::C(path) => path.is_root(),
                             crate::signature_scan::scope::SignatureNamespaceScope::Jim(object) => object.is_empty(),
@@ -1823,13 +1823,13 @@ impl Analyser {
             .result
             .original_vendor_source_name_in_source(
                 &tcl_lexer::SourceImage::document(&self.source),
-                self.lexer_config(),
+                self.file_lexer_config(),
                 name_tok.span,
             )
             .cloned();
         let original_name_input = self
             .head_identities
-            .original_written_name_input_at_span(name_tok.span, self.lexer_config())
+            .original_written_name_input_at_span(name_tok.span, self.file_lexer_config())
             .or_else(|| {
                 Some(
                     crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
@@ -2087,7 +2087,7 @@ impl Analyser {
             self.head_identities
                 .original_source_name_at_span(
                     name_tok.span,
-                    self.lexer_config(),
+                    self.file_lexer_config(),
                     self.word_rules(),
                     policy,
                 )
@@ -2098,7 +2098,7 @@ impl Analyser {
                     let original = self.original_static_source_name_at_span(name_tok.span)?;
                     let key = original.name_input();
                     (key.policy() == policy
-                        && key.lexer_config() == self.lexer_config()
+                        && key.lexer_config() == self.file_lexer_config()
                         && key.word_value_rules() == self.word_rules())
                     .then(|| original.clone())
                 })
@@ -2124,7 +2124,7 @@ impl Analyser {
         }
         if let Some(original) = self.result.original_vendor_source_name_in_source(
             &tcl_lexer::SourceImage::document(&self.source),
-            self.lexer_config(),
+            self.file_lexer_config(),
             name_span,
         ) {
             let record = crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata::new(
@@ -2183,7 +2183,7 @@ impl Analyser {
                             self.head_identities
                                 .original_written_name_input_at_span(
                                     token.span,
-                                    self.lexer_config(),
+                                    self.file_lexer_config(),
                                 )?
                                 .original_list_element(2)
                         },
@@ -2226,13 +2226,13 @@ impl Analyser {
                         .head_identities
                         .original_written_name_input_at_invocation_span(
                             &tcl_lexer::SourceImage::document(&self.source),
-                            self.lexer_config(),
+                            self.file_lexer_config(),
                             offset,
                             tok.span,
                         ),
                     None => self
                         .head_identities
-                        .original_written_name_input_at_span(tok.span, self.lexer_config()),
+                        .original_written_name_input_at_span(tok.span, self.file_lexer_config()),
                 }),
             );
         }
@@ -3489,7 +3489,7 @@ impl Analyser {
                 let segmented = crate::segmenter::segment_commands_with_offset_and_config(
                     inner,
                     base,
-                    self.lexer_config(),
+                    self.file_lexer_config().nested(),
                 );
                 let [cmd] = segmented.as_slice() else {
                     return None;
@@ -3561,7 +3561,7 @@ impl Analyser {
         let segmented = crate::segmenter::segment_commands_with_offset_and_config(
             &args[0],
             base,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         );
         Some(
             segmented
@@ -4559,7 +4559,7 @@ impl Analyser {
             Some(&self.analysis_context().context().authoring_query()),
         ) && let Some(token) = arg_tokens.get(1)
         {
-            let config = self.lexer_config();
+            let config = self.file_lexer_config();
             let original = self
                 .head_identities
                 .original_written_name_input_at_span(token.span, config)
@@ -4726,7 +4726,7 @@ impl Analyser {
         let base = token.span.start() + u32::from(token.content_offset);
         let original_parent = self
             .head_identities
-            .original_written_name_input_at_span(token.span, self.lexer_config());
+            .original_written_name_input_at_span(token.span, self.file_lexer_config());
         let mut scan = 0usize;
         let mut ordinal = 0usize;
         while let Ok(Some(el)) = tcl_syntax::list::find_element(raw, scan) {
@@ -5083,7 +5083,7 @@ impl Analyser {
         if value_tok.kind != TokenType::Cmd {
             return None;
         }
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let sm = Self::source_map(
             &self.source,
             &self.cached_line_index,
@@ -5507,7 +5507,7 @@ impl Analyser {
         if start >= self.source.len() || end > self.source.len() || start >= end {
             return;
         }
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let segs: Vec<SegmentedCommand> = {
             let sm = Self::source_map(
                 &self.source,
@@ -7076,7 +7076,7 @@ impl Analyser {
         let policy = self.declaration_name_policy()?;
         if let Some(input) = self
             .head_identities
-            .original_written_name_input_at_span(token.span, self.lexer_config())
+            .original_written_name_input_at_span(token.span, self.file_lexer_config())
         {
             return (input.policy() == policy
                 && !matches!(
@@ -7087,7 +7087,7 @@ impl Analyser {
         }
         let original = self.head_identities.original_source_name_at_span(
             token.span,
-            self.lexer_config(),
+            self.file_lexer_config(),
             self.word_rules(),
             policy,
         )?;
@@ -7542,7 +7542,7 @@ impl Analyser {
         let registry = context.commands();
         let mut tokens = crate::ir::CommandTokens::from_segmented(
             &self.cached_source_map(),
-            self.lexer_config(),
+            self.file_lexer_config(),
             seg,
         );
         self.head_identities
@@ -7562,7 +7562,7 @@ impl Analyser {
                 crate::registry_invocation::InvocationMetadataContext::for_source_input(
                     registry,
                     input,
-                    self.lexer_config(),
+                    self.file_lexer_config(),
                     Some(input.unit_profile()),
                 )
             })
@@ -7897,7 +7897,7 @@ impl Analyser {
         let block = crate::segmenter::segment_commands_with_offset_and_config(
             text,
             base,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         );
         for seg in &block {
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
@@ -9268,9 +9268,11 @@ impl Analyser {
             env.clear();
             return Some(());
         }
-        for seg in
-            crate::segmenter::segment_commands_with_offset_and_config(body, 0, self.lexer_config())
-        {
+        for seg in crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            0,
+            self.file_lexer_config().nested(),
+        ) {
             self.invalidate_static_facts_written_by_segment(&seg, env, depth + 1)?;
         }
         Some(())
@@ -9396,7 +9398,7 @@ impl Analyser {
             .unwrap_or(trimmed);
         if let Some((head, args)) = crate::value_shapes::parse_command_substitution_with_config(
             unquoted,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         ) {
             let values: Vec<Option<String>> = args
                 .iter()
@@ -9568,7 +9570,7 @@ impl Analyser {
     /// Metadata joins its original allocation; a final report name cannot
     /// supply a replacement, captured prefix or current command identity.
     fn original_static_procedure_at(&self, segment: &SegmentedCommand) -> Option<ProcDef> {
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         self.result
             .matches_original_source_image(&tcl_lexer::SourceImage::document(&self.source), config)
             .then_some(())?;
@@ -9820,7 +9822,7 @@ impl Analyser {
         Some(crate::segmenter::segment_commands_with_offset_and_config(
             body,
             u32::try_from(base).unwrap_or(0),
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         ))
     }
 
@@ -10179,7 +10181,7 @@ impl Analyser {
         crate::segmenter::segment_commands_with_offset_and_config(
             body,
             u32::try_from(base).unwrap_or(0),
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         )
         .into_iter()
         .find(|seg| {
@@ -10283,7 +10285,7 @@ impl Analyser {
             &self.cached_line_index,
             self.cached_line_index_source_len,
         );
-        let descended = descend_token(&sm, group, self.lexer_config());
+        let descended = descend_token(&sm, group, self.file_lexer_config());
         let mut segs = segments_from_tree(descended.tree(), &sm).into_iter();
         let seg = segs.next()?;
         // One group builds one member; a `[a; b]` compound is not a shape
@@ -11637,7 +11639,7 @@ impl Analyser {
             .original_namespace_operand_at_span_in_source(
                 &tcl_lexer::SourceImage::document(&self.source),
                 span,
-                self.lexer_config(),
+                self.file_lexer_config(),
             )
             .or_else(|| {
                 let original = self.original_static_source_name_at_span(span)?;
@@ -11667,7 +11669,7 @@ impl Analyser {
             let name = self.original_static_source_name_at_span(scope.name_span?)?;
             let key = name.name_input();
             if key.policy() != policy
-                || key.lexer_config() != self.lexer_config()
+                || key.lexer_config() != self.file_lexer_config()
                 || key.source_image() != &image
             {
                 return None;
@@ -12010,12 +12012,15 @@ impl Analyser {
         let segmented = crate::segmenter::segment_commands_with_offset_and_config(
             text,
             start,
-            self.lexer_config(),
+            self.file_lexer_config().nested(),
         )
         .into_iter()
         .next()?;
-        let mut tokens =
-            crate::ir::CommandTokens::from_segmented(&source_map, self.lexer_config(), &segmented);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &source_map,
+            self.file_lexer_config(),
+            &segmented,
+        );
         self.head_identities
             .source_bindings()
             .stamp_original_tokens(&mut tokens);
@@ -12030,7 +12035,7 @@ impl Analyser {
             context.commands(),
             command,
             arg_tokens,
-            self.lexer_config(),
+            self.file_lexer_config(),
             dialect,
         )
     }
@@ -19256,6 +19261,88 @@ mod original_registry_symbol_tests {
                 SourceFormalCountOrigin::Unknown
             );
             assert_eq!(proc.arity(), tcl_registry::Arity::any());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_parent_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_procedure_receipts_keep_file_config_and_extracted_body_bom() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original declaration/body syntax, without entered procedure or frame authority.
+        let body = r"namespace eval N {proc p\uD800 {x} {return $x}}";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for (supplied, source) in [
+            (None, format!("\u{feff}{body}")),
+            (Some(input.clone()), format!("\u{feff}{body}")),
+            (
+                {
+                    let mut content = input.clone();
+                    content.config.leading_bom = tcl_lexer::LeadingBom::Content;
+                    content.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+                    Some(content)
+                },
+                body.to_owned(),
+            ),
+        ] {
+            let mut analyser = supplied.as_ref().map_or_else(Analyser::new, |input| {
+                Analyser::new().with_resolved_input(input.clone())
+            });
+            analyser.analyse_and_retain_result_for_test(&source, "tcl9.1");
+            let config = analyser.file_lexer_config();
+            let image = tcl_lexer::SourceImage::document(&source);
+            let declarations = analyser
+                .result
+                .original_procedure_declarations()
+                .collect::<Vec<_>>();
+            let [declaration] = declarations.as_slice() else {
+                panic!("original nested declaration: {source}");
+            };
+            assert_eq!(declaration.name_input().bytes(), b"p\xed\xa0\x80");
+            assert_eq!(declaration.name_input().source_image(), &image);
+            assert_eq!(declaration.name_input().lexer_config(), config);
+            let name = u32::try_from(source.find(r"p\uD800").unwrap()).unwrap();
+            assert_eq!(declaration.name_input().span().start(), name);
+            if let Some(supplied) = supplied {
+                assert_eq!(analyser.result.resolved_input.as_ref(), Some(&supplied));
+            }
+            let mut foreign = config;
+            foreign.strict_quoting = !foreign.strict_quoting;
+            assert!(
+                !analyser
+                    .result
+                    .matches_original_source_image(&image, foreign)
+            );
+            assert!(!analyser.result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&(source + "\n")),
+                config
+            ));
+        }
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            let source = "proc p {} {\u{feff}set hidden 1; set visible 2}";
+            let mut analyser = Analyser::new().with_resolved_input(supplied.clone());
+            analyser.analyse_and_retain_result_for_test(source, "display-only");
+            let proc = analyser.result.all_procs.get("::p").unwrap();
+            let statements = analyser.direct_statements_in_span(proc.body_span).unwrap();
+            assert_eq!(
+                statements
+                    .iter()
+                    .map(SegmentedCommand::name)
+                    .collect::<Vec<_>>(),
+                ["\u{feff}set", "set"]
+            );
+            assert_eq!(
+                statements[0].argv[0].span.start(),
+                u32::try_from(source.find('\u{feff}').unwrap()).unwrap()
+            );
+            assert_eq!(analyser.result.resolved_input.as_ref(), Some(&supplied));
         }
     }
 }

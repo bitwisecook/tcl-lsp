@@ -163,6 +163,7 @@ pub use math_occurrence::{SourceConditionalMathInvocation, SourceMathInvocation}
 pub(crate) mod formal_topology;
 mod formal_value;
 mod origin_inventory;
+mod original_body_namespace;
 pub(crate) use conditional_body::SourceConditionalBodyEntry;
 pub use conditional_body::{SourceCallerFrameInvocationTemplate, SourceDeclaredReceiverBodyEntry};
 pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;

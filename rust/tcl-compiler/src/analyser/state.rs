@@ -2480,7 +2480,7 @@ impl Analyser {
         }
         let (clean, e201) = crate::segmenter::segment_with_recovery(
             source,
-            self.lexer_config(),
+            self.file_lexer_config(),
             &self.recovery_known_commands,
         );
         if e201.is_empty() {
@@ -2556,10 +2556,11 @@ impl Analyser {
     /// Convert the dialect-aware lexer's `LexWarning`s into recovery
     /// diagnostics.  E204 (extra characters after a close-brace), E205
     /// (after a close-quote) and E206 (missing close-brace for a
-    /// `${…}` variable name) map by message; the "missing closer"
-    /// messages that overlap E201 / E202 / E203 are skipped (the
+    /// `${…}` variable name) use the lexer's retained `ParseIssueKind`.
+    /// Missing delimiters that overlap E201 / E202 / E203 are skipped (the
     /// recovery detectors own those with better positions + fixes);
-    /// every *other* message maps to the catch-all E200.
+    /// every other typed issue maps to the catch-all E200. Messages remain
+    /// unchanged presentation.
     fn emit_lexer_warning_diagnostics(&mut self) {
         let lexer = tcl_lexer::Lexer::with_source_map(
             Self::source_map(
@@ -2567,19 +2568,21 @@ impl Analyser {
                 &self.cached_line_index,
                 self.cached_line_index_source_len,
             ),
-            self.lexer_config(),
+            self.file_lexer_config(),
         );
         let Ok((_tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
             return;
         };
         for w in warnings {
-            let code = match w.message.as_str() {
+            let code = match w.kind {
                 // Owned by the E201/E202/E203 recovery heuristics.
-                "missing close-bracket" | "missing \"" | "missing close-brace" => continue,
-                "extra characters after close-brace" => DiagCode::E204,
-                "extra characters after close-quote" => DiagCode::E205,
-                "missing close-brace for variable name" => DiagCode::E206,
-                // Any unexpected lexer warning → catch-all E200.
+                tcl_lexer::ParseIssueKind::MissingBracket
+                | tcl_lexer::ParseIssueKind::MissingQuote
+                | tcl_lexer::ParseIssueKind::MissingBrace => continue,
+                tcl_lexer::ParseIssueKind::ExtraAfterBrace => DiagCode::E204,
+                tcl_lexer::ParseIssueKind::ExtraAfterQuote => DiagCode::E205,
+                tcl_lexer::ParseIssueKind::MissingVariableBrace => DiagCode::E206,
+                // Any other typed lexer issue → catch-all E200.
                 _ => DiagCode::E200,
             };
             self.result
@@ -2859,7 +2862,7 @@ impl Analyser {
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
             new_text,
             &known,
-            self.lexer_config(),
+            self.file_lexer_config(),
         );
         if recovery_cmds != cmds || recovery_cmds.iter().any(|c| c.is_partial) {
             return self.fresh_full_analyse(new_text, dialect);
@@ -3423,7 +3426,7 @@ impl Analyser {
             return Some(std::sync::Arc::clone(trust));
         }
         let registry = self.registry.as_deref()?;
-        let mut lowerer = crate::lowering::Lowerer::with_config(registry, self.lexer_config())
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, self.file_lexer_config())
             .with_dialect(
                 // `None`, not `Some(plain_tcl)`, when the analysis named no
                 // dialect: an unstated dialect is not the same input as an
@@ -3674,6 +3677,73 @@ mod tests {
             assert!(result.command_invocations.is_empty());
             assert!(result.diagnostics.is_empty());
             assert!(result.global_scope.children.is_empty());
+        }
+    }
+
+    #[test]
+    fn original_whole_source_recovery_keeps_file_config_and_typed_warning_fields() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original recovery/diagnostic streams, without entered-source admission.
+        let source = "\u{feff}set x [foo bar\nputs done\n";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for supplied in [None, Some(input.clone())] {
+            let mut analyser = supplied.as_ref().map_or_else(Analyser::new, |input| {
+                Analyser::new().with_resolved_input(input.clone())
+            });
+            analyser.analyse_and_retain_result_for_test(source, "tcl9.1");
+            let mut commands = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            );
+            assert!(analyser.apply_ghost_recovery(source, &mut commands));
+            assert_eq!(
+                commands
+                    .iter()
+                    .map(crate::segmenter::SegmentedCommand::name)
+                    .collect::<Vec<_>>(),
+                ["set", "puts"]
+            );
+            assert_eq!(commands[0].argv[0].span.start(), 3);
+            assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+        }
+        for (source, kind, code) in [
+            (
+                "\u{feff}set x {abc}def\n",
+                tcl_lexer::ParseIssueKind::ExtraAfterBrace,
+                DiagCode::E204,
+            ),
+            (
+                "\u{feff}set y \"abc\"def\n",
+                tcl_lexer::ParseIssueKind::ExtraAfterQuote,
+                DiagCode::E205,
+            ),
+            (
+                "\u{feff}puts ${foo\n",
+                tcl_lexer::ParseIssueKind::MissingVariableBrace,
+                DiagCode::E206,
+            ),
+        ] {
+            let config = input.lexer_config();
+            let (_, warnings) = tcl_lexer::Lexer::with_config(source, config)
+                .tokenise_all_with_warnings()
+                .unwrap();
+            let warning = warnings
+                .iter()
+                .find(|warning| warning.kind == kind)
+                .unwrap();
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "display-only");
+            let diagnostic = analysis
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .unwrap();
+            assert_eq!(diagnostic.message, warning.message);
+            assert_eq!(diagnostic.span, Span::new(warning.offset, warning.offset));
         }
     }
 

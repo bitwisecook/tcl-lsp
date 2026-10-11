@@ -1510,6 +1510,20 @@ impl Lowerer<'_> {
         {
             return self.lower_retained_script(script);
         }
+        // The retained parent owns the actual argument ordinal and whole
+        // source word. A cooked body never borrows an equal-text written site.
+        if let Some(source) = self.structured_source_parent.as_deref().and_then(|parent| {
+            parent
+                .source_binding
+                .as_ref()?
+                .original_body_source_for_word(
+                    parent,
+                    tcl_lexer::word_span_at(&self.source, tok.span),
+                    self.config,
+                )
+        }) {
+            return self.lower_retained_script(source);
+        }
         let Some(origin) = self
             .source_bindings
             .as_ref()

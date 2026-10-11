@@ -913,7 +913,7 @@ impl Analyser {
         // safe.
         if let Some(registry) = self.registry.as_deref() {
             let mut extra: Vec<VarReadSite> = Vec::new();
-            let lexer_config = self.lexer_config();
+            let lexer_config = self.file_lexer_config();
             let cmd_name = cmd.texts.first().map_or("", String::as_str);
             let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
             let expr_idx: std::collections::HashSet<usize> = registry
@@ -1186,7 +1186,7 @@ impl Analyser {
     }
 
     fn finalise_original_invocation_inputs(&mut self) {
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let rules = self.word_rules();
         let policy = self.declaration_name_policy();
         for invocation in &mut self.result.command_invocations {
@@ -2000,7 +2000,7 @@ impl Analyser {
         >,
     ) {
         let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         if let Some(original) = self
             .result
             .original_vendor_source_name_in_source(&image, config, span)
@@ -2042,11 +2042,11 @@ impl Analyser {
         let frame = self
             .head_identities
             .source_bindings_ref()
-            .original_variable_frame_at_span(span, self.lexer_config())
+            .original_variable_frame_at_span(span, self.file_lexer_config())
             .or_else(|| {
                 self.head_identities
                     .source_bindings_ref()
-                    .original_variable_frame_at_offset(span.start(), self.lexer_config())
+                    .original_variable_frame_at_offset(span.start(), self.file_lexer_config())
             });
         let namespace = scope_at(&self.result.global_scope, scope_path)
             .and_then(|scope| scope.naming_scope.clone());
@@ -2091,7 +2091,7 @@ impl Analyser {
         kind: crate::signature_scan::vendor_variable::VendorSourceVariableBodyKind,
     ) {
         let image = tcl_lexer::SourceImage::document(&self.source);
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         let Some(declaration) =
             self.result
                 .original_vendor_source_name_in_source(&image, config, declaration_span)
@@ -2238,7 +2238,7 @@ impl Analyser {
         let occurrences = self
             .head_identities
             .source_bindings_ref()
-            .original_variable_formal_occurrences(self.lexer_config());
+            .original_variable_formal_occurrences(self.file_lexer_config());
         for occurrence in occurrences {
             if occurrence.symbol().policy() != policy {
                 continue;
@@ -2284,7 +2284,7 @@ impl Analyser {
                         &input,
                         receiver,
                         alias,
-                        self.lexer_config(),
+                        self.file_lexer_config(),
                         registry,
                     )
                 })
@@ -2333,7 +2333,7 @@ impl Analyser {
                 span,
                 &input,
                 receiver,
-                self.lexer_config(),
+                self.file_lexer_config(),
                 self.registry.as_deref()?,
             )?;
         Some(
@@ -2380,7 +2380,7 @@ impl Analyser {
                     span,
                     &input,
                     receiver,
-                    self.lexer_config(),
+                    self.file_lexer_config(),
                     self.registry.as_deref()?,
                 )
             {
@@ -2398,7 +2398,7 @@ impl Analyser {
                 span,
                 &input,
                 receiver,
-                self.lexer_config(),
+                self.file_lexer_config(),
                 self.registry.as_deref()?,
             )?;
             return Some(
@@ -2423,7 +2423,7 @@ impl Analyser {
     ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
         use crate::signature_scan::scope::SignatureSourceNameInput;
         let policy = self.declaration_name_policy()?;
-        let config = self.lexer_config();
+        let config = self.file_lexer_config();
         if !substitution {
             return self
                 .head_identities
@@ -2704,7 +2704,7 @@ impl Analyser {
                 target.span().start(),
                 self.head_identities
                     .source_bindings_ref()
-                    .original_variable_alias_frame_at_span(local_span, self.lexer_config())
+                    .original_variable_alias_frame_at_span(local_span, self.file_lexer_config())
                     .is_some(),
                 self.original_variable_operand_input(local_span).is_some(),
                 self.result.original_variable_alias_operands
@@ -2714,7 +2714,7 @@ impl Analyser {
         let (frame, invocation_offset) = self
             .head_identities
             .source_bindings_ref()
-            .original_variable_alias_frame_at_span(local_span, self.lexer_config())?;
+            .original_variable_alias_frame_at_span(local_span, self.file_lexer_config())?;
         let mut operands = self.result.original_variable_alias_operands.iter().filter(
             |&&(site, local, remote, _)| {
                 site == invocation_offset && local == local_span && remote == target.span()
@@ -2736,7 +2736,7 @@ impl Analyser {
                         .operands()
                         .iter()
                         .any(|&(local, remote, _)| local == local_span && remote == target.span())
-                    && !source.matches_source_context(&image, self.lexer_config(), &context)
+                    && !source.matches_source_context(&image, self.file_lexer_config(), &context)
             })
         {
             return None;
@@ -2787,7 +2787,7 @@ impl Analyser {
         self.head_identities
             .original_source_name_at_span(
                 span,
-                self.lexer_config(),
+                self.file_lexer_config(),
                 self.word_rules(),
                 self.declaration_name_policy()?,
             )
@@ -2810,7 +2810,7 @@ impl Analyser {
         self.head_identities
             .original_written_name_input_at_invocation_span(
                 &tcl_lexer::SourceImage::document(&self.source),
-                self.lexer_config(),
+                self.file_lexer_config(),
                 invocation_offset,
                 span,
             )
@@ -3105,8 +3105,11 @@ fn collect_cmd_subst_reads(
     let Some((inner, base)) = inner_of(source, cmd_tok) else {
         return;
     };
-    for cmd in crate::segmenter::segment_commands_with_offset_and_config(inner, base, lexer_config)
-    {
+    for cmd in crate::segmenter::segment_commands_with_offset_and_config(
+        inner,
+        base,
+        lexer_config.nested(),
+    ) {
         collect_script_command_reads(source, &cmd, registry, lexer_config, out);
     }
 }
@@ -3161,7 +3164,7 @@ fn collect_script_command_reads(
                 for sub in crate::segmenter::segment_commands_with_offset_and_config(
                     inner,
                     base,
-                    lexer_config,
+                    lexer_config.nested(),
                 ) {
                     collect_script_command_reads(source, &sub, registry, lexer_config, out);
                 }
@@ -3183,7 +3186,8 @@ fn collect_expr_reads(
     let Some((inner, base)) = inner_of(source, expr_tok) else {
         return;
     };
-    let Ok(tokens) = tcl_lexer::Lexer::with_config(inner, lexer_config).tokenise_all() else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(inner, lexer_config.nested()).tokenise_all()
+    else {
         return;
     };
     for tok in tokens {
@@ -5238,6 +5242,94 @@ mod original_positioned_reference_tests {
                     .any(|row| row.receiver()
                         == OriginalVariableSymbolReceiver::Operand(TraceSubject))
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_parent_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_variable_frames_and_aliases_keep_the_whole_parent_config() {
+        // naming.variable.conditional-write-name-advice
+        // docs/design/analysis/name-resolution-proofs/conditional-write-name-advice.md
+        // Original lexical frames and source alias advice supply no entered link or edit.
+        let body = "set ::g VALUE; proc p {} {global g; set local 1; set local; set g}";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for (supplied, source) in [
+            (None, format!("\u{feff}{body}")),
+            (Some(input.clone()), format!("\u{feff}{body}")),
+            (
+                {
+                    let mut content = input.clone();
+                    content.config.leading_bom = tcl_lexer::LeadingBom::Content;
+                    content.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+                    Some(content)
+                },
+                body.to_owned(),
+            ),
+        ] {
+            let analysis = supplied
+                .as_ref()
+                .map_or_else(Analyser::new, |input| {
+                    Analyser::new().with_resolved_input(input.clone())
+                })
+                .analyse(&source, "tcl9.1");
+            let image = tcl_lexer::SourceImage::document(&source);
+            let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+            let local = u32::try_from(source.find("local 1").unwrap()).unwrap();
+            let frame = analysis
+                .original_variable_frame_in_source(&image, config, local)
+                .unwrap();
+            assert!(matches!(
+                frame.frame().layout(),
+                crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+            ));
+            assert_eq!(frame.lexer_config(), config);
+            let write = analysis
+                .original_variable_write_advice
+                .iter()
+                .find(|advice| advice.original_name_input().bytes() == b"local")
+                .unwrap();
+            assert_eq!(write.original_frame(), Some(&frame));
+            assert_eq!(write.original_name_input().source_image(), &image);
+            let aliases = analysis
+                .original_variable_alias_advice_in_source(&image, config)
+                .unwrap();
+            let alias = aliases
+                .iter()
+                .find(|alias| alias.original_name_input().bytes() == b"g")
+                .unwrap();
+            assert_eq!(alias.original_frame().lexer_config(), config);
+            assert_eq!(alias.original_name_input().source_image(), &image);
+            let mut foreign = config;
+            foreign.strict_quoting = !foreign.strict_quoting;
+            assert!(
+                analysis
+                    .original_variable_frame_in_source(&image, foreign, local)
+                    .is_none()
+            );
+            assert!(
+                analysis
+                    .original_variable_alias_advice_in_source(&image, foreign)
+                    .is_none()
+            );
+            let stale = tcl_lexer::SourceImage::document(&source.replace("VALUE", "OTHER"));
+            assert!(
+                analysis
+                    .original_variable_frame_in_source(&stale, config, local)
+                    .is_none()
+            );
+            assert!(
+                analysis
+                    .original_variable_alias_advice_in_source(&stale, config)
+                    .is_none()
+            );
+            if let Some(supplied) = supplied {
+                assert_eq!(analysis.resolved_input.as_ref(), Some(&supplied));
+            }
         }
     }
 }

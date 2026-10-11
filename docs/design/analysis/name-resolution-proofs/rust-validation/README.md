@@ -3223,7 +3223,7 @@ The [whole original log](frozen315/integration-compiler-rich-source-trace315/tes
 SHA-256 `df79a9ad7ef0579126e79adff3ff4362fe6cd278abfcd89eb48419cc73fff51e`. Both exact selectors belong to the independently
 retained 9,212-test inventory and [strict own image](frozen315/sealed-own-compiler-image/pinned-compiler315.json).
 
-Build/list success remains separate from these failed assertions. The active
+Build/list success remains separate from these failed assertions. The
 Source315 full600 baseline, performance commands, independent Runtime and
 all Native provider observations are excluded. No original executable is
 replaced or restored by this archival record.
@@ -3246,7 +3246,7 @@ The [whole original log](frozen316/integration-compiler-rich-source-trace316/tes
 SHA-256 `6d2c9a95113de23e84b65a5f4e501fdbb9d96ede3dca3f849936a720280bcbb4`. Both exact selectors belong to the independently
 retained 9,212-test inventory and [strict own image](frozen316/sealed-own-compiler-image/pinned-compiler316.json).
 
-Build/list success remains separate from these failed assertions. The active
+Build/list success remains separate from these failed assertions. The
 Source315 full600 baseline, performance commands, independent Runtime and
 all Native provider observations are excluded. No original executable is
 replaced or restored by this archival record.
@@ -3294,3 +3294,39 @@ is lossless gzip; decompression returns SHA-256 `12c7ef3f739235f2352c066e9594541
 The [whole original log](frozen316/integration-core-own-test-build316/tests.log) retains
 SHA-256 `b703d4b0f62fcb18fed0f43feeb8a755c55d23c169b85b6f96d2563e55d460ab`. The complete original source association is identical
 to the independently retained [Source316 source snapshot](frozen316/sealed-own-compiler-image/source-snapshot.json.gz).
+
+## Source315 full multiprocedure baseline interruption
+
+The exact original command starts one test,
+`regex_source::tests::literal_flows_to_regexp_in_a_large_multi_proc_file`, on the strict original Compiler315 image. Its unchanged
+114,937-byte generated fixture contains 600 unrelated procedures, the
+regex-check procedure and the initial namespace command. The 600 label
+counts fixture procedures; it does not denote 600 selected assertions.
+
+The process closes exit `-9` (SIGKILL) after 2466.3992539090104 seconds with
+uniform source `true`, no assertion result and no test summary. The signal
+issuer and cause are unresolved. These captures establish no timeout,
+caller cancellation, OOM cause or correctness/performance pass.
+
+The original final trace reports source stage `complete` at 2,399,195ms,
+lower binding analysis at 2,399,197ms and segmentation at 17ms for 602
+commands. Original query counters explicitly carry `cumulative-inclusive`
+scope; they can overlap and cannot be added as independent costs. A trace
+stage named `complete` supplies no completed assertion or readonly-query568
+impact. The [exact counters and limits](frozen315/integration-compiler-performance600-baseline315/observations.json)
+retain every original final query field and source/image association.
+
+The [whole original receipt](frozen315/integration-compiler-performance600-baseline315/receipt.json.gz)
+is lossless gzip and restores SHA-256 `903a4352077e3d347c62c66176f94d52476d30cb8fe701a966b9c7381b13f59a`. The
+[whole original log](frozen315/integration-compiler-performance600-baseline315/tests.log) retains SHA-256
+`b455ef614eed00f8fea187f8aa2a410a99c175ca5cbf3b2f3c9fb732eb27befc`. The independent [owned producer](frozen315/integration-compiler-clean-rebuilt-test-build315/receipt.json.gz)
+and [9,212-selector inventory](frozen315/integration-compiler-own-list315/tests.log)
+retain their separate build/list scopes.
+
+The [canonical original Compiler315 image](frozen315/sealed-own-compiler-image/pinned-compiler315.elf.gz)
+already retains all 206,936,520 original bytes, SHA-256
+`321a2d6d3f1a16161e0d8653bab5ca68c7cf1dbb85b32c66bd5661d6babaa03a`, as 39,952,183 gzip bytes, SHA-256
+`040a6c0ed0ed42cacb284f37d6da60845387c4e7ee6bdaeb4953059b89367ea8`. This record independently reconfirms full
+decompression, unchanged raw metadata and byte identity with the committed
+Git blob. Root verifies the exact pushed blob before retiring a duplicate
+raw image. No original image is copied, replaced or retired here.

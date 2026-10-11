@@ -1063,6 +1063,8 @@ pub struct Lowerer<'r> {
     /// its sites, so CFG construction receives the exact bindings for the
     /// script it flattens rather than a module-global approximation.
     command_binding_site_stack: Vec<Vec<CommandBindingSite>>,
+    /// Exact original parent across structured body descent; no entry is inferred.
+    structured_source_parent: Option<Box<CommandTokens>>,
     /// Depth of `proc` / `when` body lowerings currently in
     /// flight. A positive value enables the const-map.
     proc_depth: u32,
@@ -1300,6 +1302,7 @@ impl<'r> Lowerer<'r> {
             source_declared_commands: None,
             const_map_stack: Vec::new(),
             command_binding_site_stack: Vec::new(),
+            structured_source_parent: None,
             proc_depth: 0,
             namespace_imports: Vec::new(),
             namespace_exports: Vec::new(),
@@ -1772,6 +1775,18 @@ impl<'r> Lowerer<'r> {
                 .executed_script_namespace_context(&source)
                 .or_else(|| bindings.compiled_script_namespace_context(&source))
                 .or_else(|| bindings.declared_script_namespace_context(&source))
+                .or_else(|| {
+                    let parent = self.structured_source_parent.as_deref()?;
+                    parent
+                        .source_binding
+                        .as_ref()?
+                        .original_body_namespace_context(
+                            self.registry,
+                            self.invocation_metadata_context()?,
+                            parent,
+                            &source,
+                        )
+                })
         });
         self.lower_original_body(source, namespace.as_ref())
     }
@@ -2678,183 +2693,234 @@ impl<'r> Lowerer<'r> {
                 this.structured_expand_barrier(cmd_name, args, seg)
             }));
         }
-        let inline_body_error_context = resolved.error_context;
-        let statement = match hook {
-            // Static-body uplevel.  Match `uplevel 1 {body}`,
-            // `uplevel #0 {body}`, and the canonical no-level form
-            // `uplevel {body}` (level defaults to 1) when the body
-            // arg is a brace-string literal token.  Dynamic forms
-            // (`uplevel 1 $body` / `uplevel $lvl {body}`) fall
-            // through to the default lowering so a runtime
-            // `Call` / `Barrier` carries the unresolved arguments.
-            LoweringHookId::Uplevel => self.box_lowered_statement(|this| {
-                this.try_lower_uplevel_static(seg, namespace)
-                    .unwrap_or_else(|| this.lower_default(seg, namespace))
-            }),
+        self.with_original_body_parent(tokens, |this| {
+            let inline_body_error_context = resolved.error_context;
+            let statement = match hook {
+                // Static-body uplevel.  Match `uplevel 1 {body}`,
+                // `uplevel #0 {body}`, and the canonical no-level form
+                // `uplevel {body}` (level defaults to 1) when the body
+                // arg is a brace-string literal token.  Dynamic forms
+                // (`uplevel 1 $body` / `uplevel $lvl {body}`) fall
+                // through to the default lowering so a runtime
+                // `Call` / `Barrier` carries the unresolved arguments.
+                LoweringHookId::Uplevel => this.box_lowered_statement(|this| {
+                    this.try_lower_uplevel_static(seg, namespace)
+                        .unwrap_or_else(|| this.lower_default(seg, namespace))
+                }),
 
-            // `eval $body` / `eval {body}` with a literal /
-            // const-folded body relaxes to a `Statement::Block` so
-            // downstream analyses see the inlined script.  Dynamic
-            // bodies (`eval $dyn` with no const-map binding,
-            // `eval [cmd]`) fall through to the default barrier
-            // dispatch.
-            LoweringHookId::Eval => self.box_lowered_statement(|this| {
-                this.lower_eval_structured(
-                    seg,
-                    namespace,
-                    inline_body_error_context,
-                    resolved.canonical_command,
-                )
-            }),
+                // `eval $body` / `eval {body}` with a literal /
+                // const-folded body relaxes to a `Statement::Block` so
+                // downstream analyses see the inlined script.  Dynamic
+                // bodies (`eval $dyn` with no const-map binding,
+                // `eval [cmd]`) fall through to the default barrier
+                // dispatch.
+                LoweringHookId::Eval => this.box_lowered_statement(|this| {
+                    this.lower_eval_structured(
+                        seg,
+                        namespace,
+                        inline_body_error_context,
+                        resolved.canonical_command,
+                    )
+                }),
 
-            // `apply {{params} body ?ns?} …` — walk the braced body so nested
-            // definitions register (like `namespace eval`), keeping the call a
-            // runtime barrier because the body runs in a separate frame.
-            LoweringHookId::Apply => self.box_lowered_statement(|this| this.lower_apply(seg)),
+                // `apply {{params} body ?ns?} …` — walk the braced body so nested
+                // definitions register (like `namespace eval`), keeping the call a
+                // runtime barrier because the body runs in a separate frame.
+                LoweringHookId::Apply => this.box_lowered_statement(|this| this.lower_apply(seg)),
 
-            // `array for {k v} arr body` (Tcl 9.0) — iterate array entries.
-            // Like `apply`, the call stays a runtime barrier (C Tcl invokes
-            // `::tcl::array::for` with the body as an unparsed literal), but a
-            // braced literal body is walked in a fresh frame bound to the two
-            // loop variables so it is analysable.
-            LoweringHookId::ArrayFor => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_array_for(seg, namespace))
-            }
-
-            // Straightforward control-flow forms.  Each is a
-            // single-method dispatch with no arity / shared-method /
-            // subcommand complications.
-            LoweringHookId::If => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_if(seg, namespace))
-            }
-            LoweringHookId::Switch => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_switch(seg, namespace))
-            }
-            LoweringHookId::For => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_for(seg, namespace))
-            }
-            LoweringHookId::While => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_while(seg, namespace))
-            }
-            LoweringHookId::Catch => self.box_lowered_statement(|this| {
-                this.lower_catch_with_binding(seg, namespace, resolved.canonical_command)
-            }),
-            LoweringHookId::Try => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_try(seg, namespace))
-            }
-
-            // Forms with shape preconditions.  Calls with the wrong
-            // arity / shape must fall through to `lower_default`
-            // instead of crashing the dedicated lowerer, so each arm
-            // returns `None` on precondition failure and
-            // `lower_command` then falls through to `lower_default`.
-            //
-            // `proc name params body` — exactly three args and
-            // at least three token slices (the body needs to
-            // be a real token, not synthesised whitespace).
-            LoweringHookId::Proc => {
-                return self.box_optional_lowered_statement(|this| {
-                    this.try_lower_proc_declaration(seg, namespace, resolved.canonical_command)
-                });
-            }
-            // `namespace eval ns body` — the subcommand match
-            // is already handled by `resolve_call`, so the
-            // hook only fires for the `eval` subcommand.  Keep
-            // the arity / token-count guards (a tokenless body
-            // would derail body lowering).
-            LoweringHookId::NamespaceEval => {
-                if args.len() >= 3 && seg.arg_tokens().len() >= 3 {
-                    self.box_lowered_statement(|this| this.lower_namespace_eval(seg, namespace))
-                } else {
-                    return None;
-                }
-            }
-            // `foreach vars list body` / `lmap vars list body`
-            // — share `lower_foreach(... is_lmap)`.  The
-            // dedicated lowerer handles its own shape errors,
-            // so no precondition here.
-            LoweringHookId::Foreach => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_foreach(seg, namespace, false))
-            }
-            LoweringHookId::Lmap => {
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_foreach(seg, namespace, true))
-            }
-            // `dict <subcommand> ...` — must have at least one
-            // arg so the subcommand can be picked.  Bare `dict`
-            // falls through to `lower_default`.
-            LoweringHookId::Dict => {
-                if args.is_empty() {
-                    return None;
-                }
-                self.record_consumed_command_binding(seg, namespace, resolved.canonical_command);
-                self.box_lowered_statement(|this| this.lower_dict(seg, namespace))
-            }
-
-            // `when EVENT ?priority N? body` — iRules event
-            // handler.  The hook stamp lives on the `when` spec
-            // in `tcl-registry/src/commands/irules/when.rs`,
-            // which `load_dialect(SpecSurface::IRULES)` brings
-            // into the registry.  Production callers (the LSP
-            // server) load the active dialect
-            // before lowering; tests that lower iRule code call
-            // `registry.load_irules()` explicitly (see
-            // `irules_checks::tests::registry`).  Callers that
-            // lower iRule code against a vanilla `build_default()`
-            // registry now silently flow through to
-            // `lower_default` — that path was always a
-            // misconfiguration; the dialect needs to match the
-            // source.
-            LoweringHookId::When => {
-                return self.box_optional_lowered_statement(|this| {
-                    this.try_lower_when_declaration(seg, namespace, resolved.canonical_command)
-                });
-            }
-            // `foreachLine varName filename body` — Tcl 9.0
-            // (TIP 670).  Always registered in `build_default()`
-            // via `tcl::foreachline::spec`, so no dialect-load
-            // dance is needed.  The `lower_foreach_line`
-            // emitter handles its own shape errors and
-            // dynamic-body fallback, but the `args.len() == 3`
-            // guard keeps an under- or over-argued `foreachLine`
-            // flowing to `lower_default` instead of triggering a
-            // barrier inside the dedicated emitter.
-            LoweringHookId::ForeachLine => {
-                return self.box_optional_lowered_statement(|this| {
-                    this.try_lower_foreach_line_structured(
+                // `array for {k v} arr body` (Tcl 9.0) — iterate array entries.
+                // Like `apply`, the call stays a runtime barrier (C Tcl invokes
+                // `::tcl::array::for` with the body as an unparsed literal), but a
+                // braced literal body is walked in a fresh frame bound to the two
+                // loop variables so it is analysable.
+                LoweringHookId::ArrayFor => {
+                    this.record_consumed_command_binding(
                         seg,
                         namespace,
                         resolved.canonical_command,
-                    )
-                });
-            }
+                    );
+                    this.box_lowered_statement(|this| this.lower_array_for(seg, namespace))
+                }
 
-            // Non-structured hooks (`Expr` / `Return` / `Set` /
-            // `Incr` / `AppendOrLappend` / `Unset` / `Global` /
-            // `Variable` / `Upvar`) are handled by
-            // [`try_lower_hook`] before [`lower_command`] reaches
-            // this dispatcher.  They can still reach here when
-            // their static dispatcher returned `None` for the
-            // input shape (e.g. `try_lower_expr` rejects
-            // multi-arg `expr`); fall through to `lower_default`.
-            LoweringHookId::Expr
-            | LoweringHookId::Return
-            | LoweringHookId::Set
-            | LoweringHookId::Incr
-            | LoweringHookId::AppendOrLappend
-            | LoweringHookId::Unset
-            | LoweringHookId::Global
-            | LoweringHookId::Variable
-            | LoweringHookId::Upvar => return None,
-        };
-        Some(statement)
+                // Straightforward control-flow forms.  Each is a
+                // single-method dispatch with no arity / shared-method /
+                // subcommand complications.
+                LoweringHookId::If => {
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_if(seg, namespace))
+                }
+                LoweringHookId::Switch => {
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_switch(seg, namespace))
+                }
+                LoweringHookId::For => {
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_for(seg, namespace))
+                }
+                LoweringHookId::While => {
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_while(seg, namespace))
+                }
+                LoweringHookId::Catch => this.box_lowered_statement(|this| {
+                    this.lower_catch_with_binding(seg, namespace, resolved.canonical_command)
+                }),
+                LoweringHookId::Try => {
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_try(seg, namespace))
+                }
+
+                // Forms with shape preconditions.  Calls with the wrong
+                // arity / shape must fall through to `lower_default`
+                // instead of crashing the dedicated lowerer, so each arm
+                // returns `None` on precondition failure and
+                // `lower_command` then falls through to `lower_default`.
+                //
+                // `proc name params body` — exactly three args and
+                // at least three token slices (the body needs to
+                // be a real token, not synthesised whitespace).
+                LoweringHookId::Proc => {
+                    return this.box_optional_lowered_statement(|this| {
+                        this.try_lower_proc_declaration(seg, namespace, resolved.canonical_command)
+                    });
+                }
+                // `namespace eval ns body` — the subcommand match
+                // is already handled by `resolve_call`, so the
+                // hook only fires for the `eval` subcommand.  Keep
+                // the arity / token-count guards (a tokenless body
+                // would derail body lowering).
+                LoweringHookId::NamespaceEval => {
+                    if args.len() >= 3 && seg.arg_tokens().len() >= 3 {
+                        this.box_lowered_statement(|this| this.lower_namespace_eval(seg, namespace))
+                    } else {
+                        return None;
+                    }
+                }
+                // `foreach vars list body` / `lmap vars list body`
+                // — share `lower_foreach(... is_lmap)`.  The
+                // dedicated lowerer handles its own shape errors,
+                // so no precondition here.
+                LoweringHookId::Foreach => {
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_foreach(seg, namespace, false))
+                }
+                LoweringHookId::Lmap => {
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_foreach(seg, namespace, true))
+                }
+                // `dict <subcommand> ...` — must have at least one
+                // arg so the subcommand can be picked.  Bare `dict`
+                // falls through to `lower_default`.
+                LoweringHookId::Dict => {
+                    if args.is_empty() {
+                        return None;
+                    }
+                    this.record_consumed_command_binding(
+                        seg,
+                        namespace,
+                        resolved.canonical_command,
+                    );
+                    this.box_lowered_statement(|this| this.lower_dict(seg, namespace))
+                }
+
+                // `when EVENT ?priority N? body` — iRules event
+                // handler.  The hook stamp lives on the `when` spec
+                // in `tcl-registry/src/commands/irules/when.rs`,
+                // which `load_dialect(SpecSurface::IRULES)` brings
+                // into the registry.  Production callers (the LSP
+                // server) load the active dialect
+                // before lowering; tests that lower iRule code call
+                // `registry.load_irules()` explicitly (see
+                // `irules_checks::tests::registry`).  Callers that
+                // lower iRule code against a vanilla `build_default()`
+                // registry now silently flow through to
+                // `lower_default` — that path was always a
+                // misconfiguration; the dialect needs to match the
+                // source.
+                LoweringHookId::When => {
+                    return this.box_optional_lowered_statement(|this| {
+                        this.try_lower_when_declaration(seg, namespace, resolved.canonical_command)
+                    });
+                }
+                // `foreachLine varName filename body` — Tcl 9.0
+                // (TIP 670).  Always registered in `build_default()`
+                // via `tcl::foreachline::spec`, so no dialect-load
+                // dance is needed.  The `lower_foreach_line`
+                // emitter handles its own shape errors and
+                // dynamic-body fallback, but the `args.len() == 3`
+                // guard keeps an under- or over-argued `foreachLine`
+                // flowing to `lower_default` instead of triggering a
+                // barrier inside the dedicated emitter.
+                LoweringHookId::ForeachLine => {
+                    return this.box_optional_lowered_statement(|this| {
+                        this.try_lower_foreach_line_structured(
+                            seg,
+                            namespace,
+                            resolved.canonical_command,
+                        )
+                    });
+                }
+
+                // Non-structured hooks (`Expr` / `Return` / `Set` /
+                // `Incr` / `AppendOrLappend` / `Unset` / `Global` /
+                // `Variable` / `Upvar`) are handled by
+                // [`try_lower_hook`] before [`lower_command`] reaches
+                // this dispatcher.  They can still reach here when
+                // their static dispatcher returned `None` for the
+                // input shape (e.g. `try_lower_expr` rejects
+                // multi-arg `expr`); fall through to `lower_default`.
+                LoweringHookId::Expr
+                | LoweringHookId::Return
+                | LoweringHookId::Set
+                | LoweringHookId::Incr
+                | LoweringHookId::AppendOrLappend
+                | LoweringHookId::Unset
+                | LoweringHookId::Global
+                | LoweringHookId::Variable
+                | LoweringHookId::Upvar => return None,
+            };
+            Some(statement)
+        })
+    }
+
+    /// Keep the genuine parent vector through all structured body callbacks,
+    /// restoring it even when a hook declines before producing a statement.
+    fn with_original_body_parent<T>(
+        &mut self,
+        parent: Box<CommandTokens>,
+        lower: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let enclosing = self.structured_source_parent.replace(parent);
+        let result = lower(self);
+        self.structured_source_parent = enclosing;
+        result
     }
 
     /// Materialise statement return storage outside the recursive dispatcher.
