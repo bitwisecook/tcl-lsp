@@ -89,7 +89,9 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // carried options until a later command replaces them, but neither the
     // caller's prior options nor the caught body's options belong to the
     // successful `catch` command itself.
-    interp.clear_return_options();
+    if let Err(first) = interp.clear_return_options_checked() {
+        return interp.refuse_native_execution(first);
+    }
     // `catch` is bytecode-compiled inline (C's `TclCompileCatchCmd`): a literal
     // body runs in the **same** `info frame` level and the same `codePtr->source`
     // as the enclosing proc/script. `eval_control_body` reproduces that — sharing
@@ -127,7 +129,9 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         None
     };
     if !jim {
-        interp.clear_return_options();
+        if let Err(first) = interp.clear_return_options_checked() {
+            return interp.refuse_native_execution(first);
+        }
     }
     let selection = interp.active_native_compilation_selection();
     let Some(order) = selected.output_order(dialect, selection).indices(selected) else {
@@ -160,7 +164,9 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     if jim {
-        interp.clear_return_options();
+        if let Err(first) = interp.clear_return_options_checked() {
+            return interp.refuse_native_execution(first);
+        }
     }
     // The error is now caught: publish the accumulated trace to the
     // `::errorInfo`/`::errorCode` globals (so a later `set ::errorInfo` reads it)

@@ -1242,7 +1242,8 @@ impl Interp {
                     }
                     self.set_return_state(1, Code::Ok);
                 }
-                self.clear_return_options();
+                self.clear_return_options_checked()
+                    .map_err(|first| self.refuse_native_execution(first))?;
                 let result_store = result.as_ref().map(|name| (name, &original_result));
                 let options_store = options.as_ref().zip(original_options.as_ref());
                 let stores = if protocol.result_before_options() {

@@ -117,7 +117,9 @@ fn switch_inline_form(
     }
     // The pattern objects are the inline body args at even indices (borrowed argv).
     let patterns: Vec<*mut TclObj> = (0..npairs).map(|p| words[p * 2]).collect();
-    interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
+    if let Err(first) = interp.begin_control_options_checked(ControlOptionPolicy::FRESH_FORWARDED) {
+        return interp.refuse_native_execution(first);
+    }
     let matched = match core_switch::select_original_with_jim::<Interp, AreEngine, _, Code>(
         interp,
         opts,
@@ -219,7 +221,9 @@ fn switch_list_form(
         None
     };
     let pat_objs = members.iter().step_by(2).copied().collect::<Vec<_>>();
-    interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
+    if let Err(first) = interp.begin_control_options_checked(ControlOptionPolicy::FRESH_FORWARDED) {
+        return interp.refuse_native_execution(first);
+    }
     let outcome = core_switch::select_original_with_jim::<Interp, AreEngine, _, Code>(
         interp,
         opts,

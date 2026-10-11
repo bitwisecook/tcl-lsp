@@ -28,7 +28,7 @@
 //!
 //! Semantics verified against tclsh 9.0.
 
-use crate::interp::{Code, Interp, drop_fresh, new_string, obj_bytes};
+use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 use tcl_syntax::value::ValueOps;
 
@@ -968,7 +968,9 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     } else {
         ControlOptionPolicy::FRESH_SETTLED
     };
-    interp.begin_control_options(policy);
+    if let Err(first) = interp.begin_control_options_checked(policy) {
+        return interp.refuse_native_execution(first);
+    }
     let mut cursor = tcl_cmd_core::native_each_loop::EachLoopState::new(recipe, kind, lengths);
     let mut collected = Vec::<crate::obj::Owned>::new();
     loop {
@@ -1002,7 +1004,9 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 }
             }
             EachLoopAction::Body => {
-                interp.begin_control_options(policy);
+                if let Err(first) = interp.begin_control_options_checked(policy) {
+                    return interp.refuse_native_execution(first);
+                }
                 let code = interp.eval_generic_control_body(argv[argv.len() - 1]);
                 match cursor.body_completion(tcl_core_types::Code::from_int(
                     i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
@@ -1033,7 +1037,9 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 } else {
                     interp.set_result_bytes(b"");
                 }
-                interp.settle_control_options(policy, Code::Ok);
+                if let Err(first) = interp.settle_control_options_checked(policy, Code::Ok) {
+                    return interp.refuse_native_execution(first);
+                }
                 return Code::Ok;
             }
         }

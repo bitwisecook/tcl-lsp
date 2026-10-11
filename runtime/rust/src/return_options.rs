@@ -300,7 +300,9 @@ pub(crate) fn publish(
         interp.set_result(result.as_ptr());
     }
 
-    interp.set_return_option_objects(prepared.options);
+    if let Err(error) = interp.set_return_option_objects_checked(prepared.options) {
+        return interp.report_cmd_error(error);
+    }
     if ops.protocol == ReturnOptionsProtocol::Jim084 {
         interp.set_return_state(level, code);
     }

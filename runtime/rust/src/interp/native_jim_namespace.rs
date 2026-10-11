@@ -108,7 +108,9 @@ impl Interp {
     ) -> Code {
         let body = Owned::retain(body);
         let location = self.arg_loc(body.as_ptr());
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         if self
             .name_policy_protocol()
             .is_some_and(|protocol| protocol.recipe().is_jim084())

@@ -119,6 +119,7 @@ impl Interp {
             }
             self.settle_native_global_error_episode();
         }
+        let mut options_outcome = Ok(());
         if let Some(state) = saved.interpreter {
             self.return_code.set(state.code);
             self.return_level.set(state.level);
@@ -129,7 +130,7 @@ impl Interp {
                 let retired = self.error_stack.replace(stack);
                 drop(retired);
             }
-            self.restore_return_options(state.options);
+            options_outcome = self.restore_return_options_for_cleanup(state.options, &cleanup);
         }
         let retired = self.result.replace(saved.result.into_raw());
         // SAFETY: the interpreter transfers its current +1 to this retirement;
@@ -139,7 +140,8 @@ impl Interp {
             self.return_code.set(code);
         }
 
-        cleanup.check()
+        cleanup.check()?;
+        options_outcome
     }
 }
 

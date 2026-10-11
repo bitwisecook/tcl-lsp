@@ -30,7 +30,7 @@
 
 use crate::dict;
 use crate::frame::VarError;
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 use crate::parse;
 
@@ -1132,9 +1132,13 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     let policy = ControlOptionPolicy::FRESH_SETTLED;
-    interp.begin_control_options(policy);
+    if let Err(first) = interp.begin_control_options_checked(policy) {
+        return interp.refuse_native_execution(first);
+    }
     for (k, v) in pairs {
-        interp.begin_control_options(policy);
+        if let Err(first) = interp.begin_control_options_checked(policy) {
+            return interp.refuse_native_execution(first);
+        }
         if interp.var_set(&kvar, k).is_err() {
             return cant_set(interp, &kvar);
         }
@@ -1154,7 +1158,9 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     interp.set_result_bytes(b"");
-    interp.settle_control_options(policy, Code::Ok);
+    if let Err(first) = interp.settle_control_options_checked(policy, Code::Ok) {
+        return interp.refuse_native_execution(first);
+    }
     Code::Ok
 }
 
@@ -1185,9 +1191,19 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let acc = dict::new_dict_obj(&[]);
     unsafe { obj::incr_ref_count(acc) };
     let policy = ControlOptionPolicy::FRESH_FORWARDED;
-    interp.begin_control_options(policy);
+    if let Err(first) = interp.begin_control_options_checked(policy) {
+        interp.refuse_native_execution(first.clone());
+        unsafe { obj::decr_ref_count(acc) };
+        let _ = interp.check_entered_native_operation();
+        return interp.refuse_native_execution(first);
+    }
     for (k, v) in pairs {
-        interp.begin_control_options(policy);
+        if let Err(first) = interp.begin_control_options_checked(policy) {
+            interp.refuse_native_execution(first.clone());
+            unsafe { obj::decr_ref_count(acc) };
+            let _ = interp.check_entered_native_operation();
+            return interp.refuse_native_execution(first);
+        }
         if interp.var_set(&vars[0], k).is_err() || interp.var_set(&vars[1], v).is_err() {
             unsafe { obj::decr_ref_count(acc) };
             return cant_set(interp, &vars[0]);
@@ -1213,7 +1229,9 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result(acc);
     unsafe { obj::decr_ref_count(acc) };
-    interp.settle_control_options(policy, Code::Ok);
+    if let Err(first) = interp.settle_control_options_checked(policy, Code::Ok) {
+        return interp.refuse_native_execution(first);
+    }
     Code::Ok
 }
 
@@ -2244,3 +2262,88 @@ include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publi
 #[cfg(test)]
 #[path = "cmd_dict/original_path_tests.rs"]
 mod original_path_tests;
+
+#[cfg(test)]
+mod original_map_option_cleanup_tests {
+    use super::*;
+    use crate::interp::{
+        default_host, native_operation_currency::NativeOperationScope, WeakInterp,
+    };
+    use tcl_cmd_core::return_options::ReturnOptionPair;
+
+    extern "C" fn retire(value: *mut TclObj) {
+        let weak = unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut WeakInterp) };
+        if let Some(mut interpreter) = weak.upgrade() {
+            interpreter.refuse_host_command("original dict map option retirement");
+        }
+    }
+    static ORIGINAL: obj::TclObjType = obj::TclObjType {
+        name: c"originalDictMapOption".as_ptr(),
+        free_int_rep_proc: Some(retire),
+        dup_int_rep_proc: None,
+        update_string_proc: None,
+        set_from_any_proc: None,
+    };
+    #[test]
+    fn original_dict_map_option_refusal_retires_its_allocated_accumulator() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software accumulator cleanup under a member free, not a Native map chronology claim.
+        crate::counters::reset();
+        {
+            let environment =
+                tcl_registry::model::ingress::resolve_known_environment("tcl8.6").unwrap();
+            let mut interpreter = Interp::with_native_core(
+                default_host(),
+                environment.unit_profile(),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let value = obj::Owned::fresh(obj::alloc_typed(
+                &ORIGINAL,
+                Box::into_raw(Box::new(interpreter.downgrade())) as usize as u64,
+            ));
+            interpreter
+                .set_return_option_objects_checked(vec![ReturnOptionPair {
+                    key: obj::Owned::fresh(obj::new_string_bytes(b"-original")),
+                    value,
+                    key_bytes: b"-original".to_vec(),
+                }])
+                .unwrap();
+            let words: Vec<_> = [
+                b"dict".as_slice(),
+                b"map",
+                b"key value",
+                b"a A b B",
+                b"set ::original_map_effect REACHED",
+            ]
+            .into_iter()
+            .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)))
+            .collect();
+            let argv: Vec<_> = words.iter().map(obj::Owned::as_ptr).collect();
+            let scope = NativeOperationScope::enter(&interpreter).unwrap();
+            assert_eq!(map(&mut interpreter, &argv), Code::Error);
+            let first = interpreter.native_execution_refusal().unwrap();
+            let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(payload) = &first else {
+                panic!("actual option free must retain its full Host cause");
+            };
+            assert_eq!(payload.reason, "original dict map option retirement");
+            assert_eq!(
+                scope.currency().ensure_current_or_refuse().err(),
+                Some(first)
+            );
+            assert_eq!(
+                crate::vars::get_at(
+                    &interpreter.frames.borrow(),
+                    &interpreter.namespaces.borrow(),
+                    b"::original_map_effect",
+                    0
+                ),
+                None
+            );
+            drop(scope);
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+    }
+}

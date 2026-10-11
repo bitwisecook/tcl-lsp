@@ -43,10 +43,10 @@ mod bootstrap_context_tests;
 #[cfg(test)]
 mod byte_store_retirement_tests;
 #[cfg(test)]
-mod command_publication_tests;
-#[cfg(test)]
 mod c_api_error_tests;
 mod captured_rmw;
+#[cfg(test)]
+mod command_publication_tests;
 #[cfg(test)]
 mod container_access_tests;
 #[cfg(test)]
@@ -6409,40 +6409,63 @@ impl Interp {
         self.return_code.set(code);
     }
 
-    /// Replace the arbitrary option pairs carried by the current `return`.
-    pub(crate) fn set_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
-        self.set_return_option_objects(
-            options
-                .into_iter()
-                .map(
-                    |(key, value)| tcl_cmd_core::return_options::ReturnOptionPair {
-                        key: obj::Owned::fresh(obj::new_string_bytes(&key)),
-                        value: obj::Owned::fresh(obj::new_string_bytes(&value)),
-                        key_bytes: key,
-                    },
-                )
-                .collect(),
-        );
+    /// Replace byte-authored options through the same checked original-object
+    /// publication owner. Generated keys grant no name or execution purpose.
+    pub(crate) fn set_return_options_checked(
+        &self,
+        options: Vec<(Vec<u8>, Vec<u8>)>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let options = options
+            .into_iter()
+            .map(
+                |(key, value)| tcl_cmd_core::return_options::ReturnOptionPair {
+                    key: obj::Owned::fresh(obj::new_string_bytes(&key)),
+                    value: obj::Owned::fresh(obj::new_string_bytes(&value)),
+                    key_bytes: key,
+                },
+            )
+            .collect();
+        let reached = self.set_return_option_objects_checked(options);
+        scope.currency().ensure_current_or_refuse()?;
+        reached
     }
 
-    /// Retain exact original option objects across return and coroutine boundaries.
+    #[cfg(test)]
+    pub(crate) fn set_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
+        if let Err(error) = self.set_return_options_checked(options) {
+            self.clone().report_cmd_error(error);
+        }
+    }
+
+    /// Retain exact original options through checked Dict construction and
+    /// outside-borrow retirement, under the actual entered operation.
+    pub(crate) fn set_return_option_objects_checked(
+        &self,
+        options: Vec<tcl_cmd_core::return_options::ReturnOptionPair<obj::Owned>>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let reached = NativeReturnOptions::new_checked(
+            options,
+            self.native_invocation_dialect()
+                .native_error_objects_protocol(),
+            &|| scope.currency().ensure_current_or_refuse(),
+        );
+        scope.currency().ensure_current_or_refuse()?;
+        let options = reached?;
+        self.restore_return_options_checked(options)?;
+        scope.currency().ensure_current_or_refuse()?;
+        Ok(())
+    }
+
+    #[cfg(test)]
     pub(crate) fn set_return_option_objects(
         &self,
         options: Vec<tcl_cmd_core::return_options::ReturnOptionPair<obj::Owned>>,
     ) {
-        let options = match NativeReturnOptions::new(
-            options,
-            self.native_invocation_dialect()
-                .native_error_objects_protocol(),
-        ) {
-            Ok(options) => options,
-            Err(error) => {
-                self.clone().report_cmd_error(error.into());
-                return;
-            }
-        };
-        let retired = self.return_options.replace(options);
-        drop(retired);
+        if let Err(error) = self.set_return_option_objects_checked(options) {
+            self.clone().report_cmd_error(error);
+        }
     }
 
     #[cfg(test)]
@@ -6453,39 +6476,75 @@ impl Interp {
     }
 
     fn take_return_options(&self) -> NativeReturnOptions {
-        std::mem::take(&mut *self.return_options.borrow_mut())
+        let mut saved = std::mem::take(&mut *self.return_options.borrow_mut());
+        saved.renew_incarnation();
+        saved
     }
 
-    fn restore_return_options(&self, options: NativeReturnOptions) {
-        let retired = self.return_options.replace(options);
-        drop(retired);
+    fn restore_return_options_checked(
+        &self,
+        options: NativeReturnOptions,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let (ticket, lifetime) = self.publish_carried_return_options(options);
+        scope.currency().ensure_current_or_refuse()?;
+        self.check_carried_return_options_publication(&ticket, &lifetime)?;
+        drop(lifetime);
+        scope.currency().ensure_current_or_refuse()
     }
 
-    /// Begin an evaluation/completion boundary with no carried options.
+    // Mandatory saved-state settlement has an already attached original entry.
+    // It publishes and retires even under refusal, then returns the full cause.
+    fn restore_return_options_for_cleanup(
+        &self,
+        options: NativeReturnOptions,
+        cleanup: &native_operation_currency::NativeSavedCleanupScope,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let (ticket, lifetime) = self.publish_carried_return_options(options);
+        let reached = cleanup
+            .check()
+            .and_then(|()| self.check_carried_return_options_publication(&ticket, &lifetime));
+        drop(lifetime);
+        cleanup.check()?;
+        reached
+    }
+
+    /// Start a new completion boundary, refusing before later work if the old
+    /// owning fields retain a Host cause while retiring outside state borrows.
+    pub(crate) fn clear_return_options_checked(
+        &self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.restore_return_options_checked(NativeReturnOptions::default())
+    }
+
+    #[cfg(test)]
     pub(crate) fn clear_return_options(&self) {
-        let retired = self.return_options.replace(NativeReturnOptions::default());
-        drop(retired);
+        let _ = self.clear_return_options_checked();
     }
 
-    /// Enter a control-command body under the shared completion-option policy.
-    pub(crate) fn begin_control_options(
+    /// Enter a control body using the shared completion-option policy.
+    pub(crate) fn begin_control_options_checked(
         &self,
         policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
-    ) {
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         if policy.begins_fresh() {
-            self.clear_return_options();
+            self.clear_return_options_checked()?;
         }
+        scope.currency().ensure_current_or_refuse()
     }
 
-    /// Settle a control command's successful completion under the shared policy.
-    pub(crate) fn settle_control_options(
+    /// Settle a successful control completion before publishing later effects.
+    pub(crate) fn settle_control_options_checked(
         &self,
         policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
         code: Code,
-    ) {
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
         if code == Code::Ok && policy.settles_success() {
-            self.clear_return_options();
+            self.clear_return_options_checked()?;
         }
+        scope.currency().ensure_current_or_refuse()
     }
 
     /// The pending `return` `-code`/`-level` (the options a body that completed
@@ -6571,7 +6630,10 @@ impl Interp {
             let code = self.report_cmd_error(error.into());
             return project(self, code);
         }
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            self.refuse_native_execution(first);
+            return project(self, Code::Error);
+        }
         self.script_stack.borrow_mut().push(name.to_vec());
         // A `source`d file is its own `info frame` level: `type source` + the
         // file path, inheriting the enclosing proc/level. Its commands are
@@ -6682,7 +6744,9 @@ impl Interp {
     /// frame, so its commands — and the method bodies they define — report
     /// file-absolute `info frame` lines (TIP 280). Otherwise it runs inline.
     pub(crate) fn eval_def_body(&mut self, body: &[u8], src: Option<(Rc<[u8]>, u32)>) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         match src {
             Some((file, line_base)) => {
                 let mut frame = self.inherited_cmd_frame();
@@ -6701,7 +6765,9 @@ impl Interp {
     /// together), then restore. Transparent — the body's completion
     /// code (incl. `return`) propagates unchanged.
     pub(crate) fn eval_uplevel(&mut self, target_level: usize, script: &[u8]) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         let prev_level = self.frames.borrow_mut().set_active_level(target_level);
         let prev_ns = self.current_ns.get();
         self.current_ns
@@ -6741,7 +6807,9 @@ impl Interp {
         )>,
         original_arguments: Option<&[*mut TclObj]>,
     ) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         let target = if self
             .name_policy_protocol()
             .is_some_and(|protocol| protocol.recipe().is_jim084())
@@ -8367,7 +8435,10 @@ impl Interp {
                         line.extend_from_slice(&obj_bytes(args));
                         drop_fresh(args);
                         self.reset_native_error_objects_before_trace_script();
-                        self.clear_return_options();
+                        if self.clear_return_options_checked().is_err() {
+                            errored = true;
+                            break 'groups;
+                        }
                         let saved = match self.save_native_variable_trace_result(true) {
                             Ok(saved) => saved,
                             Err(_) => {
@@ -9078,7 +9149,9 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.reset_native_error_objects_before_trace_script();
-            self.clear_return_options();
+            if self.clear_return_options_checked().is_err() {
+                break;
+            }
             let saved_script = match self.save_native_command_trace_result(true) {
                 Ok(saved) => saved,
                 Err(_) => break,
@@ -9144,6 +9217,31 @@ impl Interp {
         self.traces.borrow().untraced_cmd_trace_ids.contains(&id)
     }
 
+    fn finish_saved_execution_result(
+        &self,
+        currency: &native_operation_currency::SavedNativeOperationCurrency,
+        saved: *mut TclObj,
+        saved_options: NativeReturnOptions,
+        restore: bool,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let cleanup =
+            native_operation_currency::NativeOperationScope::enter_saved_cleanup(currency, self)?;
+        let options_outcome = if restore {
+            let retired = self.result.replace(saved);
+            // SAFETY: publish the saved owning reference before retiring the
+            // callback result; neither role is borrowed under its destructor.
+            unsafe { obj::decr_ref_count(retired) };
+            self.restore_return_options_for_cleanup(saved_options, &cleanup)
+        } else {
+            // These are genuine discarded saved roles, not protective holds.
+            unsafe { obj::decr_ref_count(saved) };
+            drop(saved_options);
+            Ok(())
+        };
+        cleanup.check()?;
+        options_outcome
+    }
+
     /// Fire `enter` execution traces on `fqn` (creation order), invoking each as
     /// `<prefix> {cmd args} enter`. Returns `Some(code)` if a callback completed
     /// non-OK — the command is then aborted with that code and the callback's
@@ -9164,6 +9262,11 @@ impl Interp {
         if ids.is_empty() {
             return None;
         }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return Some(self.refuse_native_execution(first)),
+        };
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
@@ -9184,8 +9287,10 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
-            self.clear_return_options();
-            let c = self.eval_native_command_trace_script(true, &line);
+            let c = match self.clear_return_options_checked() {
+                Ok(()) => self.eval_native_command_trace_script(true, &line),
+                Err(first) => self.refuse_native_execution(first),
+            };
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 // The callback's result becomes the command's result; abort.
@@ -9194,15 +9299,14 @@ impl Interp {
             }
         }
         self.traces.borrow_mut().exec_firing -= 1;
-        if abort.is_some() {
-            // Drop the preserved result; the callback's result stands.
-            unsafe { obj::decr_ref_count(saved) };
-        } else {
-            unsafe {
-                obj::decr_ref_count(self.result.get());
-                self.result.set(saved);
-            }
-            self.restore_return_options(saved_options);
+        let cleanup = self.finish_saved_execution_result(
+            &saved_currency,
+            saved,
+            saved_options,
+            abort.is_none(),
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse().and(cleanup) {
+            return Some(self.refuse_native_execution(first));
         }
         abort
     }
@@ -9236,6 +9340,11 @@ impl Interp {
         // result is NOT restored *between* callbacks: each leave callback's
         // `<result>` element is the live result, so a callback that changes the
         // result is observed by the next one.
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
@@ -9264,8 +9373,10 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
-            self.clear_return_options();
-            let c = self.eval_native_command_trace_script(true, &line);
+            let c = match self.clear_return_options_checked() {
+                Ok(()) => self.eval_native_command_trace_script(true, &line),
+                Err(first) => self.refuse_native_execution(first),
+            };
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 override_code = Some(c);
@@ -9274,22 +9385,16 @@ impl Interp {
         }
         self.traces.borrow_mut().exec_firing -= 1;
 
-        match override_code {
-            // A leave-trace error/return overrides; the callback's result stands.
-            Some(c) => {
-                unsafe { obj::decr_ref_count(saved) };
-                c
-            }
-            // Restore the command's own result and code.
-            None => {
-                unsafe {
-                    obj::decr_ref_count(self.result.get());
-                    self.result.set(saved);
-                }
-                self.restore_return_options(saved_options);
-                code
-            }
+        let cleanup = self.finish_saved_execution_result(
+            &saved_currency,
+            saved,
+            saved_options,
+            override_code.is_none(),
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse().and(cleanup) {
+            return self.refuse_native_execution(first);
         }
+        override_code.unwrap_or(code)
     }
 
     /// The name a command's identity lives under now, following any open
@@ -9926,7 +10031,9 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            self.clear_return_options();
+            if self.clear_return_options_checked().is_err() {
+                break;
+            }
             let saved_script = match self.save_native_variable_trace_result(true) {
                 Ok(saved) => saved,
                 Err(_) => break,
@@ -10283,7 +10390,9 @@ impl Interp {
         }
         self.mark_error_stack_reset();
         self.set_return_state(1, Code::Ok);
-        self.clear_return_options();
+        if self.clear_return_options_checked().is_err() {
+            return;
+        }
         let _ = scope.currency().ensure_current_or_refuse();
     }
 
@@ -10419,19 +10528,22 @@ impl Interp {
     /// Run an implicit callback while preserving the caller's result and
     /// carried completion options. The callback may inspect and replace the
     /// live result internally; its final value is discarded when `f` returns.
-    pub(crate) fn with_preserved_result<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+    pub(crate) fn with_preserved_result_checked<R>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> Result<R, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
-        // SAFETY: the interpreter owns `saved`; hold an independent reference
-        // while callback evaluation replaces the result slot.
+        // SAFETY: preserve the same real saved result role across the callback.
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
         let output = f(self);
-        // SAFETY: discard the callback's owned result and transfer the saved
-        // reference back into the interpreter result slot.
-        unsafe { obj::decr_ref_count(self.result.get()) };
-        self.result.set(saved);
-        self.restore_return_options(saved_options);
-        output
+        let cleanup =
+            self.finish_saved_execution_result(&saved_currency, saved, saved_options, true);
+        scope.currency().ensure_current_or_refuse()?;
+        cleanup?;
+        Ok(output)
     }
 
     /// The current result **object** — a borrowed pointer (the interp keeps its
@@ -10873,10 +10985,12 @@ impl Interp {
         ctx.return_code = rc;
         let rl = self.return_level.replace(ctx.return_level);
         ctx.return_level = rl;
-        std::mem::swap(
-            &mut *self.return_options.borrow_mut(),
-            &mut ctx.return_options,
-        );
+        {
+            let mut options = self.return_options.borrow_mut();
+            std::mem::swap(&mut *options, &mut ctx.return_options);
+            options.renew_incarnation();
+            ctx.return_options.renew_incarnation();
+        }
         std::mem::swap(
             &mut *self.array_operation_targets.borrow_mut(),
             &mut ctx.array_operation_targets,
@@ -12331,7 +12445,10 @@ impl Interp {
         };
         self.reset_outermost_native_error();
         if self.eval_depth.get() == 0 {
-            self.clear_return_options();
+            if let Err(first) = self.clear_return_options_checked() {
+                self.refuse_native_execution(first);
+                return project(self, Code::Error);
+            }
         }
         let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
         let code = if self.native_invocation_dialect().native_string_protocol()
@@ -12781,7 +12898,9 @@ impl Interp {
     /// `TclEvalObjEx` of a non-literal). The errorInfo `("eval" body line N)`
     /// frame is appended separately by the caller.
     pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         self.eval_unlocated_body(script)
     }
 
@@ -12886,7 +13005,9 @@ impl Interp {
     }
 
     pub(crate) fn eval_body_obj(&mut self, obj: *mut TclObj) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         let mut frame = self.inherited_cmd_frame();
         match self.arg_loc(obj) {
             // A located literal body keeps its file+line (`type source`).
@@ -12998,7 +13119,9 @@ impl Interp {
     /// [`eval_body_obj`](Self::eval_body_obj). A located literal keeps its source
     /// provenance; a dynamic body is `type eval`, no file.
     pub(crate) fn eval_uplevel_obj(&mut self, target_level: usize, obj: *mut TclObj) -> Code {
-        self.clear_return_options();
+        if let Err(first) = self.clear_return_options_checked() {
+            return self.refuse_native_execution(first);
+        }
         let loc = self.arg_loc(obj);
         let prev_level = self.frames.borrow_mut().set_active_level(target_level);
         let prev_ns = self.current_ns.get();
@@ -13660,6 +13783,11 @@ impl Interp {
         if cmds.is_empty() {
             return None;
         }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return Some(self.refuse_native_execution(first)),
+        };
+        let saved_currency = native_operation_currency::SavedNativeOperationCurrency::capture(self);
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
         let saved_options = self.take_return_options();
@@ -13684,8 +13812,10 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            self.clear_return_options();
-            let c = self.eval_native_command_trace_script(true, &line);
+            let c = match self.clear_return_options_checked() {
+                Ok(()) => self.eval_native_command_trace_script(true, &line),
+                Err(first) => self.refuse_native_execution(first),
+            };
             if c != Code::Ok {
                 outcome = Some(c);
                 break;
@@ -13693,20 +13823,16 @@ impl Interp {
         }
         self.traces.borrow_mut().exec_firing -= 1;
 
-        match outcome {
-            Some(c) => {
-                unsafe { obj::decr_ref_count(saved) };
-                Some(c)
-            }
-            None => {
-                unsafe {
-                    obj::decr_ref_count(self.result.get());
-                    self.result.set(saved);
-                }
-                self.restore_return_options(saved_options);
-                None
-            }
+        let cleanup = self.finish_saved_execution_result(
+            &saved_currency,
+            saved,
+            saved_options,
+            outcome.is_none(),
+        );
+        if let Err(first) = scope.currency().ensure_current_or_refuse().and(cleanup) {
+            return Some(self.refuse_native_execution(first));
         }
+        outcome
     }
 
     /// The original resolve→invoke→unknown dispatch (trace-free).
@@ -15720,7 +15846,9 @@ impl Interp {
         argv: &[*mut TclObj],
     ) -> Code {
         let policy = tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED;
-        self.begin_control_options(policy);
+        if let Err(first) = self.begin_control_options_checked(policy) {
+            return self.refuse_native_execution(first);
+        }
         let Some(parent_state) = self.parent.borrow().upgrade() else {
             return self.error(b"cannot invoke a parent alias from the root interpreter");
         };
@@ -15758,8 +15886,10 @@ impl Interp {
             new_argv.push(original);
         }
         CROSS_INTERP_DEPTH.with(|d| d.set(d.get() + 1));
-        parent.begin_control_options(policy);
-        let code = parent.dispatch_in_lookup_namespace(GLOBAL, &new_argv);
+        let code = match parent.begin_control_options_checked(policy) {
+            Ok(()) => parent.dispatch_in_lookup_namespace(GLOBAL, &new_argv),
+            Err(first) => parent.refuse_native_execution(first),
+        };
         CROSS_INTERP_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
         release_all(&new_argv);
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
@@ -15785,7 +15915,9 @@ impl Interp {
             return self.transport_host_refusal_from(&parent);
         }
         self.set_result_bytes(&result);
-        self.set_return_option_objects(options);
+        if let Err(error) = self.set_return_option_objects_checked(options) {
+            return self.report_cmd_error(error);
+        }
         code
     }
 
@@ -16234,13 +16366,18 @@ impl Interp {
         let native = meta
             .native
             .filter(|_| self.traces.borrow().step_active.is_empty());
-        self.clear_return_options();
+        let body_options = self.clear_return_options_checked();
         native_admission.activate();
         let jim_level = self.jim_procedure_level.get();
         if self.uses_jim_error_stack() {
             self.jim_procedure_level.set(jim_level + 1);
         }
-        let execution = self.acquire_native_procedure_execution(meta.c_procedure);
+        let execution: Result<(), tcl_cmd_core::CmdError> = match body_options {
+            Ok(()) => self
+                .acquire_native_procedure_execution(meta.c_procedure)
+                .map_err(tcl_cmd_core::CmdError::from),
+            Err(first) => Err(first.into()),
+        };
         let code = match execution {
             Err(error) => self.report_cmd_error(error.into()),
             Ok(()) => match native {
@@ -16301,7 +16438,9 @@ impl Interp {
         if let Some(tailcall) = tailcall.filter(|_| {
             code == Code::Ok || code == Code::Return || Some(code.as_int()) == tailcall_code
         }) {
-            self.clear_return_options();
+            if let Err(first) = self.clear_return_options_checked() {
+                return self.refuse_native_execution(first);
+            }
             self.deferred_tailcalls
                 .borrow_mut()
                 .push((issuer_dispatch, tailcall));
@@ -16910,9 +17049,11 @@ impl Interp {
     /// wrapper begins a fresh completion-option scope before invoking its
     /// target, including across an interpreter boundary.
     fn dispatch_alias(&mut self, original_prefix: &obj::Owned, argv: &[*mut TclObj]) -> Code {
-        self.begin_control_options(
+        if let Err(first) = self.begin_control_options_checked(
             tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
-        );
+        ) {
+            return self.refuse_native_execution(first);
+        }
         if ALIAS_DISPATCH_DEPTH.with(|d| d.get()) >= MAX_ALIAS_DISPATCH_DEPTH {
             return self.error(b"too many nested alias invocations (infinite loop?)");
         }

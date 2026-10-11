@@ -1067,7 +1067,7 @@ impl Interp {
             reached?;
         }
         self.exc.borrow_mut().native.legacy_copy = false;
-        self.clear_return_options();
+        self.clear_return_options_checked()?;
         currency.ensure_current_or_refuse()
     }
 }

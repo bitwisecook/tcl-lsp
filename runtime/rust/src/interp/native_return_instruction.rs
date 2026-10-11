@@ -302,7 +302,7 @@ impl Interp {
         self.publish_native_error_objects_checked(scope.currency())?;
         self.mark_error_stack_reset();
         self.set_return_state(1, Code::Ok);
-        self.clear_return_options();
+        self.clear_return_options_checked()?;
         scope.currency().ensure_current_or_refuse()?;
         self.replace_exception_state_checked(scope.currency(), super::ExceptionState::default())?;
         self.clear_during();
@@ -341,7 +341,7 @@ impl Interp {
                             .map_err(|error| self.clone().refuse_completion_value_access(error))
                     },
                 )?;
-                self.restore_return_options(original);
+                self.restore_return_options_checked(original)?;
                 scope.currency().ensure_current_or_refuse()?;
             }
             if code == 1 {

@@ -357,12 +357,14 @@ fn array_cmd_after_trace(
         return match result {
             Ok(result) => {
                 if let Some(miss) = result.read_miss {
-                    interp.set_return_options(
+                    if let Err(error) = interp.set_return_options_checked(
                         tcl_runtime_api::completion_options::retained_array_read_options(
                             &miss,
                             <[u8]>::to_vec,
                         ),
-                    );
+                    ) {
+                        return interp.report_cmd_error(error);
+                    }
                 }
                 interp.set_result(result.value);
                 Code::Ok
@@ -506,7 +508,9 @@ fn array_for(
             Err(error) => return interp.report_cmd_error(error.into()),
         };
         let policy = ControlOptionPolicy::FRESH_SETTLED;
-        interp.begin_control_options(policy);
+        if let Err(first) = interp.begin_control_options_checked(policy) {
+            return interp.refuse_native_execution(first);
+        }
         for idx in 0..=snapshot.len() {
             if let Err(error) = arguments.check() {
                 return interp.report_cmd_error(error);
@@ -518,7 +522,9 @@ fn array_for(
             if idx == snapshot.len() {
                 break;
             }
-            interp.begin_control_options(policy);
+            if let Err(first) = interp.begin_control_options_checked(policy) {
+                return interp.refuse_native_execution(first);
+            }
             let key = &snapshot[idx];
             if !search.element_is_defined(key) {
                 continue;
@@ -614,7 +620,9 @@ fn array_for(
             }
         }
         interp.set_result_bytes(b"");
-        interp.settle_control_options(policy, Code::Ok);
+        if let Err(first) = interp.settle_control_options_checked(policy, Code::Ok) {
+            return interp.refuse_native_execution(first);
+        }
         Code::Ok
     })();
     drop(variables);
@@ -761,7 +769,7 @@ mod undefined_root;
 #[cfg(test)]
 mod tests {
     use crate::counters;
-    use crate::interp::{Code, Interp, new_string};
+    use crate::interp::{new_string, Code, Interp};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         leak_free_native(crate::environment::profile_for_dialect("tcl9.0"), body);

@@ -8021,7 +8021,7 @@ impl Interp {
     /// Destroy an object during implicit teardown, routing a destructor error to
     /// the `interp bgerror` handler (C's `AfterNRDestructor` → background error).
     fn oo_destroy_bg(&mut self, obj: OoId) {
-        self.with_preserved_result(|interp| {
+        let outcome = self.with_preserved_result_checked(|interp| {
             if interp.oo_destroy(obj) == Code::Error {
                 let msg = match interp.completion_result_bytes_checked() {
                     Ok(message) => message,
@@ -8053,6 +8053,9 @@ impl Interp {
                 interp.report_bg_error(&msg, &options);
             }
         });
+        if let Err(first) = outcome {
+            self.refuse_native_execution(first);
+        }
     }
 
     /// Destroy an object. Returns the destructor's result `Code`: explicit
@@ -8404,7 +8407,7 @@ mod original_info_target_tests;
 
 #[cfg(test)]
 mod tests {
-    use crate::interp::{Code, Interp, Param, obj_bytes};
+    use crate::interp::{obj_bytes, Code, Interp, Param};
     use crate::{counters, list, obj};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
