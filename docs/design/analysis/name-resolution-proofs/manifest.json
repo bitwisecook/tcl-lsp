@@ -209472,7 +209472,7 @@
           "path": "scripts/dev/test_name_resolution_proofs.py",
           "selector": "test_counted_source_anchor_uses_bytes_and_physical_lf_lines",
           "status": "linked",
-          "assertion": "Counted UTF-8 snippet byte extent and physical LF lines remain separate from character count, carriage return, form feed and NUL; reversed/short/shifted extents are refused. This pure Python helper control does not establish whole original source offset correspondence."
+          "assertion": "Counted UTF-8 snippet byte extent and physical LF lines remain separate from character count, carriage return, form feed and NUL; reversed ranges and mismatched snippet lengths or LF extents are refused. This pure Python helper control does not establish whole original source offset correspondence."
         },
         {
           "path": "scripts/dev/test_name_resolution_proofs.py",
