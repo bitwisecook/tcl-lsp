@@ -1343,7 +1343,7 @@ fn original_io_and_debug_resident_arguments_keep_cursor_flag_and_no_formatter_qu
     let (mut vm, formatter, acquisitions) = provided();
     let channel = original_read_channel(&mut vm);
     let result = vm
-        .try_invoke_command("read", &[Value::string(&channel), Value::string("2")])
+        .try_invoke_command("read", &[Value::string(channel.as_str()), Value::string("2")])
         .unwrap();
     assert_eq!(result.code, Code::Ok);
     assert_eq!(
@@ -1352,7 +1352,7 @@ fn original_io_and_debug_resident_arguments_keep_cursor_flag_and_no_formatter_qu
     );
     assert_eq!(original_channel_cursor(&vm, &channel), 2);
     let result = vm
-        .try_invoke_command("seek", &[Value::string(&channel), Value::int(1)])
+        .try_invoke_command("seek", &[Value::string(channel.as_str()), Value::int(1)])
         .unwrap();
     assert_eq!(result.code, Code::Ok);
     assert_eq!(original_channel_cursor(&vm, &channel), 1);
@@ -1360,7 +1360,7 @@ fn original_io_and_debug_resident_arguments_keep_cursor_flag_and_no_formatter_qu
         .try_invoke_command(
             "seek",
             &[
-                Value::string(&channel),
+                Value::string(channel.as_str()),
                 Value::int(2),
                 Value::string("current"),
             ],
@@ -1429,7 +1429,7 @@ fn original_io_formatter_withdrawal_stops_read_and_seek_before_mutation() {
         *formatter.retire_owner.borrow_mut() = Some(root);
         formatter.retire_at.set(Some("format"));
         let mut arguments = vec![
-            Value::string(&channel),
+            Value::string(channel.as_str()),
             held.value().native_lifetime_lease().into_value(),
         ];
         if purpose == "seek-current" {
@@ -1544,7 +1544,7 @@ fn original_numeric_command_prior_host_cause_remains_typed_before_guest_defaults
     let first = vm.execution_refusal.clone().unwrap();
     for name in ["read", "seek"] {
         let error = vm
-            .try_invoke_command(name, &[Value::string(&channel), Value::string("bad")])
+            .try_invoke_command(name, &[Value::string(channel.as_str()), Value::string("bad")])
             .unwrap_err();
         assert_eq!(error, first);
         assert_eq!(original_channel_cursor(&vm, &channel), 0);
@@ -1636,7 +1636,7 @@ fn original_public_read_counts_preserve_selected_errors_and_untouched_cursor() {
         let channel = original_read_channel(&mut vm);
         for (count, expected) in [("bad", bad), ("-1", negative)] {
             let completion = vm
-                .try_invoke_command("read", &[Value::string(&channel), Value::string(count)])
+                .try_invoke_command("read", &[Value::string(channel.as_str()), Value::string(count)])
                 .unwrap();
             let (message, code) = original_numeric_public_error(completion);
             assert_eq!(message.as_ref(), expected, "{dialect} {count}");
@@ -1652,7 +1652,7 @@ fn original_public_read_counts_preserve_selected_errors_and_untouched_cursor() {
             assert!(vm.execution_refusal.is_none());
         }
         let result = vm
-            .try_invoke_command("read", &[Value::string(&channel), Value::int(2)])
+            .try_invoke_command("read", &[Value::string(channel.as_str()), Value::int(2)])
             .unwrap();
         assert_eq!(result.code, Code::Ok);
         assert_eq!(
@@ -1675,7 +1675,7 @@ fn original_public_seek_errors_preserve_conversion_order_and_negative_target_pos
             .try_invoke_command(
                 "seek",
                 &[
-                    Value::string(&channel),
+                    Value::string(channel.as_str()),
                     Value::string("bad"),
                     Value::string("invalid-origin"),
                 ],
@@ -1694,11 +1694,11 @@ fn original_public_seek_errors_preserve_conversion_order_and_negative_target_pos
         );
         assert_eq!(original_channel_cursor(&vm, &channel), 0);
         let result = vm
-            .try_invoke_command("seek", &[Value::string(&channel), Value::int(3)])
+            .try_invoke_command("seek", &[Value::string(channel.as_str()), Value::int(3)])
             .unwrap();
         assert_eq!(result.code, Code::Ok);
         let failed = vm
-            .try_invoke_command("seek", &[Value::string(&channel), Value::int(-1)])
+            .try_invoke_command("seek", &[Value::string(channel.as_str()), Value::int(-1)])
             .unwrap();
         let (message, code) = original_numeric_public_error(failed);
         if dialect == "jim" {
@@ -1719,7 +1719,7 @@ fn original_public_seek_errors_preserve_conversion_order_and_negative_target_pos
             .try_invoke_command(
                 "seek",
                 &[
-                    Value::string(&channel),
+                    Value::string(channel.as_str()),
                     Value::int(-1),
                     Value::string("current"),
                 ],
