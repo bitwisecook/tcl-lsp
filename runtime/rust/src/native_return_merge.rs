@@ -6,6 +6,7 @@ use crate::{
     return_options::NativeReturnOps,
     value_ops::{RuntimeAppendObjects, RuntimeAppendValue},
 };
+use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
 use tcl_cmd_core::{
     native_append,
     native_return_merge::{self, NativeReturnMergeObjects},
@@ -18,6 +19,9 @@ impl NativeReturnMergeObjects for NativeReturnOps {
     type Dictionary = PreparedNativeDictionary;
     fn fresh_dictionary(&mut self) -> Result<Self::Dictionary, CmdError> {
         let original = Owned::fresh(obj::new_string_bytes(b""));
+        if let Some(objects) = &self.original {
+            return objects.prepare(Some(&RuntimeAppendValue::borrowed(original.as_ptr())));
+        }
         Ok(PreparedNativeDictionary::prepare(
             Some(original.as_ptr()),
             self.string,
@@ -29,24 +33,56 @@ impl NativeReturnMergeObjects for NativeReturnOps {
         key: &Owned,
         value: &Owned,
     ) -> Result<(), CmdError> {
+        if let Some(objects) = &self.original {
+            return objects.set_member(
+                root,
+                &RuntimeAppendValue::borrowed(key.as_ptr()),
+                RuntimeAppendValue::borrowed(value.as_ptr()),
+            );
+        }
         Ok(root.set_member(key.as_ptr(), value.as_ptr())?)
     }
     fn get(&mut self, root: &Self::Dictionary, key: &[u8]) -> Result<Option<Owned>, CmdError> {
+        if let Some(objects) = self.original.clone() {
+            let key = self.new_string(key);
+            return objects.with_member(
+                root,
+                &RuntimeAppendValue::borrowed(key.as_ptr()),
+                |value| Ok(value.map(|value| Owned::retain(value.as_ptr()))),
+            );
+        }
         Ok(root.with_member(self.new_string(key).as_ptr(), |value| {
             value.map(Owned::retain)
         })?)
     }
     fn remove(&mut self, root: &mut Self::Dictionary, key: &[u8]) -> Result<(), CmdError> {
+        if let Some(objects) = self.original.clone() {
+            let key = self.new_string(key);
+            return objects.remove_member(root, &RuntimeAppendValue::borrowed(key.as_ptr()));
+        }
         root.remove_member(self.new_string(key).as_ptr())?;
         Ok(())
     }
     fn dictionary_pairs(&mut self, value: &Owned) -> Result<Vec<(Owned, Owned)>, CmdError> {
+        if let Some(original) = &self.original {
+            return original.original_pairs(value.as_ptr()).map(|pairs| {
+                pairs
+                    .into_iter()
+                    .map(|(key, value)| (Owned::retain(key), Owned::retain(value)))
+                    .collect()
+            });
+        }
         Ok(crate::dict::native_dict_pairs(value.as_ptr(), self.string)?
             .into_iter()
             .map(|(key, value)| (Owned::retain(key), Owned::retain(value)))
             .collect())
     }
     fn size(&mut self, root: &Self::Dictionary) -> Result<usize, CmdError> {
+        if let Some(original) = &self.original {
+            return original
+                .original_pairs(root.original())
+                .map(|pairs| pairs.len());
+        }
         Ok(crate::dict::native_dict_pairs(root.original(), self.string)?.len())
     }
     fn finish(&mut self, root: Self::Dictionary) -> Owned {

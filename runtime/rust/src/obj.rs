@@ -46,15 +46,15 @@
 //! boundary is immediate, which is what `Tcl_DecrRefCount` documents.
 
 mod native_jim_lookup;
-pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) use native_jim_lookup::{
     install_command_cache_with_stage_check as install_jim_command_cache_with_stage_check,
     install_variable_cache_with_stage_check as install_jim_variable_cache_with_stage_check,
     with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
 };
+pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 
 use core::ffi::{c_char, c_void};
-use std::alloc::{Layout, alloc, dealloc, realloc};
+use std::alloc::{alloc, dealloc, realloc, Layout};
 use std::{
     any::Any,
     cell::{Cell, RefCell},
@@ -318,6 +318,15 @@ impl NativePrimaryReceipt {
         })
     }
     pub(crate) fn check(&self, value: *mut TclObj) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_for(value, "retired original C binary storage")
+    }
+    /// Same original primary observation for the actual caller's pure guard.
+    /// A purpose label supplies typed refusal data, never new getter authority.
+    pub(crate) fn check_for(
+        &self,
+        value: *mut TclObj,
+        purpose: &'static str,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
         check_native_liveness(value)?;
         if self.header.as_ptr() != value
             || auxiliary(value).primary_epoch.get() != Some(self.epoch)
@@ -325,7 +334,7 @@ impl NativePrimaryReceipt {
             || internal_rep(value) != self.representation
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "retired original C binary storage",
+                purpose,
             ));
         }
         Ok(())
@@ -802,7 +811,7 @@ impl ProcedureObject {
     /// performing a native operation.
     #[must_use]
     pub fn as_ptr(&self) -> *mut TclObj {
-        self.0.0
+        self.0 .0
     }
     /// Select a live original header without acquiring a native reference.
     pub(crate) fn checked_ptr(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual original Error stack objects and immediate completion.
 
+use super::native_list_conversion::BodyObjectOperation;
 use super::*;
 use tcl_registry::native_error_compilation::{NativeErrorInstruction, NativeErrorStep};
 
@@ -58,60 +59,85 @@ impl Interp {
         error: &ErrorOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
-        let mut stack = Vec::<obj::Owned>::new();
-        for step in &error.steps {
-            match step {
-                ErrorStep::Operand(operand) => {
-                    stack.push(self.body_namespace_operand(artifact, command, operand, execution)?);
-                    if execution.done {
-                        return Ok(Code::Ok);
+        let original =
+            BodyObjectOperation::capture(self).map_err(|error| self.report_cmd_error(error))?;
+        let reached = (|| {
+            let mut stack = Vec::<obj::Owned>::new();
+            for step in &error.steps {
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                match step {
+                    ErrorStep::Operand(operand) => {
+                        stack.push(
+                            self.body_namespace_operand(artifact, command, operand, execution)?,
+                        );
+                        if execution.done {
+                            return Ok(Code::Ok);
+                        }
                     }
-                }
-                ErrorStep::List(count) => {
-                    let values = stack
-                        .split_off(stack.len().checked_sub(*count).expect("native Error stack"));
-                    let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                    stack.push(obj::Owned::fresh(crate::list::new_list_obj_native(
-                        &pointers,
-                        artifact.stamp.source_protocol,
-                    )));
-                }
-                ErrorStep::DictionaryPut => {
-                    let value = stack.pop().expect("native Error value");
-                    let key = stack.pop().expect("native Error key");
-                    let original = stack.pop().expect("native Error options");
-                    let mut dictionary = crate::dict::PreparedNativeDictionary::prepare(
-                        Some(original.as_ptr()),
-                        artifact.stamp.source_protocol,
+                    ErrorStep::List(count) => {
+                        let values = stack.split_off(
+                            stack.len().checked_sub(*count).expect("native Error stack"),
+                        );
+                        let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                        stack.push(obj::Owned::fresh(crate::list::new_list_obj_native(
+                            &pointers,
+                            artifact.stamp.source_protocol,
+                        )));
+                    }
+                    ErrorStep::DictionaryPut => {
+                        let value = stack.pop().expect("native Error value");
+                        let key = stack.pop().expect("native Error key");
+                        let options = stack.pop().expect("native Error options");
+                        let mut dictionary = crate::dict::PreparedNativeDictionary::prepare_selected_using(
+                        Some(options.as_ptr()), artifact.stamp.source_protocol,
+                        tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::CopyBeforeConversion,
+                        &|| original.check(self), &|error| original.refuse(error),
                     )
                     .map_err(|error| self.report_cmd_error(error.into()))?;
-                    dictionary
-                        .set_member(key.as_ptr(), value.as_ptr())
-                        .map_err(|error| self.report_cmd_error(error.into()))?;
-                    stack.push(dictionary.into_value());
-                }
-                ErrorStep::ReturnError => {
-                    let options = stack.pop().expect("native Error options");
-                    let value = stack.pop().expect("native Error message");
-                    let code = self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate, 1, 0, options.as_ptr()).map_err(|error| self.report_cmd_error(error.into()))?;
-                    self.set_result(value.as_ptr());
-                    if code == Code::Error {
-                        self.capture_original_return_instruction_context(
+                        dictionary
+                            .set_member_using(
+                                key.as_ptr(),
+                                value.as_ptr(),
+                                &|| original.check(self),
+                                &|error| original.refuse(error),
+                                &|key, current| original.bytes_using(self, key, current),
+                            )
+                            .map_err(|error| self.report_cmd_error(error.into()))?;
+                        stack.push(dictionary.into_value());
+                    }
+                    ErrorStep::ReturnError => {
+                        let options = stack.pop().expect("native Error options");
+                        let value = stack.pop().expect("native Error message");
+                        let code = self.process_original_c_return_options(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate, 1, 0, options.as_ptr()).map_err(|error| self.report_cmd_error(error.into()))?;
+                        original
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error(error))?;
+                        self.set_result(value.as_ptr());
+                        if code == Code::Error {
+                            self.capture_original_return_instruction_context(
                             tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,
                             value.as_ptr(),
                             options.as_ptr(),
                         ).map_err(|first| self.refuse_native_execution(first))?;
+                        }
+                        return Ok(code);
                     }
-                    return Ok(code);
                 }
             }
-        }
-        unreachable!("native Error instruction has an immediate completion")
+            unreachable!("native Error instruction has an immediate completion")
+        })();
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        reached
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::native_list_conversion::BodyObjectOperation;
     use super::*;
 
     #[test]

@@ -21,9 +21,17 @@ pub(crate) struct NativeReturnOps {
     pub(crate) string: NativeStringProtocol,
     protocol: ReturnOptionsProtocol,
     jim_context: Option<std::rc::Rc<crate::native_source::NativeJimObjectContext>>,
+    pub(crate) original: Option<std::rc::Rc<crate::value_ops::RuntimeDictionaryObjects>>,
 }
 
 impl NativeReturnOps {
+    pub(crate) fn with_original_objects(
+        mut self,
+        objects: crate::value_ops::RuntimeDictionaryObjects,
+    ) -> Self {
+        self.original = Some(std::rc::Rc::new(objects));
+        self
+    }
     pub(crate) fn for_c(version: tcl_dialect::TclVersion) -> Result<Self, CmdError> {
         let dialect = InvocationDialect::for_version(version);
         let protocol =
@@ -37,6 +45,7 @@ impl NativeReturnOps {
             string: NativeStringProtocol::C(version),
             protocol,
             jim_context: None,
+            original: None,
         })
     }
 
@@ -68,6 +77,7 @@ impl NativeReturnOps {
                 dialect,
                 string,
                 protocol,
+                original: None,
                 jim_context: if string.is_jim084() {
                     Some(interp.native_jim_object_context()?)
                 } else {
@@ -82,6 +92,23 @@ impl NativeReturnOps {
 impl ReturnOptionsOps for NativeReturnOps {
     type Value = Owned;
     fn bytes(&mut self, value: &Owned) -> Result<Vec<u8>, CmdError> {
+        if let Some(original) = &self.original {
+            original.original_check()?;
+            if matches!(
+                crate::typed_value::completion_code_cache(value.as_ptr()),
+                Some(return_options::CompletionCodeCache::Jim(_))
+            ) && !obj::has_string_rep(value.as_ptr())
+            {
+                return Err(
+                    original.original_refuse(ValueError::CommandProtocolUnavailable(
+                        "Jim return-code string updater",
+                    )),
+                );
+            }
+            return original
+                .original_bytes(value.as_ptr())
+                .map(|bytes| bytes.to_vec());
+        }
         crate::typed_value::completion_code_string_bytes(value.as_ptr(), self.string)
             .map_err(CmdError::from)
     }
@@ -95,6 +122,12 @@ impl ReturnOptionsOps for NativeReturnOps {
         }
         if let Some(context) = &self.jim_context {
             crate::native_source::bind_context(value.as_ptr(), context)?;
+        }
+        if let Some(original) = &self.original {
+            original.original_check()?;
+            return original
+                .original_list(value.as_ptr())
+                .map(|members| members.into_iter().map(Owned::retain).collect());
         }
         crate::list::list_elements_native_checked(value.as_ptr(), self.string)
             .map(|items| items.into_iter().map(Owned::retain).collect())
@@ -124,15 +157,31 @@ impl ReturnOptionsOps for NativeReturnOps {
                 },
             );
         }
-        match crate::typed_value::native_scalar_probe(
-            value.as_ptr(),
-            self.dialect,
-            if wide {
-                NativeScalarGetterKind::Wide
-            } else {
-                NativeScalarGetterKind::Int
-            },
-        ) {
+        let kind = if wide {
+            NativeScalarGetterKind::Wide
+        } else {
+            NativeScalarGetterKind::Int
+        };
+        let reached = if let Some(original) = &self.original {
+            crate::list::with_native_conversion_check(
+                &|| original.original_check(),
+                &|error| original.original_refuse(error),
+                |stage, _retain| {
+                    crate::typed_value::native_scalar_probe_with_stage_check(
+                        value.as_ptr(),
+                        self.dialect,
+                        kind,
+                        None,
+                        None,
+                        Some(stage),
+                    )
+                },
+            )
+        } else {
+            crate::typed_value::native_scalar_probe(value.as_ptr(), self.dialect, kind)
+                .map_err(CmdError::from)
+        };
+        match reached {
             Ok(Ok(NativeScalarGetterValue::Wide(integer))) => Ok(Some(integer)),
             Ok(Ok(_)) => Err(ValueError::ScalarNumericInputUnavailable.into()),
             Ok(Err(_)) => Ok(None),
@@ -164,6 +213,9 @@ impl ReturnOptionsOps for NativeReturnOps {
         value: &Owned,
         cache: return_options::CompletionCodeCache,
     ) -> Result<(), CmdError> {
+        if let Some(original) = &self.original {
+            original.original_check()?;
+        }
         if let return_options::CompletionCodeCache::TclKeyword(code) = cache {
             let protocol = self.dialect.native_index_lookup_protocol().ok_or(
                 ValueError::CommandProtocolUnavailable("native completion Index origin"),
@@ -175,7 +227,21 @@ impl ReturnOptionsOps for NativeReturnOps {
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "native completion Index entry",
                 ))?;
-            crate::obj::native_index::install(value.as_ptr(), table.cache(index), protocol)?;
+            if let Some(original) = &self.original {
+                crate::obj::native_index::install_with_stage_check(
+                    value.as_ptr(),
+                    table.cache(index),
+                    protocol,
+                    &mut || {
+                        original.original_check().map_err(|_| {
+                            ValueError::CommandProtocolUnavailable("original Return index cache")
+                        })
+                    },
+                )
+                .map_err(|error| original.original_refuse(error))?;
+            } else {
+                crate::obj::native_index::install(value.as_ptr(), table.cache(index), protocol)?;
+            }
             return Ok(());
         }
 

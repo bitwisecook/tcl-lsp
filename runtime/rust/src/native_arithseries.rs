@@ -264,6 +264,16 @@ pub(crate) fn materialize_string(
     value: *mut TclObj,
     protocol: NativeStringProtocol,
 ) -> Result<Vec<u8>, ValueError> {
+    materialize_string_with_stage_check(value, protocol, None)
+}
+pub(crate) fn materialize_string_with_stage_check(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    check: Option<&dyn Fn() -> Result<(), ValueError>>,
+) -> Result<Vec<u8>, ValueError> {
+    if let Some(check) = check {
+        check()?;
+    }
     validate(value, protocol)?;
     if obj::has_string_rep(value) {
         return Ok(obj::bytes_of(value));
@@ -279,9 +289,11 @@ pub(crate) fn materialize_string(
                 let policy = tcl_dialect::DoubleStringPolicy::for_tcl_version(
                     protocol.tcl_version().expect("actual C issuer"),
                 );
-                let format = policy
-                    .format(obj::double_precision(policy))
-                    .expect("validated precision");
+                let precision = obj::double_precision(policy);
+                if let Some(check) = check {
+                    check()?;
+                }
+                let format = policy.format(precision).expect("validated precision");
                 tcl_syntax::number::format_double_native_selected(value, policy, format)
             }
             _ => unreachable!("validated arithmetic payload"),
@@ -290,6 +302,9 @@ pub(crate) fn materialize_string(
             bytes.push(b' ');
         }
         bytes.extend_from_slice(spelling.as_bytes());
+    }
+    if let Some(check) = check {
+        check()?;
     }
     // SAFETY: actual C9 UpdateString uses Tcl_InitStringRep; zero is canonical.
     unsafe { obj::set_native_updater_string_rep(value, &bytes, true) };

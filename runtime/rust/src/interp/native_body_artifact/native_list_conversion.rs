@@ -131,5 +131,273 @@ impl BodyListArguments {
     }
 }
 
+/// Earliest compiled frame and operation, retained through every reached
+/// header, body and owned-result cleanup. Header views add allocation safety
+/// only and never replace this original entered receipt.
+pub(super) struct BodyObjectOperation {
+    arguments: OriginalArguments,
+    frame: BodyListFrame,
+}
+impl BodyObjectOperation {
+    pub(super) fn capture(actual: &Interp) -> Result<Rc<Self>, CmdError> {
+        let owner = Rc::new(Self {
+            arguments: OriginalArguments::enter(actual, &[])?,
+            frame: BodyListFrame::capture(actual),
+        });
+        owner.check(actual)?;
+        Ok(owner)
+    }
+    pub(super) fn check(&self, actual: &Interp) -> Result<(), CmdError> {
+        self.frame.check(actual, &self.arguments)
+    }
+    pub(super) fn refuse(&self, error: ValueError) -> CmdError {
+        self.arguments.retain_refusal(error.into())
+    }
+    pub(super) fn bytes(
+        &self,
+        actual: &Interp,
+        original: *mut TclObj,
+    ) -> Result<Rc<[u8]>, CmdError> {
+        self.bytes_using(actual, original, &|| Ok(()))
+    }
+    pub(super) fn bytes_using(
+        &self,
+        actual: &Interp,
+        original: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), CmdError>,
+    ) -> Result<Rc<[u8]>, CmdError> {
+        self.check(actual)?;
+        extra()?;
+        let header = OriginalArguments::enter(actual, &[original])?;
+        actual.native_object_string_bytes_using(
+            original,
+            &|| {
+                self.check(actual)?;
+                extra()?;
+                header.check_original_for(actual, 0, original)
+            },
+            &|error| self.refuse(error),
+        )
+    }
+    pub(super) fn members(
+        &self,
+        actual: &Interp,
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+    ) -> Result<Vec<*mut TclObj>, CmdError> {
+        self.check(actual)?;
+        let header = OriginalArguments::enter(actual, &[original])?;
+        crate::list::list_elements_native_using(
+            original,
+            protocol,
+            &|| {
+                self.check(actual)?;
+                header.check_original_for(actual, 0, original)
+            },
+            &|error| self.refuse(error),
+        )
+    }
+    pub(super) fn list(
+        &self,
+        actual: &Interp,
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+    ) -> Result<BodyListMembers, CmdError> {
+        let members = self.members(actual, original, protocol)?;
+        let header = OriginalArguments::enter(actual, &[original])?;
+        let children = OriginalArguments::enter(actual, &members)?;
+        let primary =
+            obj::NativePrimaryReceipt::capture(original).map_err(|error| self.refuse(error))?;
+        let backing = crate::list::native_list_backing(original)
+            .ok_or_else(|| self.refuse(unavailable("original compiled List backing")))?;
+        Ok(BodyListMembers {
+            original,
+            header,
+            children,
+            primary,
+            backing,
+            members,
+        })
+    }
+    pub(super) fn pairs(
+        &self,
+        actual: &Interp,
+        original: *mut TclObj,
+        protocol: NativeStringProtocol,
+    ) -> Result<BodyDictionaryPairs, CmdError> {
+        self.check(actual)?;
+        let header = OriginalArguments::enter(actual, &[original])?;
+        let pairs = crate::dict::native_dict_pairs_using(
+            original,
+            protocol,
+            &|| {
+                self.check(actual)?;
+                header.check_original_for(actual, 0, original)
+            },
+            &|error| self.refuse(error),
+        )?;
+        let backing = crate::dict::original_dictionary_backing(original)
+            .map_err(|error| self.refuse(error))?;
+        let pointers = pairs
+            .iter()
+            .flat_map(|(key, value)| [*key, *value])
+            .collect::<Vec<_>>();
+        let children = OriginalArguments::enter(actual, &pointers)?;
+        Ok(BodyDictionaryPairs {
+            original,
+            header,
+            children,
+            backing,
+            pairs,
+        })
+    }
+    pub(super) fn get(
+        &self,
+        actual: &mut Interp,
+        original: *mut TclObj,
+        keys: &[*mut TclObj],
+        protocol: NativeStringProtocol,
+    ) -> Result<*mut TclObj, CmdError> {
+        let retained = std::cell::RefCell::new(Vec::<Rc<BodyDictionaryPairs>>::new());
+        let check = |actual: &Interp| {
+            self.check(actual)?;
+            for view in retained.borrow().iter() {
+                view.check(actual, self)?;
+            }
+            Ok::<(), CmdError>(())
+        };
+        tcl_cmd_core::dict::get_using(
+            actual,
+            &original,
+            keys,
+            |actual, key| {
+                check(actual)?;
+                let bytes = self.bytes_using(actual, *key, &|| check(actual))?;
+                check(actual)?;
+                Ok(bytes)
+            },
+            |actual, value| {
+                check(actual)?;
+                let view = Rc::new(self.pairs(actual, *value, protocol)?);
+                retained.borrow_mut().push(view.clone());
+                Ok(view)
+            },
+            |actual, view, key| {
+                check(actual)?;
+                let reached = view.lookup(actual, self, key);
+                check(actual)?;
+                reached
+            },
+            |actual, key| match check(actual) {
+                Err(first) => first,
+                Ok(()) => tcl_cmd_core::dict::missing_key_error(
+                    actual,
+                    tcl_syntax::naming::NativeDictionaryMissingKeyOperation::Get,
+                    key,
+                ),
+            },
+        )
+    }
+    pub(super) fn objects(
+        self: &Rc<Self>,
+        actual: &Interp,
+    ) -> Result<crate::value_ops::RuntimeDictionaryObjects, CmdError> {
+        self.objects_using(actual, Rc::new(|| Ok(())))
+    }
+    pub(super) fn objects_using(
+        self: &Rc<Self>,
+        actual: &Interp,
+        extra: Rc<dyn Fn() -> Result<(), CmdError>>,
+    ) -> Result<crate::value_ops::RuntimeDictionaryObjects, CmdError> {
+        self.check(actual)?;
+        extra()?;
+        let current = self.clone();
+        let current_interp = actual.clone();
+        let strings = self.clone();
+        let strings_interp = actual.clone();
+        let refuse = self.clone();
+        let current_extra = extra.clone();
+        Ok(
+            crate::value_ops::RuntimeDictionaryObjects::selected(actual)?.with_original_checks(
+                move || {
+                    current.check(&current_interp)?;
+                    current_extra()
+                },
+                move |value, check| {
+                    strings.bytes_using(&strings_interp, value, &|| {
+                        extra()?;
+                        check()
+                    })
+                },
+                move |error| refuse.refuse(error),
+            ),
+        )
+    }
+}
+pub(super) struct BodyListMembers {
+    original: *mut TclObj,
+    header: OriginalArguments,
+    children: OriginalArguments,
+    primary: obj::NativePrimaryReceipt,
+    backing: crate::list::NativeListBacking,
+    pub(super) members: Vec<*mut TclObj>,
+}
+impl BodyListMembers {
+    pub(super) fn check(
+        &self,
+        actual: &Interp,
+        operation: &BodyObjectOperation,
+    ) -> Result<(), CmdError> {
+        operation.check(actual)?;
+        self.header.check_original_for(actual, 0, self.original)?;
+        self.children.check_for(actual)?;
+        self.primary
+            .check_for(self.original, "original compiled List backing")
+            .map_err(|error| operation.refuse(error))?;
+        let current = self
+            .backing
+            .elements()
+            .map_err(|error| operation.refuse(error))?;
+        if current.as_ref() != self.members.as_slice() {
+            return Err(operation.refuse(unavailable("original compiled List member vector")));
+        }
+        Ok(())
+    }
+}
+
+pub(super) struct BodyDictionaryPairs {
+    original: *mut TclObj,
+    header: OriginalArguments,
+    children: OriginalArguments,
+    backing: Weak<()>,
+    pub(super) pairs: Vec<(*mut TclObj, *mut TclObj)>,
+}
+impl BodyDictionaryPairs {
+    pub(super) fn check(
+        &self,
+        actual: &Interp,
+        operation: &BodyObjectOperation,
+    ) -> Result<(), CmdError> {
+        operation.check(actual)?;
+        self.header.check_original_for(actual, 0, self.original)?;
+        self.children.check_for(actual)?;
+        crate::dict::original_dictionary_pairs_current(self.original, &self.backing, &self.pairs)
+            .map_err(|error| operation.refuse(error))
+    }
+    pub(super) fn lookup(
+        &self,
+        actual: &Interp,
+        operation: &BodyObjectOperation,
+        bytes: &[u8],
+    ) -> Result<Option<*mut TclObj>, CmdError> {
+        tcl_cmd_core::dict::lookup_using(&self.pairs, bytes, |key| {
+            self.check(actual, operation)?;
+            let bytes = operation.bytes_using(actual, *key, &|| self.check(actual, operation))?;
+            self.check(actual, operation)?;
+            Ok(bytes)
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests;

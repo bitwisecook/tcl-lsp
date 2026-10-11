@@ -65,17 +65,43 @@ pub(crate) fn install(
     cache: NativeIndexCache,
     protocol: tcl_registry::native_index_lookup::NativeIndexLookupProtocol,
 ) -> Result<(), ValueError> {
+    install_using(object, cache, protocol, None)
+}
+
+pub(crate) fn install_with_stage_check(
+    object: *mut TclObj,
+    cache: NativeIndexCache,
+    protocol: tcl_registry::native_index_lookup::NativeIndexLookupProtocol,
+    check: &mut dyn FnMut() -> Result<(), ValueError>,
+) -> Result<(), ValueError> {
+    install_using(object, cache, protocol, Some(check))
+}
+fn install_using(
+    object: *mut TclObj,
+    cache: NativeIndexCache,
+    protocol: tcl_registry::native_index_lookup::NativeIndexLookupProtocol,
+    check: Option<&mut dyn FnMut() -> Result<(), ValueError>>,
+) -> Result<(), ValueError> {
     if !super::has_string_rep(object) {
         return Err(ValueError::CommandProtocolUnavailable(
             "native Index resident storage",
         ));
     }
-    install_unchecked(
-        object,
-        Representation {
-            cache,
-            version: protocol.version(),
-        },
-    );
+    let representation = Representation {
+        cache,
+        version: protocol.version(),
+    };
+    if let Some(check) = check {
+        let stored = Box::into_raw(Box::new(representation));
+        let reached =
+            super::change_type_with_stage_check(object, &TYPE, stored as usize as u64, check);
+        if let Err(error) = reached {
+            // No native handles live in the unadopted Index descriptor.
+            drop(unsafe { Box::from_raw(stored) });
+            return Err(error);
+        }
+    } else {
+        install_unchecked(object, representation);
+    }
     Ok(())
 }

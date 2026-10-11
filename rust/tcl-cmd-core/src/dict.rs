@@ -92,9 +92,21 @@ pub fn lookup<O: ValueOps>(
     pairs: &[(O::Value, O::Value)],
     key: impl AsRef<[u8]>,
 ) -> Result<Option<O::Value>, CmdError> {
+    lookup_using(pairs, key, |value| {
+        ops.native_string_bytes(value).map_err(Into::into)
+    })
+}
+
+/// The same lookup loop with the actual caller's original String projection.
+/// This adapter grants no dictionary, member or getter authority itself.
+pub fn lookup_using<V: Clone>(
+    pairs: &[(V, V)],
+    key: impl AsRef<[u8]>,
+    mut string: impl FnMut(&V) -> Result<std::rc::Rc<[u8]>, CmdError>,
+) -> Result<Option<V>, CmdError> {
     let key = key.as_ref();
     for (k, v) in pairs {
-        if *ops.native_string_bytes(k)? == *key {
+        if *string(k)? == *key {
             return Ok(Some(v.clone()));
         }
     }
@@ -191,18 +203,43 @@ pub fn get<O: ValueOps>(
     dict: &O::Value,
     keys: &[O::Value],
 ) -> Result<O::Value, CmdError> {
-    let mut cur = dict.clone();
-    for k in keys {
-        let ks = ops.native_string_bytes(k)?.to_vec();
-        let pairs = ops.dict_pairs(&cur)?;
-        if let Some(value) = lookup(ops, &pairs, &ks)? {
-            cur = value;
-        } else {
-            return Err(missing_key_error(
+    get_using(
+        ops,
+        dict,
+        keys,
+        |ops, key| ops.native_string_bytes(key).map_err(Into::into),
+        |ops, value| ops.dict_pairs(value).map_err(Into::into),
+        |ops, pairs, key| lookup(ops, pairs, key),
+        |ops, key| {
+            missing_key_error(
                 ops,
                 tcl_syntax::naming::NativeDictionaryMissingKeyOperation::Get,
-                &ks,
-            ));
+                key,
+            )
+        },
+    )
+}
+
+/// The same path walker with the caller's retained original pair/String views.
+/// Each projection preserves its own entered ownership; no source or conversion
+/// capability is issued by this portable control-flow adapter.
+pub fn get_using<O, V: Clone, P>(
+    ops: &mut O,
+    dict: &V,
+    keys: &[V],
+    mut string: impl FnMut(&mut O, &V) -> Result<std::rc::Rc<[u8]>, CmdError>,
+    mut pairs: impl FnMut(&mut O, &V) -> Result<P, CmdError>,
+    mut lookup: impl FnMut(&mut O, &P, &[u8]) -> Result<Option<V>, CmdError>,
+    mut missing: impl FnMut(&mut O, &[u8]) -> CmdError,
+) -> Result<V, CmdError> {
+    let mut cur = dict.clone();
+    for k in keys {
+        let ks = string(ops, k)?.to_vec();
+        let current_pairs = pairs(ops, &cur)?;
+        if let Some(value) = lookup(ops, &current_pairs, &ks)? {
+            cur = value;
+        } else {
+            return Err(missing(ops, &ks));
         }
     }
     // `dict get` parses its dictionary argument even with no keys, so a
@@ -211,7 +248,7 @@ pub fn get<O: ValueOps>(
     // parsed in the loop, and `cur` is now a *leaf* value that must not itself
     // be dict-parsed — so validate only in the no-key case.
     if keys.is_empty() {
-        ops.dict_pairs(&cur)?;
+        pairs(ops, &cur)?;
     }
     Ok(cur)
 }

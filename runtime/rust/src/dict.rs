@@ -249,8 +249,68 @@ pub(crate) fn native_object_bytes_with_integer_formatter(
     protocol: NativeStringProtocol,
     formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
 ) -> Result<Vec<u8>, ValueError> {
-    let mut pending = vec![(value, false)];
-    while let Some((current, expanded)) = pending.pop() {
+    native_object_bytes_with_stage_handlers(value, protocol, formatter, None)
+}
+
+/// The same iterative updater and formatter with the original caller's stage
+/// check. Pure allocation leases keep captured pending headers distinguishable
+/// without retaining native compound members or changing their sharing counts.
+pub(crate) fn native_object_bytes_with_stage_handlers(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+    check: Option<&dyn Fn() -> Result<(), ValueError>>,
+) -> Result<Vec<u8>, ValueError> {
+    struct OriginalCompound {
+        original: *mut TclObj,
+        receipt: obj::NativePrimaryReceipt,
+        members: Vec<*mut TclObj>,
+        parent: Option<std::rc::Rc<OriginalCompound>>,
+        list: Option<crate::list::NativeListBacking>,
+    }
+    impl OriginalCompound {
+        fn check(&self) -> Result<(), ValueError> {
+            let mut selected = Some(self);
+            while let Some(owner) = selected {
+                owner
+                    .receipt
+                    .check_for(owner.original, "changed original String primary")?;
+                if let Some(list) = &owner.list {
+                    list.check_generation()?;
+                }
+                if compound_members(owner.original)?.as_ref() != Some(&owner.members) {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "changed original compound String members",
+                    ));
+                }
+                selected = owner.parent.as_deref();
+            }
+            Ok(())
+        }
+    }
+    let captured = check
+        .map(|_| obj::NativePrimaryReceipt::capture(value))
+        .transpose()?;
+    let mut pending = vec![(
+        value,
+        false,
+        captured,
+        None::<std::rc::Rc<OriginalCompound>>,
+    )];
+    while let Some((current, expanded, receipt, ancestors)) = pending.pop() {
+        let stage = || {
+            if let Some(check) = check {
+                check()?;
+            }
+            if let Some(receipt) = &receipt {
+                receipt.check_for(current, "changed original String primary")?;
+            }
+            if let Some(ancestors) = &ancestors {
+                ancestors.check()?;
+            }
+            Ok(())
+        };
+        stage()?;
         obj::check_native_liveness(current)?;
         if obj::native_instruction_name::cache(current)
             .is_some_and(|name| protocol != NativeStringProtocol::C(name.version()))
@@ -266,16 +326,44 @@ pub(crate) fn native_object_bytes_with_integer_formatter(
             crate::list::seal_string_protocol(current, protocol)?;
             seal_string_protocol(current, protocol)?;
             if !expanded {
-                pending.push((current, true));
-                pending.extend(members.into_iter().rev().map(|member| (member, false)));
+                if check.is_some() {
+                    let children = members
+                        .iter()
+                        .map(|member| obj::NativePrimaryReceipt::capture(*member))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let ancestor = std::rc::Rc::new(OriginalCompound {
+                        original: current,
+                        receipt: receipt.expect("checked original compound primary"),
+                        members: members.clone(),
+                        parent: ancestors,
+                        list: crate::list::native_list_backing(current),
+                    });
+                    pending.push((current, true, None, Some(ancestor.clone())));
+                    pending.extend(members.into_iter().zip(children).rev().map(
+                        |(member, receipt)| (member, false, Some(receipt), Some(ancestor.clone())),
+                    ));
+                } else {
+                    pending.push((current, true, None, None));
+                    pending.extend(
+                        members
+                            .into_iter()
+                            .rev()
+                            .map(|member| (member, false, None, None)),
+                    );
+                }
                 continue;
             }
-            let elements: Vec<_> = members.into_iter().map(obj::bytes_of).collect();
+            let mut elements = Vec::with_capacity(members.len());
+            for member in members {
+                elements.push(obj::bytes_of(member));
+                stage()?;
+            }
             let bytes =
                 tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
                     protocol,
                 )
                 .render(&elements);
+            stage()?;
             if obj::obj_type_ptr(current) == &crate::list::TCL_LIST_TYPE {
                 crate::list::install_native_string(current, &bytes, protocol);
             } else {
@@ -287,9 +375,14 @@ pub(crate) fn native_object_bytes_with_integer_formatter(
             continue;
         }
         if crate::native_arithseries::is_series(current) {
-            drop(crate::native_arithseries::materialize_string(
-                current, protocol,
-            )?);
+            drop(
+                crate::native_arithseries::materialize_string_with_stage_check(
+                    current,
+                    protocol,
+                    check.map(|_| &stage as &dyn Fn() -> Result<(), ValueError>),
+                )?,
+            );
+            stage()?;
             continue;
         }
         if protocol == NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4) {
@@ -312,6 +405,7 @@ pub(crate) fn native_object_bytes_with_integer_formatter(
                     let bytes = formatter.format(kind, value).map_err(|_| {
                         ValueError::CommandProtocolUnavailable("native integer formatter operation")
                     })?;
+                    stage()?;
                     // SAFETY: current is the original live object and the native
                     // updater supplied its complete counted bytes. C84 allocates.
                     unsafe { obj::set_native_updater_string_rep(current, &bytes, false) };
@@ -343,23 +437,30 @@ pub(crate) fn native_object_bytes_with_integer_formatter(
                 }
                 NativeStringProtocol::Jim084 => tcl_dialect::DoubleStringPolicy::JimTwelve,
             };
+            let precision = obj::double_precision(policy);
+            stage()?;
             let format = policy
-                .format(obj::double_precision(policy))
+                .format(precision)
                 .expect("validated native precision");
             let bytes = tcl_syntax::number::format_double_native_selected(
                 obj::double_of(current),
                 policy,
                 format,
             );
+            stage()?;
             // SAFETY: the selected updater installs this live Double's spelling.
             unsafe { obj::set_native_updater_string_rep(current, bytes.as_bytes(), false) };
         }
         drop(obj::bytes_of(current));
+        stage()?;
         if !obj::has_string_rep(current) {
             return Err(ValueError::CommandProtocolUnavailable(
                 "native object string updater",
             ));
         }
+    }
+    if let Some(check) = check {
+        check()?;
     }
     Ok(obj::bytes_of(value))
 }
@@ -560,8 +661,18 @@ fn dictionary_stage_current_checked(
 pub(crate) struct PreparedNativeDictionary {
     value: obj::Owned,
     protocol: NativeStringProtocol,
+    checked_backing: Option<std::rc::Weak<()>>,
 }
 
+pub(crate) struct PreparedDictionaryObserver {
+    original: obj::NativeObjectLifetime,
+    backing: std::rc::Weak<()>,
+}
+impl PreparedDictionaryObserver {
+    pub(crate) fn check(&self) -> Result<(), ValueError> {
+        original_dictionary_backing_current(self.original.as_ptr(), &self.backing)
+    }
+}
 impl PreparedNativeDictionary {
     pub(crate) fn original(&self) -> *mut TclObj {
         self.value.as_ptr()
@@ -595,7 +706,22 @@ impl PreparedNativeDictionary {
         }
         // Observe actual ownership before creating the receipt's reference.
         let value = match original {
-            Some(value) if obj::is_shared(value) => obj::Owned::fresh(obj::duplicate(value)),
+            Some(value) if obj::is_shared(value) => {
+                let duplicate = if let Some(check) = stage_check {
+                    obj::duplicate_with_stage_check::<ValueError>(
+                        value,
+                        &mut || check(),
+                        &mut |error| {
+                            if let Some(retain) = retain_error {
+                                retain(error.clone());
+                            }
+                        },
+                    )?
+                } else {
+                    obj::duplicate(value)
+                };
+                obj::Owned::fresh(duplicate)
+            }
             Some(value) => {
                 ensure_dict_native_with_stage_handlers(
                     value,
@@ -608,16 +734,156 @@ impl PreparedNativeDictionary {
             }
             None => obj::Owned::fresh(new_dict_obj(&[])),
         };
-        dictionary_stage_current_checked(value.as_ptr(), None, stage_check)?;
-        ensure_dict_native_with_stage_handlers(
-            value.as_ptr(),
-            protocol,
-            None,
-            stage_check,
-            retain_error,
-        )?;
-        Ok(Self { value, protocol })
+        let reached = (|| {
+            dictionary_stage_current_checked(value.as_ptr(), None, stage_check)?;
+            ensure_dict_native_with_stage_handlers(
+                value.as_ptr(),
+                protocol,
+                None,
+                stage_check,
+                retain_error,
+            )?;
+            let checked_backing = stage_check
+                .map(|_| original_dictionary_backing(value.as_ptr()))
+                .transpose()?;
+            Ok(checked_backing)
+        })();
+        match reached {
+            Ok(checked_backing) => Ok(Self {
+                value,
+                protocol,
+                checked_backing,
+            }),
+            Err(error) => {
+                let error = retain_error.map_or(error.clone(), |retain| retain(error));
+                drop(value);
+                Err(error)
+            }
+        }
     }
+    /// The selected original preparation order, using the same conversion,
+    /// checked duplicate and first-cause retention before real owner cleanup.
+    pub(crate) fn prepare_selected_using<E>(
+        original: Option<*mut TclObj>,
+        protocol: NativeStringProtocol,
+        preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+    ) -> Result<Self, E> {
+        use tcl_cmd_core::native_dictionary::NativeDictionaryPreparation as Preparation;
+        crate::list::with_native_conversion_check(check, refuse, |stage, retain| {
+            let shared = preparation == Preparation::IncrementCommand
+                && original.is_some_and(obj::is_shared);
+            if preparation != Preparation::CopyBeforeConversion {
+                if let Some(original) = original {
+                    ensure_dict_native_with_stage_handlers(
+                        original,
+                        protocol,
+                        None,
+                        Some(stage),
+                        Some(retain),
+                    )?;
+                }
+            }
+            let prepared =
+                Self::prepare_with_stage_check(original, protocol, Some(stage), Some(retain))?;
+            if preparation == Preparation::IncrementCommand
+                && shared
+                && protocol.tcl_version().is_some()
+            {
+                obj::invalidate_string(prepared.value.as_ptr());
+            }
+            Ok(prepared)
+        })
+    }
+
+    /// Read only the same actually prepared header/backing birth. This check
+    /// grants no conversion or native reference; neutral preparation cannot
+    /// substitute for the captured checked owner.
+    pub(crate) fn check_prepared(&self) -> Result<(), ValueError> {
+        let backing =
+            self.checked_backing
+                .as_ref()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "unchecked prepared Dictionary owner",
+                ))?;
+        original_dictionary_backing_current(self.original(), backing)
+    }
+
+    pub(crate) fn observe_prepared(&self) -> Result<PreparedDictionaryObserver, ValueError> {
+        self.check_prepared()?;
+        Ok(PreparedDictionaryObserver {
+            original: obj::NativeObjectLifetime::retain(self.original()),
+            backing: self
+                .checked_backing
+                .as_ref()
+                .expect("checked original backing")
+                .clone(),
+        })
+    }
+    pub(crate) fn with_member_using<R, E>(
+        &self,
+        key: *mut TclObj,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+        string: &impl Fn(*mut TclObj, &dyn Fn() -> Result<(), E>) -> Result<std::rc::Rc<[u8]>, E>,
+        operation: impl FnOnce(Option<*mut TclObj>) -> Result<R, E>,
+    ) -> Result<R, E> {
+        let current = || {
+            check()?;
+            self.check_prepared().map_err(refuse)
+        };
+        current()?;
+        let key = string(key, &current)?;
+        check()?;
+        self.check_prepared().map_err(refuse)?;
+        let member = {
+            let backing = unsafe { dict_ref(self.original()) };
+            backing.position(&key).map(|i| backing.entries[i].1)
+        };
+        let reached = operation(member);
+        check()?;
+        self.check_prepared().map_err(refuse)?;
+        reached
+    }
+
+    pub(crate) fn set_member_using<E>(
+        &mut self,
+        key: *mut TclObj,
+        value: *mut TclObj,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+        string: &impl Fn(*mut TclObj, &dyn Fn() -> Result<(), E>) -> Result<std::rc::Rc<[u8]>, E>,
+    ) -> Result<(), E> {
+        let current = || {
+            check()?;
+            self.check_prepared().map_err(refuse)
+        };
+        current()?;
+        // Same reached original String stage; the storage worker reads that
+        // resident key again at its genuine insertion stage.
+        string(key, &current)?;
+        current()?;
+        dict_set_using(self.original(), key, value, current)
+    }
+
+    pub(crate) fn remove_member_using<E>(
+        &mut self,
+        key: *mut TclObj,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+        string: &impl Fn(*mut TclObj, &dyn Fn() -> Result<(), E>) -> Result<std::rc::Rc<[u8]>, E>,
+    ) -> Result<bool, E> {
+        let current = || {
+            check()?;
+            self.check_prepared().map_err(refuse)
+        };
+        current()?;
+        let key = string(key, &current)?;
+        current()?;
+        dict_unset_using(self.original(), &key, current)
+    }
+
     pub(crate) fn prepare_after_conversion(
         original: Option<*mut TclObj>,
         protocol: NativeStringProtocol,

@@ -66,7 +66,7 @@ use tcl_syntax::number::{self, Number};
 use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
 
-use crate::interp::{Interp, obj_bytes};
+use crate::interp::{obj_bytes, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -611,6 +611,40 @@ pub(crate) struct RuntimeDictionaryObjects {
     pub(crate) protocol: tcl_syntax::native_string::NativeStringProtocol,
     names: tcl_syntax::naming::NamePolicyProtocol,
     preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
+    original: Option<std::rc::Rc<RuntimeDictionaryChecks>>,
+}
+struct RuntimeDictionaryChecks {
+    current: Box<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+    string: Box<
+        dyn Fn(
+            *mut TclObj,
+            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>,
+    >,
+    parents: std::cell::RefCell<Vec<crate::dict::PreparedDictionaryObserver>>,
+    refuse: Box<dyn Fn(ValueError) -> tcl_cmd_core::CmdError>,
+}
+impl RuntimeDictionaryChecks {
+    fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
+        (self.current)()?;
+        for parent in self.parents.borrow().iter() {
+            parent.check().map_err(|error| (self.refuse)(error))?;
+        }
+        Ok(())
+    }
+    fn bytes(&self, original: *mut TclObj) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.bytes_using(original, &|| Ok(()))
+    }
+    fn bytes_using(
+        &self,
+        original: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        (self.string)(original, &|| {
+            self.check()?;
+            extra()
+        })
+    }
 }
 impl RuntimeDictionaryObjects {
     pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
@@ -627,7 +661,74 @@ impl RuntimeDictionaryObjects {
             names,
             preparation:
                 tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::CopyBeforeConversion,
+            original: None,
         })
+    }
+    /// The caller's actual entered operation/receiver and original String
+    /// projection. This adds no owning Native role or conversion purpose.
+    pub(crate) fn with_original_checks(
+        mut self,
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
+        string: impl Fn(
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
+        refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
+    ) -> Self {
+        self.original = Some(std::rc::Rc::new(RuntimeDictionaryChecks {
+            current: Box::new(current),
+            string: Box::new(string),
+            refuse: Box::new(refuse),
+            parents: std::cell::RefCell::new(Vec::new()),
+        }));
+        self
+    }
+    pub(crate) fn original_check(&self) -> Result<(), tcl_cmd_core::CmdError> {
+        self.original
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Dictionary/Return owner",
+            ))?
+            .check()
+    }
+    pub(crate) fn original_refuse(&self, error: ValueError) -> tcl_cmd_core::CmdError {
+        self.original
+            .as_ref()
+            .map_or_else(|| error.clone().into(), |owner| (owner.refuse)(error))
+    }
+    pub(crate) fn original_bytes(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.original
+            .as_ref()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Dictionary/Return owner",
+            ))?
+            .bytes(value)
+    }
+    pub(crate) fn original_list(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<Vec<*mut TclObj>, tcl_cmd_core::CmdError> {
+        crate::list::list_elements_native_using(
+            value,
+            self.protocol,
+            &|| self.original_check(),
+            &|error| self.original_refuse(error),
+        )
+    }
+    pub(crate) fn original_pairs(
+        &self,
+        value: *mut TclObj,
+    ) -> Result<Vec<(*mut TclObj, *mut TclObj)>, tcl_cmd_core::CmdError> {
+        crate::dict::native_dict_pairs_using(
+            value,
+            self.protocol,
+            &|| self.original_check(),
+            &|error| self.original_refuse(error),
+        )
     }
     pub(crate) fn with_preparation(
         mut self,
@@ -646,6 +747,15 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDiction
     ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
         use tcl_cmd_core::native_dictionary::NativeDictionaryPreparation as Preparation;
         let original = original.map(RuntimeAppendValue::as_ptr);
+        if let Some(checked) = &self.original {
+            return Self::Prepared::prepare_selected_using(
+                original,
+                self.protocol,
+                self.preparation,
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+            );
+        }
         match self.preparation {
             Preparation::CopyBeforeConversion => Self::Prepared::prepare(original, self.protocol),
             Preparation::ConvertBeforeCopy => {
@@ -661,6 +771,15 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDiction
         &self,
         original: Option<&Self::Value>,
     ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            return Self::Prepared::prepare_selected_using(
+                original.map(RuntimeAppendValue::as_ptr),
+                self.protocol,
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+            );
+        }
         crate::dict::PreparedNativeDictionary::prepare_after_conversion(
             original.map(RuntimeAppendValue::as_ptr),
             self.protocol,
@@ -673,6 +792,28 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDiction
         key: &Self::Value,
         operation: impl FnOnce(Option<&Self::Value>) -> Result<R, tcl_cmd_core::CmdError>,
     ) -> Result<R, tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            let observer = dictionary
+                .observe_prepared()
+                .map_err(|error| (checked.refuse)(error))?;
+            checked.parents.borrow_mut().push(observer);
+            let reached = dictionary.with_member_using(
+                key.as_ptr(),
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+                &|value, current| checked.bytes_using(value, current),
+                |member| {
+                    let member = member.map(RuntimeAppendValue::borrowed);
+                    operation(member.as_ref())
+                },
+            );
+            // Extract the nonowning guard before releasing it. No callback
+            // occurs under the parent-observation RefCell borrow.
+            let observer = checked.parents.borrow_mut().pop();
+            drop(observer);
+            checked.check()?;
+            return reached;
+        }
         dictionary.with_member(key.as_ptr(), |member| {
             let member = member.map(RuntimeAppendValue::borrowed);
             operation(member.as_ref())
@@ -684,6 +825,18 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDiction
         key: &Self::Value,
         value: Self::Value,
     ) -> Result<(), tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            let reached = dictionary.set_member_using(
+                key.as_ptr(),
+                value.as_ptr(),
+                &|| checked.check(),
+                &|error| (checked.refuse)(error),
+                &|original, current| checked.bytes_using(original, current),
+            );
+            drop(value);
+            checked.check()?;
+            return reached;
+        }
         dictionary
             .set_member(key.as_ptr(), value.as_ptr())
             .map_err(Into::into)
@@ -693,15 +846,33 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDiction
         dictionary: &mut Self::Prepared,
         key: &Self::Value,
     ) -> Result<(), tcl_cmd_core::CmdError> {
+        if let Some(checked) = &self.original {
+            return dictionary
+                .remove_member_using(
+                    key.as_ptr(),
+                    &|| checked.check(),
+                    &|error| (checked.refuse)(error),
+                    &|original, current| checked.bytes_using(original, current),
+                )
+                .map(|_| ());
+        }
         dictionary
             .remove_member(key.as_ptr())
             .map(|_| ())
             .map_err(Into::into)
     }
     fn missing_key(&self, key: &Self::Value) -> tcl_cmd_core::CmdError {
-        let original = match crate::dict::native_object_bytes(key.as_ptr(), self.protocol) {
+        let bytes = if let Some(checked) = &self.original {
+            checked
+                .check()
+                .and_then(|()| checked.bytes(key.as_ptr()))
+                .map(|bytes| bytes.to_vec())
+        } else {
+            crate::dict::native_object_bytes(key.as_ptr(), self.protocol).map_err(Into::into)
+        };
+        let original = match bytes {
             Ok(bytes) => bytes,
-            Err(error) => return error.into(),
+            Err(first) => return first,
         };
         match tcl_syntax::naming::report_native_dictionary_missing_key(
             self.names.recipe(),
@@ -896,6 +1067,28 @@ impl Interp {
         &self,
         value: *mut TclObj,
     ) -> Result<Rc<[u8]>, ValueError> {
+        self.native_object_string_bytes_with_stage(value, None)
+    }
+
+    pub(crate) fn native_object_string_bytes_using<E>(
+        &self,
+        value: *mut TclObj,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+    ) -> Result<Rc<[u8]>, E> {
+        crate::list::with_native_conversion_check(check, refuse, |stage, _retain| {
+            self.native_object_string_bytes_with_stage(value, Some(stage))
+        })
+    }
+
+    fn native_object_string_bytes_with_stage(
+        &self,
+        value: *mut TclObj,
+        check: Option<&dyn Fn() -> Result<(), ValueError>>,
+    ) -> Result<Rc<[u8]>, ValueError> {
+        if let Some(check) = check {
+            check()?;
+        }
         self.check_entered_native_operation().map_err(|_| {
             ValueError::CommandProtocolUnavailable("entered original String getter")
         })?;
@@ -932,21 +1125,32 @@ impl Interp {
             ));
         }
         if obj::has_string_rep(value) {
-            return Ok(Rc::from(obj::bytes_of(value)));
+            let bytes = obj::bytes_of(value);
+            if let Some(check) = check {
+                check()?;
+            }
+            return Ok(Rc::from(bytes));
         }
         let recipe = self.native_invocation_dialect().native_string_materialization(Some(
             tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )).ok_or(ValueError::CommandProtocolUnavailable("native string materialization"))?;
         let host = self.host();
         let formatter = host.native_integer_formatter();
+        if let Some(check) = check {
+            check()?;
+        }
         self.check_entered_native_operation().map_err(|_| {
             ValueError::CommandProtocolUnavailable("entered original String getter")
         })?;
-        let result = crate::dict::native_object_bytes_with_integer_formatter(
+        let result = crate::dict::native_object_bytes_with_stage_handlers(
             value,
             recipe.protocol(),
             formatter,
+            check,
         );
+        if let Some(check) = check {
+            check()?;
+        }
         // Check the retained result even when the reached updater also failed.
         self.check_entered_native_operation().map_err(|_| {
             ValueError::CommandProtocolUnavailable("entered original String getter")
@@ -1253,7 +1457,7 @@ impl ValueOps for Interp {
 
     fn array_existence_result(&mut self, present: bool) -> Result<*mut TclObj, ValueError> {
         use tcl_registry::native_array_compilation::{
-            NativeArrayExistenceResult, native_array_existence_result,
+            native_array_existence_result, NativeArrayExistenceResult,
         };
         if self.observed_name_policy_selected() {
             return Ok(self.new_bool(present));

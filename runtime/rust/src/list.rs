@@ -1093,6 +1093,25 @@ pub(crate) fn append_native_elements_using<E>(
     check: &impl Fn() -> Result<(), E>,
     refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
 ) -> Result<obj::Owned, E> {
+    append_native_elements_with_original(original, elements, protocol, check, refuse, false)
+}
+pub(crate) fn append_native_elements_original_using<E>(
+    original: Option<*mut TclObj>,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    append_native_elements_with_original(original, elements, protocol, check, refuse, true)
+}
+fn append_native_elements_with_original<E>(
+    original: Option<*mut TclObj>,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+    checked: bool,
+) -> Result<obj::Owned, E> {
     check()?;
     let original_lifetime = original
         .map(|original| {
@@ -1112,7 +1131,15 @@ pub(crate) fn append_native_elements_using<E>(
             return Ok(value);
         }
         Some(original) if obj::is_shared(original) => {
-            let duplicate = obj::Owned::fresh(obj::duplicate(original));
+            let duplicate = obj::Owned::fresh(if checked {
+                with_native_conversion_check(check, refuse, |stage, retain| {
+                    obj::duplicate_with_stage_check(original, &mut || stage(), &mut |error| {
+                        retain(error.clone());
+                    })
+                })?
+            } else {
+                obj::duplicate(original)
+            });
             check()?;
             obj::check_native_liveness(original).map_err(refuse)?;
             duplicate_native_backing(original, duplicate.as_ptr(), protocol);
@@ -1775,7 +1802,7 @@ mod tests {
     }
     use super::*;
     use crate::counters;
-    use crate::obj::{TclObj, new_string_bytes};
+    use crate::obj::{new_string_bytes, TclObj};
 
     fn leak_free(body: impl FnOnce()) {
         counters::reset();
