@@ -34,12 +34,15 @@ use tcl_runtime_api::{Code, Completion};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
+mod original;
+use original::OriginalPackage;
+
 pub(crate) fn register(vm: &mut Vm) {
     provide_core_packages(vm);
     vm.register_stock_builtin("package", cmd_package);
 }
 
-fn name_key(vm: &mut Vm, operand: &Value) -> Result<NameBytes, Completion<Value>> {
+fn name_key(vm: &mut OriginalPackage<'_>, operand: &Value) -> Result<NameBytes, Completion<Value>> {
     let Some(protocol) = (if vm.package_table_is_authored() {
         Some(tcl_syntax::naming::NativeNameProtocol::C(
             tcl_dialect::TclVersion::V8_4,
@@ -54,30 +57,21 @@ fn name_key(vm: &mut Vm, operand: &Value) -> Result<NameBytes, Completion<Value>
 }
 
 fn package_protocol(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
 ) -> Result<tcl_registry::native_package::NativePackageProtocol, Completion<Value>> {
+    vm.check().map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     vm.selected_package_protocol()
         .ok_or_else(|| vm.refuse_host_command("package object protocol is unavailable".to_owned()))
 }
 
 fn package_operand_bytes(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     value: &Value,
 ) -> Result<std::rc::Rc<[u8]>, Completion<Value>> {
-    let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
-        return Err(vm.refuse_host_command("package string protocol is unavailable".to_owned()));
-    };
-    value.native_string_bytes(protocol).map_err(|error| {
-        vm.refuse_host_command(format!(
-            "package operand materialisation is unavailable: {error:?}"
-        ))
-    })
+    vm.string(value).map_err(|error| crate::command::completion_from_cmd_error(vm, error))
 }
 
-fn package_word(vm: &mut Vm, value: &Value) -> Result<NameBytes, Completion<Value>> {
+fn package_word(vm: &mut OriginalPackage<'_>, value: &Value) -> Result<NameBytes, Completion<Value>> {
     let protocol = package_protocol(vm)?;
     let bytes = package_operand_bytes(vm, value)?;
     Ok(NameBytes::from(protocol.c_word(&bytes)))
@@ -94,7 +88,7 @@ fn join_requirements(requirements: &[NameBytes]) -> Vec<u8> {
     result
 }
 
-fn package_wrong_args(vm: &mut Vm, member: &str) -> Completion<Value> {
+fn package_wrong_args(vm: &mut OriginalPackage<'_>, member: &str) -> Completion<Value> {
     let protocol = match package_protocol(vm) {
         Ok(protocol) => protocol,
         Err(completion) => return completion,
@@ -136,7 +130,7 @@ fn package_wrong_args(vm: &mut Vm, member: &str) -> Completion<Value> {
     crate::command::native_wrong_args_bytes(vm, &usage)
 }
 
-fn package_list(vm: &mut Vm, members: Vec<Value>) -> Completion<Value> {
+fn package_list(vm: &mut OriginalPackage<'_>, members: Vec<Value>) -> Completion<Value> {
     let Some(strings) = vm
         .actual_native_invocation_dialect()
         .native_string_protocol()
@@ -146,7 +140,7 @@ fn package_list(vm: &mut Vm, members: Vec<Value>) -> Completion<Value> {
     ok(Value::native_list_constructor(members, strings))
 }
 
-fn package_error(parts: &[&[u8]], code: NativePackageErrorCode, vm: &mut Vm) -> Completion<Value> {
+fn package_error(parts: &[&[u8]], code: NativePackageErrorCode, vm: &mut OriginalPackage<'_>) -> Completion<Value> {
     let message = parts.concat();
     let error = match code {
         NativePackageErrorCode::Default => tcl_cmd_core::CmdError::new_bytes(message),
@@ -189,7 +183,7 @@ pub(crate) fn provide_core_packages(vm: &mut Vm) {
 }
 
 fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    vm.with_package_table(false, |vm| dispatch_package(vm, args))
+    OriginalPackage::run(vm, false, args, |original| dispatch_package(original, args))
 }
 
 pub(crate) fn cmd_authored_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -205,15 +199,23 @@ pub(crate) fn cmd_authored_package(vm: &mut Vm, args: &[Value]) -> Completion<Va
             .map(|word| word.native_lifetime_lease().into_value())
             .collect(),
     ));
-    let previous = vm.native_invocation.arguments.replace(view);
     let authored = vm.active_native_profile.is_none();
-    let completion = vm.with_package_table(authored, |vm| dispatch_package(vm, operands));
-    vm.native_invocation.arguments = previous;
-    completion
+    OriginalPackage::run(vm, authored, operands, |original| {
+        let previous = original.native_invocation.arguments.replace(view);
+        let completion = dispatch_package(original, operands);
+        let restored = original.cleanup(|vm| {
+            let displaced = std::mem::replace(&mut vm.native_invocation.arguments, previous);
+            drop(displaced);
+        });
+        match restored {
+            Ok(()) => completion,
+            Err(error) => crate::command::completion_from_cmd_error(original, error),
+        }
+    })
 }
 
 fn package_subcommand(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     original: &Value,
     protocol: tcl_registry::native_package::NativePackageProtocol,
     options: &'static [&'static str],
@@ -226,7 +228,9 @@ fn package_subcommand(
             &bytes, options,
         ))
     } else {
-        vm.native_index_from_original_checked(original, &table, false, "option")
+        vm.checked(|vm| {
+            vm.native_index_from_original_checked(original, &table, false, "option").map_err(Into::into)
+        })
     };
     match selection {
         Ok(Ok(index)) => Ok(options[index]),
@@ -240,11 +244,11 @@ fn package_subcommand(
                 vm,
             ))
         }
-        Err(error) => Err(crate::command::completion_from_cmd_error(vm, error.into())),
+        Err(error) => Err(crate::command::completion_from_cmd_error(vm, error)),
     }
 }
 
-fn dispatch_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn dispatch_package(vm: &mut OriginalPackage<'_>, args: &[Value]) -> Completion<Value> {
     let protocol = match package_protocol(vm) {
         Ok(protocol) => protocol,
         Err(completion) => return completion,
@@ -261,7 +265,7 @@ fn dispatch_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(completion) => return completion,
     };
     match sub {
-        "provide" => pkg_provide(vm, rest, release),
+        "provide" => pkg_provide_original(vm, rest, release),
         "require" => pkg_require(vm, rest, true, release),
         "present" => pkg_require(vm, rest, false, release),
         "vsatisfies" => pkg_vsatisfies(vm, rest, release),
@@ -331,7 +335,7 @@ fn dispatch_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn jim_package(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     protocol: tcl_registry::native_package::NativePackageProtocol,
     sub: &Value,
     rest: &[Value],
@@ -365,24 +369,7 @@ fn jim_package(
         }
     };
     match member {
-        "provide" if (1..=2).contains(&rest.len()) => {
-            let name = match name_key(vm, &rest[0]) {
-                Ok(name) => name,
-                Err(completion) => return completion,
-            };
-            if vm
-                .package_version_bytes(&name)
-                .is_some_and(|version| !version.is_empty())
-            {
-                return package_error(
-                    &[b"package \"", name.as_bytes(), b"\" was already provided"],
-                    NativePackageErrorCode::Default,
-                    vm,
-                );
-            }
-            vm.provide_package(&name, "1.0");
-            ok(Value::empty())
-        }
+        "provide" if (1..=2).contains(&rest.len()) => jim_provide(vm, rest),
         "require" if (1..=2).contains(&rest.len()) => {
             let name = match name_key(vm, &rest[0]) {
                 Ok(name) => name,
@@ -420,11 +407,35 @@ fn jim_package(
     }
 }
 
-fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
+fn jim_provide(vm: &mut OriginalPackage<'_>, rest: &[Value]) -> Completion<Value> {
+    let name = match name_key(vm, &rest[0]) {
+        Ok(name) => name,
+        Err(completion) => return completion,
+    };
+    if vm
+        .package_version_bytes(&name)
+        .is_some_and(|version| !version.is_empty())
+    {
+        return package_error(
+            &[b"package \"", name.as_bytes(), b"\" was already provided"],
+            NativePackageErrorCode::Default,
+            vm,
+        );
+    }
+    vm.provide_package(&name, "1.0");
+    ok(Value::empty())
+}
+
+fn jim_require(vm: &mut OriginalPackage<'_>, name: &NameBytes) -> Completion<Value> {
     if let Some(version) = vm.package_version_bytes(name) {
         return ok(Value::from_native_string_bytes(version.as_bytes()));
     }
-    let paths = match vm.read_var_traced("::auto_path") {
+    let paths = vm.read_var_traced("::auto_path");
+    if let Err(error) = vm.check() {
+        drop(paths);
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let paths = match paths {
         Ok(Some(paths)) => paths,
         Ok(None) => {
             return package_error(
@@ -435,11 +446,11 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
         }
         Err(completion) => return completion,
     };
-    let directories = match tcl_syntax::value::ValueOps::list_elements(vm, &paths) {
+    let directories = match vm.list(&paths) {
         Ok(paths) => paths,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
     };
-    for directory in &directories {
+    for directory in directories.iter() {
         let directory = match package_operand_bytes(vm, directory) {
             Ok(bytes) => bytes,
             Err(completion) => return completion,
@@ -447,11 +458,17 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
         for candidate in
             tcl_dialect::PackageProtocol::Jim.direct_files_bytes(&directory, name.as_bytes(), true)
         {
-            let contents = match vm
-                .host()
-                .filesystem()
-                .map(|fs| fs.read_bytes(&candidate.path))
-            {
+            let host = vm.host_rc();
+            let filesystem = host.filesystem();
+            if let Err(error) = vm.check() {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let contents = filesystem.map(|fs| fs.read_bytes(&candidate.path));
+            if let Err(error) = vm.check() {
+                drop(contents);
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            let contents = match contents {
                 Some(Ok(contents)) => contents,
                 None | Some(Err(tcl_platform::HostError::Unsupported)) => {
                     return vm
@@ -467,20 +484,25 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
                         vm.push_script(label.to_owned());
                     }
                     let completion =
-                        vm.eval_value_at_level(0, &Value::from_native_string_bytes(contents));
+                        vm.eval_script(&Value::from_native_string_bytes(contents));
                     if label.is_some() {
-                        vm.pop_script();
+                        if let Err(error) = vm.cleanup(Vm::pop_script) {
+                            return crate::command::completion_from_cmd_error(vm, error);
+                        }
                     }
+                    let completion = vm.settle_callback(completion);
                     vm.settle_package_source_completion(completion)
                 }
                 tcl_dialect::DirectPackageFileKind::Native => {
                     let mut script = b"load ".to_vec();
                     tcl_syntax::list::append_list_element(&mut script, &candidate.path, true);
-                    vm.eval_value_at_level(0, &Value::from_native_string_bytes(script))
+                    vm.eval_script(&Value::from_native_string_bytes(script))
                 }
             };
-            if !completion.code.is_ok() {
-                vm.forget_package_completely(name);
+            if !completion.code.is_ok() || vm.check().is_err() {
+                if let Err(error) = vm.cleanup(|vm| vm.forget_package_completely(name)) {
+                    return crate::command::completion_from_cmd_error(vm, error);
+                }
                 if let Some(refused) = vm.refused_completion() {
                     return refused;
                 }
@@ -519,6 +541,23 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
 
 pub(crate) fn pkg_provide(
     vm: &mut Vm,
+    rest: &[Value],
+    _release: tcl_dialect::TclVersion,
+) -> Completion<Value> {
+    OriginalPackage::run(vm, false, rest, |original| {
+        match package_protocol(original) {
+            Ok(tcl_registry::native_package::NativePackageProtocol::C(actual)) => {
+                pkg_provide_original(original, rest, actual)
+            }
+            Ok(_) if (1..=2).contains(&rest.len()) => jim_provide(original, rest),
+            Ok(_) => package_wrong_args(original, "provide"),
+            Err(completion) => completion,
+        }
+    })
+}
+
+fn pkg_provide_original(
+    vm: &mut OriginalPackage<'_>,
     rest: &[Value],
     release: tcl_dialect::TclVersion,
 ) -> Completion<Value> {
@@ -563,7 +602,7 @@ pub(crate) fn pkg_provide(
 }
 
 fn pkg_vsatisfies(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     rest: &[Value],
     release: tcl_dialect::TclVersion,
 ) -> Completion<Value> {
@@ -595,7 +634,7 @@ fn pkg_vsatisfies(
 }
 
 fn pkg_vcompare(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     rest: &[Value],
     release: tcl_dialect::TclVersion,
 ) -> Completion<Value> {
@@ -627,7 +666,7 @@ fn pkg_vcompare(
 }
 
 fn pkg_ifneeded(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     rest: &[Value],
     release: tcl_dialect::TclVersion,
 ) -> Completion<Value> {
@@ -677,7 +716,7 @@ fn pkg_ifneeded(
     }
 }
 
-fn pkg_unknown(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+fn pkg_unknown(vm: &mut OriginalPackage<'_>, rest: &[Value]) -> Completion<Value> {
     match rest {
         [] => ok(vm.package_unknown().map_or_else(Value::empty, |prefix| {
             Value::from_native_string_bytes(tcl_core_types::c_string_extent(prefix))
@@ -699,7 +738,7 @@ fn pkg_unknown(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `package prefer`'s preference word (`tclPkg.c`): C resolves it with
 /// `Tcl_GetIndexFromObj(…, "preference", 0)`, so `l`/`s` abbreviate and the
 /// empty word — a prefix of both entries — is `ambiguous preference ""`.
-fn pkg_prefer(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+fn pkg_prefer(vm: &mut OriginalPackage<'_>, rest: &[Value]) -> Completion<Value> {
     match rest {
         [] => ok(Value::string(preference_name(vm.package_prefer()))),
         [preference] => {
@@ -711,15 +750,12 @@ fn pkg_prefer(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
                     protocol.preference_members().expect("C preference table"),
                 );
-            let selected = match vm.native_index_from_original_checked(
-                preference,
-                &table,
-                false,
-                "preference",
-            ) {
+            let selected = match vm.checked(|vm| {
+                vm.native_index_from_original_checked(preference, &table, false, "preference").map_err(Into::into)
+            }) {
                 Ok(result) => result,
                 Err(error) => {
-                    return crate::command::completion_from_cmd_error(vm, error.into());
+                    return crate::command::completion_from_cmd_error(vm, error);
                 }
             };
             match selected {
@@ -762,7 +798,7 @@ fn preference_name(preference: PackagePrefer) -> &'static str {
 }
 
 fn pkg_require(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     rest: &[Value],
     discover: bool,
     release: tcl_dialect::TclVersion,
@@ -881,7 +917,7 @@ enum ProvidedStatus {
 }
 
 fn invoke_package_unknown(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     prefix: &[u8],
     name: &NameBytes,
     requested: &[NameBytes],
@@ -915,11 +951,15 @@ fn invoke_package_unknown(
         callback.extend_from_slice(b" -exact");
     }
     let completion = eval_package_script(vm, &Value::from_native_string_bytes(callback));
+    let completion = vm.settle_callback(completion);
     if let Some(refused) = vm.refused_completion() {
         return Err(refused);
     }
     match completion.code {
-        Code::Ok => {}
+        Code::Ok => {
+            drop(completion);
+            return vm.check().map_err(|error| crate::command::completion_from_cmd_error(vm, error));
+        }
         Code::Error => {
             let message = package_operand_bytes(vm, &completion.result)?;
             append_loader_error_frame(vm, &message, None);
@@ -927,11 +967,10 @@ fn invoke_package_unknown(
         }
         _ => return Err(bad_return_code(vm, &completion, None)),
     }
-    Ok(())
 }
 
 fn provided_status(
-    vm: &Vm,
+    vm: &OriginalPackage<'_>,
     name: &NameBytes,
     requirements: &[NameBytes],
     exact: bool,
@@ -948,7 +987,7 @@ fn provided_status(
 }
 
 fn version_conflict(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     discover: bool,
     name: &NameBytes,
     have: &NameBytes,
@@ -986,7 +1025,7 @@ fn version_conflict(
     )
 }
 
-fn invalid_version(vm: &mut Vm, version: &NameBytes) -> Completion<Value> {
+fn invalid_version(vm: &mut OriginalPackage<'_>, version: &NameBytes) -> Completion<Value> {
     let protocol = match package_protocol(vm) {
         Ok(protocol) => protocol,
         Err(completion) => return completion,
@@ -1006,7 +1045,7 @@ fn invalid_version(vm: &mut Vm, version: &NameBytes) -> Completion<Value> {
 }
 
 fn invalid_requirement(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     error: tcl_dialect::RequirementBytesValidationError<'_>,
 ) -> Completion<Value> {
     match error {
@@ -1036,7 +1075,7 @@ fn invalid_requirement(
 }
 
 fn circular_dependency(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     name: &NameBytes,
     loading_version: &NameBytes,
     requested: &[NameBytes],
@@ -1080,7 +1119,7 @@ struct SelectedLoader {
 }
 
 fn selected_loader(
-    vm: &Vm,
+    vm: &OriginalPackage<'_>,
     name: &NameBytes,
     requirements: &[NameBytes],
     exact: bool,
@@ -1121,24 +1160,24 @@ fn selected_loader(
 /// Package discovery scripts are interpreter-global even when the require was
 /// issued in a proc or namespace. Keeping the frame transition here prevents
 /// the unknown and ifneeded paths from drifting apart.
-fn eval_package_script(vm: &mut Vm, script: &Value) -> Completion<Value> {
-    vm.eval_value_at_level(0, script)
+fn eval_package_script(vm: &mut OriginalPackage<'_>, script: &Value) -> Completion<Value> {
+    vm.eval_script(script)
 }
 
 fn bad_return_code(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     completion: &Completion<Value>,
     loader: Option<(&NameBytes, &NameBytes)>,
 ) -> Completion<Value> {
     // Only an explicit pending error return carries its trace into the newly
     // generated BADRESULT episode. Break/continue/custom traces are discarded.
     let pending_error = completion.code == Code::Return
-        && match crate::command::option_code_checked(vm, &completion.options, Code::Ok) {
+        && match vm.checked_tcl(|vm| crate::command::option_code_checked(vm, &completion.options, Code::Ok)) {
             Ok(code) => code == Code::Error,
             Err(error) => return crate::command::completion_from_tcl_error(vm, error),
         };
     let carried = if pending_error {
-        match crate::command::opt_get_checked(vm, &completion.options, b"-errorinfo") {
+        match vm.checked_tcl(|vm| crate::command::opt_get_checked(vm, &completion.options, b"-errorinfo")) {
             Ok(value) => value,
             Err(error) => return crate::command::completion_from_tcl_error(vm, error),
         }
@@ -1156,9 +1195,9 @@ fn bad_return_code(
         }
     }
     if pending_error {
-        match crate::command::opt_get_checked(vm, &completion.options, b"-errorstack") {
+        match vm.checked_tcl(|vm| crate::command::opt_get_checked(vm, &completion.options, b"-errorstack")) {
             Ok(Some(stack)) => {
-                if let Err(error) = vm.seed_error_stack(&stack) {
+                if let Err(error) = vm.checked_tcl(|vm| vm.seed_error_stack(&stack)) {
                     return crate::command::completion_from_tcl_error(vm, error);
                 }
             }
@@ -1194,7 +1233,7 @@ fn bad_return_code(
     else {
         return vm.refuse_host_command("package return-option protocol is unavailable".into());
     };
-    let pairs = match crate::command::completion_option_rows_checked(vm, &completion.options) {
+    let pairs = match vm.checked_tcl(|vm| crate::command::completion_option_rows_checked(vm, &completion.options)) {
         Ok(pairs) => pairs,
         Err(error) => return crate::command::completion_from_tcl_error(vm, error),
     };
@@ -1219,7 +1258,7 @@ fn bad_return_code(
         ("-level", Value::int(0)),
         (
             "-errorcode",
-            match crate::command::opt_get_checked(vm, &failure.options, b"-errorcode") {
+            match vm.checked_tcl(|vm| crate::command::opt_get_checked(vm, &failure.options, b"-errorcode")) {
                 Ok(Some(code)) => code,
                 Ok(None) => {
                     return vm
@@ -1229,7 +1268,7 @@ fn bad_return_code(
             },
         ),
     ] {
-        options = match crate::command::with_return_option(vm, &options, key, value) {
+        options = match vm.checked_tcl(|vm| crate::command::with_return_option(vm, &options, key, value)) {
             Ok(options) => options,
             Err(error) => return crate::command::completion_from_tcl_error(vm, error),
         };
@@ -1239,7 +1278,7 @@ fn bad_return_code(
 }
 
 fn append_loader_error_frame(
-    vm: &mut Vm,
+    vm: &mut OriginalPackage<'_>,
     message: &[u8],
     loader: Option<(&NameBytes, &NameBytes)>,
 ) {
@@ -1257,19 +1296,25 @@ fn append_loader_error_frame(
     vm.seed_error_info_frame(message, &frame);
 }
 
-fn evaluate_loader(vm: &mut Vm, name: &NameBytes, loader: &SelectedLoader) -> Completion<Value> {
+fn evaluate_loader(vm: &mut OriginalPackage<'_>, name: &NameBytes, loader: &SelectedLoader) -> Completion<Value> {
     let source = &loader.script;
 
     vm.begin_package_loading(name, &loader.version);
-    if let Err(error) = vm.record_package_loader_origin(name, &loader.version) {
-        vm.end_package_loading(name, &loader.version);
-        return crate::command::completion_from_cmd_error(vm, error.into());
+    if let Err(error) = vm.checked(|vm| vm.record_package_loader_origin(name, &loader.version).map_err(Into::into)) {
+        vm.retain_failure(&error);
+        if let Err(cleanup) = vm.end_loading(name, &loader.version) {
+            return crate::command::completion_from_cmd_error(vm, cleanup);
+        }
+        return crate::command::completion_from_cmd_error(vm, error);
     }
     let completion = eval_package_script(
         vm,
         &Value::from_native_string_bytes(tcl_core_types::c_string_extent(source)),
     );
-    vm.end_package_loading(name, &loader.version);
+    if let Err(error) = vm.end_loading(name, &loader.version) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let completion = vm.settle_callback(completion);
     if let Some(refused) = vm.refused_completion() {
         return refused;
     }

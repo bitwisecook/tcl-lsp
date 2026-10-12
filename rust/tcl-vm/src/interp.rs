@@ -61,6 +61,7 @@ use variable_trace_outcomes::VariableTraceOutcome;
 
 mod authored_math;
 mod authored_package;
+pub(crate) use authored_package::PackageTableReceipt;
 mod authored_rule_callables;
 mod authored_tmm_static;
 mod execution_name_policy;
@@ -996,6 +997,7 @@ struct FreshSemanticEnvironment {
 
 #[derive(Default)]
 struct PackageState {
+    identity: Rc<()>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<tcl_core_types::NameBytes, tcl_core_types::NameBytes>,
     version_objects: HashMap<tcl_core_types::NameBytes, Value>,
@@ -13746,10 +13748,23 @@ impl Vm {
     }
 
     /// Cleanup remains tolerant of a loader forgetting its own package.
+    #[cfg(test)]
     pub(crate) fn end_package_loading(
         &mut self,
         name: impl AsRef<[u8]>,
         version: impl AsRef<[u8]>,
+    ) {
+        let tracks_files = self.selected_package_protocol().is_some_and(
+            tcl_registry::native_package::NativePackageProtocol::tracks_files,
+        );
+        self.end_package_loading_using(name, version, tracks_files);
+    }
+
+    pub(super) fn end_package_loading_using(
+        &mut self,
+        name: impl AsRef<[u8]>,
+        version: impl AsRef<[u8]>,
+        tracks_files: bool,
     ) {
         if self
             .selected_package_state()
@@ -13760,10 +13775,7 @@ impl Vm {
             })
         {
             self.selected_package_state_mut().package_loading.pop();
-            if self
-                .selected_package_protocol()
-                .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files)
-            {
+            if tracks_files {
                 self.selected_package_state_mut().package_file_scopes.pop();
             }
         }
@@ -17214,6 +17226,26 @@ impl Vm {
             Ok(selected) => selected,
             Err(message) => return err(message),
         };
+        self.eval_value_in_selected_frame(source, selected)
+    }
+
+    pub(crate) fn eval_value_at_level_checked(
+        &mut self,
+        target: usize,
+        source: &Value,
+    ) -> Completion<Value> {
+        let selected = match self.select_execution_frame_checked(target) {
+            Ok(selected) => selected,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+        };
+        self.eval_value_in_selected_frame(source, selected)
+    }
+
+    fn eval_value_in_selected_frame(
+        &mut self,
+        source: &Value,
+        selected: Option<SelectedFrameRestore>,
+    ) -> Completion<Value> {
         let completion = match self.eval_original_script_value(
             source,
             tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,

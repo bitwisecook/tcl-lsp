@@ -18,16 +18,104 @@
 
 //! Isolated authored package tables and their scoped dispatch purpose.
 
-use super::{PackagePrefer, PackageState, Vm, err, ok};
+use super::{InterpId, PackagePrefer, PackageState, Vm, err, ok};
+use super::native_operation_currency::NativeOperationScope;
+use std::rc::Rc;
+use tcl_cmd_core::CmdError;
+use tcl_syntax::raw_string::NativeValueAccessRefusal;
 use crate::Value;
 use tcl_core_types::{Completion, NameBytes};
 use tcl_registry::native_package::{AuthoredPackageProvider, NativePackageProtocol};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(super) enum PackageTablePurpose {
     #[default]
     Native,
     Authored,
+}
+
+#[derive(Clone)]
+pub(crate) struct PackageTableReceipt {
+    interpreter: InterpId,
+    identity: Rc<()>,
+    purpose: PackageTablePurpose,
+    previous: PackageTablePurpose,
+    tracks_files: bool,
+}
+
+impl PackageTableReceipt {
+    fn selected<'a>(&self, vm: &'a Vm) -> Option<&'a PackageState> {
+        let state = vm.st_of(self.interpreter)?;
+        match self.purpose {
+            PackageTablePurpose::Native => Some(&state.package_state),
+            PackageTablePurpose::Authored => Some(&state.authored_packages.as_ref()?.table),
+        }
+    }
+
+    fn owns_table(&self, vm: &Vm) -> bool {
+        self.selected(vm).is_some_and(|table| Rc::ptr_eq(&table.identity, &self.identity))
+    }
+
+    pub(crate) fn check(&self, vm: &mut Vm, original: &NativeOperationScope) -> Result<(), CmdError> {
+        original.check(vm)?;
+        if !vm.interp_is_current(self.interpreter)
+            || vm.package_table_purpose != self.purpose
+            || !self.owns_table(vm)
+        {
+            return Err(vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+                NativeValueAccessRefusal::CommandProtocolUnavailable("original package table"),
+            )).into());
+        }
+        Ok(())
+    }
+
+    /// Mandatory cleanup targets only the retained physical interpreter and table.
+    pub(crate) fn cleanup<R>(
+        &self,
+        vm: &mut Vm,
+        original: &NativeOperationScope,
+        callback: impl FnOnce(&mut Vm) -> R,
+    ) -> Result<R, CmdError> {
+        self.with_saved(vm, original, true, callback)
+    }
+
+    fn with_saved<R>(
+        &self,
+        vm: &mut Vm,
+        original: &NativeOperationScope,
+        restore_temporary: bool,
+        callback: impl FnOnce(&mut Vm) -> R,
+    ) -> Result<R, CmdError> {
+        if !self.owns_table(vm) {
+            return Err(vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+                NativeValueAccessRefusal::CommandProtocolUnavailable("saved package table"),
+            )).into());
+        }
+        vm.in_interp(self.interpreter, |vm| {
+            let cleanup = NativeOperationScope::cleanup_saved(vm, original.currency())
+                .map_err(CmdError::from_execution_refusal)?;
+            let previous = vm.package_table_purpose;
+            vm.package_table_purpose = self.purpose;
+            let result = callback(vm);
+            if restore_temporary {
+                vm.package_table_purpose = previous;
+            }
+            drop(cleanup);
+            Ok(result)
+        })
+    }
+
+    pub(crate) fn end_loading(
+        &self,
+        vm: &mut Vm,
+        original: &NativeOperationScope,
+        name: &NameBytes,
+        version: &NameBytes,
+    ) -> Result<(), CmdError> {
+        self.cleanup(vm, original, |vm| {
+            vm.end_package_loading_using(name, version, self.tracks_files);
+        })
+    }
 }
 
 pub(super) struct AuthoredPackageState {
@@ -142,32 +230,56 @@ impl Vm {
         }
     }
 
-    pub(crate) fn with_package_table<R>(
-        &mut self,
-        authored: bool,
-        callback: impl FnOnce(&mut Self) -> R,
-    ) -> R {
+    fn enter_package_table(&mut self, authored: bool) -> PackageTableReceipt {
         if authored {
-            self.authored_packages
-                .as_mut()
-                .expect("selected authored table")
-                .active_depth += 1;
+            self.authored_packages.as_mut().expect("selected authored table").active_depth += 1;
         }
-        let original = self.package_table_purpose;
+        let previous = self.package_table_purpose;
         self.package_table_purpose = if authored {
             PackageTablePurpose::Authored
         } else {
             PackageTablePurpose::Native
         };
-        let result = callback(self);
-        self.package_table_purpose = original;
-        if authored {
-            self.authored_packages
-                .as_mut()
-                .expect("entered authored table retained")
-                .active_depth -= 1;
+        PackageTableReceipt {
+            interpreter: self.cur_interp(),
+            identity: Rc::clone(&self.selected_package_state().identity),
+            purpose: self.package_table_purpose,
+            previous,
+            tracks_files: self.selected_package_protocol().is_some_and(NativePackageProtocol::tracks_files),
         }
+    }
+
+    fn restore_package_table(&mut self, entered: &PackageTableReceipt) {
+        self.package_table_purpose = entered.previous;
+        if entered.purpose == PackageTablePurpose::Authored {
+            self.authored_packages.as_mut().expect("entered authored table retained").active_depth -= 1;
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_package_table<R>(
+        &mut self,
+        authored: bool,
+        callback: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let entered = self.enter_package_table(authored);
+        let result = callback(self);
+        self.in_interp(entered.interpreter, |vm| vm.restore_package_table(&entered));
         result
+    }
+
+    pub(crate) fn with_package_table_checked<R>(
+        &mut self,
+        authored: bool,
+        original: &NativeOperationScope,
+        callback: impl FnOnce(&mut Self, &PackageTableReceipt) -> R,
+    ) -> Result<R, CmdError> {
+        original.check(self)?;
+        let entered = self.enter_package_table(authored);
+        let result = callback(self, &entered);
+        entered.with_saved(self, original, false, |vm| vm.restore_package_table(&entered))?;
+        original.check(self)?;
+        Ok(result)
     }
 }
 
