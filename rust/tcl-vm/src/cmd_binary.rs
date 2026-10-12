@@ -131,6 +131,14 @@ fn bytes_to_value(vm: &Vm, bytes: &[u8]) -> Value {
     {
         return Value::from_string_bytes(bytes);
     }
+    if let Some(recipe) = vm
+        .object_materialization()
+        .and_then(|purpose| purpose.byte_array_string_recipe())
+    {
+        return Value::from_byte_array_recipe(std::rc::Rc::from(bytes), recipe);
+    }
+    // The unselected portable carrier retains its old neutral constructor;
+    // this branch issues no byte-array updater or Native getter authority.
     Value::byte_array(bytes)
 }
 
@@ -1526,5 +1534,56 @@ mod original_format_scan_tests {
             first,
             tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
         ));
+    }
+    #[test]
+    fn original_codec_binary_results_keep_recipe_for_format_and_scan_roundtrip() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual supported C codec producers and checked consumers, not a Native observation.
+        for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(profile),
+            );
+            let scope = NativeOperationScope::enter(&mut vm).unwrap();
+            let protocol = vm.object_materialization().unwrap().protocol();
+            let decoded = binary_decode(
+                &mut vm,
+                &[Value::string("hex"), Value::string("4142")],
+                BinaryInvocation::Worker,
+            );
+            assert_eq!(decoded.code, Code::Ok);
+            assert_eq!(decoded.result.native_byte_array_protocol(), Some(protocol));
+            assert_eq!(
+                decoded.result.byte_array_origin().unwrap().protocol(),
+                protocol
+            );
+            let scanned = binary_scan(
+                &mut vm,
+                &[
+                    decoded.result,
+                    Value::string("a1"),
+                    Value::string("assigned"),
+                ],
+            );
+            assert_eq!(scanned.code, Code::Ok);
+            let assigned = vm.get_var_bytes(b"assigned").unwrap();
+            assert_eq!(assigned.byte_array_representation().unwrap().as_ref(), b"A");
+            let encoded = binary_encode(
+                &mut vm,
+                &[Value::string("hex"), Value::string("AB")],
+                BinaryInvocation::Worker,
+            );
+            assert_eq!(encoded.code, Code::Ok);
+            assert_eq!(encoded.result.native_byte_array_protocol(), Some(protocol));
+            let packed = binary_format(&mut vm, &[Value::string("a*"), encoded.result]);
+            assert_eq!(packed.code, Code::Ok);
+            assert_eq!(
+                packed.result.byte_array_representation().unwrap().as_ref(),
+                b"4142"
+            );
+            assert_eq!(packed.result.native_object_reference_count(), 1);
+            assert!(vm.execution_refusal.is_none());
+            scope.check(&mut vm).unwrap();
+        }
     }
 }
