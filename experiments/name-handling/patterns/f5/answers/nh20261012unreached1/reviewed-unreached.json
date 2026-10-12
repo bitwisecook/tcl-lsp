@@ -1,0 +1,2624 @@
+{
+  "schema_version": 1,
+  "derived_review_id": "nh20261012unreached1",
+  "new_execution": false,
+  "scope": "Negative final-operation reachability review for23 previously unavailable portable-program matrix rows. No canonical answer, matrix edit, semantic proof or claim that all outstanding questions are completed. Security metadata is omitted.",
+  "reviews": [
+    {
+      "question_id": "f5-pattern-computed-binding-mutation",
+      "canonical_question_id": "naming.corpus-pattern.computed-binding-mutation",
+      "identity": {
+        "case_id": "computed-binding-mutation",
+        "context": "tmsh-cli-script",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/91"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+        "sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-1/input.tcl",
+        "sha256": "1c7dd4312c1c85e70764d46315a9284bc490fb57f2f3f25c1c6a30fbf5b8241e"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-cases.json",
+        "sha256": "76fd09bc2dee06c1ce53954c37ba659b0cbc04f57927e151a302f5328d6d73c8",
+        "json_pointer": "/1/operation",
+        "value_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmsh-cli-script",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206e737d207b6672616d652d7661726961626c6520686561647d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e2774206578697374",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't rename \"::nh::emit\": command doesn't exist\n    while executing\n\"rename ::nh::emit ::nh::old\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-1/invoke.stdout",
+          "sha256": "a99ff1e78965b25ae8f1962dea14f77b5ea3d73eec9f2285d1efd8a65db55471",
+          "rows": [
+            {
+              "line": 5,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 4,
+        "failing_command": "rename ::nh::emit ::nh::old",
+        "stage": "definition/mutation prefix failed"
+      },
+      "authored_final_operation": {
+        "line": 6,
+        "text": "$head"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original rename at line4 fails before the replacement definition and final computed-head invocation. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-computed-binding-mutation",
+      "canonical_question_id": "naming.corpus-pattern.computed-binding-mutation",
+      "identity": {
+        "case_id": "computed-binding-mutation",
+        "context": "iapp-implementation",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/1"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+        "sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/iapp-implementation-1/input.tcl",
+        "sha256": "46ecd5b8745f77b6262c41e665332e653779056507da0146f45c34e84f165fd8"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/iapp-implementation-cases.json",
+        "sha256": "117f963bef40110be5d97fc8d5b11077090f47a1782cc448e16732c2be35f3c7",
+        "json_pointer": "/1/operation",
+        "value_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "iapp-implementation",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206e737d207b6672616d652d7661726961626c6520686561647d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e2774206578697374",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't rename \"::nh::emit\": command doesn't exist\n    while executing\n\"rename ::nh::emit ::nh::old\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/final-runtime.stdout",
+          "sha256": "1249235b45634d87a414cac97b9238b3e7798528696f632b3961cd03861832eb",
+          "rows": [
+            {
+              "line": 11,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 4,
+        "failing_command": "rename ::nh::emit ::nh::old",
+        "stage": "definition/mutation prefix failed"
+      },
+      "authored_final_operation": {
+        "line": 6,
+        "text": "$head"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original rename at line4 fails before the replacement definition and final computed-head invocation. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-computed-binding-mutation",
+      "canonical_question_id": "naming.corpus-pattern.computed-binding-mutation",
+      "identity": {
+        "case_id": "computed-binding-mutation",
+        "context": "icall",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/46"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+        "sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/icall-1/input.tcl",
+        "sha256": "827e9c383fcb28c5fdb07e2d4431dea10d6935141111987ed999393ad417eee4"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/icall-cases.json",
+        "sha256": "6f0a72a7bdbaa45d8ca9019687f74232c8a46e7aeb1325756c39969f0132424c",
+        "json_pointer": "/1/operation",
+        "value_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "icall",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206e737d207b6672616d652d7661726961626c6520686561647d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e2774206578697374",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't rename \"::nh::emit\": command doesn't exist\n    while executing\n\"rename ::nh::emit ::nh::old\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/final-runtime.stdout",
+          "sha256": "1249235b45634d87a414cac97b9238b3e7798528696f632b3961cd03861832eb",
+          "rows": [
+            {
+              "line": 368,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 4,
+        "failing_command": "rename ::nh::emit ::nh::old",
+        "stage": "definition/mutation prefix failed"
+      },
+      "authored_final_operation": {
+        "line": 6,
+        "text": "$head"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original rename at line4 fails before the replacement definition and final computed-head invocation. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-computed-binding-mutation",
+      "canonical_question_id": "naming.corpus-pattern.computed-binding-mutation",
+      "identity": {
+        "case_id": "computed-binding-mutation",
+        "context": "iapp-apl",
+        "capture_run_id": "nh20261012aplexact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/records.json",
+        "sha256": "3f658818a2966a037a090faaa65ffb197ff5e5b90a7ace4514e51a9a11f36e10",
+        "json_pointer": "/1"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+        "sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/1/operation",
+        "value_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "iapp-apl",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206e737d207b6672616d652d7661726961626c6520686561647d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e2774206578697374",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't rename \"::nh::emit\": command doesn't exist\n    while executing\n\"rename ::nh::emit ::nh::old\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "rows": [
+            {
+              "line": 11,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "63616e27742072656e616d6520223a3a6e683a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a6e683a3a656d6974203a3a6e683a3a6f6c64220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 4,
+        "failing_command": "rename ::nh::emit ::nh::old",
+        "stage": "definition/mutation prefix failed"
+      },
+      "authored_final_operation": {
+        "line": 6,
+        "text": "$head"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original rename at line4 fails before the replacement definition and final computed-head invocation. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-ensemble-prefix-map",
+      "canonical_question_id": "naming.corpus-pattern.ensemble-prefix-map",
+      "identity": {
+        "case_id": "ensemble-prefix-map",
+        "context": "tmm-RULE_INIT",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/12"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+        "sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-RULE_INIT-3/input.tcl",
+        "sha256": "7a92c60d0cfcac36ed217e9d2143c458203567a81cdfbbda2a759e3121dd3993"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-RULE_INIT-cases.json",
+        "sha256": "9fcd9951c87c7641f1b08fcdcedd75cfeb4acc9722801e06786377a298562413",
+        "json_pointer": "/3/operation",
+        "value_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-RULE_INIT",
+        "event": "RULE_INIT",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a226e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974207b6120627d5d5d220a2020202028696e206e616d657370616365206576616c20223a3a6e682220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a6e68207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a202020206e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974202e2e2e220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n    while executing\n\"namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]\"\n    (in namespace eval \"::nh\" script line 3)\n    invoked from within\n\"namespace eval ::nh {\n    proc emit {fixed value} {list $fixed $value}\n    namespace ensemble create -command facade -map [list send [list ::nh::emit ...\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 82,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 3,
+              "chunk_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a226e616d65737061636520656e73656d626c6520637265617465"
+            },
+            {
+              "line": 83,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 3,
+              "chunk_hex": "202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974207b6120627d5d5d220a2020202028696e206e616d657370616365206576616c20223a3a6e682220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a6e68207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a"
+            },
+            {
+              "line": 84,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 2,
+              "chunk_count": 3,
+              "chunk_hex": "202020206e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974202e2e2e220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]",
+        "stage": "ensemble construction failed"
+      },
+      "authored_final_operation": {
+        "line": 5,
+        "text": "::nh::facade send {c d}"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original namespace-eval command starting at line1 fails in its line3 ensemble creation, before the later facade call. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-ensemble-prefix-map",
+      "canonical_question_id": "naming.corpus-pattern.ensemble-prefix-map",
+      "identity": {
+        "case_id": "ensemble-prefix-map",
+        "context": "tmm-procedure",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/192"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+        "sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-3/input.tcl",
+        "sha256": "2f7853e75b21da2b2c3692b0054dc857a07d8e39ec3db5dcca20c57552718353"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-cases.json",
+        "sha256": "d2778bfbf218158fbba757671c64878f73199624199b8489ccf0934d46321f5f",
+        "json_pointer": "/3/operation",
+        "value_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-procedure",
+        "event": "RULE_INIT",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a226e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974207b6120627d5d5d220a2020202028696e206e616d657370616365206576616c20223a3a6e682220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a6e68207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a202020206e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974202e2e2e220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n    while executing\n\"namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]\"\n    (in namespace eval \"::nh\" script line 3)\n    invoked from within\n\"namespace eval ::nh {\n    proc emit {fixed value} {list $fixed $value}\n    namespace ensemble create -command facade -map [list send [list ::nh::emit ...\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 1019,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 3,
+              "chunk_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a226e616d65737061636520656e73656d626c6520637265617465"
+            },
+            {
+              "line": 1020,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 3,
+              "chunk_hex": "202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974207b6120627d5d5d220a2020202028696e206e616d657370616365206576616c20223a3a6e682220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a6e68207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a"
+            },
+            {
+              "line": 1021,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 2,
+              "chunk_count": 3,
+              "chunk_hex": "202020206e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974202e2e2e220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]",
+        "stage": "ensemble construction failed"
+      },
+      "authored_final_operation": {
+        "line": 5,
+        "text": "::nh::facade send {c d}"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original namespace-eval command starting at line1 fails in its line3 ensemble creation, before the later facade call. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-ensemble-prefix-map",
+      "canonical_question_id": "naming.corpus-pattern.ensemble-prefix-map",
+      "identity": {
+        "case_id": "ensemble-prefix-map",
+        "context": "tmm-traffic-event",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "0",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/408"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+        "sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-3/input.tcl",
+        "sha256": "2f36d308d41f1c724b58d20a0b87f6c5e85626ca9b99afdb9836b93a4f162920"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-cases.json",
+        "sha256": "632405dec6904e247229ba5a613e185a7eacc649fd4e17924e56c04d19a8ce57",
+        "json_pointer": "/3/operation",
+        "value_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-traffic-event",
+        "event": "HTTP_REQUEST",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a226e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974207b6120627d5d5d220a2020202028696e206e616d657370616365206576616c20223a3a6e682220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a6e68207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a202020206e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974202e2e2e220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n    while executing\n\"namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]\"\n    (in namespace eval \"::nh\" script line 3)\n    invoked from within\n\"namespace eval ::nh {\n    proc emit {fixed value} {list $fixed $value}\n    namespace ensemble create -command facade -map [list send [list ::nh::emit ...\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 2045,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 3,
+              "chunk_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a226e616d65737061636520656e73656d626c6520637265617465"
+            },
+            {
+              "line": 2046,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 3,
+              "chunk_hex": "202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974207b6120627d5d5d220a2020202028696e206e616d657370616365206576616c20223a3a6e682220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a6e68207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a"
+            },
+            {
+              "line": 2047,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 2,
+              "chunk_count": 3,
+              "chunk_hex": "202020206e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a6e683a3a656d6974202e2e2e220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]",
+        "stage": "ensemble construction failed"
+      },
+      "authored_final_operation": {
+        "line": 5,
+        "text": "::nh::facade send {c d}"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original namespace-eval command starting at line1 fails in its line3 ensemble creation, before the later facade call. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-keyed-variable-link",
+      "canonical_question_id": "naming.corpus-pattern.keyed-variable-link",
+      "identity": {
+        "case_id": "keyed-variable-link",
+        "context": "tmsh-cli-script",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/98"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+        "sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-8/input.tcl",
+        "sha256": "fe0b3fa638a5b2b0edf5f5bcc8d0e1dc4942d856aa949fb6ac552b994745995d"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-cases.json",
+        "sha256": "76fd09bc2dee06c1ce53954c37ba659b0cbc04f57927e151a302f5328d6d73c8",
+        "json_pointer": "/8/operation",
+        "value_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmsh-cli-script",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e676522",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"::nh::change\"\n    while executing\n\"::nh::change {state.a b}\"\n    (\"eval\" body line 8)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-8/invoke.stdout",
+          "sha256": "09ea52d5c0732025d80816b557adc5470d6fbe6550eeba09d568f963b5bfcd64",
+          "rows": [
+            {
+              "line": 5,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 8,
+        "failing_command": "::nh::change {state.a b}",
+        "stage": "preceding change invocation failed"
+      },
+      "authored_final_operation": {
+        "line": 9,
+        "text": "set {::nh::state.a b(value)}"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original change invocation at line8 fails before the final variable read at line9. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-keyed-variable-link",
+      "canonical_question_id": "naming.corpus-pattern.keyed-variable-link",
+      "identity": {
+        "case_id": "keyed-variable-link",
+        "context": "iapp-implementation",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/8"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+        "sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/iapp-implementation-8/input.tcl",
+        "sha256": "8f243da228a56b0f9978f532cffa72546baf6792e9e0114db573c70968c2b849"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/iapp-implementation-cases.json",
+        "sha256": "117f963bef40110be5d97fc8d5b11077090f47a1782cc448e16732c2be35f3c7",
+        "json_pointer": "/8/operation",
+        "value_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "iapp-implementation",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e676522",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"::nh::change\"\n    while executing\n\"::nh::change {state.a b}\"\n    (\"eval\" body line 8)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/final-runtime.stdout",
+          "sha256": "1249235b45634d87a414cac97b9238b3e7798528696f632b3961cd03861832eb",
+          "rows": [
+            {
+              "line": 49,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 8,
+        "failing_command": "::nh::change {state.a b}",
+        "stage": "preceding change invocation failed"
+      },
+      "authored_final_operation": {
+        "line": 9,
+        "text": "set {::nh::state.a b(value)}"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original change invocation at line8 fails before the final variable read at line9. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-keyed-variable-link",
+      "canonical_question_id": "naming.corpus-pattern.keyed-variable-link",
+      "identity": {
+        "case_id": "keyed-variable-link",
+        "context": "icall",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/53"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+        "sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/icall-8/input.tcl",
+        "sha256": "dd8414e1bdb53b92a15a18f7ee14d8e42190005ca6dd167b6a7cf0e3fbb39987"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/icall-cases.json",
+        "sha256": "6f0a72a7bdbaa45d8ca9019687f74232c8a46e7aeb1325756c39969f0132424c",
+        "json_pointer": "/8/operation",
+        "value_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "icall",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e676522",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"::nh::change\"\n    while executing\n\"::nh::change {state.a b}\"\n    (\"eval\" body line 8)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/final-runtime.stdout",
+          "sha256": "1249235b45634d87a414cac97b9238b3e7798528696f632b3961cd03861832eb",
+          "rows": [
+            {
+              "line": 406,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 8,
+        "failing_command": "::nh::change {state.a b}",
+        "stage": "preceding change invocation failed"
+      },
+      "authored_final_operation": {
+        "line": 9,
+        "text": "set {::nh::state.a b(value)}"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original change invocation at line8 fails before the final variable read at line9. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-keyed-variable-link",
+      "canonical_question_id": "naming.corpus-pattern.keyed-variable-link",
+      "identity": {
+        "case_id": "keyed-variable-link",
+        "context": "iapp-apl",
+        "capture_run_id": "nh20261012aplexact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/records.json",
+        "sha256": "3f658818a2966a037a090faaa65ffb197ff5e5b90a7ace4514e51a9a11f36e10",
+        "json_pointer": "/8"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+        "sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/8/operation",
+        "value_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "iapp-apl",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e676522",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"::nh::change\"\n    while executing\n\"::nh::change {state.a b}\"\n    (\"eval\" body line 8)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "rows": [
+            {
+              "line": 49,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a6e683a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c696e652038290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 8,
+        "failing_command": "::nh::change {state.a b}",
+        "stage": "preceding change invocation failed"
+      },
+      "authored_final_operation": {
+        "line": 9,
+        "text": "set {::nh::state.a b(value)}"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original change invocation at line8 fails before the final variable read at line9. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-oo-prefix-deleted-near-miss",
+      "canonical_question_id": "naming.corpus-pattern.oo-prefix-deleted-near-miss",
+      "identity": {
+        "case_id": "oo-prefix-deleted-near-miss",
+        "context": "tmm-procedure",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/224"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+        "sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-11/input.tcl",
+        "sha256": "83e57b420aeda1b343881af90944c162cf0ad642eb41c8263ce5a2b846cc0b45"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-cases.json",
+        "sha256": "d2778bfbf218158fbba757671c64878f73199624199b8489ccf0934d46321f5f",
+        "json_pointer": "/11/operation",
+        "value_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-procedure",
+        "event": "RULE_INIT",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b636f6d6d616e642d616e642d6e616d657370616365203a3a6e68636c6173737d207b6672616d652d7661726961626c65206f626a6563747d207b6672616d652d7661726961626c65207072656669787d207b6672616d652d7661726961626c6520726573756c747d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 1214,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 2,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a2020"
+            },
+            {
+              "line": 1215,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 2,
+              "chunk_hex": "2020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "oo::class create ::nhclass {",
+        "stage": "class construction failed"
+      },
+      "authored_final_operation": {
+        "line": 9,
+        "text": "string match {invalid command name *} $result"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original class-definition command at line1 fails before object creation, destruction, the later caught prefix invocation and final string-match query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-oo-prefix-deleted-near-miss",
+      "canonical_question_id": "naming.corpus-pattern.oo-prefix-deleted-near-miss",
+      "identity": {
+        "case_id": "oo-prefix-deleted-near-miss",
+        "context": "tmm-traffic-event",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "0",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/536"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+        "sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-11/input.tcl",
+        "sha256": "178c27ca417105185e68721e1c3bbbd3b1c8c69dea60ea4a4876ccc65f939a16"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-cases.json",
+        "sha256": "632405dec6904e247229ba5a613e185a7eacc649fd4e17924e56c04d19a8ce57",
+        "json_pointer": "/11/operation",
+        "value_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-traffic-event",
+        "event": "HTTP_REQUEST",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b636f6d6d616e642d616e642d6e616d657370616365203a3a6e68636c6173737d207b6672616d652d7661726961626c65206f626a6563747d207b6672616d652d7661726961626c65207072656669787d207b6672616d652d7661726961626c6520726573756c747d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 2749,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 2,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a2020"
+            },
+            {
+              "line": 2750,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 2,
+              "chunk_hex": "2020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "oo::class create ::nhclass {",
+        "stage": "class construction failed"
+      },
+      "authored_final_operation": {
+        "line": 9,
+        "text": "string match {invalid command name *} $result"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original class-definition command at line1 fails before object creation, destruction, the later caught prefix invocation and final string-match query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-oo-self-prefix",
+      "canonical_question_id": "naming.corpus-pattern.oo-self-prefix",
+      "identity": {
+        "case_id": "oo-self-prefix",
+        "context": "tmm-RULE_INIT",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/48"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+        "sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-RULE_INIT-12/input.tcl",
+        "sha256": "5257c333261b51f0a9d626544f29e2a1801bdbbb9b5401632d0fc13be42e5054"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-RULE_INIT-cases.json",
+        "sha256": "9fcd9951c87c7641f1b08fcdcedd75cfeb4acc9722801e06786377a298562413",
+        "json_pointer": "/12/operation",
+        "value_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-RULE_INIT",
+        "event": "RULE_INIT",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b636f6d6d616e642d616e642d6e616d657370616365203a3a6e68636c6173737d207b6672616d652d7661726961626c65206f626a6563747d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 308,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 2,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a2020"
+            },
+            {
+              "line": 309,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 2,
+              "chunk_hex": "2020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "oo::class create ::nhclass {",
+        "stage": "class construction failed"
+      },
+      "authored_final_operation": {
+        "line": 6,
+        "text": "eval [$object prefix]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original class-definition command at line1 fails before object creation and the final method-prefix evaluation. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-oo-self-prefix",
+      "canonical_question_id": "naming.corpus-pattern.oo-self-prefix",
+      "identity": {
+        "case_id": "oo-self-prefix",
+        "context": "tmm-procedure",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/228"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+        "sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-12/input.tcl",
+        "sha256": "60c1a8e25ce2e5fc045d14aeea7bfdda1d96d156de795040bfe0d2fe5b2dbe98"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-cases.json",
+        "sha256": "d2778bfbf218158fbba757671c64878f73199624199b8489ccf0934d46321f5f",
+        "json_pointer": "/12/operation",
+        "value_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-procedure",
+        "event": "RULE_INIT",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b636f6d6d616e642d616e642d6e616d657370616365203a3a6e68636c6173737d207b6672616d652d7661726961626c65206f626a6563747d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 1241,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 2,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a2020"
+            },
+            {
+              "line": 1242,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 2,
+              "chunk_hex": "2020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "oo::class create ::nhclass {",
+        "stage": "class construction failed"
+      },
+      "authored_final_operation": {
+        "line": 6,
+        "text": "eval [$object prefix]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original class-definition command at line1 fails before object creation and the final method-prefix evaluation. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-oo-self-prefix",
+      "canonical_question_id": "naming.corpus-pattern.oo-self-prefix",
+      "identity": {
+        "case_id": "oo-self-prefix",
+        "context": "tmm-traffic-event",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "0",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/552"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+        "sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-12/input.tcl",
+        "sha256": "704827d88a24da1438e8a084c40de3dd7ccabff529f38cc38f7443dc755a796f"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-cases.json",
+        "sha256": "632405dec6904e247229ba5a613e185a7eacc649fd4e17924e56c04d19a8ce57",
+        "json_pointer": "/12/operation",
+        "value_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-traffic-event",
+        "event": "HTTP_REQUEST",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b636f6d6d616e642d616e642d6e616d657370616365203a3a6e68636c6173737d207b6672616d652d7661726961626c65206f626a6563747d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 2861,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 2,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a6e68636c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d220a2020202028226576616c2220626f6479206c696e652031290a2020"
+            },
+            {
+              "line": 2862,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 1,
+              "chunk_count": 2,
+              "chunk_hex": "2020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "oo::class create ::nhclass {",
+        "stage": "class construction failed"
+      },
+      "authored_final_operation": {
+        "line": 6,
+        "text": "eval [$object prefix]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original class-definition command at line1 fails before object creation and the final method-prefix evaluation. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "identity": {
+        "case_id": "tcltest-shared-lifecycle",
+        "context": "tmsh-cli-script",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/104"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-14/input.tcl",
+        "sha256": "5ed23478f5550bf59e9f3b80ed7eceb5dd2734b275c4cd5e634ba08eaba18b7a"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-cases.json",
+        "sha256": "76fd09bc2dee06c1ce53954c37ba659b0cbc04f57927e151a302f5328d6d73c8",
+        "json_pointer": "/14/operation",
+        "value_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmsh-cli-script",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a65727322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't read \"debug\": no such variable\n    while executing\n\"if {$debug >= $level} {\n\tputs $string\n    }\"\n    (procedure \"DebugPuts\" line 3)\n    invoked from within\n\"DebugPuts 3 \"entering ConstraintInitializer $constraint $script\"\"\n    (procedure \"ConstraintInitializer\" line 3)\n    invoked from within\n\"ConstraintInitializer singleTestInterp {singleProcess}\"\n    (procedure \"DefineConstraintInitializers\" line 2)\n    invoked from within\n\"DefineConstraintInitializers\"\n    (in namespace eval \"::tcltest\" script line 3)\n    invoked from within\n\"namespace eval tcltest {\n    # Define initializers for all the built-in contraint definitions\n    DefineConstraintInitializers\n\n    # Set up the const...\"\n    (file \"/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\" line 3272)\n    invoked from within\n\"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/tmsh-cli-script-14/invoke.stdout",
+          "sha256": "dfdc0d398079b21e4b44103bc44f0762ba38f695800b834ffc3abbcf353caadf",
+          "rows": [
+            {
+              "line": 5,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 5,
+              "chunk_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469"
+            },
+            {
+              "line": 6,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 1,
+              "chunk_count": 5,
+              "chunk_hex": "616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a6572"
+            },
+            {
+              "line": 7,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 2,
+              "chunk_count": 5,
+              "chunk_hex": "7322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20"
+            },
+            {
+              "line": 8,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 3,
+              "chunk_count": 5,
+              "chunk_hex": "746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f"
+            },
+            {
+              "line": 9,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 4,
+              "chunk_count": 5,
+              "chunk_hex": "7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "package require tcltest",
+        "stage": "package initialisation failed"
+      },
+      "authored_final_operation": {
+        "line": 14,
+        "text": "list $::nh::observed [info exists ::nh::payload]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original package-require command at line1 fails before namespace/test setup and the final lifecycle-state list query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "identity": {
+        "case_id": "tcltest-shared-lifecycle",
+        "context": "iapp-implementation",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/14"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/iapp-implementation-14/input.tcl",
+        "sha256": "5bbdd351754c8ebacdbaab0f01b10603ee68e4e770be1e63c76436c203ee2e18"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/iapp-implementation-cases.json",
+        "sha256": "117f963bef40110be5d97fc8d5b11077090f47a1782cc448e16732c2be35f3c7",
+        "json_pointer": "/14/operation",
+        "value_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "iapp-implementation",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a65727322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't read \"debug\": no such variable\n    while executing\n\"if {$debug >= $level} {\n\tputs $string\n    }\"\n    (procedure \"DebugPuts\" line 3)\n    invoked from within\n\"DebugPuts 3 \"entering ConstraintInitializer $constraint $script\"\"\n    (procedure \"ConstraintInitializer\" line 3)\n    invoked from within\n\"ConstraintInitializer singleTestInterp {singleProcess}\"\n    (procedure \"DefineConstraintInitializers\" line 2)\n    invoked from within\n\"DefineConstraintInitializers\"\n    (in namespace eval \"::tcltest\" script line 3)\n    invoked from within\n\"namespace eval tcltest {\n    # Define initializers for all the built-in contraint definitions\n    DefineConstraintInitializers\n\n    # Set up the const...\"\n    (file \"/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\" line 3272)\n    invoked from within\n\"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/final-runtime.stdout",
+          "sha256": "1249235b45634d87a414cac97b9238b3e7798528696f632b3961cd03861832eb",
+          "rows": [
+            {
+              "line": 82,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 5,
+              "chunk_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469"
+            },
+            {
+              "line": 83,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 1,
+              "chunk_count": 5,
+              "chunk_hex": "616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a6572"
+            },
+            {
+              "line": 84,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 2,
+              "chunk_count": 5,
+              "chunk_hex": "7322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20"
+            },
+            {
+              "line": 85,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 3,
+              "chunk_count": 5,
+              "chunk_hex": "746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f"
+            },
+            {
+              "line": 86,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 4,
+              "chunk_count": 5,
+              "chunk_hex": "7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "package require tcltest",
+        "stage": "package initialisation failed"
+      },
+      "authored_final_operation": {
+        "line": 14,
+        "text": "list $::nh::observed [info exists ::nh::payload]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original package-require command at line1 fails before namespace/test setup and the final lifecycle-state list query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "identity": {
+        "case_id": "tcltest-shared-lifecycle",
+        "context": "tmm-RULE_INIT",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/56"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-RULE_INIT-14/input.tcl",
+        "sha256": "4040299571e7df3c553d245371eb539afc20feeddea9bbca942f843a757649a7"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-RULE_INIT-cases.json",
+        "sha256": "9fcd9951c87c7641f1b08fcdcedd75cfeb4acc9722801e06786377a298562413",
+        "json_pointer": "/14/operation",
+        "value_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-RULE_INIT",
+        "event": "RULE_INIT",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "63616e27742066696e64207061636b6167652074636c74657374",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't find package tcltest\n    while executing\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 364,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "package require tcltest",
+        "stage": "package initialisation failed"
+      },
+      "authored_final_operation": {
+        "line": 14,
+        "text": "list $::nh::observed [info exists ::nh::payload]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original package-require command at line1 fails before namespace/test setup and the final lifecycle-state list query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "identity": {
+        "case_id": "tcltest-shared-lifecycle",
+        "context": "tmm-procedure",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/236"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-14/input.tcl",
+        "sha256": "4375f9ba1603d7a5ed46068b366d1f3e290f25adac6ad4faf26c84cc2658ab05"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-procedure-cases.json",
+        "sha256": "d2778bfbf218158fbba757671c64878f73199624199b8489ccf0934d46321f5f",
+        "json_pointer": "/14/operation",
+        "value_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-procedure",
+        "event": "RULE_INIT",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "63616e27742066696e64207061636b6167652074636c74657374",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't find package tcltest\n    while executing\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 1295,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "package require tcltest",
+        "stage": "package initialisation failed"
+      },
+      "authored_final_operation": {
+        "line": 14,
+        "text": "list $::nh::observed [info exists ::nh::payload]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original package-require command at line1 fails before namespace/test setup and the final lifecycle-state list query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "identity": {
+        "case_id": "tcltest-shared-lifecycle",
+        "context": "tmm-traffic-event",
+        "capture_run_id": "nh20261012exact2",
+        "tmm_unit": "0:0",
+        "invocation_id": "0",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/records.json",
+        "sha256": "1fab04a8987bb8212f5f4c79545624ca4415048f5a25b9580a817c8ac62404ce",
+        "json_pointer": "/584"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-14/input.tcl",
+        "sha256": "956fcb8ae0a6d9e2634bb42a520b0a1d719b3fe8850a6ef4c8fe4cc1713059d9"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-cases.json",
+        "sha256": "632405dec6904e247229ba5a613e185a7eacc649fd4e17924e56c04d19a8ce57",
+        "json_pointer": "/14/operation",
+        "value_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "tmm-traffic-event",
+        "event": "HTTP_REQUEST",
+        "tmm_unit": "0:0"
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "63616e27742066696e64207061636b6167652074636c74657374",
+        "errorcode": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "binary-scan-tcl-value",
+          "hex": "63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't find package tcltest\n    while executing\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "binary-scan-tcl-value",
+        "projection": "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/final-runtime.stdout",
+          "sha256": "219e0950f2da78a99affda2ab173c88ba73c09c3c9271a5e81e34b497a1c9012",
+          "rows": [
+            {
+              "line": 3085,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "binary-scan-tcl-value",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "package require tcltest",
+        "stage": "package initialisation failed"
+      },
+      "authored_final_operation": {
+        "line": 14,
+        "text": "list $::nh::observed [info exists ::nh::payload]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original package-require command at line1 fails before namespace/test setup and the final lifecycle-state list query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "identity": {
+        "case_id": "tcltest-shared-lifecycle",
+        "context": "icall",
+        "capture_run_id": "nh20261012exact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/records.json",
+        "sha256": "be4d91f0c4c92694875751f9ada971aa7a34ae5d5ab254bd654e2aa44c57f6cd",
+        "json_pointer": "/59"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/icall-14/input.tcl",
+        "sha256": "a87e4eaac1ad224d2e93724f696c8213c8ed7eb529a020c0301138273a0cb6be"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/icall-cases.json",
+        "sha256": "6f0a72a7bdbaa45d8ca9019687f74232c8a46e7aeb1325756c39969f0132424c",
+        "json_pointer": "/14/operation",
+        "value_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "icall",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a20616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a65727322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't read \"debug\": no such variable\n    while executing\n\"if {$debug >= $level} {\n\tputs $string\n    }\"\n    (procedure \"DebugPuts\" line 3)\n    invoked from within\n\"DebugPuts 3 \"entering ConstraintInitializer $constraint $script\"\"\n    (procedure \"ConstraintInitializer\" line 3)\n    invoked from within\n\"ConstraintInitializer singleTestInterp {singleProcess}\"\n    (procedure \"DefineConstraintInitializers\" line 2)\n    invoked from within\n\"DefineConstraintInitializers\"\n    (in namespace eval \"::tcltest\" script line 3)\n    invoked from within\n\"namespace eval tcltest {\n    # Define initializers for all the built-in contraint definitions\n    DefineConstraintInitializers\n\n    # Set up the const...\"\n    (file \"/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\" line 3272)\n    invoked from within\n\"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/final-runtime.stdout",
+          "sha256": "1249235b45634d87a414cac97b9238b3e7798528696f632b3961cd03861832eb",
+          "rows": [
+            {
+              "line": 439,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 5,
+              "chunk_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469"
+            },
+            {
+              "line": 440,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 1,
+              "chunk_count": 5,
+              "chunk_hex": "616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a6572"
+            },
+            {
+              "line": 441,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 2,
+              "chunk_count": 5,
+              "chunk_hex": "7322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20"
+            },
+            {
+              "line": 442,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 3,
+              "chunk_count": 5,
+              "chunk_hex": "746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f"
+            },
+            {
+              "line": 443,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 4,
+              "chunk_count": 5,
+              "chunk_hex": "7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "package require tcltest",
+        "stage": "package initialisation failed"
+      },
+      "authored_final_operation": {
+        "line": 14,
+        "text": "list $::nh::observed [info exists ::nh::payload]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original package-require command at line1 fails before namespace/test setup and the final lifecycle-state list query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    },
+    {
+      "question_id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "identity": {
+        "case_id": "tcltest-shared-lifecycle",
+        "context": "iapp-apl",
+        "capture_run_id": "nh20261012aplexact1",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "source_measurement": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/records.json",
+        "sha256": "3f658818a2966a037a090faaa65ffb197ff5e5b90a7ace4514e51a9a11f36e10",
+        "json_pointer": "/14"
+      },
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/14/operation",
+        "value_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35"
+      },
+      "provider": {
+        "version": "21.1.0.1",
+        "build": "0.0.26",
+        "context": "iapp-apl",
+        "event": null,
+        "tmm_unit": null
+      },
+      "load_status": "accept",
+      "wrapper_guard": {
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65",
+        "errorcode": {
+          "encoding": "utf-8",
+          "hex": "4e4f4e45"
+        },
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a65727322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+        },
+        "return_options": null,
+        "unavailable_fields": [
+          "return_options"
+        ]
+      },
+      "error_stack_projection": {
+        "text": "can't read \"debug\": no such variable\n    while executing\n\"if {$debug >= $level} {\n\tputs $string\n    }\"\n    (procedure \"DebugPuts\" line 3)\n    invoked from within\n\"DebugPuts 3 \"entering ConstraintInitializer $constraint $script\"\"\n    (procedure \"ConstraintInitializer\" line 3)\n    invoked from within\n\"ConstraintInitializer singleTestInterp {singleProcess}\"\n    (procedure \"DefineConstraintInitializers\" line 2)\n    invoked from within\n\"DefineConstraintInitializers\"\n    (in namespace eval \"::tcltest\" script line 3)\n    invoked from within\n\"namespace eval tcltest {\n    # Define initializers for all the built-in contraint definitions\n    DefineConstraintInitializers\n\n    # Set up the const...\"\n    (file \"/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\" line 3272)\n    invoked from within\n\"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+        "encoding": "utf-8",
+        "projection": "UTF-8 as explicitly marked"
+      },
+      "raw_error_chunks": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "rows": [
+            {
+              "line": 82,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 5,
+              "chunk_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469"
+            },
+            {
+              "line": 83,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 1,
+              "chunk_count": 5,
+              "chunk_hex": "616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a6572"
+            },
+            {
+              "line": 84,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 2,
+              "chunk_count": 5,
+              "chunk_hex": "7322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20"
+            },
+            {
+              "line": 85,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 3,
+              "chunk_count": 5,
+              "chunk_hex": "746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f"
+            },
+            {
+              "line": 86,
+              "stage": "lookup",
+              "completion_code": 1,
+              "field": "errorinfo",
+              "encoding": "utf-8",
+              "chunk_index": 4,
+              "chunk_count": 5,
+              "chunk_hex": "7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "original_failure": {
+        "outer_eval_body_line": 1,
+        "failing_command": "package require tcltest",
+        "stage": "package initialisation failed"
+      },
+      "authored_final_operation": {
+        "line": 14,
+        "text": "list $::nh::observed [info exists ::nh::payload]"
+      },
+      "review": {
+        "intended_final_operation_reached": false,
+        "original_setup_prefix_completed": false,
+        "canonical_final_lookup_supported": false,
+        "recommended_matrix_status": "unreached",
+        "reason": "The original package-require command at line1 fails before namespace/test setup and the final lifecycle-state list query. The complete uncaught original-program stack and sequential source order prove the authored final operation was not entered.",
+        "limits": "Successful wrapper ownership setup is independent of successful original source setup. Whole-program error is retained as a measured attempt; it supplies no final-operation completion or result and no semantic unsupported answer. This is a read-only review of the recorded context/unit/invocation, not a new execution."
+      }
+    }
+  ]
+}

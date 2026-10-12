@@ -1,0 +1,3534 @@
+[
+  {
+    "schema_version": 1,
+    "question_id": "F5-N01-version",
+    "canonical_question_id": null,
+    "canonical_question": null,
+    "requested_canonical_question_id": null,
+    "scope": "Independent native APL callback capability control. No substitute harness and no portable original-input lookup claim.",
+    "operation_scope": "captured-operation",
+    "intended_lookup_reached": true,
+    "canonical_lookup_answer": null,
+    "case_id": "version",
+    "variant_id": "native-apl-capability-control-v1",
+    "run_id": "nh20261012aplrepair1",
+    "invocation_id": "once",
+    "provider": {
+      "version": "21.1.0.1",
+      "build": "0.0.26",
+      "hotfix": null,
+      "edition": "Point Release 1",
+      "context": "iapp-apl",
+      "event": null,
+      "tmm_unit": null,
+      "execution_namespace": "::script",
+      "interpreter_path": null,
+      "interpreter_patchlevel": "8.4.6",
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+          "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+          "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+          "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+          "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+          "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+        }
+      ],
+      "configured_rule_names": [],
+      "configured_profiles": [],
+      "invoking_action": "Chrome Application Services Create form template selection; callback values retained from live DOM",
+      "applied_object_receipts": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+          "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+          "role": "provider"
+        }
+      ]
+    },
+    "original_input": null,
+    "actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/input.tcl",
+      "sha256": "fc5bc91234d8f3188ead4c0e49240b6d735a86b1bdf9f50117c2db2a6574d1fe"
+    },
+    "wrapper": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-cases.json",
+      "sha256": "cf595d907c947b1d378abb6c21cb24f0ca0869af860f344fa2532f5ee8fa580a",
+      "json_pointer": "/0"
+    },
+    "configuration": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "invocation_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      }
+    ],
+    "adaptation": null,
+    "load": {
+      "status": "accept",
+      "exit_code": 0,
+      "transcript": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "setup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "version",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "382e342e3620382e34203a3a736372697074",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "version",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "382e342e3620382e34203a3a736372697074",
+          "text": "8.4.6 8.4 ::script",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup_stage": "lookup",
+    "status": "observed",
+    "reason": null,
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+        "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+        "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+        "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+        "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+        "role": "provider"
+      }
+    ],
+    "capture_rows": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 1,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c76657273696f6e7c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "version",
+        "context": "iapp-apl",
+        "stage": "setup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": ""
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 2,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c76657273696f6e7c696170702d61706c7c6c6f6f6b75707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c333832653334326533363230333832653334323033613361373336333732363937303734",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "version",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "382e342e3620382e34203a3a736372697074"
+      }
+    ],
+    "rejected_capture_rows": [],
+    "other_stages": {
+      "setup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "version",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "lookup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "version",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "382e342e3620382e34203a3a736372697074",
+          "text": "8.4.6 8.4 ::script",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "body-return": [],
+      "runtime-cleanup": []
+    },
+    "cleanup_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "cleanup": {
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "object_absence_checks": [
+        {
+          "check": "after-0",
+          "exit_code": 1,
+          "absent": true
+        }
+      ],
+      "runtime": {
+        "reached": null,
+        "completion_code": null,
+        "result_encoding": null,
+        "result_hex": null,
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "unavailable_fields": [
+          "completion_code",
+          "result_hex",
+          "errorcode",
+          "errorinfo",
+          "return_options"
+        ],
+        "capture_fields": []
+      }
+    },
+    "configuration_saved": false,
+    "limitations": "V1 captures have no invocation identity. Duplicate or missing chunks remain unjoined. No error is classified unsupported automatically; no unobserved setup, lookup, unit or cleanup is inferred.",
+    "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+  },
+  {
+    "schema_version": 1,
+    "question_id": "F5-N01-native-real-tcltest",
+    "canonical_question_id": null,
+    "canonical_question": null,
+    "requested_canonical_question_id": null,
+    "scope": "Independent native APL callback capability control. No substitute harness and no portable original-input lookup claim.",
+    "operation_scope": "captured-operation",
+    "intended_lookup_reached": true,
+    "canonical_lookup_answer": null,
+    "case_id": "native-real-tcltest",
+    "variant_id": "native-apl-capability-control-v1",
+    "run_id": "nh20261012aplrepair1",
+    "invocation_id": "once",
+    "provider": {
+      "version": "21.1.0.1",
+      "build": "0.0.26",
+      "hotfix": null,
+      "edition": "Point Release 1",
+      "context": "iapp-apl",
+      "event": null,
+      "tmm_unit": null,
+      "execution_namespace": "::script",
+      "interpreter_path": null,
+      "interpreter_patchlevel": "8.4.6",
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+          "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+          "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+          "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+          "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+          "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+        }
+      ],
+      "configured_rule_names": [],
+      "configured_profiles": [],
+      "invoking_action": "Chrome Application Services Create form template selection; callback values retained from live DOM",
+      "applied_object_receipts": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+          "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+          "role": "provider"
+        }
+      ]
+    },
+    "original_input": null,
+    "actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/input.tcl",
+      "sha256": "fc5bc91234d8f3188ead4c0e49240b6d735a86b1bdf9f50117c2db2a6574d1fe"
+    },
+    "wrapper": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-cases.json",
+      "sha256": "cf595d907c947b1d378abb6c21cb24f0ca0869af860f344fa2532f5ee8fa580a",
+      "json_pointer": "/1"
+    },
+    "configuration": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "invocation_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      }
+    ],
+    "adaptation": null,
+    "load": {
+      "status": "accept",
+      "exit_code": 0,
+      "transcript": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "setup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup": {
+      "reached": true,
+      "completion_code": 1,
+      "result_encoding": "utf-8",
+      "result_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65",
+      "errorcode": {
+        "encoding": "utf-8",
+        "hex": "4e4f4e45"
+      },
+      "errorinfo": {
+        "encoding": "utf-8",
+        "hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a65727322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      },
+      "return_options": null,
+      "return_options_availability": "unavailable",
+      "unavailable_fields": [
+        "return_options"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65",
+          "text": "can't read \"debug\": no such variable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a65727322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "can't read \"debug\": no such variable\n    while executing\n\"if {$debug >= $level} {\n\tputs $string\n    }\"\n    (procedure \"DebugPuts\" line 3)\n    invoked from within\n\"DebugPuts 3 \"entering ConstraintInitializer $constraint $script\"\"\n    (procedure \"ConstraintInitializer\" line 3)\n    invoked from within\n\"ConstraintInitializer singleTestInterp {singleProcess}\"\n    (procedure \"DefineConstraintInitializers\" line 2)\n    invoked from within\n\"DefineConstraintInitializers\"\n    (in namespace eval \"::tcltest\" script line 3)\n    invoked from within\n\"namespace eval tcltest {\n    # Define initializers for all the built-in contraint definitions\n    DefineConstraintInitializers\n\n    # Set up the const...\"\n    (file \"/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\" line 3272)\n    invoked from within\n\"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup_stage": "lookup",
+    "status": "observed",
+    "reason": null,
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+        "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+        "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+        "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+        "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+        "role": "provider"
+      }
+    ],
+    "capture_rows": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 3,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "setup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": ""
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 4,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c363336313665323737343230373236353631363432303232363436353632373536373232336132303665366632303733373536333638323037363631373236393631363236633635",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 5,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "metadata",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 6,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorcode",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "4e4f4e45"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 7,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c357c36333631366532373734323037323635363136343230323236343635363237353637323233613230366536663230373337353633363832303736363137323639363136323663363530613230323032303230373736383639366336353230363537383635363337353734363936653637306132323639363632303762323436343635363237353637323033653364323032343663363537363635366337643230376230613039373037353734373332303234373337343732363936653637306132303230323032303764323230613230323032303230323837303732366636333635363437353732363532303232343436353632373536373530373537343733323232303663363936653635323033333239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323434363536323735363735303735373437333230333332303232363536653734363537323639366536373230343336663665373337343732363136393665373434393665363937343639",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 5,
+        "chunk_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 8,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c317c357c36313663363937613635373232303234363336663665373337343732363136393665373432303234373336333732363937303734323232323061323032303230323032383730373236663633363536343735373236353230323234333666366537333734373236313639366537343439366536393734363936313663363937613635373232323230366336393665363532303333323930613230323032303230363936653736366636623635363432303636373236663664323037373639373436383639366530613232343336663665373337343732363136393665373434393665363937343639363136633639376136353732323037333639366536373663363535343635373337343439366537343635373237303230376237333639366536373663363535303732366636333635373337333764323230613230323032303230323837303732366636333635363437353732363532303232343436353636363936653635343336663665373337343732363136393665373434393665363937343639363136633639376136353732",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 1,
+        "chunk_count": 5,
+        "chunk_hex": "616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a6572"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 9,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c327c357c37333232323036633639366536353230333232393061323032303230323036393665373636663662363536343230363637323666366432303737363937343638363936653061323234343635363636393665363534333666366537333734373236313639366537343439366536393734363936313663363937613635373237333232306132303230323032303238363936653230366536313664363537333730363136333635323036353736363136633230323233613361373436333663373436353733373432323230373336333732363937303734323036633639366536353230333332393061323032303230323036393665373636663662363536343230363637323666366432303737363937343638363936653061323236653631366436353733373036313633363532303635373636313663323037343633366337343635373337343230376230613230323032303230323332303434363536363639366536353230363936653639373436393631366336393761363537323733323036363666373232303631366336633230",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 2,
+        "chunk_count": 5,
+        "chunk_hex": "7322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 10,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c337c357c37343638363532303632373536393663373432643639366532303633366636653734373236313639366537343230363436353636363936653639373436393666366537333061323032303230323034343635363636393665363534333666366537333734373236313639366537343439366536393734363936313663363937613635373237333061306132303230323032303233323035333635373432303735373032303734363836353230363336663665373337343265326532653232306132303230323032303238363636393663363532303232326637353733373232663733363836313732363532663633366636643730363137343264373436333663333832653334326637343633366337343635373337343332326533323266373436333663373436353733373432653734363336633232323036633639366536353230333333323337333232393061323032303230323036393665373636663662363536343230363637323666366432303737363937343638363936653061323237333666373537323633363532303266",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 3,
+        "chunk_count": 5,
+        "chunk_hex": "746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 11,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d7265616c2d74636c746573747c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c347c357c3735373337323266373336383631373236353266363336663664373036313734326437343633366333383265333432663734363336633734363537333734333232653332326637343633366337343635373337343265373436333663323230613230323032303230323832323730363136333662363136373635323036393636366536353635363436353634323232303733363337323639373037343239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323730363136333662363136373635323037323635373137353639373236353230373436333663373436353733373432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033313239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-real-tcltest",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 4,
+        "chunk_count": 5,
+        "chunk_hex": "7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      }
+    ],
+    "rejected_capture_rows": [],
+    "other_stages": {
+      "setup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "lookup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65",
+          "text": "can't read \"debug\": no such variable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-real-tcltest",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a65727322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "can't read \"debug\": no such variable\n    while executing\n\"if {$debug >= $level} {\n\tputs $string\n    }\"\n    (procedure \"DebugPuts\" line 3)\n    invoked from within\n\"DebugPuts 3 \"entering ConstraintInitializer $constraint $script\"\"\n    (procedure \"ConstraintInitializer\" line 3)\n    invoked from within\n\"ConstraintInitializer singleTestInterp {singleProcess}\"\n    (procedure \"DefineConstraintInitializers\" line 2)\n    invoked from within\n\"DefineConstraintInitializers\"\n    (in namespace eval \"::tcltest\" script line 3)\n    invoked from within\n\"namespace eval tcltest {\n    # Define initializers for all the built-in contraint definitions\n    DefineConstraintInitializers\n\n    # Set up the const...\"\n    (file \"/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\" line 3272)\n    invoked from within\n\"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require tcltest\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "body-return": [],
+      "runtime-cleanup": []
+    },
+    "cleanup_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "cleanup": {
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "object_absence_checks": [
+        {
+          "check": "after-0",
+          "exit_code": 1,
+          "absent": true
+        }
+      ],
+      "runtime": {
+        "reached": null,
+        "completion_code": null,
+        "result_encoding": null,
+        "result_hex": null,
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "unavailable_fields": [
+          "completion_code",
+          "result_hex",
+          "errorcode",
+          "errorinfo",
+          "return_options"
+        ],
+        "capture_fields": []
+      }
+    },
+    "configuration_saved": false,
+    "limitations": "V1 captures have no invocation identity. Duplicate or missing chunks remain unjoined. No error is classified unsupported automatically; no unobserved setup, lookup, unit or cleanup is inferred.",
+    "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+  },
+  {
+    "schema_version": 1,
+    "question_id": "F5-N01-native-call-command-surface",
+    "canonical_question_id": null,
+    "canonical_question": null,
+    "requested_canonical_question_id": null,
+    "scope": "Independent native APL callback capability control. No substitute harness and no portable original-input lookup claim.",
+    "operation_scope": "captured-operation",
+    "intended_lookup_reached": true,
+    "canonical_lookup_answer": null,
+    "case_id": "native-call-command-surface",
+    "variant_id": "native-apl-capability-control-v1",
+    "run_id": "nh20261012aplrepair1",
+    "invocation_id": "once",
+    "provider": {
+      "version": "21.1.0.1",
+      "build": "0.0.26",
+      "hotfix": null,
+      "edition": "Point Release 1",
+      "context": "iapp-apl",
+      "event": null,
+      "tmm_unit": null,
+      "execution_namespace": "::script",
+      "interpreter_path": null,
+      "interpreter_patchlevel": "8.4.6",
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+          "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+          "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+          "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+          "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+          "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+        }
+      ],
+      "configured_rule_names": [],
+      "configured_profiles": [],
+      "invoking_action": "Chrome Application Services Create form template selection; callback values retained from live DOM",
+      "applied_object_receipts": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+          "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+          "role": "provider"
+        }
+      ]
+    },
+    "original_input": null,
+    "actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/input.tcl",
+      "sha256": "fc5bc91234d8f3188ead4c0e49240b6d735a86b1bdf9f50117c2db2a6574d1fe"
+    },
+    "wrapper": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-cases.json",
+      "sha256": "cf595d907c947b1d378abb6c21cb24f0ca0869af860f344fa2532f5ee8fa580a",
+      "json_pointer": "/2"
+    },
+    "configuration": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "invocation_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      }
+    ],
+    "adaptation": null,
+    "load": {
+      "status": "accept",
+      "exit_code": 0,
+      "transcript": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "setup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-command-surface",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "636f6d6d616e6473207b7d2070726f6373207b7d",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-command-surface",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "636f6d6d616e6473207b7d2070726f6373207b7d",
+          "text": "commands {} procs {}",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup_stage": "lookup",
+    "status": "observed",
+    "reason": null,
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+        "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+        "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+        "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+        "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+        "role": "provider"
+      }
+    ],
+    "capture_rows": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 12,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d63616c6c2d636f6d6d616e642d737572666163657c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-call-command-surface",
+        "context": "iapp-apl",
+        "stage": "setup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": ""
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 13,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d63616c6c2d636f6d6d616e642d737572666163657c696170702d61706c7c6c6f6f6b75707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c36333666366436643631366536343733323037623764323037303732366636333733323037623764",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-call-command-surface",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "636f6d6d616e6473207b7d2070726f6373207b7d"
+      }
+    ],
+    "rejected_capture_rows": [],
+    "other_stages": {
+      "setup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-command-surface",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "lookup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-command-surface",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "636f6d6d616e6473207b7d2070726f6373207b7d",
+          "text": "commands {} procs {}",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "body-return": [],
+      "runtime-cleanup": []
+    },
+    "cleanup_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "cleanup": {
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "object_absence_checks": [
+        {
+          "check": "after-0",
+          "exit_code": 1,
+          "absent": true
+        }
+      ],
+      "runtime": {
+        "reached": null,
+        "completion_code": null,
+        "result_encoding": null,
+        "result_hex": null,
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "unavailable_fields": [
+          "completion_code",
+          "result_hex",
+          "errorcode",
+          "errorinfo",
+          "return_options"
+        ],
+        "capture_fields": []
+      }
+    },
+    "configuration_saved": false,
+    "limitations": "V1 captures have no invocation identity. Duplicate or missing chunks remain unjoined. No error is classified unsupported automatically; no unobserved setup, lookup, unit or cleanup is inferred.",
+    "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+  },
+  {
+    "schema_version": 1,
+    "question_id": "F5-N01-native-call-runtime",
+    "canonical_question_id": null,
+    "canonical_question": null,
+    "requested_canonical_question_id": null,
+    "scope": "Independent native APL callback capability control. No substitute harness and no portable original-input lookup claim.",
+    "operation_scope": "captured-operation",
+    "intended_lookup_reached": true,
+    "canonical_lookup_answer": null,
+    "case_id": "native-call-runtime",
+    "variant_id": "native-apl-capability-control-v1",
+    "run_id": "nh20261012aplrepair1",
+    "invocation_id": "once",
+    "provider": {
+      "version": "21.1.0.1",
+      "build": "0.0.26",
+      "hotfix": null,
+      "edition": "Point Release 1",
+      "context": "iapp-apl",
+      "event": null,
+      "tmm_unit": null,
+      "execution_namespace": "::script",
+      "interpreter_path": null,
+      "interpreter_patchlevel": "8.4.6",
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+          "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+          "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+          "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+          "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+          "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+        }
+      ],
+      "configured_rule_names": [],
+      "configured_profiles": [],
+      "invoking_action": "Chrome Application Services Create form template selection; callback values retained from live DOM",
+      "applied_object_receipts": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+          "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+          "role": "provider"
+        }
+      ]
+    },
+    "original_input": null,
+    "actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/input.tcl",
+      "sha256": "fc5bc91234d8f3188ead4c0e49240b6d735a86b1bdf9f50117c2db2a6574d1fe"
+    },
+    "wrapper": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-cases.json",
+      "sha256": "cf595d907c947b1d378abb6c21cb24f0ca0869af860f344fa2532f5ee8fa580a",
+      "json_pointer": "/3"
+    },
+    "configuration": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "invocation_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      }
+    ],
+    "adaptation": null,
+    "load": {
+      "status": "accept",
+      "exit_code": 0,
+      "transcript": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "setup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "63616c6c",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "63616c6c",
+          "text": "call",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup": {
+      "reached": true,
+      "completion_code": 1,
+      "result_encoding": "utf-8",
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c22",
+      "errorcode": {
+        "encoding": "utf-8",
+        "hex": "4e4f4e45"
+      },
+      "errorinfo": {
+        "encoding": "utf-8",
+        "hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a22246e685f63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f616273656e743a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      },
+      "return_options": null,
+      "return_options_availability": "unavailable",
+      "unavailable_fields": [
+        "return_options"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c22",
+          "text": "invalid command name \"call\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a22246e685f63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f616273656e743a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"call\"\n    while executing\n\"$nh_call /Common/__tcl_lsp_probe_nh20261012aplrepair1_absent::target {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup_stage": "lookup",
+    "status": "observed",
+    "reason": null,
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+        "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+        "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+        "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+        "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+        "role": "provider"
+      }
+    ],
+    "capture_rows": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 14,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d63616c6c2d72756e74696d657c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c3633363136633663",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-call-runtime",
+        "context": "iapp-apl",
+        "stage": "setup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "63616c6c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 15,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d63616c6c2d72756e74696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c363936653736363136633639363432303633366636643664363136653634323036653631366436353230323236333631366336633232",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-call-runtime",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c22"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 16,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d63616c6c2d72756e74696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-call-runtime",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "metadata",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 17,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d63616c6c2d72756e74696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-call-runtime",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorcode",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "4e4f4e45"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 18,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d63616c6c2d72756e74696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323633363136633663323230613230323032303230373736383639366336353230363537383635363337353734363936653637306132323234366536383566363336313663366332303266343336663664366436663665326635663566373436333663356636633733373035663730373236663632363535663665363833323330333233363331333033313332363137303663373236353730363136393732333135663631363237333635366537343361336137343631373236373635373432303762363132303632376432303762363332303634376432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033313239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-call-runtime",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a22246e685f63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f616273656e743a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      }
+    ],
+    "rejected_capture_rows": [],
+    "other_stages": {
+      "setup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "63616c6c",
+          "text": "call",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "lookup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c22",
+          "text": "invalid command name \"call\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-call-runtime",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a22246e685f63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f616273656e743a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"call\"\n    while executing\n\"$nh_call /Common/__tcl_lsp_probe_nh20261012aplrepair1_absent::target {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "body-return": [],
+      "runtime-cleanup": []
+    },
+    "cleanup_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "cleanup": {
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "object_absence_checks": [
+        {
+          "check": "after-0",
+          "exit_code": 1,
+          "absent": true
+        }
+      ],
+      "runtime": {
+        "reached": null,
+        "completion_code": null,
+        "result_encoding": null,
+        "result_hex": null,
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "unavailable_fields": [
+          "completion_code",
+          "result_hex",
+          "errorcode",
+          "errorinfo",
+          "return_options"
+        ],
+        "capture_fields": []
+      }
+    },
+    "configuration_saved": false,
+    "limitations": "V1 captures have no invocation identity. Duplicate or missing chunks remain unjoined. No error is classified unsupported automatically; no unobserved setup, lookup, unit or cleanup is inferred.",
+    "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+  },
+  {
+    "schema_version": 1,
+    "question_id": "F5-N01-native-ensemble-subcommand",
+    "canonical_question_id": null,
+    "canonical_question": null,
+    "requested_canonical_question_id": null,
+    "scope": "Independent native APL callback capability control. No substitute harness and no portable original-input lookup claim.",
+    "operation_scope": "captured-operation",
+    "intended_lookup_reached": true,
+    "canonical_lookup_answer": null,
+    "case_id": "native-ensemble-subcommand",
+    "variant_id": "native-apl-capability-control-v1",
+    "run_id": "nh20261012aplrepair1",
+    "invocation_id": "once",
+    "provider": {
+      "version": "21.1.0.1",
+      "build": "0.0.26",
+      "hotfix": null,
+      "edition": "Point Release 1",
+      "context": "iapp-apl",
+      "event": null,
+      "tmm_unit": null,
+      "execution_namespace": "::script",
+      "interpreter_path": null,
+      "interpreter_patchlevel": "8.4.6",
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+          "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+          "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+          "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+          "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+          "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+        }
+      ],
+      "configured_rule_names": [],
+      "configured_profiles": [],
+      "invoking_action": "Chrome Application Services Create form template selection; callback values retained from live DOM",
+      "applied_object_receipts": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+          "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+          "role": "provider"
+        }
+      ]
+    },
+    "original_input": null,
+    "actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/input.tcl",
+      "sha256": "fc5bc91234d8f3188ead4c0e49240b6d735a86b1bdf9f50117c2db2a6574d1fe"
+    },
+    "wrapper": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-cases.json",
+      "sha256": "cf595d907c947b1d378abb6c21cb24f0ca0869af860f344fa2532f5ee8fa580a",
+      "json_pointer": "/4"
+    },
+    "configuration": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "invocation_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      }
+    ],
+    "adaptation": null,
+    "load": {
+      "status": "accept",
+      "exit_code": 0,
+      "transcript": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "setup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "6e616d657370616365",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "6e616d657370616365",
+          "text": "namespace",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup": {
+      "reached": true,
+      "completion_code": 1,
+      "result_encoding": "utf-8",
+      "result_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368",
+      "errorcode": {
+        "encoding": "utf-8",
+        "hex": "4e4f4e45"
+      },
+      "errorinfo": {
+        "encoding": "utf-8",
+        "hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a22246e685f6e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e64203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f656e73656d626c65202d6d6170207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      },
+      "return_options": null,
+      "return_options_availability": "unavailable",
+      "unavailable_fields": [
+        "return_options"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368",
+          "text": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a22246e685f6e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e64203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f656e73656d626c65202d6d6170207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n    while executing\n\"$nh_namespace ensemble create -command ::__tcl_lsp_probe_nh20261012aplrepair1_ensemble -map {}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup_stage": "lookup",
+    "status": "observed",
+    "reason": null,
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+        "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+        "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+        "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+        "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+        "role": "provider"
+      }
+    ],
+    "capture_rows": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 19,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d656e73656d626c652d737562636f6d6d616e647c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c366536313664363537333730363136333635",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-ensemble-subcommand",
+        "context": "iapp-apl",
+        "stage": "setup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "6e616d657370616365"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 20,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d656e73656d626c652d737562636f6d6d616e647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c363236313634323036663730373436393666366532303232363536653733363536643632366336353232336132303664373537333734323036323635323036333638363936633634373236353665326332303633366636343635326332303633373537323732363536653734326332303634363536633635373436353263323036353736363136633263323036353738363937333734373332633230363537383730366637323734326332303636366637323637363537343263323036393664373036663732373432633230363936653733363336663730363532633230366637323639363736393665326332303730363137323635366537343263323037313735363136633639363636393635373237333263323037343631363936633263323036663732323037373638363936333638",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-ensemble-subcommand",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 21,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d656e73656d626c652d737562636f6d6d616e647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-ensemble-subcommand",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "metadata",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 22,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d656e73656d626c652d737562636f6d6d616e647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-ensemble-subcommand",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorcode",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "4e4f4e45"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 23,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d656e73656d626c652d737562636f6d6d616e647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c327c36323631363432303666373037343639366636653230323236353665373336353664363236633635323233613230366437353733373432303632363532303633363836393663363437323635366532633230363336663634363532633230363337353732373236353665373432633230363436353663363537343635326332303635373636313663326332303635373836393733373437333263323036353738373036663732373432633230363636663732363736353734326332303639366437303666373237343263323036393665373336333666373036353263323036663732363936373639366532633230373036313732363536653734326332303731373536313663363936363639363537323733326332303734363136393663326332303666373232303737363836393633363830613230323032303230373736383639366336353230363537383635363337353734363936653637306132323234366536383566366536313664363537333730363136333635323036353665373336353664363236633635323036333732",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-ensemble-subcommand",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 2,
+        "chunk_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a22246e685f6e616d65737061636520656e73656d626c65206372"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 24,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d656e73656d626c652d737562636f6d6d616e647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c317c327c36353631373436353230326436333666366436643631366536343230336133613566356637343633366335663663373337303566373037323666363236353566366536383332333033323336333133303331333236313730366337323635373036313639373233313566363536653733363536643632366336353230326436643631373032303762376432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033313239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-ensemble-subcommand",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 1,
+        "chunk_count": 2,
+        "chunk_hex": "65617465202d636f6d6d616e64203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f656e73656d626c65202d6d6170207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 25,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d656e73656d626c652d737562636f6d6d616e647c696170702d61706c7c72756e74696d652d636c65616e75707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-ensemble-subcommand",
+        "context": "iapp-apl",
+        "stage": "runtime-cleanup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": ""
+      }
+    ],
+    "rejected_capture_rows": [],
+    "other_stages": {
+      "setup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "6e616d657370616365",
+          "text": "namespace",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "lookup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368",
+          "text": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a22246e685f6e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e64203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f656e73656d626c65202d6d6170207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n    while executing\n\"$nh_namespace ensemble create -command ::__tcl_lsp_probe_nh20261012aplrepair1_ensemble -map {}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "runtime-cleanup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-ensemble-subcommand",
+          "context": "iapp-apl",
+          "stage": "runtime-cleanup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "body-return": []
+    },
+    "cleanup_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "cleanup": {
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "object_absence_checks": [
+        {
+          "check": "after-0",
+          "exit_code": 1,
+          "absent": true
+        }
+      ],
+      "runtime": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012aplrepair1",
+            "case_id": "native-ensemble-subcommand",
+            "context": "iapp-apl",
+            "stage": "runtime-cleanup",
+            "tmm_unit": "none",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "utf-8",
+            "value_hex": "",
+            "text": "",
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    "configuration_saved": false,
+    "limitations": "V1 captures have no invocation identity. Duplicate or missing chunks remain unjoined. No error is classified unsupported automatically; no unobserved setup, lookup, unit or cleanup is inferred.",
+    "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+  },
+  {
+    "schema_version": 1,
+    "question_id": "F5-N01-native-oo-class",
+    "canonical_question_id": null,
+    "canonical_question": null,
+    "requested_canonical_question_id": null,
+    "scope": "Independent native APL callback capability control. No substitute harness and no portable original-input lookup claim.",
+    "operation_scope": "captured-operation",
+    "intended_lookup_reached": true,
+    "canonical_lookup_answer": null,
+    "case_id": "native-oo-class",
+    "variant_id": "native-apl-capability-control-v1",
+    "run_id": "nh20261012aplrepair1",
+    "invocation_id": "once",
+    "provider": {
+      "version": "21.1.0.1",
+      "build": "0.0.26",
+      "hotfix": null,
+      "edition": "Point Release 1",
+      "context": "iapp-apl",
+      "event": null,
+      "tmm_unit": null,
+      "execution_namespace": "::script",
+      "interpreter_path": null,
+      "interpreter_patchlevel": "8.4.6",
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+          "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+          "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+          "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+          "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+          "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+        }
+      ],
+      "configured_rule_names": [],
+      "configured_profiles": [],
+      "invoking_action": "Chrome Application Services Create form template selection; callback values retained from live DOM",
+      "applied_object_receipts": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "role": "provider"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+          "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+          "role": "provider"
+        }
+      ]
+    },
+    "original_input": null,
+    "actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/input.tcl",
+      "sha256": "fc5bc91234d8f3188ead4c0e49240b6d735a86b1bdf9f50117c2db2a6574d1fe"
+    },
+    "wrapper": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-cases.json",
+      "sha256": "cf595d907c947b1d378abb6c21cb24f0ca0869af860f344fa2532f5ee8fa580a",
+      "json_pointer": "/5"
+    },
+    "configuration": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied.conf",
+      "sha256": "be20552379e6101515b13b550538921a1eab4120129e82771b5767f0d3da431b"
+    },
+    "invocation_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      }
+    ],
+    "adaptation": null,
+    "load": {
+      "status": "accept",
+      "exit_code": 0,
+      "transcript": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "setup": {
+      "reached": true,
+      "completion_code": 0,
+      "result_encoding": "utf-8",
+      "result_hex": "6f6f3a3a636c617373",
+      "errorcode": null,
+      "errorinfo": null,
+      "return_options": null,
+      "return_options_availability": "unobserved",
+      "unavailable_fields": [
+        "return_options",
+        "errorcode",
+        "errorinfo"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "6f6f3a3a636c617373",
+          "text": "oo::class",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup": {
+      "reached": true,
+      "completion_code": 1,
+      "result_encoding": "utf-8",
+      "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+      "errorcode": {
+        "encoding": "utf-8",
+        "hex": "4e4f4e45"
+      },
+      "errorinfo": {
+        "encoding": "utf-8",
+        "hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a22246e685f6f6f20637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f636c617373207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      },
+      "return_options": null,
+      "return_options_availability": "unavailable",
+      "unavailable_fields": [
+        "return_options"
+      ],
+      "capture_fields": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+          "text": "invalid command name \"oo::class\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a22246e685f6f6f20637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f636c617373207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"oo::class\"\n    while executing\n\"$nh_oo create ::__tcl_lsp_probe_nh20261012aplrepair1_class {}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ]
+    },
+    "lookup_stage": "lookup",
+    "status": "observed",
+    "reason": null,
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stdout",
+        "sha256": "c77eedef0bca1113a5ec44a1b94faeb21178f5816ecfe768efb3a42ff608de6c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "sha256": "2bdd039de5e783a552c32fdd180195918a1b575698806786274d6ef5f106a5f1"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invocation.json",
+        "sha256": "e4a2b1f1390fbda869909fa4069674ef8a3797448033ff7515fbdc934bb8d1e8"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/tmm-roster.stdout",
+        "sha256": "c9d7a37fcf730b9b9458528568965c1e140a8706e40c9be83b9b6b43ccc070ca",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/provenance.json",
+        "sha256": "b83f9b36b85dfb41e4904a5a8f54756e0045993b69808704d6ea8d3a88e93c63",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/interpreter-facts.json",
+        "sha256": "5896124c0bf8e7bf30aca53e3625f7d25e6f1b80f3912dc7f6623fb235f9e3db"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/applied-0.stdout",
+        "sha256": "9a564c183dc46abeaef2bd5107d4e7e87be338c8f7afef2fe0377df4c38a8a2e",
+        "role": "provider"
+      }
+    ],
+    "capture_rows": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 26,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d6f6f2d636c6173737c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c366636663361336136333663363137333733",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-oo-class",
+        "context": "iapp-apl",
+        "stage": "setup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "6f6f3a3a636c617373"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 27,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d6f6f2d636c6173737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323666366633613361363336633631373337333232",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-oo-class",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 28,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d6f6f2d636c6173737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-oo-class",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "metadata",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 29,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d6f6f2d636c6173737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-oo-class",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorcode",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "4e4f4e45"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 30,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d6f6f2d636c6173737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c317c363936653736363136633639363432303633366636643664363136653634323036653631366436353230323236663666336133613633366336313733373332323061323032303230323037373638363936633635323036353738363536333735373436393665363730613232323436653638356636663666323036333732363536313734363532303361336135663566373436333663356636633733373035663730373236663632363535663665363833323330333233363331333033313332363137303663373236353730363136393732333135663633366336313733373332303762376432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033313239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-oo-class",
+        "context": "iapp-apl",
+        "stage": "lookup",
+        "completion_code": 1,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "errorinfo",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a22246e685f6f6f20637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f636c617373207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/invoke.stdout",
+        "line": 31,
+        "line_hex": "4e484f7c6e68323032363130313261706c726570616972317c6e61746976652d6f6f2d636c6173737c696170702d61706c7c72756e74696d652d636c65616e75707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c",
+        "format_version": 2,
+        "run_id": "nh20261012aplrepair1",
+        "case_id": "native-oo-class",
+        "context": "iapp-apl",
+        "stage": "runtime-cleanup",
+        "completion_code": 0,
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "encoding": "utf-8",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_hex": ""
+      }
+    ],
+    "rejected_capture_rows": [],
+    "other_stages": {
+      "setup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "setup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "6f6f3a3a636c617373",
+          "text": "oo::class",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "lookup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322",
+          "text": "invalid command name \"oo::class\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "metadata",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65",
+          "text": "errorcode-present 1 errorinfo-present 1 return-options unavailable",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorcode",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "4e4f4e45",
+          "text": "NONE",
+          "decoding_error": null,
+          "invocation_identified": true
+        },
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "lookup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "errorinfo",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 1,
+          "encoding": "utf-8",
+          "value_hex": "696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a22246e685f6f6f20637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c726570616972315f636c617373207b7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"oo::class\"\n    while executing\n\"$nh_oo create ::__tcl_lsp_probe_nh20261012aplrepair1_class {}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval $nh_operation\"",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "runtime-cleanup": [
+        {
+          "run_id": "nh20261012aplrepair1",
+          "case_id": "native-oo-class",
+          "context": "iapp-apl",
+          "stage": "runtime-cleanup",
+          "tmm_unit": "none",
+          "invocation_id": "once",
+          "field": "result",
+          "complete": true,
+          "errors": [],
+          "missing_chunks": [],
+          "duplicate_chunks": [],
+          "completion_code": 0,
+          "encoding": "utf-8",
+          "value_hex": "",
+          "text": "",
+          "decoding_error": null,
+          "invocation_identified": true
+        }
+      ],
+      "body-return": []
+    },
+    "cleanup_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+        "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "cleanup": {
+      "evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/after-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.exit",
+          "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stderr",
+          "sha256": "c9e1bbeb1fb45f154aaf7e1330a7d6c921ecacb5f453b467cd427cefefbe9555"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/before-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/iapp-apl-0/delete-0.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "object_absence_checks": [
+        {
+          "check": "after-0",
+          "exit_code": 1,
+          "absent": true
+        }
+      ],
+      "runtime": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012aplrepair1",
+            "case_id": "native-oo-class",
+            "context": "iapp-apl",
+            "stage": "runtime-cleanup",
+            "tmm_unit": "none",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "utf-8",
+            "value_hex": "",
+            "text": "",
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    "configuration_saved": false,
+    "limitations": "V1 captures have no invocation identity. Duplicate or missing chunks remain unjoined. No error is classified unsupported automatically; no unobserved setup, lookup, unit or cleanup is inferred.",
+    "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+  }
+]

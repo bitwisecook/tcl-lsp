@@ -1,0 +1,4 @@
+{
+  "remote_command": "test ! -e /var/tmp/tcl_lsp_nh20261012native2 && mkdir -m 700 /var/tmp/tcl_lsp_nh20261012native2",
+  "exit_code": 0
+}

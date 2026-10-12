@@ -1,0 +1,4 @@
+ltm rule /NH_nh20261012native1/__tcl_lsp_probe_nh20261012native1_foreign {
+    partition NH_nh20261012native1
+proc __nh_nh20261012native1_target {fixed value} {set rows {}; foreach value [list $fixed $value] {binary scan $value H* h; lappend rows $h}; list owner PARTITION argc 2 argv [list $fixed $value] argv-hex $rows}
+}

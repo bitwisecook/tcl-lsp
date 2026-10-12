@@ -1,0 +1,4 @@
+{
+  "remote_command": "bash -c 'tmsh list ltm rule /Common/__tcl_lsp_probe_nh20261012native2_provider 2>&1'",
+  "exit_code": 0
+}

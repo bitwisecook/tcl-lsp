@@ -1,0 +1,8 @@
+{
+  "run_id": "nh20261012repair2",
+  "configuration_saved": false,
+  "timestamp_utc": "2026-10-12T18:57:11.959939+00:00",
+  "input_commit": "755f78207b993cdfa4b0fd230abcafb1f3f606bc",
+  "transport": "authenticated remote execution; authentication metadata omitted",
+  "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+}

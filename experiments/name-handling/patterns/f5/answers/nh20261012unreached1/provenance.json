@@ -1,0 +1,13 @@
+{
+  "derived_review": true,
+  "new_execution": false,
+  "reviewed_rows": 23,
+  "safe_positive_promotions": 0,
+  "descriptor_digests_verified": 64,
+  "original_capture_run_ids": [
+    "nh20261012aplexact1",
+    "nh20261012exact1",
+    "nh20261012exact2"
+  ],
+  "security_metadata_included": false
+}

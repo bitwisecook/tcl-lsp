@@ -1,0 +1,8 @@
+Loading configuration...
+  /var/tmp/tcl_lsp_nh20261012native2/rejected.conf
+There were warnings:
+/Common/__tcl_lsp_probe_nh20261012native2_provider:5: warning: [variable reference used where variable name expected][$cell]
+
+01070151:3: Rule [/Common/__tcl_lsp_probe_nh20261012native2_provider] error: /Common/__tcl_lsp_probe_nh20261012native2_provider:1: error: [undefined procedure: __nh_nh20261012native2_deliberately_absent][__nh_nh20261012native2_deliberately_absent]
+
+Unexpected Error: Loading configuration process failed.

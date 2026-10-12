@@ -1,0 +1,2512 @@
+{
+  "review_status": "candidate; independent approval pending",
+  "records": {
+    "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+    "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+  },
+  "candidates": [
+    {
+      "record_index": 0,
+      "case_id": "owned-native-state-absence",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/input.tcl",
+        "sha256": "209c63c3929193d8337c3d086ff770a20776176d379d52cfe24c666a84052ac9"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/applied.conf",
+        "sha256": "0bc918515d380913b0099299e9c54f4535bbce83d602ec2167e15d96aacd3951"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-native-state-absence",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 1,
+      "case_id": "owned-native-state-absence",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/input.tcl",
+        "sha256": "209c63c3929193d8337c3d086ff770a20776176d379d52cfe24c666a84052ac9"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/applied.conf",
+        "sha256": "0bc918515d380913b0099299e9c54f4535bbce83d602ec2167e15d96aacd3951"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-native-state-absence",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 2,
+      "case_id": "owned-native-state-absence",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/input.tcl",
+        "sha256": "209c63c3929193d8337c3d086ff770a20776176d379d52cfe24c666a84052ac9"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/applied.conf",
+        "sha256": "0bc918515d380913b0099299e9c54f4535bbce83d602ec2167e15d96aacd3951"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-native-state-absence",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 3,
+      "case_id": "owned-native-state-absence",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/input.tcl",
+        "sha256": "209c63c3929193d8337c3d086ff770a20776176d379d52cfe24c666a84052ac9"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-0/applied.conf",
+        "sha256": "0bc918515d380913b0099299e9c54f4535bbce83d602ec2167e15d96aacd3951"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-native-state-absence",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "616273656e74203a3a5f5f6e685f6e6832303236313031326e617469766532203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f737461746963207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f6f776e6572202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f6f746865723a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465722f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574202f4e485f6e6832303236313031326e6174697665322f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665325f666f726569676e3a3a5f5f6e685f6e6832303236313031326e6174697665325f746172676574",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 4,
+      "case_id": "native2-state-seed",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/input.tcl",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/applied.conf",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "736565646564206e6832303236313031326e617469766532",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "native2-state-seed",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "736565646564206e6832303236313031326e617469766532",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 5,
+      "case_id": "native2-state-seed",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/input.tcl",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/applied.conf",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "736565646564206e6832303236313031326e617469766532",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "native2-state-seed",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "736565646564206e6832303236313031326e617469766532",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 6,
+      "case_id": "native2-state-seed",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/input.tcl",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/applied.conf",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "736565646564206e6832303236313031326e617469766532",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "native2-state-seed",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "736565646564206e6832303236313031326e617469766532",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 7,
+      "case_id": "native2-state-seed",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/input.tcl",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-1/applied.conf",
+        "sha256": "0713c9339ad90b9a2c813012c8c9b6a5809f84783e4507ec9ee65f63fd52e320"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "736565646564206e6832303236313031326e617469766532",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "native2-state-seed",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "736565646564206e6832303236313031326e617469766532",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 8,
+      "case_id": "owned-state-cleanup",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/input.tcl",
+        "sha256": "bf052a3d177edc4c01ebda4d8a9b702b273fdea1e0910a7a342f0bd348803f5a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/applied.conf",
+        "sha256": "5274462abd46dde0d83cafce92b34ea82a91fc5f04a5aae1234f37e5483dbbb1"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-state-cleanup",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 9,
+      "case_id": "owned-state-cleanup",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/input.tcl",
+        "sha256": "bf052a3d177edc4c01ebda4d8a9b702b273fdea1e0910a7a342f0bd348803f5a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/applied.conf",
+        "sha256": "5274462abd46dde0d83cafce92b34ea82a91fc5f04a5aae1234f37e5483dbbb1"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-state-cleanup",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 10,
+      "case_id": "owned-state-cleanup",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/input.tcl",
+        "sha256": "bf052a3d177edc4c01ebda4d8a9b702b273fdea1e0910a7a342f0bd348803f5a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/applied.conf",
+        "sha256": "5274462abd46dde0d83cafce92b34ea82a91fc5f04a5aae1234f37e5483dbbb1"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-state-cleanup",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 11,
+      "case_id": "owned-state-cleanup",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "once",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/input.tcl",
+        "sha256": "bf052a3d177edc4c01ebda4d8a9b702b273fdea1e0910a7a342f0bd348803f5a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-11/applied.conf",
+        "sha256": "5274462abd46dde0d83cafce92b34ea82a91fc5f04a5aae1234f37e5483dbbb1"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "owned-state-cleanup",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "once",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "6f776e65722031206e616d657370616365203020726567756c61722030207374617469632030206d61726b65722030",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 12,
+      "case_id": "old-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "old-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/input.tcl",
+        "sha256": "60a4e4a47880b58420601dc1e92838f06a9ffc6d159c925360a822ca5e606eaa"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/applied.conf",
+        "sha256": "6c368eb192c60f1e5fe9485bf4c3708dee8e099bfc7ba81a19ddfa78a0b7963e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "old-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 13,
+      "case_id": "old-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "old-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/input.tcl",
+        "sha256": "60a4e4a47880b58420601dc1e92838f06a9ffc6d159c925360a822ca5e606eaa"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/applied.conf",
+        "sha256": "6c368eb192c60f1e5fe9485bf4c3708dee8e099bfc7ba81a19ddfa78a0b7963e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "old-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 14,
+      "case_id": "old-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "old-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/input.tcl",
+        "sha256": "60a4e4a47880b58420601dc1e92838f06a9ffc6d159c925360a822ca5e606eaa"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/applied.conf",
+        "sha256": "6c368eb192c60f1e5fe9485bf4c3708dee8e099bfc7ba81a19ddfa78a0b7963e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "old-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 15,
+      "case_id": "old-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "old-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/input.tcl",
+        "sha256": "60a4e4a47880b58420601dc1e92838f06a9ffc6d159c925360a822ca5e606eaa"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/applied.conf",
+        "sha256": "6c368eb192c60f1e5fe9485bf4c3708dee8e099bfc7ba81a19ddfa78a0b7963e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "old-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 16,
+      "case_id": "old-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "old-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/input.tcl",
+        "sha256": "3d88c0471ce75e5f78d275215a450e84dfaea5573e26996eb512a5137fee115a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/applied.conf",
+        "sha256": "eca6c84f440d5cb65c7f0442e454c090877ef2da2467c4ca5aa565fd944ebb10"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "old-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 17,
+      "case_id": "old-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "old-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/input.tcl",
+        "sha256": "3d88c0471ce75e5f78d275215a450e84dfaea5573e26996eb512a5137fee115a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/applied.conf",
+        "sha256": "eca6c84f440d5cb65c7f0442e454c090877ef2da2467c4ca5aa565fd944ebb10"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "old-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 18,
+      "case_id": "old-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "old-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/input.tcl",
+        "sha256": "3d88c0471ce75e5f78d275215a450e84dfaea5573e26996eb512a5137fee115a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/applied.conf",
+        "sha256": "eca6c84f440d5cb65c7f0442e454c090877ef2da2467c4ca5aa565fd944ebb10"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "old-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 19,
+      "case_id": "old-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "old-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/input.tcl",
+        "sha256": "3d88c0471ce75e5f78d275215a450e84dfaea5573e26996eb512a5137fee115a"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/applied.conf",
+        "sha256": "eca6c84f440d5cb65c7f0442e454c090877ef2da2467c4ca5aa565fd944ebb10"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "old-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 20,
+      "case_id": "old-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "old-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/input.tcl",
+        "sha256": "1ecdbc8c924b35006270b4b292b8ae585e760bb9ef373cb8db237377836780c1"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/applied.conf",
+        "sha256": "3d086c984a061a7ee9746763926833ef70230a7dfe0398edbf3156b40837ce54"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "old-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 21,
+      "case_id": "old-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "old-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/input.tcl",
+        "sha256": "1ecdbc8c924b35006270b4b292b8ae585e760bb9ef373cb8db237377836780c1"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/applied.conf",
+        "sha256": "3d086c984a061a7ee9746763926833ef70230a7dfe0398edbf3156b40837ce54"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "old-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 22,
+      "case_id": "old-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "old-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/input.tcl",
+        "sha256": "1ecdbc8c924b35006270b4b292b8ae585e760bb9ef373cb8db237377836780c1"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/applied.conf",
+        "sha256": "3d086c984a061a7ee9746763926833ef70230a7dfe0398edbf3156b40837ce54"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "old-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 23,
+      "case_id": "old-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "old-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/input.tcl",
+        "sha256": "1ecdbc8c924b35006270b4b292b8ae585e760bb9ef373cb8db237377836780c1"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/applied.conf",
+        "sha256": "3d086c984a061a7ee9746763926833ef70230a7dfe0398edbf3156b40837ce54"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "old-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "old-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206f6c6420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206f6c642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 24,
+      "case_id": "new-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "new-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/input.tcl",
+        "sha256": "e17713f191eeefa589ad168501981d538afa0101c32c71ccdfee6ebe998a97bc"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/applied.conf",
+        "sha256": "4414780d4bc7383e3e3b9e3df2960d29a4e4a73e0de7e72d414f28ee01ef64b0"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "new-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 25,
+      "case_id": "new-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "new-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/input.tcl",
+        "sha256": "e17713f191eeefa589ad168501981d538afa0101c32c71ccdfee6ebe998a97bc"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/applied.conf",
+        "sha256": "4414780d4bc7383e3e3b9e3df2960d29a4e4a73e0de7e72d414f28ee01ef64b0"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "new-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 26,
+      "case_id": "new-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "new-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/input.tcl",
+        "sha256": "e17713f191eeefa589ad168501981d538afa0101c32c71ccdfee6ebe998a97bc"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/applied.conf",
+        "sha256": "4414780d4bc7383e3e3b9e3df2960d29a4e4a73e0de7e72d414f28ee01ef64b0"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "new-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 27,
+      "case_id": "new-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "new-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/input.tcl",
+        "sha256": "e17713f191eeefa589ad168501981d538afa0101c32c71ccdfee6ebe998a97bc"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/applied.conf",
+        "sha256": "4414780d4bc7383e3e3b9e3df2960d29a4e4a73e0de7e72d414f28ee01ef64b0"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "new-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e65772076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 28,
+      "case_id": "new-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "new-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/input.tcl",
+        "sha256": "679bc8dfd9cbbad560b2d0d6d52a84c5c558e6c393c5cc3c7e36bd05c4b00df3"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/applied.conf",
+        "sha256": "a304bec8a027cded142561221bbe3ed3b18851a3a1dfcdc7a0742756c35a8d51"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "new-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 29,
+      "case_id": "new-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "new-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/input.tcl",
+        "sha256": "679bc8dfd9cbbad560b2d0d6d52a84c5c558e6c393c5cc3c7e36bd05c4b00df3"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/applied.conf",
+        "sha256": "a304bec8a027cded142561221bbe3ed3b18851a3a1dfcdc7a0742756c35a8d51"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "new-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 30,
+      "case_id": "new-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "new-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/input.tcl",
+        "sha256": "679bc8dfd9cbbad560b2d0d6d52a84c5c558e6c393c5cc3c7e36bd05c4b00df3"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/applied.conf",
+        "sha256": "a304bec8a027cded142561221bbe3ed3b18851a3a1dfcdc7a0742756c35a8d51"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "new-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 31,
+      "case_id": "new-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "new-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/input.tcl",
+        "sha256": "679bc8dfd9cbbad560b2d0d6d52a84c5c558e6c393c5cc3c7e36bd05c4b00df3"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-6/applied.conf",
+        "sha256": "a304bec8a027cded142561221bbe3ed3b18851a3a1dfcdc7a0742756c35a8d51"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "new-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206e65772d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 32,
+      "case_id": "new-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "new-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/input.tcl",
+        "sha256": "db2ec22ce757eb1755ba53c0c116cc535979fa88b4ea04830b76d2cddafe7c32"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/applied.conf",
+        "sha256": "9d2d5c907c19c393d95c02c2ec747b30d346e3e2c6336684d98a68ff77d228a6"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "new-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 33,
+      "case_id": "new-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "new-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/input.tcl",
+        "sha256": "db2ec22ce757eb1755ba53c0c116cc535979fa88b4ea04830b76d2cddafe7c32"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/applied.conf",
+        "sha256": "9d2d5c907c19c393d95c02c2ec747b30d346e3e2c6336684d98a68ff77d228a6"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "new-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 34,
+      "case_id": "new-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "new-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/input.tcl",
+        "sha256": "db2ec22ce757eb1755ba53c0c116cc535979fa88b4ea04830b76d2cddafe7c32"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/applied.conf",
+        "sha256": "9d2d5c907c19c393d95c02c2ec747b30d346e3e2c6336684d98a68ff77d228a6"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "new-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 35,
+      "case_id": "new-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "new-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/input.tcl",
+        "sha256": "db2ec22ce757eb1755ba53c0c116cc535979fa88b4ea04830b76d2cddafe7c32"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-7/applied.conf",
+        "sha256": "9d2d5c907c19c393d95c02c2ec747b30d346e3e2c6336684d98a68ff77d228a6"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "new-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "new-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "7068617365206e657720616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f5752495445206e65772d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 36,
+      "case_id": "rejected-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "rejected-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/input.tcl",
+        "sha256": "7d6c647f1e70160c4ca2bf48b1099875b09a213b74033fa7ec8e548a2125f736"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/applied.conf",
+        "sha256": "1c9e727b32e59967e707c2d34ca117a1f6aa931874cfc45a5c5b14b67a7c9935"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "rejected-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 37,
+      "case_id": "rejected-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "rejected-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/input.tcl",
+        "sha256": "7d6c647f1e70160c4ca2bf48b1099875b09a213b74033fa7ec8e548a2125f736"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/applied.conf",
+        "sha256": "1c9e727b32e59967e707c2d34ca117a1f6aa931874cfc45a5c5b14b67a7c9935"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "rejected-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 38,
+      "case_id": "rejected-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "rejected-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/input.tcl",
+        "sha256": "7d6c647f1e70160c4ca2bf48b1099875b09a213b74033fa7ec8e548a2125f736"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/applied.conf",
+        "sha256": "1c9e727b32e59967e707c2d34ca117a1f6aa931874cfc45a5c5b14b67a7c9935"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "rejected-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 39,
+      "case_id": "rejected-provider-lifetime",
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "rejected-provider-lifetime",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/input.tcl",
+        "sha256": "7d6c647f1e70160c4ca2bf48b1099875b09a213b74033fa7ec8e548a2125f736"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/applied.conf",
+        "sha256": "1c9e727b32e59967e707c2d34ca117a1f6aa931874cfc45a5c5b14b67a7c9935"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-lifetime",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "rejected-provider-lifetime",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 40,
+      "case_id": "rejected-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "rejected-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/input.tcl",
+        "sha256": "6759113a07440288f0f56b39146a0b3a567df48399c9b841a885f70dcfb3035f"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/applied.conf",
+        "sha256": "8a30d66d073f715cdf0eec627614e10140237851b10129eed18ac38b050a8255"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "rejected-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 41,
+      "case_id": "rejected-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "rejected-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/input.tcl",
+        "sha256": "6759113a07440288f0f56b39146a0b3a567df48399c9b841a885f70dcfb3035f"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/applied.conf",
+        "sha256": "8a30d66d073f715cdf0eec627614e10140237851b10129eed18ac38b050a8255"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "rejected-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 42,
+      "case_id": "rejected-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "rejected-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/input.tcl",
+        "sha256": "6759113a07440288f0f56b39146a0b3a567df48399c9b841a885f70dcfb3035f"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/applied.conf",
+        "sha256": "8a30d66d073f715cdf0eec627614e10140237851b10129eed18ac38b050a8255"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "rejected-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 43,
+      "case_id": "rejected-provider-local-upvar-write",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "rejected-provider-local-upvar-write",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/input.tcl",
+        "sha256": "6759113a07440288f0f56b39146a0b3a567df48399c9b841a885f70dcfb3035f"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-9/applied.conf",
+        "sha256": "8a30d66d073f715cdf0eec627614e10140237851b10129eed18ac38b050a8255"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-local-upvar-write",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "rejected-provider-local-upvar-write",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c2072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f57524954452072656a65637465642d70726f76696465722d6c6f63616c2d75707661722d77726974657d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 44,
+      "case_id": "rejected-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:0",
+      "invocation": "rejected-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/input.tcl",
+        "sha256": "42b7cde150db1dadbc861ff286b5df5027eb611a89f64ea9a29d07d41c9deac7"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/applied.conf",
+        "sha256": "fc3f1a8da35e36747e5f2de3218402b75c88cdfa264b6e2bc386eda23043130e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:0",
+            "invocation_id": "rejected-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 45,
+      "case_id": "rejected-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:1",
+      "invocation": "rejected-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/input.tcl",
+        "sha256": "42b7cde150db1dadbc861ff286b5df5027eb611a89f64ea9a29d07d41c9deac7"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/applied.conf",
+        "sha256": "fc3f1a8da35e36747e5f2de3218402b75c88cdfa264b6e2bc386eda23043130e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:1",
+            "invocation_id": "rejected-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 46,
+      "case_id": "rejected-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:2",
+      "invocation": "rejected-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/input.tcl",
+        "sha256": "42b7cde150db1dadbc861ff286b5df5027eb611a89f64ea9a29d07d41c9deac7"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/applied.conf",
+        "sha256": "fc3f1a8da35e36747e5f2de3218402b75c88cdfa264b6e2bc386eda23043130e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:2",
+            "invocation_id": "rejected-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    },
+    {
+      "record_index": 47,
+      "case_id": "rejected-provider-shared-write-readback",
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "unit": "0:3",
+      "invocation": "rejected-provider-shared-write-readback",
+      "source": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/input.tcl",
+        "sha256": "42b7cde150db1dadbc861ff286b5df5027eb611a89f64ea9a29d07d41c9deac7"
+      },
+      "configuration": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-10/applied.conf",
+        "sha256": "fc3f1a8da35e36747e5f2de3218402b75c88cdfa264b6e2bc386eda23043130e"
+      },
+      "lookup": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "binary-scan-tcl-value",
+        "result_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+        "errorcode": null,
+        "errorinfo": null,
+        "return_options": null,
+        "return_options_availability": "unobserved",
+        "unavailable_fields": [
+          "return_options",
+          "errorcode",
+          "errorinfo"
+        ],
+        "capture_fields": [
+          {
+            "run_id": "nh20261012native2",
+            "case_id": "rejected-provider-shared-write-readback",
+            "context": "tmm-RULE_INIT",
+            "stage": "lookup",
+            "tmm_unit": "0:3",
+            "invocation_id": "rejected-provider-shared-write-readback",
+            "field": "result",
+            "complete": true,
+            "errors": [],
+            "missing_chunks": [],
+            "duplicate_chunks": [],
+            "completion_code": 0,
+            "encoding": "binary-scan-tcl-value",
+            "value_hex": "70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d",
+            "text": null,
+            "decoding_error": null,
+            "invocation_identified": true
+          }
+        ]
+      }
+    }
+  ],
+  "transport_projection": {
+    "deployment_fixture": "Documentation address 192.0.2.10 replaces the executed deployment address outside Tcl program bodies.",
+    "runtime_envelope": "Retained NHO protocol rows only; device/syslog envelope and non-probe inventory omitted.",
+    "hardware_inventory": "Omitted; provider interpreter/build version retained separately.",
+    "executed_input_hashes": "Historical stdin/prepared/source-helper hashes describe execution-time inputs, not sanitised current deployment/helper bytes.",
+    "original_transport_bytes_retained": false
+  }
+}

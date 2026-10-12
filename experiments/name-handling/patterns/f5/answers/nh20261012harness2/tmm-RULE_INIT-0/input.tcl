@@ -1,0 +1,90 @@
+set nh_options_available unavailable
+set nh_return_options {}
+set nh_unit "[TMM::cmp_group]:[TMM::cmp_unit]"
+set nh_invocation once
+set nh_setup [binary format H* 736574206e685f6368696c64205b696e74657270206372656174655d3b20736574206e685f6d6f64756c65207b7d3b20617070656e64206e685f6d6f64756c65205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65303a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65313a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65323a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65333a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65343a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65353a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65363a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65373a3a62797465735d205b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326861726e657373325f305f6d6f64756c65383a3a62797465735d3b206c697374206368696c642d70726f7669646572205b696e74657270206576616c20246e685f6368696c64207b6c697374205b696e666f2070617463686c6576656c5d205b696e666f2074636c76657273696f6e5d205b6e616d6573706163652063757272656e745d7d5d206d6f64756c652d6279746573205b737472696e67206c656e67746820246e685f6d6f64756c655d]
+set nh_operation [binary format H* 696e74657270206576616c20246e685f6368696c6420246e685f6d6f64756c65]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
+    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        log local0. "NHO|nh20261012harness2|real-harness-explicit-source-child|tmm-RULE_INIT|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
+    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        log local0. "NHO|nh20261012harness2|real-harness-explicit-source-child|tmm-RULE_INIT|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 696e746572702064656c65746520246e685f6368696c64]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
+    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        log local0. "NHO|nh20261012harness2|real-harness-explicit-source-child|tmm-RULE_INIT|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}

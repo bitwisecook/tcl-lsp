@@ -1,0 +1,4 @@
+{
+  "remote_command": "tmsh show sys version",
+  "exit_code": 0
+}

@@ -1,0 +1,8 @@
+{
+  "run_id": "nh20261012nativecap1",
+  "configuration_saved": false,
+  "timestamp_utc": "2026-10-12T19:14:47.131088+00:00",
+  "transport": "Authentication metadata omitted",
+  "scope": "Exact non-TMM command surface and actual lookup for five native question forms. No absent native command is replaced by a stub or stock behavior.",
+  "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+}

@@ -1,0 +1,548 @@
+[
+  {
+    "context": "iapp-implementation",
+    "interpreter_patchlevel": "8.4.6",
+    "tcl_version": "8.4",
+    "execution_namespace": "::",
+    "native_call_present": false,
+    "commands_hex": "382e342e3620382e34203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+    "surface_case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-cases.json",
+      "sha256": "06beb52a80db527cde41a60bc6c859ba92b2ae2b35b42b9bfd479f06be01eeaf",
+      "json_pointer": "/0"
+    },
+    "surface_capture_fields": [
+      {
+        "run_id": "nh20261012nativecap1",
+        "case_id": "native-call-command-surface",
+        "context": "iapp-implementation",
+        "stage": "lookup",
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "complete": true,
+        "errors": [],
+        "missing_chunks": [],
+        "duplicate_chunks": [],
+        "completion_code": 0,
+        "encoding": "utf-8",
+        "value_hex": "382e342e3620382e34203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+        "text": "8.4.6 8.4 :: commands {} procs {} resolved {}",
+        "decoding_error": null,
+        "invocation_identified": true
+      }
+    ],
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/runtime-logs.stdout",
+        "sha256": "2964e34fb7edae164b60393735de18c4ae76fbd19719981f4f90ff67377a21c9"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/load.stdout",
+        "sha256": "b4123e81bf2d75bd15e1365178fb2bbe39626ca339a5aef48b359a38de80b4ce"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/invoke.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/invoke.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/invocation.sh",
+        "sha256": "64527b91a8b1f0d4ae6569e7493bef1740e4a8175e8df763bd1c40e88680ce6f"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/driver.json",
+        "sha256": "f6ce3820349033e3ada65e49056a9604e5674d77d31fe1c862b780bc285eafc5"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/driver.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/driver.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/transport.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmm-roster.stdout",
+        "sha256": "da2e722281519c2ebe6001594c804625e3e047568d70dd1e0572bfc2f276dfc3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/provenance.json",
+        "sha256": "5cf1b87de3577f5bce276dfe473821b4ee3211a7d92013232cdce8bdffd4a264",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/applied-0.stdout",
+        "sha256": "f3981707207beeea7d322ab3c5d407422c562752201654346e7461345ed67814",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/applied-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/applied-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/applied-1.stdout",
+        "sha256": "55ad6784ea39e557708c3728da021700f1f3e32cdf90e44b498fe8e8fa751157",
+        "role": "provider"
+      }
+    ],
+    "same_job_actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/iapp-implementation-0/input.tcl",
+      "sha256": "af059bc476233c22e23a4ec61c7769de4ecbc8b7a00091b50bf5cb36e99552b6"
+    }
+  },
+  {
+    "context": "icall",
+    "interpreter_patchlevel": "8.4.6",
+    "tcl_version": "8.4",
+    "execution_namespace": "::",
+    "native_call_present": false,
+    "commands_hex": "382e342e3620382e34203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+    "surface_case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-cases.json",
+      "sha256": "799d7ebd204e6de63f5607223be1a5130c880f9337a5626c180356bc6943c6df",
+      "json_pointer": "/0"
+    },
+    "surface_capture_fields": [
+      {
+        "run_id": "nh20261012nativecap1",
+        "case_id": "native-call-command-surface",
+        "context": "icall",
+        "stage": "lookup",
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "complete": true,
+        "errors": [],
+        "missing_chunks": [],
+        "duplicate_chunks": [],
+        "completion_code": 0,
+        "encoding": "utf-8",
+        "value_hex": "382e342e3620382e34203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+        "text": "8.4.6 8.4 :: commands {} procs {} resolved {}",
+        "decoding_error": null,
+        "invocation_identified": true
+      }
+    ],
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/runtime-logs.stdout",
+        "sha256": "7199bcb9943067eb8c84a88b160c847e7cb70ad5aefab9454a7ce2000bc0d839"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/load.stdout",
+        "sha256": "0b133a6e7760975600c8c49b818b4dc564d75fe759057a8d86a59ae9c7f14838"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/invoke.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/invoke.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/invocation.sh",
+        "sha256": "57a91c5a42195f7995086dd92b626666d4dd3755e925339025bc4fab7a3e4926"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/driver.json",
+        "sha256": "eb57ed165c9c14c983a65cf357aada3766a3c1a03779cffcf4d63021e3d33238"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/driver.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/driver.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/transport.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmm-roster.stdout",
+        "sha256": "da2e722281519c2ebe6001594c804625e3e047568d70dd1e0572bfc2f276dfc3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/provenance.json",
+        "sha256": "5cf1b87de3577f5bce276dfe473821b4ee3211a7d92013232cdce8bdffd4a264",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/applied-0.stdout",
+        "sha256": "529a9f7ec0b6aec7d6ae96241dca225394f56430e73b28cf74937124cddccb38",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/applied-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/applied-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/applied-1.stdout",
+        "sha256": "db5c94d77067167c86c59c73cb0385078aedb76dae06fc3fa760e189bb035557",
+        "role": "provider"
+      }
+    ],
+    "same_job_actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/icall-0/input.tcl",
+      "sha256": "22c787c1649143f1637b8ca43ab65845f7e8fa2968884cefc7d62a94bb009d28"
+    }
+  },
+  {
+    "context": "stock-8.4",
+    "interpreter_patchlevel": "8.4.13",
+    "tcl_version": "8.4",
+    "execution_namespace": "::",
+    "native_call_present": false,
+    "commands_hex": "382e342e313320382e34203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+    "surface_case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.4-cases.json",
+      "sha256": "6807ba9488d4c14c3c990e728271e3d9b886ac82e359c4e0a81c2e830574046d",
+      "json_pointer": "/0"
+    },
+    "surface_capture_fields": [
+      {
+        "run_id": "nh20261012nativecap1",
+        "case_id": "native-call-command-surface",
+        "context": "stock-8.4",
+        "stage": "lookup",
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "complete": true,
+        "errors": [],
+        "missing_chunks": [],
+        "duplicate_chunks": [],
+        "completion_code": 0,
+        "encoding": "utf-8",
+        "value_hex": "382e342e313320382e34203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+        "text": "8.4.13 8.4 :: commands {} procs {} resolved {}",
+        "decoding_error": null,
+        "invocation_identified": true
+      }
+    ],
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.4-0/runtime.stdout",
+        "sha256": "70aa70f4c25a25b4efe0eb195946fa5534d17d12c0ac5d79de11ed70848c2a26"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.4-0/runtime.stdout",
+        "sha256": "70aa70f4c25a25b4efe0eb195946fa5534d17d12c0ac5d79de11ed70848c2a26"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.4-0/runtime.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.4-0/invocation.json",
+        "sha256": "48388163a657868e652f3ae51266abc8af82ba438e0ac46519f21da5bcf03166"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmm-roster.stdout",
+        "sha256": "da2e722281519c2ebe6001594c804625e3e047568d70dd1e0572bfc2f276dfc3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/provenance.json",
+        "sha256": "5cf1b87de3577f5bce276dfe473821b4ee3211a7d92013232cdce8bdffd4a264",
+        "role": "provider"
+      }
+    ],
+    "same_job_actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.4-0/input.tcl",
+      "sha256": "8827e06446ddf3c8ca49695586325ec158de37740c152c3d4ec3109a40dccbd7"
+    }
+  },
+  {
+    "context": "stock-8.5",
+    "interpreter_patchlevel": "8.5.13",
+    "tcl_version": "8.5",
+    "execution_namespace": "::",
+    "native_call_present": false,
+    "commands_hex": "382e352e313320382e35203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+    "surface_case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.5-cases.json",
+      "sha256": "70c201daa65988c388e76947d6a06d9d61694223403f5c92bcdb67ea536d0390",
+      "json_pointer": "/0"
+    },
+    "surface_capture_fields": [
+      {
+        "run_id": "nh20261012nativecap1",
+        "case_id": "native-call-command-surface",
+        "context": "stock-8.5",
+        "stage": "lookup",
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "complete": true,
+        "errors": [],
+        "missing_chunks": [],
+        "duplicate_chunks": [],
+        "completion_code": 0,
+        "encoding": "utf-8",
+        "value_hex": "382e352e313320382e35203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+        "text": "8.5.13 8.5 :: commands {} procs {} resolved {}",
+        "decoding_error": null,
+        "invocation_identified": true
+      },
+      {
+        "run_id": "nh20261012nativecap1",
+        "case_id": "native-call-command-surface",
+        "context": "stock-8.5",
+        "stage": "lookup",
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "returnoptions",
+        "complete": true,
+        "errors": [],
+        "missing_chunks": [],
+        "duplicate_chunks": [],
+        "completion_code": 0,
+        "encoding": "utf-8",
+        "value_hex": "2d636f64652030202d6c6576656c2030",
+        "text": "-code 0 -level 0",
+        "decoding_error": null,
+        "invocation_identified": true
+      }
+    ],
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.5-0/runtime.stdout",
+        "sha256": "422d48efc28980ce5568c52eefb178e9bb9710da9601c75709551f27d9e66749"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.5-0/runtime.stdout",
+        "sha256": "422d48efc28980ce5568c52eefb178e9bb9710da9601c75709551f27d9e66749"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.5-0/runtime.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.5-0/invocation.json",
+        "sha256": "22b718a3516ff9a739270969adc9ec42b37ad910f03f9315278ff38bd9b81959"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmm-roster.stdout",
+        "sha256": "da2e722281519c2ebe6001594c804625e3e047568d70dd1e0572bfc2f276dfc3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/provenance.json",
+        "sha256": "5cf1b87de3577f5bce276dfe473821b4ee3211a7d92013232cdce8bdffd4a264",
+        "role": "provider"
+      }
+    ],
+    "same_job_actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/stock-8.5-0/input.tcl",
+      "sha256": "895c866331056fc86ae99755db4befc57b7e6da625dbc9c7231aaecec2bac958"
+    }
+  },
+  {
+    "context": "tmsh-cli-script",
+    "interpreter_patchlevel": "8.4.6",
+    "tcl_version": "8.4",
+    "execution_namespace": "::script",
+    "native_call_present": false,
+    "commands_hex": "382e342e3620382e34203a3a73637269707420636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+    "surface_case_metadata": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-cases.json",
+      "sha256": "1ee85e108f78addf9ef4ac17b24d44fb739c1cb8140a0841ebeaba6545307652",
+      "json_pointer": "/0"
+    },
+    "surface_capture_fields": [
+      {
+        "run_id": "nh20261012nativecap1",
+        "case_id": "native-call-command-surface",
+        "context": "tmsh-cli-script",
+        "stage": "lookup",
+        "tmm_unit": "none",
+        "invocation_id": "once",
+        "field": "result",
+        "complete": true,
+        "errors": [],
+        "missing_chunks": [],
+        "duplicate_chunks": [],
+        "completion_code": 0,
+        "encoding": "utf-8",
+        "value_hex": "382e342e3620382e34203a3a73637269707420636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d",
+        "text": "8.4.6 8.4 ::script commands {} procs {} resolved {}",
+        "decoding_error": null,
+        "invocation_identified": true
+      }
+    ],
+    "raw_evidence": [
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/invoke.stdout",
+        "sha256": "416f7bbf97c5aa1c96b2216fa8ae224257141504f032c24286d876b150f5627b"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/load.stdout",
+        "sha256": "80b2c492e24c0763228bdb0acdb370a5757224d69f5cd3b93891c818eac6962f"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/invoke.stdout",
+        "sha256": "416f7bbf97c5aa1c96b2216fa8ae224257141504f032c24286d876b150f5627b"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/invoke.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/invocation.sh",
+        "sha256": "53bb49896e8ad97715c855bf924f420fe00d2c329746b4c3cbf7af634b7c833c"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/driver.json",
+        "sha256": "e8776ecfa69627e96891ef8ebc2dde8863b4709234ca48bade55aa68b7195013"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/driver.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/driver.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/transport.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmm-roster.stdout",
+        "sha256": "da2e722281519c2ebe6001594c804625e3e047568d70dd1e0572bfc2f276dfc3",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/provenance.json",
+        "sha256": "5cf1b87de3577f5bce276dfe473821b4ee3211a7d92013232cdce8bdffd4a264",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "provider"
+      },
+      {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/applied-0.stdout",
+        "sha256": "4ddaaffe737aa1c7229e423bb7a3656c59b7fc6262ef7b7caf30b8c6ceb7043e",
+        "role": "provider"
+      }
+    ],
+    "same_job_actual_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/tmsh-cli-script-0/input.tcl",
+      "sha256": "1e076bf7221b7c79f52e8bfae83277a7579813e83b73a87a72d88a6d4a7a5a02"
+    }
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "invocation": "pair-candidate-0",
+    "action": "read",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  },
+  {
+    "invocation": "pair-candidate-1",
+    "action": "read",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  },
+  {
+    "invocation": "pair-a-connection-write",
+    "action": "connection-write",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  },
+  {
+    "invocation": "pair-b-connection-read",
+    "action": "read",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  },
+  {
+    "invocation": "pair-a-connection-read",
+    "action": "read",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  },
+  {
+    "invocation": "pair-a-provider-write",
+    "action": "provider-write",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  },
+  {
+    "invocation": "pair-b-provider-read",
+    "action": "read",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  },
+  {
+    "invocation": "pair-fresh-provider-read",
+    "action": "read",
+    "phase": "old",
+    "status": 200,
+    "unit": "0:0",
+    "body_hex": "5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e61746976653120303a30",
+    "run_marker_matches": true
+  }
+]

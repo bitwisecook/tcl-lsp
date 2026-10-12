@@ -1,0 +1,5 @@
+{
+  "source_job": "tmm-traffic-event-0",
+  "context_filter": "tmm-RULE_INIT",
+  "independent_execution": false
+}

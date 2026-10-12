@@ -1,0 +1,27 @@
+{
+  "run_id": "nh20261012harness2",
+  "scope": "Actual explicit-source child capability control; no native-parent or Wiki-body answer",
+  "records": 24,
+  "identities": 24,
+  "status_counts": {
+    "observed": 24
+  },
+  "validated_descriptor_occurrences": 6768,
+  "validated_distinct_files": 413,
+  "raw_rows": 192,
+  "real_package_sha256": "2ef6cc2a65738bf7cf8b9c247db7a3f1548a498adfc669f05e71c12cbad921a0",
+  "real_package_size": 98763,
+  "configuration_module_reassembly_exact": [
+    "tmm-RULE_INIT-0",
+    "tmm-procedure-0",
+    "tmm-traffic-event-0"
+  ],
+  "incomplete_capture_fields": [],
+  "proof_representatives": 3,
+  "limitations": [
+    "Runtime cleanup code0 applies only where captured; no unobserved child deletion is inferred.",
+    "Configuration objects after checks are absent.",
+    "No selected Wiki body or native-parent real harness success is established.",
+    "Remote staging pending separate cleanup receipt."
+  ]
+}

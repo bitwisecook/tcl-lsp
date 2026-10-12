@@ -1,0 +1,7 @@
+{
+  "exit_code": 1,
+  "exception": "KeyError: remote_staging",
+  "failed_run_id": "nh20261012repair2",
+  "phase": "reading staging provenance, before any remote cleanup operation",
+  "reason": "Six standalone captures identify run_id and retain the actual staging path in input/load receipts rather than a remote_staging provenance field."
+}

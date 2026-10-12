@@ -1,0 +1,16 @@
+ltm rule __tcl_lsp_probe_nh20261012native1_provider {
+proc __nh_nh20261012native1_target {fixed value} {set rows {}; foreach value [list $fixed $value] {binary scan $value H* h; lappend rows $h}; list owner NEW argc 2 argv [list $fixed $value] argv-hex $rows}
+proc cells {action invocation} {
+ if {$action == {provider-write}} {set ::__nh_nh20261012native1::cell [list NAMESPACE_WRITE $invocation]; set ::__nh_nh20261012native1_global [list GLOBAL_WRITE $invocation]; set static::__nh_nh20261012native1_static [list STATIC_WRITE $invocation]}
+ set rows {}
+ foreach cell [list ::__nh_nh20261012native1::cell ::__nh_nh20261012native1_global static::__nh_nh20261012native1_static] {set c [catch {set $cell} v]; lappend rows $cell $c $v}
+ list rows $rows level [info level]
+}
+proc link {local_name invocation} {
+ set provider_local [list PROVIDER_LOCAL $invocation]
+ upvar 1 $local_name linked
+ set before $linked
+ set linked [list CALLER_WRITE $invocation]
+ list local $provider_local before $before after $linked level [info level]
+}
+}

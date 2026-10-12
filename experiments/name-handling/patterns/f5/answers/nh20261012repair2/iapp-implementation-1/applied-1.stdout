@@ -1,0 +1,4 @@
+sys application service __tcl_lsp_probe_nh20261012repair2_iapp_implementation_1_service {
+    template __tcl_lsp_probe_nh20261012repair2_iapp_implementation_1
+    template-modified yes
+}

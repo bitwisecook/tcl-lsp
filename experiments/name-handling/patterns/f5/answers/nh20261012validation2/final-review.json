@@ -1,0 +1,85 @@
+{
+  "git_base": "56cf7d243c2bcd9ff3bdbb515e185cfb9a74171a",
+  "gate_source": {
+    "path": "scripts/dev/check-name-resolution-proofs.py",
+    "sha256": "ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808"
+  },
+  "gate_mode": "structure-only; identical large JSON bytes memoised with a two-entry cache; no validation branch skipped",
+  "gate_exit_code": 1,
+  "proofs": 2606,
+  "new_proofs": 279,
+  "existing_proof_records_changed": 0,
+  "inherited_source_digest_errors": 315,
+  "same_diagnostics_as_before_native_registration": true,
+  "new_proof_errors": 0,
+  "matrix_status_counts": {
+    "observed": 108,
+    "unreached": 267,
+    "unsupported": 25
+  },
+  "completed_previously_outstanding_investigations": 307,
+  "implementation_files_changed": 0,
+  "scope": "Answer evidence and indexes only; no repository-wide green gate claim or Rust execution claim. The user explicitly restricted this work to answer files.",
+  "seals": [
+    {
+      "run_id": "nh20261012repair2",
+      "seal_sha256": "6a82d16e4ab0bb5c1ccc6fae27b81d99caa93f0fbd456078f9013ce59b7a3173",
+      "files_verified": 605
+    },
+    {
+      "run_id": "nh20261012harness1",
+      "seal_sha256": "7b74119d909f554a57e2f8d6d7a4b7cc6b848e055d50c6920c45d37e5d0995f0",
+      "files_verified": 514
+    },
+    {
+      "run_id": "nh20261012harness2",
+      "seal_sha256": "f5e98a19ffb4bfe75b9a1afa94a0615f3eebc8111e7d1d85103cb98e9aadd4f7",
+      "files_verified": 514
+    },
+    {
+      "run_id": "nh20261012collision1",
+      "seal_sha256": "35ec5486021dab43401976984e6bec85b52767a68f59371de9a8aa666d471672",
+      "files_verified": 529
+    },
+    {
+      "run_id": "nh20261012nativecap1",
+      "seal_sha256": "04a0556b437101936e200487e1c7f00a831317a61906f07a41f0eea0ca2fb3a8",
+      "files_verified": 148
+    },
+    {
+      "run_id": "nh20261012aplrepair1",
+      "seal_sha256": "924e10aee4c5d2bf1b14eb4ba579bf634943d667a254abb640f9037cff0c774b",
+      "files_verified": 42
+    },
+    {
+      "run_id": "nh20261012native1",
+      "seal_sha256": "5d39b6556e357141de0c008fcc7bea988256b7ec67f73dcd45abfe083241f0b2",
+      "files_verified": 1236
+    },
+    {
+      "run_id": "nh20261012native2",
+      "seal_sha256": "bb033375d4a77481e4e72f1bc7946bfe221e321e5fa1675b5515940a6e7f484f",
+      "files_verified": 639
+    },
+    {
+      "run_id": "nh20261012unreached1",
+      "seal_sha256": "4f122e0e121fa71f9d7d3733a509df0e9b90e51f2dc05e47e571d4e72fc20c83",
+      "files_verified": 3
+    },
+    {
+      "run_id": "nh20261012unreached2",
+      "seal_sha256": "7a1e9441d174f390e42c50761f0a636487c29e413fade37a7cd265926308e596",
+      "files_verified": 3
+    },
+    {
+      "run_id": "nh20261012finish1",
+      "seal_sha256": "c42241db4a4695ace535ab08e6be5afa4680e2c3fb8b99d996849bd67049bbdc",
+      "files_verified": 9
+    },
+    {
+      "run_id": "nh20261012cleanup3",
+      "seal_sha256": "ceaa7b711853e4a415c41e03c649fad4d3a46dcd9dfced6007397ea28169ae56",
+      "files_verified": 41
+    }
+  ]
+}

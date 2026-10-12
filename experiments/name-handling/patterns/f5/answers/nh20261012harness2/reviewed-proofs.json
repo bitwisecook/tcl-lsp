@@ -1,0 +1,3662 @@
+[
+  {
+    "id": "naming.bigip-pattern.real-harness-explicit-source-child.tmm-rule_init.host-child-unchanged-real-module-v1.nh20261012harness2.unit-0-0.invocation-once",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.real-harness-explicit-source-child.tmm-rule_init.host-child-unchanged-real-module-v1.nh20261012harness2.unit-0-0.invocation-once.md",
+    "problem_statement": "Related question F5-N01-real-harness-explicit-source-child; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant host-child-unchanged-real-module-v1 of case real-harness-explicit-source-child produce in tmm-RULE_INIT, run nh20261012harness2, unit '0:0', invocation 'once'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding binary-scan-tcl-value; exact result hex \"696e76616c696420636f6d6d616e64206e616d65202270776422\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d652022707764220a202020207768696c6520657865637574696e670a22707764220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e6520323435290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a0a2020202023205768656e207468652076657273696f6e206e756d626572206368616e6765732c206265207375726520746f207570646174652074686520706b67496e6465782e74636c2066696c652c0a202020202320616e642074686520696e7374616c6c206469726563746f727920696e20746865204d616b65662e2e2e220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c6420246e685f6d6f64756c65220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case real-harness-explicit-source-child, variant host-child-unchanged-real-module-v1, run nh20261012harness2, context tmm-RULE_INIT; event 'RULE_INIT', unit '0:0', invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Independent child-interpreter real-package capability. Does not substitute for native-parent package require or original suite.; exact unchanged package bytes evaluated in a new child, not native parent or selected Wiki body; failurecontrol only. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case real-harness-explicit-source-child, variant host-child-unchanged-real-module-v1, run nh20261012harness2, context tmm-RULE_INIT; event 'RULE_INIT', unit '0:0', invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Independent child-interpreter real-package capability. Does not substitute for native-parent package require or original suite.; exact unchanged package bytes evaluated in a new child, not native parent or selected Wiki body; failurecontrol only. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding binary-scan-tcl-value; exact result hex \"696e76616c696420636f6d6d616e64206e616d65202270776422\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d652022707764220a202020207768696c6520657865637574696e670a22707764220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e6520323435290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a0a2020202023205768656e207468652076657273696f6e206e756d626572206368616e6765732c206265207375726520746f207570646174652074686520706b67496e6465782e74636c2066696c652c0a202020202320616e642074686520696e7374616c6c206469726563746f727920696e20746865204d616b65662e2e2e220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c6420246e685f6d6f64756c65220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "raw-10",
+          "raw-11",
+          "raw-12",
+          "raw-13",
+          "raw-14",
+          "raw-15",
+          "raw-16",
+          "raw-17",
+          "raw-18",
+          "raw-19",
+          "raw-20",
+          "raw-21",
+          "raw-22",
+          "raw-23",
+          "raw-24",
+          "raw-25",
+          "raw-26",
+          "raw-27",
+          "raw-28",
+          "raw-29",
+          "raw-30",
+          "raw-31",
+          "raw-32",
+          "raw-33",
+          "raw-34",
+          "raw-35",
+          "raw-36",
+          "raw-37",
+          "raw-38",
+          "raw-39",
+          "raw-40",
+          "raw-41",
+          "cleanup-0",
+          "cleanup-1",
+          "cleanup-2",
+          "cleanup-3",
+          "cleanup-4",
+          "cleanup-5",
+          "cleanup-6",
+          "cleanup-7",
+          "cleanup-8",
+          "cleanup-9",
+          "cleanup-10",
+          "cleanup-11",
+          "cleanup-12",
+          "cleanup-13",
+          "cleanup-14",
+          "cleanup-15",
+          "cleanup-16",
+          "cleanup-17",
+          "cleanup-18",
+          "cleanup-19",
+          "cleanup-20",
+          "cleanup-21",
+          "cleanup-22",
+          "cleanup-23",
+          "cleanup-24",
+          "cleanup-25",
+          "cleanup-26",
+          "cleanup-27",
+          "cleanup-28",
+          "cleanup-29",
+          "cleanup-30",
+          "cleanup-31",
+          "cleanup-32",
+          "cleanup-33",
+          "cleanup-34",
+          "cleanup-35",
+          "cleanup-36",
+          "cleanup-37",
+          "cleanup-38",
+          "cleanup-39",
+          "cleanup-40",
+          "cleanup-41",
+          "cleanup-42",
+          "cleanup-43",
+          "cleanup-44",
+          "cleanup-45",
+          "cleanup-46",
+          "cleanup-47",
+          "cleanup-48",
+          "cleanup-49",
+          "cleanup-50",
+          "cleanup-51",
+          "cleanup-52",
+          "cleanup-53",
+          "cleanup-54",
+          "cleanup-55",
+          "cleanup-56",
+          "cleanup-57",
+          "cleanup-58",
+          "cleanup-59",
+          "cleanup-60",
+          "cleanup-61",
+          "cleanup-62",
+          "cleanup-63",
+          "cleanup-64",
+          "cleanup-65",
+          "cleanup-66",
+          "cleanup-67",
+          "cleanup-68",
+          "cleanup-69",
+          "cleanup-70",
+          "cleanup-71",
+          "cleanup-72",
+          "cleanup-73",
+          "cleanup-74",
+          "cleanup-75",
+          "cleanup-76",
+          "cleanup-77",
+          "cleanup-78",
+          "cleanup-79",
+          "cleanup-80",
+          "cleanup-81",
+          "cleanup-82",
+          "cleanup-83",
+          "cleanup-84",
+          "cleanup-85",
+          "cleanup-86",
+          "cleanup-87",
+          "cleanup-88",
+          "cleanup-89",
+          "cleanup-90",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/real-tcltest-2.2.8.tcl",
+        "sha256": "2ef6cc2a65738bf7cf8b9c247db7a3f1548a498adfc669f05e71c12cbad921a0",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/input.tcl",
+        "sha256": "427df6a4a0e4b9ea6ecf2df6962c0602936ce8368761822c66eeb416ed19fd4d",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied.conf",
+        "sha256": "17d8b810df595fe6e79d85dcc5f1446040590151d876c7ab3abc3b1a6b7b4e7d",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/runtime-logs.stdout",
+        "sha256": "64cecc88d64c52ec94bc0893c98e4c008097b3a145980413303b5415b72ae922",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/load.stdout",
+        "sha256": "fefa30cdeaa9d9e732cfca7d796de3a60c4b1fe9596f5caa49b2f8d061187cbd",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/invocation.sh",
+        "sha256": "0e15161aec8fb999397102b6a87d01abc9ae627c49418037e9aede37eeb98b2c",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/driver.json",
+        "sha256": "aeaee10a10067772a8a45a2bf232113ed27ec7026477f3336a868d9c047e8cdb",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/driver.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/driver.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/transport.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-10",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-roster.stdout",
+        "sha256": "34ba317b672acc78abd53f12a7321dbf95c7147f8e86d5b78249750bfe76fb2d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-11",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/provenance.json",
+        "sha256": "b68083e201ab71a0a61558defaf17e133e0a3623d65fb976c789c0290eaa5e80",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-12",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-13",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-14",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-0.stdout",
+        "sha256": "43bc95f25524233e2ce5ca7b555a414dea887dee13b4c20022ae6bb84b30b274",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-15",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-16",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-17",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-1.stdout",
+        "sha256": "86a6c42acbd051a817c50cbf7c982a7583a70bc563145bc5183e82b7ccc57693",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-18",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-2.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-19",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-20",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-2.stdout",
+        "sha256": "095c593eadcf63306adfee817cc98b893efe12c9b9478a2f3a127c6e5bed71f2",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-21",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-3.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-22",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-23",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-3.stdout",
+        "sha256": "9a918eae3f30e03d1260065a5e6d56804f53b4f1ed53005bbabd3634039d218b",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-24",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-4.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-25",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-26",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-4.stdout",
+        "sha256": "ed90780f39feacf5bfe8be53ea5e30e753d42895605361db0350416c82cc2d0f",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-27",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-5.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-28",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-29",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-5.stdout",
+        "sha256": "b8bada556f199311024974d90e406b17e5cba3b4af7a7ad6f268b65df62ff710",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-30",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-6.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-31",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-32",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-6.stdout",
+        "sha256": "07cee8e8de3a638e4a64be9b9acbbab199dca447a6adcf5b9199fce78c84c22f",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-33",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-7.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-34",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-7.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-35",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-7.stdout",
+        "sha256": "b41b5ea60b097eecbc5aa41ae4f8d12030d68aadc22e881724b79613055bd6d7",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-36",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-8.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-37",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-8.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-38",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-8.stdout",
+        "sha256": "17c4d6af6a71abfa00aded7896948f446f5ba35ea6e6fce16682233faba8381d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-39",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-9.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-40",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-9.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-41",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/applied-9.stdout",
+        "sha256": "2b9f7dafeae14009cb88375e693dd3fee0ac2a6c1bdb345e0d6af3908ffe0bc4",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "cleanup-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-0.stderr",
+        "sha256": "0e6428fbda69d52e40ef25ccdcbdf0a78a810c2f8019cb9bdc8d92421411cc72",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-1.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-1.stderr",
+        "sha256": "f94dc6c6765b3fd53a3de3d7ecf56a71274f49a78456cd70feca45ed3a9855be",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-5",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-6",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-2.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-7",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-2.stderr",
+        "sha256": "ab5a9df999412fa2af80cf6640c8fb66f2fe94113af3e9cc85ea62f364665496",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-8",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-3.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-10",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-3.stderr",
+        "sha256": "f3d3c14852a2521e9a6b5b932dda4c783170508c47db324e030d7eda7972cd30",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-11",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-12",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-4.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-13",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-4.stderr",
+        "sha256": "728310d250c2acfeb8902e02558de290796e7d280544420fc396e10f37a2e5d1",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-14",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-15",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-5.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-16",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-5.stderr",
+        "sha256": "ff2b3371a6773fc54f139ffb14b120b3df6fa39de3d60532dbcf9c88dd8764a4",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-17",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-18",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-6.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-19",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-6.stderr",
+        "sha256": "309329bfcf85bc2898354c8841dc20b8affa730d0bc19c18b63a16164c124e42",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-20",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-21",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-7.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-22",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-7.stderr",
+        "sha256": "ace432972f5bd437cede544e66051003be09a1279eb7bfeb07c018e290a82f49",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-23",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-24",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-8.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-25",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-8.stderr",
+        "sha256": "afc9ceac5b1056654984302697ceff38720ff75a184330198e42fc06bd450821",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-26",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-27",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-9.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-28",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-9.stderr",
+        "sha256": "9b98c3a36169d0d4512f9761d83c837bdb819eb0b20ffa89f5afb6841396d16b",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-29",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/after-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-30",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-31",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-0.stderr",
+        "sha256": "0e6428fbda69d52e40ef25ccdcbdf0a78a810c2f8019cb9bdc8d92421411cc72",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-32",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-33",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-1.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-34",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-1.stderr",
+        "sha256": "f94dc6c6765b3fd53a3de3d7ecf56a71274f49a78456cd70feca45ed3a9855be",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-35",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-36",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-2.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-37",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-2.stderr",
+        "sha256": "ab5a9df999412fa2af80cf6640c8fb66f2fe94113af3e9cc85ea62f364665496",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-38",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-39",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-3.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-40",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-3.stderr",
+        "sha256": "f3d3c14852a2521e9a6b5b932dda4c783170508c47db324e030d7eda7972cd30",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-41",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-42",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-4.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-43",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-4.stderr",
+        "sha256": "728310d250c2acfeb8902e02558de290796e7d280544420fc396e10f37a2e5d1",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-44",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-45",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-5.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-46",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-5.stderr",
+        "sha256": "ff2b3371a6773fc54f139ffb14b120b3df6fa39de3d60532dbcf9c88dd8764a4",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-47",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-48",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-6.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-49",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-6.stderr",
+        "sha256": "309329bfcf85bc2898354c8841dc20b8affa730d0bc19c18b63a16164c124e42",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-50",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-51",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-7.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-52",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-7.stderr",
+        "sha256": "ace432972f5bd437cede544e66051003be09a1279eb7bfeb07c018e290a82f49",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-53",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-54",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-8.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-55",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-8.stderr",
+        "sha256": "afc9ceac5b1056654984302697ceff38720ff75a184330198e42fc06bd450821",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-56",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-57",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-9.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-58",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-9.stderr",
+        "sha256": "9b98c3a36169d0d4512f9761d83c837bdb819eb0b20ffa89f5afb6841396d16b",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-59",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/before-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-60",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-61",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-62",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-63",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-64",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-65",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-66",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-2.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-67",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-68",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-69",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-3.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-70",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-71",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-72",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-4.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-73",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-74",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-75",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-5.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-76",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-77",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-78",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-6.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-79",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-80",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-81",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-7.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-82",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-7.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-83",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-84",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-8.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-85",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-8.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-86",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-87",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-9.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-88",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-9.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-89",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/delete-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-90",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-RULE_INIT-0/save-status.txt",
+        "sha256": "9ab32790137e08ad76065e5e03719856b623e5a6125917840e258e4e73eac446",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/records.json",
+        "sha256": "863422f9fb765b89400e77f7bb6f0f1ef0841af2956cf99a3247f9c844276ebc",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  },
+  {
+    "id": "naming.bigip-pattern.real-harness-explicit-source-child.tmm-procedure.host-child-unchanged-real-module-v1.nh20261012harness2.unit-0-0.invocation-once",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.real-harness-explicit-source-child.tmm-procedure.host-child-unchanged-real-module-v1.nh20261012harness2.unit-0-0.invocation-once.md",
+    "problem_statement": "Related question F5-N01-real-harness-explicit-source-child; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant host-child-unchanged-real-module-v1 of case real-harness-explicit-source-child produce in tmm-procedure, run nh20261012harness2, unit '0:0', invocation 'once'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding binary-scan-tcl-value; exact result hex \"696e76616c696420636f6d6d616e64206e616d65202270776422\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d652022707764220a202020207768696c6520657865637574696e670a22707764220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e6520323435290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a0a2020202023205768656e207468652076657273696f6e206e756d626572206368616e6765732c206265207375726520746f207570646174652074686520706b67496e6465782e74636c2066696c652c0a202020202320616e642074686520696e7374616c6c206469726563746f727920696e20746865204d616b65662e2e2e220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c6420246e685f6d6f64756c65220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case real-harness-explicit-source-child, variant host-child-unchanged-real-module-v1, run nh20261012harness2, context tmm-procedure; event 'RULE_INIT', unit '0:0', invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Independent child-interpreter real-package capability. Does not substitute for native-parent package require or original suite.; exact unchanged package bytes evaluated in a new child, not native parent or selected Wiki body; failurecontrol only. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": \"call measure from RULE_INIT\"}. Null means not observed by this receipt. ",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case real-harness-explicit-source-child, variant host-child-unchanged-real-module-v1, run nh20261012harness2, context tmm-procedure; event 'RULE_INIT', unit '0:0', invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Independent child-interpreter real-package capability. Does not substitute for native-parent package require or original suite.; exact unchanged package bytes evaluated in a new child, not native parent or selected Wiki body; failurecontrol only. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": \"call measure from RULE_INIT\"}. Null means not observed by this receipt. ",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding binary-scan-tcl-value; exact result hex \"696e76616c696420636f6d6d616e64206e616d65202270776422\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d652022707764220a202020207768696c6520657865637574696e670a22707764220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e6520323435290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a0a2020202023205768656e207468652076657273696f6e206e756d626572206368616e6765732c206265207375726520746f207570646174652074686520706b67496e6465782e74636c2066696c652c0a202020202320616e642074686520696e7374616c6c206469726563746f727920696e20746865204d616b65662e2e2e220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c6420246e685f6d6f64756c65220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "raw-10",
+          "raw-11",
+          "raw-12",
+          "raw-13",
+          "raw-14",
+          "raw-15",
+          "raw-16",
+          "raw-17",
+          "raw-18",
+          "raw-19",
+          "raw-20",
+          "raw-21",
+          "raw-22",
+          "raw-23",
+          "raw-24",
+          "raw-25",
+          "raw-26",
+          "raw-27",
+          "raw-28",
+          "raw-29",
+          "raw-30",
+          "raw-31",
+          "raw-32",
+          "raw-33",
+          "raw-34",
+          "raw-35",
+          "raw-36",
+          "raw-37",
+          "raw-38",
+          "raw-39",
+          "raw-40",
+          "raw-41",
+          "cleanup-0",
+          "cleanup-1",
+          "cleanup-2",
+          "cleanup-3",
+          "cleanup-4",
+          "cleanup-5",
+          "cleanup-6",
+          "cleanup-7",
+          "cleanup-8",
+          "cleanup-9",
+          "cleanup-10",
+          "cleanup-11",
+          "cleanup-12",
+          "cleanup-13",
+          "cleanup-14",
+          "cleanup-15",
+          "cleanup-16",
+          "cleanup-17",
+          "cleanup-18",
+          "cleanup-19",
+          "cleanup-20",
+          "cleanup-21",
+          "cleanup-22",
+          "cleanup-23",
+          "cleanup-24",
+          "cleanup-25",
+          "cleanup-26",
+          "cleanup-27",
+          "cleanup-28",
+          "cleanup-29",
+          "cleanup-30",
+          "cleanup-31",
+          "cleanup-32",
+          "cleanup-33",
+          "cleanup-34",
+          "cleanup-35",
+          "cleanup-36",
+          "cleanup-37",
+          "cleanup-38",
+          "cleanup-39",
+          "cleanup-40",
+          "cleanup-41",
+          "cleanup-42",
+          "cleanup-43",
+          "cleanup-44",
+          "cleanup-45",
+          "cleanup-46",
+          "cleanup-47",
+          "cleanup-48",
+          "cleanup-49",
+          "cleanup-50",
+          "cleanup-51",
+          "cleanup-52",
+          "cleanup-53",
+          "cleanup-54",
+          "cleanup-55",
+          "cleanup-56",
+          "cleanup-57",
+          "cleanup-58",
+          "cleanup-59",
+          "cleanup-60",
+          "cleanup-61",
+          "cleanup-62",
+          "cleanup-63",
+          "cleanup-64",
+          "cleanup-65",
+          "cleanup-66",
+          "cleanup-67",
+          "cleanup-68",
+          "cleanup-69",
+          "cleanup-70",
+          "cleanup-71",
+          "cleanup-72",
+          "cleanup-73",
+          "cleanup-74",
+          "cleanup-75",
+          "cleanup-76",
+          "cleanup-77",
+          "cleanup-78",
+          "cleanup-79",
+          "cleanup-80",
+          "cleanup-81",
+          "cleanup-82",
+          "cleanup-83",
+          "cleanup-84",
+          "cleanup-85",
+          "cleanup-86",
+          "cleanup-87",
+          "cleanup-88",
+          "cleanup-89",
+          "cleanup-90",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/real-tcltest-2.2.8.tcl",
+        "sha256": "2ef6cc2a65738bf7cf8b9c247db7a3f1548a498adfc669f05e71c12cbad921a0",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/input.tcl",
+        "sha256": "21cc84fb197d8c8be656bf82c96963e3d59ab15e760cfac5ae75f3ac686e09c6",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied.conf",
+        "sha256": "eb7ec98b4d729a41d3ab0c62d3917398acdaedfe8a98a29f729c9e9ae34a3dec",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/runtime-logs.stdout",
+        "sha256": "e4320b270819b9db2e7e835a5ceaae563c21dfcaa06705ba162aeb866448e432",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/load.stdout",
+        "sha256": "27415c0024f1994d4fa67e422ef4041ce932ea6bba9d5d780f9116b9ba79cfc3",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/invocation.sh",
+        "sha256": "24a806b563594571ccebbd86190f2bf13c7df9b9f537f1bdce133c5feb587e07",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/driver.json",
+        "sha256": "25cc53ad1ed74574136d81ee148e585d3258e261f76ffee02a2e2271df37c056",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/driver.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/driver.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/transport.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-10",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-roster.stdout",
+        "sha256": "34ba317b672acc78abd53f12a7321dbf95c7147f8e86d5b78249750bfe76fb2d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-11",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/provenance.json",
+        "sha256": "b68083e201ab71a0a61558defaf17e133e0a3623d65fb976c789c0290eaa5e80",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-12",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-13",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-14",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-0.stdout",
+        "sha256": "6791cf52a858dba29a44acdc7ca5985d833eabb4a1d0c1d90db6fccd08dab193",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-15",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-16",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-17",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-1.stdout",
+        "sha256": "5597fa8f0db30ea49614a0077ef7de3d54252330996aabb8f03ed5ee278f9c08",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-18",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-2.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-19",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-20",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-2.stdout",
+        "sha256": "317bc0a5d2d74cd5f18ca7008b03e65a7bbb94d8268f932fcb63f5fd72688f10",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-21",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-3.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-22",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-23",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-3.stdout",
+        "sha256": "0011cc28382f71c5a05891e812bf5be2a7a12ef31da97be8c16de486cb85e16d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-24",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-4.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-25",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-26",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-4.stdout",
+        "sha256": "e61e782bead8c8a0631ee7a0b1c21d45497cf0a90a665912c464e11ad33a640c",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-27",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-5.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-28",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-29",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-5.stdout",
+        "sha256": "7e7f279ff55a43ea2f1aa2a0e669880f6684ffbb702cfe841a79b45311182a51",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-30",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-6.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-31",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-32",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-6.stdout",
+        "sha256": "3ab452dd71847646428ba3913dbc5e22f857c4c0266fe96580709ebd39c1ede4",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-33",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-7.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-34",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-7.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-35",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-7.stdout",
+        "sha256": "2296e25526273e12189b1fa86dd4b537e6c9f09fbaaa7a9816295fa0f40e075a",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-36",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-8.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-37",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-8.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-38",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-8.stdout",
+        "sha256": "5d64d63f694cb991a4e202d222b2c3b1219f2df35babb3cd4474a2e1d8949076",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-39",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-9.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-40",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-9.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-41",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/applied-9.stdout",
+        "sha256": "01e5c7c212df0752dfd087d5b74cca11decfd4a26d404ca8b6e8884c3d1d19b0",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "cleanup-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-0.stderr",
+        "sha256": "819ac66b1564cf49b25901236f45cab299a45730b0c2e80039e3eb3a65c5ca68",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-1.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-1.stderr",
+        "sha256": "f4d4c51c9e966a63d5a92e52bb0dea475d44302f9bd9fb352739c035029621fc",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-5",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-6",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-2.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-7",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-2.stderr",
+        "sha256": "2f033517dd66b1b7d77dc302dcb915421b1b96b7a87b7c055c66e5f804fcbdd7",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-8",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-3.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-10",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-3.stderr",
+        "sha256": "2c40dbce0eb0798f147cabb94c85be9bcb077a5a8985eded5cad1358d91a2269",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-11",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-12",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-4.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-13",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-4.stderr",
+        "sha256": "9309a016a86603cff7959c706ac22eccd82111687f9574c2e5b911a02470b024",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-14",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-15",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-5.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-16",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-5.stderr",
+        "sha256": "02d577e2c11cc3ba2622ab8ea90d8267023fd5a793fdd69b032b9ebe92db8dbe",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-17",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-18",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-6.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-19",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-6.stderr",
+        "sha256": "d8ed33f2044dde73b4c6e602aad533836d9edece5c1ec5089b2a3acd5da6b8fa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-20",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-21",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-7.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-22",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-7.stderr",
+        "sha256": "c3f8960b09ccb38cd200cff099f3b1514e38333953967dbb54fa9f4506ed9848",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-23",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-24",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-8.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-25",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-8.stderr",
+        "sha256": "ed9bf2ecd2e7b379722edefaa9041f680445de468b2de35681e229673bdcd5d6",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-26",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-27",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-9.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-28",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-9.stderr",
+        "sha256": "140da00f11409b30f4d0c3e880394860c3dfe4de3b5cc921dc3282f2bbd25ad0",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-29",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/after-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-30",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-31",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-0.stderr",
+        "sha256": "819ac66b1564cf49b25901236f45cab299a45730b0c2e80039e3eb3a65c5ca68",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-32",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-33",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-1.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-34",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-1.stderr",
+        "sha256": "f4d4c51c9e966a63d5a92e52bb0dea475d44302f9bd9fb352739c035029621fc",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-35",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-36",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-2.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-37",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-2.stderr",
+        "sha256": "2f033517dd66b1b7d77dc302dcb915421b1b96b7a87b7c055c66e5f804fcbdd7",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-38",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-39",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-3.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-40",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-3.stderr",
+        "sha256": "2c40dbce0eb0798f147cabb94c85be9bcb077a5a8985eded5cad1358d91a2269",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-41",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-42",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-4.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-43",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-4.stderr",
+        "sha256": "9309a016a86603cff7959c706ac22eccd82111687f9574c2e5b911a02470b024",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-44",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-45",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-5.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-46",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-5.stderr",
+        "sha256": "02d577e2c11cc3ba2622ab8ea90d8267023fd5a793fdd69b032b9ebe92db8dbe",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-47",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-48",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-6.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-49",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-6.stderr",
+        "sha256": "d8ed33f2044dde73b4c6e602aad533836d9edece5c1ec5089b2a3acd5da6b8fa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-50",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-51",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-7.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-52",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-7.stderr",
+        "sha256": "c3f8960b09ccb38cd200cff099f3b1514e38333953967dbb54fa9f4506ed9848",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-53",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-54",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-8.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-55",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-8.stderr",
+        "sha256": "ed9bf2ecd2e7b379722edefaa9041f680445de468b2de35681e229673bdcd5d6",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-56",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-57",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-9.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-58",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-9.stderr",
+        "sha256": "140da00f11409b30f4d0c3e880394860c3dfe4de3b5cc921dc3282f2bbd25ad0",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-59",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/before-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-60",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-61",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-62",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-63",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-64",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-65",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-66",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-2.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-67",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-68",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-69",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-3.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-70",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-71",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-72",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-4.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-73",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-74",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-75",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-5.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-76",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-77",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-78",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-6.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-79",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-80",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-81",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-7.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-82",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-7.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-83",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-84",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-8.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-85",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-8.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-86",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-87",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-9.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-88",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-9.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-89",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/delete-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-90",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-procedure-0/save-status.txt",
+        "sha256": "9ab32790137e08ad76065e5e03719856b623e5a6125917840e258e4e73eac446",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/records.json",
+        "sha256": "863422f9fb765b89400e77f7bb6f0f1ef0841af2956cf99a3247f9c844276ebc",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/4"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  },
+  {
+    "id": "naming.bigip-pattern.real-harness-explicit-source-child.tmm-traffic-event.host-child-unchanged-real-module-v1.nh20261012harness2.unit-0-0.invocation-0",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.real-harness-explicit-source-child.tmm-traffic-event.host-child-unchanged-real-module-v1.nh20261012harness2.unit-0-0.invocation-0.md",
+    "problem_statement": "Related question F5-N01-real-harness-explicit-source-child; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant host-child-unchanged-real-module-v1 of case real-harness-explicit-source-child produce in tmm-traffic-event, run nh20261012harness2, unit '0:0', invocation '0'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding binary-scan-tcl-value; exact result hex \"696e76616c696420636f6d6d616e64206e616d65202270776422\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d652022707764220a202020207768696c6520657865637574696e670a22707764220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e6520323435290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a0a2020202023205768656e207468652076657273696f6e206e756d626572206368616e6765732c206265207375726520746f207570646174652074686520706b67496e6465782e74636c2066696c652c0a202020202320616e642074686520696e7374616c6c206469726563746f727920696e20746865204d616b65662e2e2e220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c6420246e685f6d6f64756c65220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case real-harness-explicit-source-child, variant host-child-unchanged-real-module-v1, run nh20261012harness2, context tmm-traffic-event; event 'HTTP_REQUEST', unit '0:0', invocation '0'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Independent child-interpreter real-package capability. Does not substitute for native-parent package require or original suite.; exact unchanged package bytes evaluated in a new child, not native parent or selected Wiki body; failurecontrol only. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case real-harness-explicit-source-child, variant host-child-unchanged-real-module-v1, run nh20261012harness2, context tmm-traffic-event; event 'HTTP_REQUEST', unit '0:0', invocation '0'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Independent child-interpreter real-package capability. Does not substitute for native-parent package require or original suite.; exact unchanged package bytes evaluated in a new child, not native parent or selected Wiki body; failurecontrol only. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding binary-scan-tcl-value; exact result hex \"696e76616c696420636f6d6d616e64206e616d65202270776422\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"binary-scan-tcl-value\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d652022707764220a202020207768696c6520657865637574696e670a22707764220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e6520323435290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a0a2020202023205768656e207468652076657273696f6e206e756d626572206368616e6765732c206265207375726520746f207570646174652074686520706b67496e6465782e74636c2066696c652c0a202020202320616e642074686520696e7374616c6c206469726563746f727920696e20746865204d616b65662e2e2e220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c6420246e685f6d6f64756c65220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "raw-10",
+          "raw-11",
+          "raw-12",
+          "raw-13",
+          "raw-14",
+          "raw-15",
+          "raw-16",
+          "raw-17",
+          "raw-18",
+          "raw-19",
+          "raw-20",
+          "raw-21",
+          "raw-22",
+          "raw-23",
+          "raw-24",
+          "raw-25",
+          "raw-26",
+          "raw-27",
+          "raw-28",
+          "raw-29",
+          "raw-30",
+          "raw-31",
+          "raw-32",
+          "raw-33",
+          "raw-34",
+          "raw-35",
+          "raw-36",
+          "raw-37",
+          "raw-38",
+          "raw-39",
+          "raw-40",
+          "raw-41",
+          "raw-42",
+          "raw-43",
+          "raw-44",
+          "cleanup-0",
+          "cleanup-1",
+          "cleanup-2",
+          "cleanup-3",
+          "cleanup-4",
+          "cleanup-5",
+          "cleanup-6",
+          "cleanup-7",
+          "cleanup-8",
+          "cleanup-9",
+          "cleanup-10",
+          "cleanup-11",
+          "cleanup-12",
+          "cleanup-13",
+          "cleanup-14",
+          "cleanup-15",
+          "cleanup-16",
+          "cleanup-17",
+          "cleanup-18",
+          "cleanup-19",
+          "cleanup-20",
+          "cleanup-21",
+          "cleanup-22",
+          "cleanup-23",
+          "cleanup-24",
+          "cleanup-25",
+          "cleanup-26",
+          "cleanup-27",
+          "cleanup-28",
+          "cleanup-29",
+          "cleanup-30",
+          "cleanup-31",
+          "cleanup-32",
+          "cleanup-33",
+          "cleanup-34",
+          "cleanup-35",
+          "cleanup-36",
+          "cleanup-37",
+          "cleanup-38",
+          "cleanup-39",
+          "cleanup-40",
+          "cleanup-41",
+          "cleanup-42",
+          "cleanup-43",
+          "cleanup-44",
+          "cleanup-45",
+          "cleanup-46",
+          "cleanup-47",
+          "cleanup-48",
+          "cleanup-49",
+          "cleanup-50",
+          "cleanup-51",
+          "cleanup-52",
+          "cleanup-53",
+          "cleanup-54",
+          "cleanup-55",
+          "cleanup-56",
+          "cleanup-57",
+          "cleanup-58",
+          "cleanup-59",
+          "cleanup-60",
+          "cleanup-61",
+          "cleanup-62",
+          "cleanup-63",
+          "cleanup-64",
+          "cleanup-65",
+          "cleanup-66",
+          "cleanup-67",
+          "cleanup-68",
+          "cleanup-69",
+          "cleanup-70",
+          "cleanup-71",
+          "cleanup-72",
+          "cleanup-73",
+          "cleanup-74",
+          "cleanup-75",
+          "cleanup-76",
+          "cleanup-77",
+          "cleanup-78",
+          "cleanup-79",
+          "cleanup-80",
+          "cleanup-81",
+          "cleanup-82",
+          "cleanup-83",
+          "cleanup-84",
+          "cleanup-85",
+          "cleanup-86",
+          "cleanup-87",
+          "cleanup-88",
+          "cleanup-89",
+          "cleanup-90",
+          "cleanup-91",
+          "cleanup-92",
+          "cleanup-93",
+          "cleanup-94",
+          "cleanup-95",
+          "cleanup-96",
+          "cleanup-97",
+          "cleanup-98",
+          "cleanup-99",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/real-tcltest-2.2.8.tcl",
+        "sha256": "2ef6cc2a65738bf7cf8b9c247db7a3f1548a498adfc669f05e71c12cbad921a0",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/input.tcl",
+        "sha256": "d2eef7aaa849f5da0c43e642e9345531791436718c799099a53c28c2a327620c",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied.conf",
+        "sha256": "f982fc266a559a00a5ef6a7c582fc4ac769db276a27877bd1b22672f1c5862b3",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/runtime-logs.stdout",
+        "sha256": "0ce2c9a76bf5aa70f0a5711bd9b8bfd6c3090fb9f2b8690920ba4eb9cfd6b7ae",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/load.stdout",
+        "sha256": "5fb2e2ae85471e820edd1ec4c73be6ba424d670a0a7dabec6f000ef7924c3ea2",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/invocation.sh",
+        "sha256": "73dfb44d2409dec210ffe7c21c6ef35d0f00fba52d35c4e7fb2f9b0582e084dc",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/driver.json",
+        "sha256": "ed2d63f8efa31c3bad647c04afd5d01a62f21e59f4d81598a227a439cde3327a",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/driver.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/driver.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/transport.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/version.stdout",
+        "sha256": "fe6c634fe966bac364cd7c37513c3c404720116bdd87de8309eb902504095db3",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/platform.stdout",
+        "sha256": "e5a67c47db64b2812e30c564ae2dfdace5bdd6194df10dc28f52d7be30afab51",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-10",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-roster.stdout",
+        "sha256": "34ba317b672acc78abd53f12a7321dbf95c7147f8e86d5b78249750bfe76fb2d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-11",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/provenance.json",
+        "sha256": "b68083e201ab71a0a61558defaf17e133e0a3623d65fb976c789c0290eaa5e80",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-12",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-13",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-14",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-0.stdout",
+        "sha256": "b4eb6831c0f787a708e4bbf2b70e0b0a8ac7df567cb3fee4bc99666703b756c6",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-15",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-16",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-17",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-1.stdout",
+        "sha256": "3559e6c54ff0938bdbce0f77938207c999c0120f704de845ab7c2bbed96d02a5",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-18",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-10.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-19",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-10.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-20",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-10.stdout",
+        "sha256": "078a9f7ca139e06758dcee442904966356faba729c56df5f3284cb8c79f89a68",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-21",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-2.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-22",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-23",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-2.stdout",
+        "sha256": "7fae5461db1e3e6efc44134fb398fe77433e77d412708ad2b66d0c062012d1a2",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-24",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-3.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-25",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-26",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-3.stdout",
+        "sha256": "1938be8333ddd84a4a5b3bbda4de55a50bacc22ceba979d9eaace3a349fdff6f",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-27",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-4.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-28",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-29",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-4.stdout",
+        "sha256": "d701ada7fd3c83fb4dffc61ca81ae35754e37233c90ec5c715db3883a55c8420",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-30",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-5.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-31",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-32",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-5.stdout",
+        "sha256": "00d7f1c132c0c6745c96c818a121735f3caa43b0c1f7e8e5416c0ecfb802025d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-33",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-6.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-34",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-35",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-6.stdout",
+        "sha256": "725a60035abd62d04c935cef1a40f7e7a818cfa1eebc63ad0707394760a0f3b2",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-36",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-7.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-37",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-7.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-38",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-7.stdout",
+        "sha256": "ed4e58818f68dfe12c1fd601164b70a816fc0fd48ed4eaf96a55cf25f39b5482",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-39",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-8.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-40",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-8.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-41",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-8.stdout",
+        "sha256": "854b0ed08c1e0cb8b9e864cf17f8b11faf7c106122f4b643cd6e91e6073ddee8",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-42",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-9.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-43",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-9.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-44",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/applied-9.stdout",
+        "sha256": "ce9867418302c3adafadb84e1e943cceaed38a6193c5c00186963d022cf3566a",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "cleanup-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-0.stderr",
+        "sha256": "bb52586c94851c7aa2428c50b462717145de5794dc5b1ce7d69b5708f8c81d23",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-1.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-1.stderr",
+        "sha256": "10cd5733dcf2e9a6f70441996e979a829314094938935b2247625fba4716cf96",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-5",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-6",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-10.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-7",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-10.stderr",
+        "sha256": "6df8c7f9a6fe86cea944d71e2519cc00aba9f540c7f9894493474676a436e520",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-8",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-10.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-2.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-10",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-2.stderr",
+        "sha256": "c274256c23ff2a642b9205a45daad21a78857de7f318a4e8103e479522ab8798",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-11",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-12",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-3.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-13",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-3.stderr",
+        "sha256": "c4a8d07bb22f610b265d3d50ab3fd6c90ab98b04a082af72dbf4f1a682b3aa60",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-14",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-15",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-4.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-16",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-4.stderr",
+        "sha256": "870c175a72c9b88ef1d3aef60971c18d98baa21b84014001ecbe562b9c99d49a",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-17",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-18",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-5.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-19",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-5.stderr",
+        "sha256": "707cf2f422e8bc0833c7d482ce4db05b8a786dab2f283ee465aaf226294d45f9",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-20",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-21",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-6.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-22",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-6.stderr",
+        "sha256": "220b931a199af00f4cc19696a40be22383191dbe97c99be0203ed94b9496f141",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-23",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-24",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-7.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-25",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-7.stderr",
+        "sha256": "3751ac60bf436010cdf63bae724ca985fa088a07163bab49c325921993be2f0c",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-26",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-27",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-8.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-28",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-8.stderr",
+        "sha256": "e934c88922c59f5277de6ceade5992e6c0a62987780e17656f5223455c2bd4f8",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-29",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-30",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-9.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-31",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-9.stderr",
+        "sha256": "686b4e0e5ae64b418e872300cf63fc578852b76a27cf7fc8a25d2f10adb60f2d",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-32",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/after-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-33",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-34",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-0.stderr",
+        "sha256": "bb52586c94851c7aa2428c50b462717145de5794dc5b1ce7d69b5708f8c81d23",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-35",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-36",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-1.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-37",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-1.stderr",
+        "sha256": "10cd5733dcf2e9a6f70441996e979a829314094938935b2247625fba4716cf96",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-38",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-39",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-10.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-40",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-10.stderr",
+        "sha256": "6df8c7f9a6fe86cea944d71e2519cc00aba9f540c7f9894493474676a436e520",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-41",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-10.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-42",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-2.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-43",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-2.stderr",
+        "sha256": "c274256c23ff2a642b9205a45daad21a78857de7f318a4e8103e479522ab8798",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-44",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-45",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-3.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-46",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-3.stderr",
+        "sha256": "c4a8d07bb22f610b265d3d50ab3fd6c90ab98b04a082af72dbf4f1a682b3aa60",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-47",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-48",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-4.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-49",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-4.stderr",
+        "sha256": "870c175a72c9b88ef1d3aef60971c18d98baa21b84014001ecbe562b9c99d49a",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-50",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-51",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-5.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-52",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-5.stderr",
+        "sha256": "707cf2f422e8bc0833c7d482ce4db05b8a786dab2f283ee465aaf226294d45f9",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-53",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-54",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-6.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-55",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-6.stderr",
+        "sha256": "220b931a199af00f4cc19696a40be22383191dbe97c99be0203ed94b9496f141",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-56",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-57",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-7.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-58",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-7.stderr",
+        "sha256": "3751ac60bf436010cdf63bae724ca985fa088a07163bab49c325921993be2f0c",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-59",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-60",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-8.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-61",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-8.stderr",
+        "sha256": "e934c88922c59f5277de6ceade5992e6c0a62987780e17656f5223455c2bd4f8",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-62",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-63",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-9.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-64",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-9.stderr",
+        "sha256": "686b4e0e5ae64b418e872300cf63fc578852b76a27cf7fc8a25d2f10adb60f2d",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-65",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/before-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-66",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-67",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-68",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-69",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-1.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-70",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-71",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-72",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-10.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-73",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-10.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-74",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-10.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-75",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-2.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-76",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-77",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-78",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-3.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-79",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-80",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-81",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-4.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-82",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-83",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-84",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-5.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-85",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-86",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-87",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-6.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-88",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-89",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-90",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-7.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-91",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-7.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-92",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-93",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-8.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-94",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-8.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-95",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-96",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-9.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-97",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-9.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-98",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/delete-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-99",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/tmm-traffic-event-0/save-status.txt",
+        "sha256": "9ab32790137e08ad76065e5e03719856b623e5a6125917840e258e4e73eac446",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/records.json",
+        "sha256": "863422f9fb765b89400e77f7bb6f0f1ef0841af2956cf99a3247f9c844276ebc",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/8"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  }
+]

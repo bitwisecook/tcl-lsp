@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "stdin_sha256": "3bc09fb496dff088db6dae585daeee63186ccbd3e1910c1b2158c7d24ded201c",
+  "command": "bash -s",
+  "authentication_metadata": "omitted"
+}

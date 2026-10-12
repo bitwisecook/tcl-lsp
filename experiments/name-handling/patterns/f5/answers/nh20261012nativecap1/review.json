@@ -1,0 +1,22 @@
+{
+  "run_id": "nh20261012nativecap1",
+  "records": 30,
+  "unique_identities": 30,
+  "status_counts": {
+    "observed": 5,
+    "unsupported": 25
+  },
+  "validated_descriptor_occurrences": 1464,
+  "validated_distinct_files": 116,
+  "raw_rows_validated": 177,
+  "complete_capture_fields": true,
+  "setup_code0": true,
+  "configuration_objects_after_absent": true,
+  "proof_representatives": 30,
+  "source_substitutions": [],
+  "limitations": [
+    "No portable-original matrix answers promoted.",
+    "Remote staging awaits separate cleanup receipt.",
+    "Cleanup conclusions are bounded to actual authored checks; total interpreter-state absence is not inferred."
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "run_id": "nh20261012repair2",
+  "review_scope": "Independent authored diagnostic controls; no portable-original or Wiki body promotion",
+  "measurement_count": 162,
+  "unique_identities": 162,
+  "validated_descriptor_occurrences": 10926,
+  "validated_distinct_files": 369,
+  "raw_rows_validated": 702,
+  "setup_all_code0": true,
+  "loads_all_accepted": true,
+  "capture_fields_complete": true,
+  "runtime_cleanup_for_authored_cleanup_all_code0": true,
+  "configuration_objects_after_absent": true,
+  "representative_proof_count": 36,
+  "real_package": {
+    "path": "experiments/name-handling/patterns/f5/answers/nh20261012repair2/real-tcltest-2.2.8.tcl",
+    "sha256": "2ef6cc2a65738bf7cf8b9c247db7a3f1548a498adfc669f05e71c12cbad921a0",
+    "size_bytes": 98763
+  },
+  "result_text_projection": "ASCII bytes only for readable binary-scan values; original result encoding remains binary-scan-tcl-value",
+  "limitations": [
+    "Successful child package require does not establish native-parent harness compatibility or a selected Wiki body result.",
+    "Caught runtime cleanup code0 is retained; no independent child-list or namespace-after inventory was captured.",
+    "Frame-variable existence records do not establish ownership; existing variables were not removed.",
+    "Remote staging retained pending separate cleanup receipt."
+  ]
+}

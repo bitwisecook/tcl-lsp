@@ -12,12 +12,23 @@ Its [JSON inventory](nh20261012coverage2/coverage.json) retains every independen
 unit/invocation, source hash and original-matrix answer/attempt pointer. The
 [historical snapshot 1](nh20261012coverage1/answers.md) remains unchanged.
 
-The original pattern matrix retains 93 observed, 244 unreached and 63
-unavailable rows across 50 questions and eight contexts. The numbered
+The [completed 307-row investigation](../../patterns/f5/answers/nh20261012finish1/ANSWERS.md)
+records a measured conclusion and exact evidence for every previously open
+pattern row. The current original pattern matrix retains 108 observed,
+25 unsupported and 267 unreached rows across 50 questions and eight contexts.
+The 267 original operations remain unreached because of measured package,
+setup, ownership or constraint boundaries; the investigation does not invent
+their final results. The numbered
 questions have bounded answers and retain their broader remaining variants;
 entered suspended frames, restart/reload after deletion, other traffic
 contexts and cleanup of earlier state need separate evidence. Original
 answers, adapted controls and failed attempts keep distinct pointers.
+
+[Native measurements](../../patterns/f5/answers/nh20261012native1/ANSWERS.md)
+and [singleton RULE_INIT completion controls](../../patterns/f5/answers/nh20261012native2/ANSWERS.md)
+retain actual rule routes, matching argument bytes, replacement phases and
+provider-side storage writes. The [operation review](outstanding-operation-audit.md)
+keeps the broader numbered requirements and unmeasured variants separate.
 
 At `755f78207b993cdfa4b0fd230abcafb1f3f606bc`, all 30 retained seals across
 this tree and the pattern answer tree verified, covering 26,097 entries with
