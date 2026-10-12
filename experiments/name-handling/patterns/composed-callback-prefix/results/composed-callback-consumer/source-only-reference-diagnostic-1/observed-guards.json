@@ -1,0 +1,297 @@
+[
+  {
+    "stage": "references.entry",
+    "offset": 71,
+    "present": true
+  },
+  {
+    "stage": "references.local_candidate",
+    "offset": 71,
+    "present": true
+  },
+  {
+    "stage": "symbol.local_reference_spans",
+    "offset": 71,
+    "present": true
+  },
+  {
+    "stage": "symbol.current_local_source",
+    "offset": 71,
+    "present": true
+  },
+  {
+    "stage": "collector.entry",
+    "offset": 71,
+    "present": true
+  },
+  {
+    "stage": "collector.current_source_context",
+    "offset": null,
+    "present": true
+  },
+  {
+    "stage": "collector.canonical_class",
+    "offset": null,
+    "present": true
+  },
+  {
+    "stage": "collector.method_purpose",
+    "offset": null,
+    "present": true
+  },
+  {
+    "stage": "collector.unique_declaration",
+    "offset": null,
+    "present": true
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 0,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 0,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 39,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 39,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 64,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 64,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 85,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 85,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 101,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 101,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 124,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 124,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 150,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 150,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 158,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 158,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 174,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 174,
+    "present": true
+  },
+  {
+    "stage": "collector.prefix_currency",
+    "offset": 174,
+    "present": true
+  },
+  {
+    "stage": "collector.prefix_schema",
+    "offset": 174,
+    "present": true
+  },
+  {
+    "stage": "collector.member_issuer",
+    "offset": 174,
+    "present": true
+  },
+  {
+    "stage": "collector.real_member_row",
+    "offset": 140,
+    "present": true
+  },
+  {
+    "stage": "collector.callable_method",
+    "offset": 140,
+    "present": true
+  },
+  {
+    "stage": "collector.member_side",
+    "offset": 140,
+    "present": true
+  },
+  {
+    "stage": "collector.owner_body_present",
+    "offset": 71,
+    "present": true
+  },
+  {
+    "stage": "collector.owner_body_matches",
+    "offset": 71,
+    "present": false
+  },
+  {
+    "stage": "collector.owner_body_present",
+    "offset": 131,
+    "present": true
+  },
+  {
+    "stage": "collector.owner_body_matches",
+    "offset": 131,
+    "present": true
+  },
+  {
+    "stage": "collector.first_body_owner",
+    "offset": 140,
+    "present": true
+  },
+  {
+    "stage": "collector.unique_body_owner",
+    "offset": 140,
+    "present": true
+  },
+  {
+    "stage": "collector.body_owner",
+    "offset": 174,
+    "present": true
+  },
+  {
+    "stage": "collector.selector_word",
+    "offset": 174,
+    "present": true
+  },
+  {
+    "stage": "collector.written_selector",
+    "offset": 190,
+    "present": true
+  },
+  {
+    "stage": "collector.original_selector_producer",
+    "offset": 190,
+    "present": true
+  },
+  {
+    "stage": "collector.selector_key",
+    "offset": 190,
+    "present": true
+  },
+  {
+    "stage": "collector.selector_name",
+    "offset": 190,
+    "present": true
+  },
+  {
+    "stage": "collector.selector_geometry",
+    "offset": 190,
+    "present": true
+  },
+  {
+    "stage": "collector.stored_inventory",
+    "offset": 140,
+    "present": false
+  },
+  {
+    "stage": "collector.matching_store",
+    "offset": 190,
+    "present": false
+  },
+  {
+    "stage": "collector.consumed_store",
+    "offset": 190,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 211,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 211,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 234,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 234,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 251,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 251,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 265,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 265,
+    "present": false
+  },
+  {
+    "stage": "collector.visited_original_command",
+    "offset": 273,
+    "present": true
+  },
+  {
+    "stage": "collector.authored_prefix",
+    "offset": 273,
+    "present": false
+  }
+]

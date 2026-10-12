@@ -1,0 +1,8 @@
+{
+  "captured_utc": "2026-10-12T23:49:54.557407+00:00",
+  "temporary_source_sha256": {
+    "rust/tcl-lsp-core/src/references.rs": "ce7940ce0102875f50e6811b16d8959e80ad0bfa0cc48051df3fc7a340d4029c",
+    "rust/tcl-lsp-core/src/method_symbol.rs": "8359f4fc2ee16476ef413289df7343a607f13faab9fcd46d9bc43024f87ab3d3"
+  },
+  "original_tests_assertions_inputs": "unchanged"
+}

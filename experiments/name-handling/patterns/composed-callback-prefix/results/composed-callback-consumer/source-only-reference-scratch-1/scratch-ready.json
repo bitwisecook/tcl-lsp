@@ -1,0 +1,28 @@
+{
+  "captured_utc": "2026-10-12T23:37:36.763851+00:00",
+  "scope": "Scratch copies only. No shared Rust source, Git or build/cache mutation. Original four controls and inputs unchanged.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "shared_source_sha256": "7d559f79e57e94b3ce4823765ac4d060c5c7b4863abda6bb47c75a8239d55f7c",
+      "scratch_sha256": "89ade42c5d03f71bcb961a2bdd2b31b437fb3324bdc9e553350fecf3581afa44",
+      "scratch_path": "/tmp/composed-source-only-reference-utfbqm30/references.rs",
+      "artifact": "references.rs"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "shared_source_sha256": "a4d76d8b8eb4d2a06cf2680c8fb57bb2960b3bcd7c7ea766a92ead79d34cb84d",
+      "scratch_sha256": "c453cdd8597906927a45d045c9117cde4136367c93fbce9cafe3ec1fc4ae41ba",
+      "scratch_path": "/tmp/composed-source-only-reference-utfbqm30/method_symbol.rs",
+      "artifact": "method_symbol.rs"
+    }
+  ],
+  "status": "uncompiled; root apply window required",
+  "semantic_owners": [
+    "readonly original method reference facade",
+    "generic source callback role and all-writer scanner"
+  ],
+  "authority": "Checked OriginalMethodCandidate declaring class + unique original method naming units; exact original body_word matches genuine prefix.definition_member_body, Callable Method row/receiver; complete source/config/input/context matches; source dispatcher schema and Written selector producer; existing stored callback writer inventory and actual declared deferred sink. No Native SourceCapturedMethodPrefix/invocation/frame or rename kernel changes.",
+  "central_api_extension": "none required; checked existing readonly name-key and class/body/issuer/context APIs only",
+  "formatting": "rustfmt edition2024 skip_children=true on scratch copies only"
+}

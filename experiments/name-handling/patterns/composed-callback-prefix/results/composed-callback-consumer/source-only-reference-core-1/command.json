@@ -1,0 +1,27 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "shell": "bash",
+  "shell_prelude": "set -o pipefail; source /tmp/name-env.sh",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "composed_callback_prefix_tests",
+    "--",
+    "--nocapture"
+  ],
+  "additional_environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime"
+  },
+  "environment_file": "/tmp/name-env.sh",
+  "environment_file_sha256": "8f00e30a0cc13e817026ae85ae9b4176235f53fbf1c37f5112b6d067054c1688",
+  "capture_session_start_utc": "2026-10-12T23:43:01.098649+00:00",
+  "process_start_timestamp": "not separately captured",
+  "stdout_stderr": "stdout-stderr.log",
+  "exit_code": 101
+}

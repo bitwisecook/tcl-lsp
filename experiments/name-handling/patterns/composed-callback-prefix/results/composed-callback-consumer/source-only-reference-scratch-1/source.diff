@@ -1,0 +1,187 @@
+--- rust/tcl-lsp-core/src/references.rs
++++ rust/tcl-lsp-core/src/references.rs
+@@ -1694,6 +1694,172 @@
+         .find(|(_, span)| span.start() <= cursor_offset && cursor_offset <= span.end())
+         .or_else(|| candidates.first())
+         .copied()
++}
++
++/// Readonly stored selectors under a genuine original method-body issuer.
++/// Source roles retain conditional declaration advice, independently of capture
++/// results, a live receiver, callback entry and replacement permission.
++pub(crate) fn authored_callback_reference_spans(
++    source: &str,
++    analysis: &AnalysisResult,
++    target: &crate::method_symbol::OriginalMethodCandidate,
++) -> Vec<tcl_lexer::Span> {
++    use tcl_registry::definer::DefinitionMemberNamePurpose;
++
++    let Some(current) = retained_dispatch_context(source, analysis) else {
++        return Vec::new();
++    };
++    let Some(class) = target.declaring_class_in(source, analysis) else {
++        return Vec::new();
++    };
++    let method = target.method();
++    if method.name_purpose() != DefinitionMemberNamePurpose::TclOoMethod {
++        return Vec::new();
++    }
++    let name = method.original_name_input();
++    let mut declarations = class
++        .metadata()
++        .original_members
++        .declarations()
++        .filter(|row| {
++            row.side() == method.side()
++                && row.original_name_input().policy() == name.policy()
++                && row.original_name_input().bytes() == name.bytes()
++        });
++    if declarations.next() != Some(method) || declarations.next().is_some() {
++        return Vec::new();
++    }
++    let ctx = MyMethodScan {
++        source,
++        analysis,
++        config: current.config,
++        dialect: current.dialect,
++        method: "",
++        skip: None,
++        external_callback_allowed: false,
++        callbacks_only: true,
++        stored_callbacks: &[],
++    };
++    let mut spans = Vec::new();
++    crate::executable_regions::visit_analysis_executable_commands(
++        source,
++        analysis,
++        &mut |command, _, _| {
++            if let Some(span) = authored_stored_callback_selector(
++                ctx,
++                &current.context,
++                class.metadata(),
++                method,
++                command,
++            ) {
++                spans.push(span);
++            }
++            false
++        },
++    );
++    spans.sort_unstable_by_key(|span| (span.start(), span.end()));
++    spans.dedup();
++    spans
++}
++
++fn authored_stored_callback_selector(
++    ctx: MyMethodScan<'_>,
++    context: &tcl_registry::model::ContextRegistry,
++    class: &tcl_compiler::analyser::ClassDef,
++    method: &tcl_compiler::analyser::types::OriginalSourceMethodMetadata,
++    command: &tcl_compiler::segmenter::SegmentedCommand,
++) -> Option<tcl_lexer::Span> {
++    use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
++    use tcl_compiler::signature_scan::original_name::SignatureSourceNameKey;
++
++    let prefix =
++        source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, command)?;
++    if !prefix.matches_source_context(
++        &tcl_lexer::SourceImage::document(ctx.source),
++        ctx.config,
++        context,
++    ) || prefix.with_source_schema(context, |schema| {
++        schema
++            .semantics
++            .traits
++            .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
++    }) != Some(true)
++    {
++        return None;
++    }
++    let owner = authored_callback_body_owner(class, method, prefix.definition_member_body()?)?;
++    let word = prefix.original_argument(0)?;
++    let InvocationWordOrigin::Written(written) = prefix.argument_origin(0)? else {
++        return None;
++    };
++    if written == 0 || prefix.producer().original_words().get(written) != Some(word) {
++        return None;
++    }
++    let name = method.original_name_input();
++    let key = SignatureSourceNameKey::from_original_native_word(
++        word,
++        tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
++        name.policy(),
++    )?;
++    if key.bytes() != name.bytes()
++        || !method
++            .name_purpose()
++            .admits(key.policy().recipe(), key.bytes())
++    {
++        return None;
++    }
++    let span = bare_original_prefix_span(word)?;
++    let body = owner.metadata().body_span;
++    let stored = stored_callback_targets(ctx, body);
++    let body_ctx = MyMethodScan {
++        stored_callbacks: &stored,
++        ..ctx
++    };
++    let (start, end) = strip_outer_braces(ctx.source, body);
++    let candidate = PrefixTargetAtSpan {
++        kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
++        span,
++    };
++    (stored.iter().any(|stored| stored.target == candidate)
++        && stored_callback_is_consumed(body_ctx, start, end, candidate, 0))
++    .then_some(span)
++}
++
++fn authored_callback_body_owner<'a>(
++    class: &'a tcl_compiler::analyser::ClassDef,
++    method: &tcl_compiler::analyser::types::OriginalSourceMethodMetadata,
++    issuer: &tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody,
++) -> Option<&'a tcl_compiler::analyser::types::OriginalSourceMethodMetadata> {
++    use tcl_compiler::analyser::types::MemberSide;
++    use tcl_registry::definer::{
++        CallableRole, DefinitionMemberNamePurpose, MemberEffect, MemberReceiver,
++    };
++
++    let row = issuer.member_row()?;
++    if !matches!(
++        row.effect,
++        MemberEffect::Callable {
++            role: CallableRole::Method,
++            ..
++        }
++    ) {
++        return None;
++    }
++    let side = match row.receiver {
++        MemberReceiver::Instance => MemberSide::Instance,
++        MemberReceiver::TypeObject => MemberSide::ClassObject,
++        MemberReceiver::Both => return None,
++    };
++    if side != method.side() {
++        return None;
++    }
++    let mut owners = class.original_members.declarations().filter(|owner| {
++        owner.side() == side
++            && owner.name_purpose() == DefinitionMemberNamePurpose::TclOoMethod
++            && owner.body_word() == Some(issuer.original_container())
++    });
++    let owner = owners.next()?;
++    owners.next().is_none().then_some(owner)
+ }
+ 
+ /// Resolve the current declaration's receipt-backed method call sites.
+--- rust/tcl-lsp-core/src/method_symbol.rs
++++ rust/tcl-lsp-core/src/method_symbol.rs
+@@ -1110,6 +1110,9 @@
+             spans.push(query.span());
+         }
+     }
++    spans.extend(crate::references::authored_callback_reference_spans(
++        source, analysis, target,
++    ));
+     spans.sort_by_key(|span| (span.start(), span.end()));
+     spans.dedup();
+     spans

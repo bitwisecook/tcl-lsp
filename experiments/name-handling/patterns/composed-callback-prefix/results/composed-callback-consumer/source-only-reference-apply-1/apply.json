@@ -1,0 +1,26 @@
+{
+  "applied_utc": "2026-10-12T23:39:01.263260+00:00",
+  "scope": "Exact two-file root-authorised scratch apply after both preimage and scratch hashes matched; no Cargo/Git/other source changes.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "shared_source_sha256": "7d559f79e57e94b3ce4823765ac4d060c5c7b4863abda6bb47c75a8239d55f7c",
+      "scratch_sha256": "89ade42c5d03f71bcb961a2bdd2b31b437fb3324bdc9e553350fecf3581afa44",
+      "scratch_path": "/tmp/composed-source-only-reference-utfbqm30/references.rs",
+      "artifact": "references.rs",
+      "applied_sha256": "89ade42c5d03f71bcb961a2bdd2b31b437fb3324bdc9e553350fecf3581afa44"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "shared_source_sha256": "a4d76d8b8eb4d2a06cf2680c8fb57bb2960b3bcd7c7ea766a92ead79d34cb84d",
+      "scratch_sha256": "c453cdd8597906927a45d045c9117cde4136367c93fbce9cafe3ec1fc4ae41ba",
+      "scratch_path": "/tmp/composed-source-only-reference-utfbqm30/method_symbol.rs",
+      "artifact": "method_symbol.rs",
+      "applied_sha256": "c453cdd8597906927a45d045c9117cde4136367c93fbce9cafe3ec1fc4ae41ba"
+    }
+  ],
+  "original_four_assertions": "unchanged",
+  "original_native_and_private_fixture_identities": "unchanged",
+  "status": "source frozen; uncompiled/unexecuted; coordinated global freeze/build lease required",
+  "known_private_barrier": "Original private-positive builder source schema refusal remains independent and is not repaired by readonly collector."
+}

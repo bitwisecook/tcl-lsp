@@ -1,0 +1,78 @@
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 28.57s
+     Running unittests src/lib.rs (tmp/name-target-runtime/debug/deps/tcl_lsp_core-ff8efa1ff2b55103)
+
+running 1 test
+AUTHORED_CALLBACK_REFERENCE stage=references.entry offset=Some(71) present=true
+AUTHORED_CALLBACK_REFERENCE stage=references.local_candidate offset=Some(71) present=true
+AUTHORED_CALLBACK_REFERENCE stage=symbol.local_reference_spans offset=Some(71) present=true
+AUTHORED_CALLBACK_REFERENCE stage=symbol.current_local_source offset=Some(71) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.entry offset=Some(71) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.current_source_context offset=None present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.canonical_class offset=None present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.method_purpose offset=None present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.unique_declaration offset=None present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(0) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(0) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(39) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(39) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(64) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(64) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(85) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(85) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(101) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(101) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(124) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(124) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(150) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(150) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(158) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(158) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(174) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(174) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.prefix_currency offset=Some(174) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.prefix_schema offset=Some(174) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.member_issuer offset=Some(174) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.real_member_row offset=Some(140) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.callable_method offset=Some(140) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.member_side offset=Some(140) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.owner_body_present offset=Some(71) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.owner_body_matches offset=Some(71) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.owner_body_present offset=Some(131) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.owner_body_matches offset=Some(131) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.first_body_owner offset=Some(140) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.unique_body_owner offset=Some(140) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.body_owner offset=Some(174) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.selector_word offset=Some(174) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.written_selector offset=Some(190) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.original_selector_producer offset=Some(190) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.selector_key offset=Some(190) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.selector_name offset=Some(190) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.selector_geometry offset=Some(190) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.stored_inventory offset=Some(140) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.matching_store offset=Some(190) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.consumed_store offset=Some(190) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(211) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(211) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(234) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(234) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(251) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(251) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(265) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(265) present=false
+AUTHORED_CALLBACK_REFERENCE stage=collector.visited_original_command offset=Some(273) present=true
+AUTHORED_CALLBACK_REFERENCE stage=collector.authored_prefix offset=Some(273) present=false
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (244715) panicked at rust/tcl-lsp-core/src/references.rs:6581:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... FAILED
+
+failures:
+
+failures:
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3002 filtered out; finished in 1.12s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

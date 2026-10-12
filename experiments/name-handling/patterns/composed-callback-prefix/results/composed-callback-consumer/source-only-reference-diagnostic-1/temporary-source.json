@@ -1,0 +1,19 @@
+{
+  "captured_utc": "2026-10-12T23:49:54.444973+00:00",
+  "temporary_owners": [
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "before_sha256": "89ade42c5d03f71bcb961a2bdd2b31b437fb3324bdc9e553350fecf3581afa44",
+      "instrumented_sha256": "ce7940ce0102875f50e6811b16d8959e80ad0bfa0cc48051df3fc7a340d4029c",
+      "backup": "/tmp/composed-readonly-reference-diag-djtg0cbf/references.rs.before"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "before_sha256": "c453cdd8597906927a45d045c9117cde4136367c93fbce9cafe3ec1fc4ae41ba",
+      "instrumented_sha256": "8359f4fc2ee16476ef413289df7343a607f13faab9fcd46d9bc43024f87ab3d3",
+      "backup": "/tmp/composed-readonly-reference-diag-djtg0cbf/method_symbol.rs.before"
+    }
+  ],
+  "status": "staged, unexecuted",
+  "original_test_assertions_inputs": "unchanged"
+}

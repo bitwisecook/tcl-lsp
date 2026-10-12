@@ -1110,6 +1110,9 @@ pub fn local_reference_spans(
             spans.push(query.span());
         }
     }
+    spans.extend(crate::references::authored_callback_reference_spans(
+        source, analysis, target,
+    ));
     spans.sort_by_key(|span| (span.start(), span.end()));
     spans.dedup();
     spans

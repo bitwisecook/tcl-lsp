@@ -1,0 +1,26 @@
+{
+  "completed_utc": "2026-10-12T23:52:46.175244+00:00",
+  "exit_code": 101,
+  "tests": {
+    "matched": 1,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "filtered_out": 3002
+  },
+  "diagnostic_binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "diagnostic_binary_sha256": "f7967532e1e62f03e064e8335843bba8082b42daa4b668223448ae46348156f7",
+  "binary_currency_after_restore": "noncurrent: compiled with two temporary instrumentation files now restored byte-exact; no production validation claim",
+  "changed_instrumented_scope_inputs": [],
+  "restored_source_sha256": {
+    "rust/tcl-lsp-core/src/references.rs": "89ade42c5d03f71bcb961a2bdd2b31b437fb3324bdc9e553350fecf3581afa44",
+    "rust/tcl-lsp-core/src/method_symbol.rs": "c453cdd8597906927a45d045c9117cde4136367c93fbce9cafe3ec1fc4ae41ba"
+  },
+  "changed_production_scope_inputs_after_restore": [],
+  "actual_case": "First Tcl8.6 original public positive references with declaration included; private/later-release/exclude-declaration assertions unreached",
+  "passed_actual_guards": "references.local_candidate/local_reference_spans/collector all called; complete current source and canonical class; TclOo source name purpose/unique declaration; actual builder174 visited and authored prefix/currency/schema true; genuine member issuer/Callable Method/receiver/body owner true; own original Written selector190/key/name/geometry true",
+  "first_false_required_guard": "stored_callback_targets returns empty inventory for setup body offset140; matching store false for selector190. This does not distinguish internal scope-alias/write-count/value-target/schema guard.",
+  "unreached": "stored_callback_is_consumed short-circuited because no matching store; later public/exclude/private/release reference assertions not run",
+  "assertions_or_original_inputs_changed": false,
+  "logical_or_all_four": "not run"
+}

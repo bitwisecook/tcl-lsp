@@ -1,0 +1,358 @@
+--- rust/tcl-lsp-core/src/references.rs production
++++ rust/tcl-lsp-core/src/references.rs diagnostic
+@@ -749,6 +749,8 @@
+ ) -> Vec<LspRange> {
+     let line_index = LineIndex::new(source);
+     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
++    #[cfg(test)]
++    trace_authored_callback_reference("references.entry", Some(cursor), true);
+     if let std::ops::ControlFlow::Break(selected) =
+         crate::namespace_symbol::select_at_offset(source, analysis, cursor)
+     {
+@@ -785,6 +787,12 @@
+     if let std::ops::ControlFlow::Break(selected) =
+         crate::method_symbol::local_candidate(source, analysis, line, character)
+     {
++        #[cfg(test)]
++        trace_authored_callback_reference(
++            "references.local_candidate",
++            Some(cursor),
++            selected.is_some(),
++        );
+         return selected.map_or_else(Vec::new, |candidate| {
+             crate::method_symbol::local_reference_spans(
+                 source,
+@@ -1696,6 +1704,13 @@
+         .copied()
+ }
+ 
++#[cfg(test)]
++pub(crate) fn trace_authored_callback_reference(stage: &str, offset: Option<u32>, present: bool) {
++    if std::env::var_os("TCL_LSP_TRACE_AUTHORED_CALLBACK_REFERENCE").is_some() {
++        eprintln!("AUTHORED_CALLBACK_REFERENCE stage={stage} offset={offset:?} present={present}");
++    }
++}
++
+ /// Readonly stored selectors under a genuine original method-body issuer.
+ /// Source roles retain conditional declaration advice, independently of capture
+ /// results, a live receiver, callback entry and replacement permission.
+@@ -1706,13 +1721,31 @@
+ ) -> Vec<tcl_lexer::Span> {
+     use tcl_registry::definer::DefinitionMemberNamePurpose;
+ 
+-    let Some(current) = retained_dispatch_context(source, analysis) else {
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.entry",
++        Some(target.declaration_span().start()),
++        true,
++    );
++    let current = retained_dispatch_context(source, analysis);
++    #[cfg(test)]
++    trace_authored_callback_reference("collector.current_source_context", None, current.is_some());
++    let Some(current) = current else {
+         return Vec::new();
+     };
+-    let Some(class) = target.declaring_class_in(source, analysis) else {
++    let class = target.declaring_class_in(source, analysis);
++    #[cfg(test)]
++    trace_authored_callback_reference("collector.canonical_class", None, class.is_some());
++    let Some(class) = class else {
+         return Vec::new();
+     };
+     let method = target.method();
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.method_purpose",
++        None,
++        method.name_purpose() == DefinitionMemberNamePurpose::TclOoMethod,
++    );
+     if method.name_purpose() != DefinitionMemberNamePurpose::TclOoMethod {
+         return Vec::new();
+     }
+@@ -1726,7 +1759,10 @@
+                 && row.original_name_input().policy() == name.policy()
+                 && row.original_name_input().bytes() == name.bytes()
+         });
+-    if declarations.next() != Some(method) || declarations.next().is_some() {
++    let unique_declaration = declarations.next() == Some(method) && declarations.next().is_none();
++    #[cfg(test)]
++    trace_authored_callback_reference("collector.unique_declaration", None, unique_declaration);
++    if !unique_declaration {
+         return Vec::new();
+     }
+     let ctx = MyMethodScan {
+@@ -1745,6 +1781,12 @@
+         source,
+         analysis,
+         &mut |command, _, _| {
++            #[cfg(test)]
++            trace_authored_callback_reference(
++                "collector.visited_original_command",
++                command.argv.first().map(|word| word.span.start()),
++                true,
++            );
+             if let Some(span) = authored_stored_callback_selector(
+                 ctx,
+                 &current.context,
+@@ -1773,7 +1815,35 @@
+     use tcl_compiler::signature_scan::original_name::SignatureSourceNameKey;
+ 
+     let prefix =
+-        source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, command)?;
++        source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, command);
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.authored_prefix",
++        command.argv.first().map(|word| word.span.start()),
++        prefix.is_some(),
++    );
++    let prefix = prefix?;
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.prefix_currency",
++        Some(prefix.producer().site().offset),
++        prefix.matches_source_context(
++            &tcl_lexer::SourceImage::document(ctx.source),
++            ctx.config,
++            context,
++        ),
++    );
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.prefix_schema",
++        Some(prefix.producer().site().offset),
++        prefix.with_source_schema(context, |schema| {
++            schema
++                .semantics
++                .traits
++                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
++        }) == Some(true),
++    );
+     if !prefix.matches_source_context(
+         &tcl_lexer::SourceImage::document(ctx.source),
+         ctx.config,
+@@ -1787,11 +1857,47 @@
+     {
+         return None;
+     }
+-    let owner = authored_callback_body_owner(class, method, prefix.definition_member_body()?)?;
+-    let word = prefix.original_argument(0)?;
++    let issuer = prefix.definition_member_body();
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.member_issuer",
++        Some(prefix.producer().site().offset),
++        issuer.is_some(),
++    );
++    let owner = authored_callback_body_owner(class, method, issuer?);
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.body_owner",
++        Some(prefix.producer().site().offset),
++        owner.is_some(),
++    );
++    let owner = owner?;
++    let word = prefix.original_argument(0);
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.selector_word",
++        Some(prefix.producer().site().offset),
++        word.is_some(),
++    );
++    let word = word?;
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.written_selector",
++        Some(word.span().start()),
++        matches!(
++            prefix.argument_origin(0),
++            Some(InvocationWordOrigin::Written(_))
++        ),
++    );
+     let InvocationWordOrigin::Written(written) = prefix.argument_origin(0)? else {
+         return None;
+     };
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.original_selector_producer",
++        Some(word.span().start()),
++        written != 0 && prefix.producer().original_words().get(written) == Some(word),
++    );
+     if written == 0 || prefix.producer().original_words().get(written) != Some(word) {
+         return None;
+     }
+@@ -1800,7 +1906,23 @@
+         word,
+         tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
+         name.policy(),
+-    )?;
++    );
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.selector_key",
++        Some(word.span().start()),
++        key.is_some(),
++    );
++    let key = key?;
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.selector_name",
++        Some(word.span().start()),
++        key.bytes() == name.bytes()
++            && method
++                .name_purpose()
++                .admits(key.policy().recipe(), key.bytes()),
++    );
+     if key.bytes() != name.bytes()
+         || !method
+             .name_purpose()
+@@ -1808,9 +1930,22 @@
+     {
+         return None;
+     }
+-    let span = bare_original_prefix_span(word)?;
++    let span = bare_original_prefix_span(word);
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.selector_geometry",
++        Some(word.span().start()),
++        span.is_some(),
++    );
++    let span = span?;
+     let body = owner.metadata().body_span;
+     let stored = stored_callback_targets(ctx, body);
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.stored_inventory",
++        Some(body.start()),
++        !stored.is_empty(),
++    );
+     let body_ctx = MyMethodScan {
+         stored_callbacks: &stored,
+         ..ctx
+@@ -1820,9 +1955,18 @@
+         kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
+         span,
+     };
+-    (stored.iter().any(|stored| stored.target == candidate)
+-        && stored_callback_is_consumed(body_ctx, start, end, candidate, 0))
+-    .then_some(span)
++    let matching_store = stored.iter().any(|stored| stored.target == candidate);
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.matching_store",
++        Some(span.start()),
++        matching_store,
++    );
++    let consumed =
++        matching_store && stored_callback_is_consumed(body_ctx, start, end, candidate, 0);
++    #[cfg(test)]
++    trace_authored_callback_reference("collector.consumed_store", Some(span.start()), consumed);
++    consumed.then_some(span)
+ }
+ 
+ fn authored_callback_body_owner<'a>(
+@@ -1835,7 +1979,26 @@
+         CallableRole, DefinitionMemberNamePurpose, MemberEffect, MemberReceiver,
+     };
+ 
+-    let row = issuer.member_row()?;
++    let row = issuer.member_row();
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.real_member_row",
++        Some(issuer.original_container().span().start()),
++        row.is_some(),
++    );
++    let row = row?;
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.callable_method",
++        Some(issuer.original_container().span().start()),
++        matches!(
++            row.effect,
++            MemberEffect::Callable {
++                role: CallableRole::Method,
++                ..
++            }
++        ),
++    );
+     if !matches!(
+         row.effect,
+         MemberEffect::Callable {
+@@ -1850,6 +2013,12 @@
+         MemberReceiver::TypeObject => MemberSide::ClassObject,
+         MemberReceiver::Both => return None,
+     };
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.member_side",
++        Some(issuer.original_container().span().start()),
++        side == method.side(),
++    );
+     if side != method.side() {
+         return None;
+     }
+@@ -1858,8 +2027,35 @@
+             && owner.name_purpose() == DefinitionMemberNamePurpose::TclOoMethod
+             && owner.body_word() == Some(issuer.original_container())
+     });
+-    let owner = owners.next()?;
+-    owners.next().is_none().then_some(owner)
++    #[cfg(test)]
++    for owner in class.original_members.declarations() {
++        trace_authored_callback_reference(
++            "collector.owner_body_present",
++            Some(owner.declaration().original_word().span().start()),
++            owner.body_word().is_some(),
++        );
++        trace_authored_callback_reference(
++            "collector.owner_body_matches",
++            Some(owner.declaration().original_word().span().start()),
++            owner.body_word() == Some(issuer.original_container()),
++        );
++    }
++    let owner = owners.next();
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.first_body_owner",
++        Some(issuer.original_container().span().start()),
++        owner.is_some(),
++    );
++    let owner = owner?;
++    let unique = owners.next().is_none();
++    #[cfg(test)]
++    trace_authored_callback_reference(
++        "collector.unique_body_owner",
++        Some(issuer.original_container().span().start()),
++        unique,
++    );
++    unique.then_some(owner)
+ }
+ 
+ /// Resolve the current declaration's receipt-backed method call sites.
+--- rust/tcl-lsp-core/src/method_symbol.rs production
++++ rust/tcl-lsp-core/src/method_symbol.rs diagnostic
+@@ -1096,7 +1096,20 @@
+     target: &OriginalMethodCandidate,
+     include_declaration: bool,
+ ) -> Vec<Span> {
+-    if !target.uri().is_empty() || !current(source, analysis) {
++    #[cfg(test)]
++    crate::references::trace_authored_callback_reference(
++        "symbol.local_reference_spans",
++        Some(target.declaration_span().start()),
++        true,
++    );
++    let available = target.uri().is_empty() && current(source, analysis);
++    #[cfg(test)]
++    crate::references::trace_authored_callback_reference(
++        "symbol.current_local_source",
++        Some(target.declaration_span().start()),
++        available,
++    );
++    if !available {
+         return Vec::new();
+     }
+     let mut spans = Vec::new();

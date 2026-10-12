@@ -1,0 +1,16 @@
+{
+  "selector_provenance": "Observed with --list on existing core binary before scratch apply; not executed by this preparation. Recheck from newly compiled same-target binary.",
+  "existing_binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "existing_binary_sha256": "6203dca82cab6104deed2f2669de04896fbd70ff17bff78831982ea75272e1d5",
+  "argv_suffix_for_each": [
+    "--exact",
+    "--nocapture"
+  ],
+  "selectors": [
+    "receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration",
+    "receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency",
+    "references::tests::inert_list_built_self_value_is_not_a_method_reference",
+    "references::tests::deferred_braced_self_script_is_not_a_method_reference",
+    "rename::tests::workspace_rejects_inherited_namespace_wrapped_external_private_callback"
+  ]
+}

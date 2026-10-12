@@ -1,0 +1,63 @@
+   Compiling libc v0.2.190
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling getrandom v0.4.3
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling crypto-bigint v0.7.5
+   Compiling sha2 v0.11.0
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling elliptic-curve v0.14.1
+   Compiling primefield v0.14.0
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling getrandom v0.2.17
+   Compiling ring v0.17.14
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling crypto-primes v0.7.2
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 1m 53s
+     Running unittests src/lib.rs (tmp/name-target-runtime/debug/deps/tcl_lsp_core-ff8efa1ff2b55103)
+
+running 4 tests
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (242428) panicked at rust/tcl-lsp-core/src/references.rs:6385:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... FAILED
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration' (242427) panicked at rust/tcl-lsp-core/src/references.rs:6435:13:
+assertion failed: reference_ranges(source, &analysis, true).contains(&selector_range)
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration ... FAILED
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand' (242426) panicked at rust/tcl-lsp-core/src/references.rs:6290:29:
+tcl8.6/private-positive: missing original builder schema
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand ... FAILED
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_stored_sink_withdraws_unknown_and_opaque_writers ... ok
+
+failures:
+
+failures:
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 2999 filtered out; finished in 11.27s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

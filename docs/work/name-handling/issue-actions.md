@@ -47,6 +47,10 @@ centralisation obligations remain independent.
 removes obsolete W210 prose. GitHub closure was confirmed; repository-wide
 comment/document cleanup remains a separate unfinished obligation.
 
+## #2300 — keep open
+
+The [published oracle/source receipt](https://github.com/bitwisecook/tcl-lsp/issues/2300#issuecomment-6134812782) identifies `1a23813c2`. Original witness/adverse controls pass on real C8.4–9.1; Jim setup succeeds but forget is unavailable. Runtime source still constructs `::::g` through its display join; no fresh Runtime witness or repair acceptance follows. The correction must use shared pattern parts and actual namespace/import-generation origins, preserving unqualified own-name matching and unavailable-owner refusal. Broader #1778 lifetime remains separate. GitHub was read back OPEN before this update.
+
 ## Other targets
 
 Use [issues.md](issues.md) for the related open/closed issue catalogue and

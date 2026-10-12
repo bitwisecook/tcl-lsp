@@ -1,0 +1,22 @@
+{
+  "completed_utc": "2026-10-12T23:45:31.448664+00:00",
+  "exit_code": 101,
+  "tests": {
+    "matched": 4,
+    "passed": 1,
+    "failed": 3,
+    "ignored": 0,
+    "filtered_out": 2999
+  },
+  "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "binary_sha256": "6acb55678dceeaa58a1a3beb8dc45305ff40e2d58f7e14a391bdc67850f7864b",
+  "changed_scoped_source_inputs": [],
+  "source_or_assertions_changed_during_run": false,
+  "advice_progress": "Original Tcl8.6 positive and unknown-writer source-advice assertions all passed; distinct private-positive fails missing original builder schema at references.rs6290, later release iterations unreached.",
+  "public_reference_failure": "Tcl8.6 original selector [190,194) absent; only declaration line2 chars11..15 returned at references.rs6385. This unchanged test does not distinguish a readonly collector guard from earlier entry/visitor/metadata refusal.",
+  "currentness_failure": "Authored prefix Some baseline passes; public selector-reference baseline fails refs6435, later stale-source/configuration/missing input checks unreached.",
+  "adverse": "Original unknown writer, opaque and nested reassignment absent-selector/declaration checks passed for Tcl8.6/9.0/9.1; without positive reference baseline, cannot claim writer-caused withdrawal.",
+  "logical_fifth": "not run; not authorised",
+  "other_controls": "not run in this lease",
+  "scope": "Exact applied two-LSP-owner readonly collector; actual normal core15 +rootdev conservative source roots frozen, VM/StandaloneRuntime excluded and unlinked. No Native capture/rename/frame widening."
+}
