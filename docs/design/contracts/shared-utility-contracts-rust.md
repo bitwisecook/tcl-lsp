@@ -4035,3 +4035,21 @@ final objProc-null timing; it acquires no Native role and makes no Native
 client-data backing-free equivalence claim. Its additional software control
 reaches actual imported-command traces after private backing retirement and
 retains that first typed refusal through mandatory original-token cleanup.
+
+
+### Conditional roles at a Logical source lookup point
+
+`SourceInvocationBinding::original_conditional_operand_layout_advice` shares the
+existing declaration and compiler layout owners, with a separate positively
+Logical source route when those observations are absent. That route consumes
+the actual immutable post-operand lookup state and the complete original
+input, registry, source image, word vector, lexer configuration, namespace,
+variable context and target correspondence. It calls the same
+`original_site_operand_layout_advice` worker and requires a closed original
+registry-backed target set. Unknown observers, absent or replaced targets,
+foreign source scopes and changed vectors refuse the projection.
+
+Conditional structure, schema, expression roles, body topology and Logical
+scalar source modelling use this shared selector. Native compiler preparation,
+inline control, physical frames, completed handlers and Normal results retain
+their independent owners; source layout cannot supply those purposes.

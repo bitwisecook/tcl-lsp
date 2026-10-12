@@ -554,13 +554,11 @@ fn original_declared_structured_invocation<'a>(
         return None;
     }
     let logical_source = context.permits_logical_source_names();
-    let advice = binding
-        .declaration_operand_layout_advice(tokens)
-        .or_else(|| {
-            logical_source
-                .then(|| binding.original_compilation_lookup_advice(tokens))
-                .flatten()
-        });
+    let advice = if logical_source {
+        binding.original_conditional_operand_layout_advice(tokens, registry)
+    } else {
+        binding.declaration_operand_layout_advice(tokens)
+    };
     #[cfg(test)]
     trace_original_structure("declaration_advice", tokens, advice.is_some());
     let advice = advice?;
@@ -4856,9 +4854,7 @@ impl RegistryInvocationShape {
         if !assistance.candidates.contains(self) {
             return None;
         }
-        let original = binding
-            .declaration_operand_layout_advice(tokens)
-            .or_else(|| binding.original_compilation_lookup_advice(tokens))?;
+        let original = binding.original_conditional_operand_layout_advice(tokens, registry)?;
         let config = binding.original_lexer_config_for_tokens(tokens)?;
         let dialect = tcl_registry::InvocationDialect {
             lexer_grammar: config.grammar_over(original.dialect().lexer_grammar),
@@ -7305,9 +7301,7 @@ fn original_expression_context_advice_selected_word(
     let context = binding
         .original_source_metadata_for_advice(tokens, registry)
         .ok()??;
-    let advice = binding
-        .declaration_operand_layout_advice(tokens)
-        .or_else(|| binding.original_compilation_lookup_advice(tokens))?;
+    let advice = binding.original_conditional_operand_layout_advice(tokens, registry)?;
     if advice.has_opaque_handler_alternatives() {
         return None;
     }
@@ -7437,10 +7431,12 @@ fn original_compilation_body_topology_advice<'a>(
         return None;
     }
 
-    let advice = tokens
-        .source_binding
-        .as_ref()?
-        .original_compilation_lookup_advice(tokens)?;
+    let binding = tokens.source_binding.as_ref()?;
+    let advice = if context.permits_logical_source_names() {
+        binding.original_conditional_operand_layout_advice(tokens, registry)?
+    } else {
+        binding.original_compilation_lookup_advice(tokens)?
+    };
     original_layout_body_topology_advice(registry, context, tokens, &advice)
 }
 

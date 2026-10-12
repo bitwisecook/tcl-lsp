@@ -105,9 +105,7 @@ impl super::SourceInvocationBinding {
         {
             return None;
         }
-        let advice = self
-            .declaration_operand_layout_advice(tokens)
-            .or_else(|| self.original_compilation_lookup_advice(tokens))?;
+        let advice = self.original_conditional_operand_layout_advice(tokens, registry)?;
         if !advice.closed_logical_source_lookup()
             || advice.snapshot.state.logical_source_name_advice_input() != Some(point_input)
             || advice.snapshot.state.source_variables.as_ref() != before
