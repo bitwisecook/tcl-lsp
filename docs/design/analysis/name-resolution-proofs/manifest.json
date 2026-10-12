@@ -323388,6 +323388,55 @@
           "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
           "sha256": "392fd0eb70f69523eb7fa1a0b33a6ffb790e6b61c4ba4387011a9c97282d8879",
           "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
+        },
+        {
+          "id": "original-package-owner-source-71192009913fa9dc",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_package/original/tests.rs",
+          "sha256": "d64576095dcddd03f9edd74e8c4a8e780c03bc893e4f3faea36fa8433f87cea0",
+          "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
+        },
+        {
+          "id": "original-package-owner-source-d63a2fd07a8eb540",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_package/original.rs",
+          "sha256": "6a03ed3cb3027f2b89bf8b647e29d96fc3afa21fc76660e35a81db7c4182c2b2",
+          "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
+        },
+        {
+          "id": "original-package-owner-source-313e77cdd1e912f6",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_package.rs",
+          "sha256": "eb15ea6c6ba59fa81432b69177bec062786c1a1e8251af0873a02605305fe75e",
+          "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
+        },
+        {
+          "id": "original-package-owner-source-5870190dbac49f28",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/authored_package.rs",
+          "sha256": "801b393b68ebfeab3761bea567e23a95bf4c892f4ff0b911e930b7780e1c801b",
+          "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
+        },
+        {
+          "id": "original-package-owner-source-a1442f03dea04e62",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp.rs",
+          "sha256": "7b57a09a9e3baa74f6058bf1fd6b8067e0ffcafcde773756e1a8f727bb532cbc",
+          "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
+        },
+        {
+          "id": "original-package-owner-source-ded91d69a3536be0",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/selected_frame.rs",
+          "sha256": "e276a67c0c4a93df36ee93f6bade1831e86caa510d2bff90eafe845ab4c3fe1c",
+          "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
+        },
+        {
+          "id": "original-package-owner-source-7b3ec3d151089623",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/selected_frame/tests.rs",
+          "sha256": "c9b059e1a83109538e744390af71d5c13b743521ac96c35212d44bafc29a3b53",
+          "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
         }
       ],
       "source_anchors": [],
@@ -324151,6 +324200,46 @@
           "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
           "symbol": "OriginalOoCleanup::retire_selected_namespace",
           "purpose": "Existing original namespace activation retirement using its genuine birth, preserving callback-created replacements and only retiring the authentic old role."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original.rs",
+          "symbol": "OriginalPackage::run",
+          "purpose": "Enter the actual operation and selected table before callback effects; retain allocation-only operands and check original result/options and operand retirement before publication. No post-callback scope refresh."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original.rs",
+          "symbol": "OriginalPackage::string",
+          "purpose": "Canonical OriginalNumericOps String worker under the same entered operation, actual selected protocol and held original operand; preserve full typed first cause through final held-value retirement."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original.rs",
+          "symbol": "OriginalPackage::list",
+          "purpose": "Canonical checked List worker under the same original operation/protocol and operand currency; no neutral getter or prefix-byte recreation."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original.rs",
+          "symbol": "OriginalPackage::eval_script",
+          "purpose": "Original checked global-frame selection delegates the existing shared saved physical execution-target cleanup; it retains the same operation through the callback."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_package.rs",
+          "symbol": "PackageTableReceipt::cleanup",
+          "purpose": "Mandatory restoration and value retirement on the saved physical table/context before first-cause settlement, preserving callback-selected interpreter state."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_package.rs",
+          "symbol": "Vm::with_package_table_checked",
+          "purpose": "Share the actual selected table enter/exit worker and restore its original selector/depth before currency settlement for production package entry and selected authored callbacks."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/selected_frame.rs",
+          "symbol": "Vm::select_execution_frame_checked",
+          "purpose": "Check the genuine SavedExecutionTarget before hiding original procedure frames; neutral level-only selection keeps its existing surface."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/selected_frame.rs",
+          "symbol": "Vm::restore_execution_frame",
+          "purpose": "Restore the unchanged saved frame/namespace/script-tail payload through the shared original physical target and mandatory cleanup, preserving the callback-selected child. It grants no ordinary-procedure abort proof."
         }
       ],
       "tests": [
@@ -329391,6 +329480,36 @@
           "selector": "exec::original_activation_cleanup_tests::original_activation_positive_procedure_keeps_existing_owned_roles_and_no_saved_entry",
           "status": "linked",
           "assertion": "A positive actual procedure returns its original value through existing result ownership, retires its call and namespace, and leaves no entered saved scope. Clearing the reached result preserves the original value's exact reference comparison. This associates the definition only and supplies no assertion outcome or Native reference schedule."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original/tests.rs",
+          "selector": "cmd_package::original::tests::original_package_version_string_uses_actual_formatter_and_full_first_failure",
+          "status": "linked",
+          "assertion": "Fixed C84 cache-backed package vcompare software control: the supplied Long formatter is acquired/invoked once, the later operand snapshot and reference counts remain unchanged, and the full StringUpdater refusal or supplied result bytes are asserted. This forwards a software formatter; it establishes no native minimum-integer formatter equivalence."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original/tests.rs",
+          "selector": "cmd_package::original::tests::original_package_unknown_and_loader_restore_before_original_currency_settlement",
+          "status": "linked",
+          "assertion": "Fixed C84/C85/C86/C90/C91 actual software unknown/loader callbacks: a host withdrawal or pre-existing Host cause survives original table/loading/file/global-frame cleanup; the callback table effect remains, and retry cannot publish a later package. No external callback or private getter chronology is asserted."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original/tests.rs",
+          "selector": "cmd_package::original::tests::original_package_pending_host_precedes_operand_materialisation_and_table_effects",
+          "status": "linked",
+          "assertion": "Fixed C84/C85/C86/C90/C91/Jim software pending-Host ingress: package refuses before the byte-array operand snapshot changes or a later database effect appears, retaining the same full cause. No additional native argument chronology is asserted."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_package/original/tests.rs",
+          "selector": "cmd_package::original::tests::original_embedding_package_provide_uses_actual_database_protocol",
+          "status": "linked",
+          "assertion": "Fixed software package provide with actual C86 versus C90 database protocol and deliberately different logical version: the suffix input produces the asserted Code/database membership with no Host refusal. No additional native package observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/selected_frame/tests.rs",
+          "selector": "interp::selected_frame::tests::original_package_global_selection_restores_hidden_parent_and_preserves_callback_child",
+          "status": "linked",
+          "assertion": "Fixed C86/C91 software procedure and NativeCommand callback leaves a genuine child current: the immediate selected-frame probe asserts unchanged child frame identities/namespaces and restored parent hidden frames, namespace/script tails, recursion and package loading/file state, with the exact first Host/context cause. Probe restores its caller before separate ordinary-procedure abort; this test does not assert that independent activation boundary."
         }
       ],
       "replay": {
