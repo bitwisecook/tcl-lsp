@@ -1,0 +1,37 @@
+{
+  "engine": "runtime",
+  "stem": "interp",
+  "exit_code": 2,
+  "seconds": 25.431,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/tmp/name-native-c84-declared-cell-runner",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "input_sha256": "dd2ad55d0b09891494892fc7606ebfc370761de6ff5cfa5d15f2edc39aa30fe0",
+  "test_sha256": "7d5fc0d58a237e680fceac000dad3e610632b4be86d88750d3fc4d4610843fd9",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [
+    "interp-1.6",
+    "interp-10.1",
+    "interp-10.2",
+    "interp-10.3",
+    "interp-10.5",
+    "interp-10.6",
+    "interp-10.7",
+    "interp-11.2",
+    "interp-3.4",
+    "interp-3.8",
+    "interp-4.8",
+    "interp-8.3",
+    "interp-9.3"
+  ],
+  "last_started_id": "interp-11.4",
+  "status": "process-error"
+}

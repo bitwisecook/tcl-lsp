@@ -1,0 +1,47 @@
+[
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+    "retained": "oracle-inputs/library/init.tcl",
+    "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+    "retained": "oracle-inputs/library/tcltest/tcltest.tcl",
+    "sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+    "retained": "oracle-inputs/library/tcltest/pkgIndex.tcl",
+    "sha256": "30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/namespace.test",
+    "retained": "oracle-inputs/tests/namespace.test",
+    "sha256": "116a1cdd575f26038369f1bdb50a108c02948b5fb10116da839c18331bfc2d92"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/var.test",
+    "retained": "oracle-inputs/tests/var.test",
+    "sha256": "b53c4291c4dbaacb325cecc00553b685fc91e563dade3c7ff16c671fac2712e6"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/upvar.test",
+    "retained": "oracle-inputs/tests/upvar.test",
+    "sha256": "773c8bfc44d3730733f317fb8d1be579b11f2d57c836771c521fc0c83a6090a9"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/proc.test",
+    "retained": "oracle-inputs/tests/proc.test",
+    "sha256": "d295aa8672cf410dcd67e995237e1e5f92660d4812da341e85d57696c6d9d5e7"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/rename.test",
+    "retained": "oracle-inputs/tests/rename.test",
+    "sha256": "006b2e34f7a2b95d9590726230e35349d0f1df9d348a018dbecd986cafa458c1"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/tests/interp.test",
+    "retained": "oracle-inputs/tests/interp.test",
+    "sha256": "7d5fc0d58a237e680fceac000dad3e610632b4be86d88750d3fc4d4610843fd9"
+  }
+]

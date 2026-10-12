@@ -1,0 +1,16 @@
+{
+  "provider": "runtime-before",
+  "version": "8.4.20",
+  "argv": [
+    "/tmp/name-native-compiled-alias-runner",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+  "input": "marker.tcl",
+  "input_sha256": "cca181d266cba333eddbc76e4ac004e0f5f6c11450447ba4be6dce74c2844b98",
+  "exit_code": 2,
+  "stdout": "runtime-before/marker/stdout.txt",
+  "stderr": "runtime-before/marker/stderr.txt"
+}

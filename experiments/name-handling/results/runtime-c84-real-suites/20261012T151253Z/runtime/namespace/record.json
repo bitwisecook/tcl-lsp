@@ -1,0 +1,38 @@
+{
+  "engine": "runtime",
+  "stem": "namespace",
+  "exit_code": 0,
+  "seconds": 55.718,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/tmp/name-native-c84-declared-cell-runner",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "input_sha256": "cf2f0b1770c7c3d53d2ec98c22e24863c2ff88dba835e389c74dac948c21e69b",
+  "test_sha256": "116a1cdd575f26038369f1bdb50a108c02948b5fb10116da839c18331bfc2d92",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [
+    "namespace-10.6",
+    "namespace-10.7",
+    "namespace-14.13",
+    "namespace-25.6",
+    "namespace-28.1",
+    "namespace-34.2",
+    "namespace-34.3",
+    "namespace-8.5",
+    "namespace-8.6",
+    "namespace-8.7"
+  ],
+  "last_started_id": "namespace-41.2",
+  "total": 189,
+  "passed": 176,
+  "skipped": 3,
+  "failed": 10,
+  "status": "fail"
+}

@@ -112,10 +112,10 @@ publication gates or establish current engine/static conformance.
 3. Provide actual native compiler recipes for the selected `namespace which`
    worker. Repair 8.4 indexed receiver, 8.6 command-entry epoch and 9.x local-alias
    handler prerequisites; bootstrap refusals cannot become Tcltest assertions.
-4. Finish the measured Jim maximum variable arity and execute the VM declaration
-   matrix. The original C 8.5 var.test failures are fixed in the frozen capture;
+4. Complete original regex enumeration and release-specific array trace/arity
+   admission. Jim variable maximum arity and the VM declaration matrix pass. The original C 8.5 var.test failures are fixed in the frozen capture;
    original regex enumeration and broader VM/runtime conformance remain open.
-5. Repair original cell/bootstrap prerequisites and the measured 8.5 namespace
+5. Finish 8.6/9.x original bootstrap prerequisites and measured 8.4/8.5 namespace
    failures. The cached/fresh public question now matches C after real startup;
    escaped NUL production still needs its actual string/source owner. The byte-count helper must
    continue to read physical representation rather than reconstruct encoding.
@@ -136,17 +136,22 @@ separates passed controls, failed controls and gates which were not reached.
 
 ## Current bounded assignments
 
-- W210: shared body-source controls pass; missing-read diagnostics remain red.
-  Compiler debug investigation is active; temporary tracing must be removed.
+- W210: body-source/admission/lifecycle guards pass; six Tcltest controls pass
+  and three missing-read controls remain red. All temporary tracing is removed;
+  the remaining lifecycle/read admission guard still needs precise diagnosis.
 - Source advice: five new focused controls pass; six broader owner failures
   need baseline attribution before packaged LSP validation.
-- Runtime cells: the C 8.4 declared-cell repair awaits focused execution;
+- Runtime cells: the C 8.4 declared-cell/public namespace-link checks and real
+  init/Tcltest startup pass; var/proc/rename suites complete without failures.
+  Namespace has ten assertion failures; upvar and interp hit explicit refusals;
   original 8.6 command epochs and 9.x simple-cell startup remain unresolved.
-- Jim variable arity: source and oracle-backed VM/runtime tests are ready;
-  fresh execution is pending.
+- Jim variable arity: VM zero/three/four operand matrix and runtime matrices
+  pass against all five C releases and Jim. Array mode validation passes 200
+  oracle comparisons; ten populated-regexp refusals remain explicit.
 - Gate owners/backing and generated AI prompts: source fixes ready, gates and
   generation unexecuted after the interrupted build.
-- Proof source review: syntax review is in `/tmp/name-syntax-proof-review.json`;
+- Proof source review: [syntax](evidence-review/syntax.json) and
+  [LSP](evidence-review/lsp.json) reviews are retained;
   final source freeze and explicit invariant/scope review are required before
   renewing implementation evidence. No blanket digest refresh.
 

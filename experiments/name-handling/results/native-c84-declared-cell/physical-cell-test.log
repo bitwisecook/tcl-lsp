@@ -1,0 +1,168 @@
+   Compiling typenum v1.20.1
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling hybrid-array v0.4.15
+   Compiling cfg-if v1.0.5
+   Compiling const-oid v0.10.2
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling syn v3.0.6
+   Compiling digest v0.11.3
+   Compiling thiserror v2.0.21
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+   Compiling bitflags v2.13.2
+   Compiling thiserror-impl v2.0.21
+   Compiling cpufeatures v0.3.1
+   Compiling libm v0.2.16
+   Compiling bytecount v0.6.9
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling sha2 v0.11.0
+   Compiling shlex v2.0.1
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling find-msvc-tools v0.1.14
+   Compiling cc v1.6.0
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling libc v0.2.190
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling crc32fast v1.5.2
+   Compiling simd-adler32 v0.3.10
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.9.1
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling smallvec v1.16.2
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+   Compiling rustc-hash v2.1.3
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling flate2 v1.1.10
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+warning: unused import: `native_list_storage::native_list_range`
+  --> src/list.rs:58:16
+   |
+58 | pub(crate) use native_list_storage::native_list_range;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `scope`
+   --> src/interp/native_body_artifact/original_word_input_tests.rs:208:17
+    |
+208 |             let scope =
+    |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_scope`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `read_double` is never used
+   --> src/bignum.rs:311:15
+    |
+311 | pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
+    |               ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `materialise_selected_array` is never used
+   --> src/frame.rs:648:8
+    |
+587 | impl CellContents {
+    | ----------------- method in this implementation
+...
+648 |     fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `remove` is never used
+  --> src/frame/native_element_entry.rs:68:19
+   |
+31 | impl NativeElementEntries {
+   | ------------------------- method in this implementation
+...
+68 |     pub(super) fn remove(&mut self, key: &[u8]) {
+   |                   ^^^^^^
+
+warning: methods `retire_native_entry` and `retire_jim_key` are never used
+   --> src/frame/native_variable_names.rs:92:19
+    |
+ 14 | impl VarTable {
+    | ------------- methods in this implementation
+...
+ 92 |     pub(super) fn retire_native_entry(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+112 |     pub(super) fn retire_jim_key(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^
+
+warning: method `retain_original_compiled_alias` is never used
+   --> src/frame/native_variable_names.rs:247:19
+    |
+154 | impl FrameStack {
+    | --------------- method in this implementation
+...
+247 |     pub(crate) fn retain_original_compiled_alias(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `on_command_replaced` is never used
+    --> src/interp.rs:5543:8
+     |
+1883 | impl Interp {
+     | ----------- method in this implementation
+...
+5543 |     fn on_command_replaced(&mut self, fqn: &[u8]) {
+     |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `concatenate_native_lists` is never used
+    --> src/list.rs:1290:15
+     |
+1290 | pub(crate) fn concatenate_native_lists(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `replace_elements_native_checked` is never used
+    --> src/list.rs:1527:15
+     |
+1527 | pub(crate) fn replace_elements_native_checked(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retire` is never used
+   --> src/obj/native_namespace_name.rs:125:15
+    |
+125 | pub(crate) fn retire(value: *mut TclObj) -> Result<(), ValueError> {
+    |               ^^^^^^
+
+warning: function `set_at` is never used
+    --> src/vars.rs:1657:15
+     |
+1657 | pub(crate) fn set_at(
+     |               ^^^^^^
+
+warning: function `set_elem_at` is never used
+    --> src/vars.rs:1684:15
+     |
+1684 | pub(crate) fn set_elem_at(
+     |               ^^^^^^^^^^^
+
+warning: function `selected_namespace_link_target` is never used
+    --> src/vars.rs:2637:15
+     |
+2637 | pub(crate) fn selected_namespace_link_target(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `capture_variable_receiver_at` is never used
+    --> src/vars.rs:2706:15
+     |
+2706 | pub(crate) fn capture_variable_receiver_at(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-runtime` (lib test) generated 15 warnings (run `cargo fix --lib -p tcl-runtime --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 1m 17s
+     Running unittests src/lib.rs (tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9)
+
+running 1 test
+test frame::native_variable_names::indexed_receiver_tests::name_lookup_observes_only_the_selected_existing_compiled_cell ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2067 filtered out; finished in 0.00s
+

@@ -116,6 +116,12 @@ impl VarTable {
     /// shell. Creation precedes observers and gives the key its real owner.
     pub(crate) fn prepare_native_name_cell(&mut self, name: &[u8], create: bool) -> bool {
         if self.has_native_name_cell(name) {
+            let slot = self.lookup_slot(name).expect("selected original name cell");
+            self.cells[slot]
+                .contents
+                .borrow_mut()
+                .binding_id
+                .get_or_insert_with(super::fresh_var_id);
             return true;
         }
         if !create {
@@ -222,6 +228,20 @@ impl FrameStack {
             observation,
             link,
         ))
+    }
+    pub(crate) fn original_compiled_cell_at_is_current(
+        &self,
+        level: usize,
+        slot: usize,
+        original: &super::VariablePublicationObservation,
+    ) -> bool {
+        self.index_of_level(level)
+            .and_then(|frame| {
+                let frame = &self.frames[frame];
+                let cell = frame.compiled_slots.get(slot).copied().flatten()?;
+                Some(original.matches(&frame.table.cells.get(cell)?.contents))
+            })
+            .unwrap_or(false)
     }
 
     pub(crate) fn retain_original_compiled_alias(
@@ -410,6 +430,34 @@ mod indexed_receiver_tests {
         obj,
     };
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn name_lookup_observes_only_the_selected_existing_compiled_cell() {
+        for version in TclVersion::ALL {
+            let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
+                tcl_registry::InvocationDialect::for_version(version)
+                    .execution_point()
+                    .unwrap(),
+            )
+            .unwrap();
+            let mut frames = FrameStack::new();
+            frames.push(GLOBAL);
+            frames.install_formal_cells(&[b"same".to_vec(), b"same".to_vec()], protocol);
+            let frame = frames.current_frame_index();
+            let table = &mut frames.frames[frame].table;
+            assert!(!table.prepare_native_name_cell(b"missing", false));
+            assert_eq!(table.cells.len(), 2);
+            assert!(table.prepare_native_name_cell(b"same", false));
+            let (observed, _) = table.observe_original_name_cell(b"same").unwrap();
+            assert!(table.cells[0].contents.borrow().binding_id.is_some());
+            assert!(table.cells[1].contents.borrow().binding_id.is_none());
+            assert!(table.cells[0].contents.borrow().var.is_none());
+            assert!(table.entry_order.borrow().physical_keys().is_empty());
+            assert!(table.native_keys.borrow().is_empty());
+            assert!(frames.original_compiled_cell_at_is_current(1, 0, &observed));
+            assert!(!frames.original_compiled_cell_at_is_current(1, 1, &observed));
+        }
+    }
 
     #[test]
     fn unnamed_native_locals_retain_original_values_without_dynamic_entries() {

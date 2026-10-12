@@ -1,0 +1,1160 @@
+{
+  "captured_utc": "2026-10-12T15:42:59.259843+00:00",
+  "argv": [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--locked",
+    "-j2",
+    "--test",
+    "native_variable_array_modes",
+    "--",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime",
+    "TCL_TOMMATH_DIR": "/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0"
+  },
+  "channel": "fresh native integration executable; Interp::with_native_core, no init",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/native_variable_array_modes-f3608f7b23282f70",
+  "binary_sha256": "dbe0bbe725b50549a989ad34addb242adc69081e702395ac64581f908347a95b",
+  "log_sha256": "64b6fabb6f69cf133d3079822c97f38d26e269fe853c123fd4cef796748127c8",
+  "source_before_build_sha256": "455ead6364459fc50714503d02f049c25e438b2ff79277a819536e2b93fe123f",
+  "source_after_build_sha256": "455ead6364459fc50714503d02f049c25e438b2ff79277a819536e2b93fe123f",
+  "input_before_build_sha256": "5da5cc6c0e5914807329d52c65d94aee7aa867a3aaa118ecb5747dec5f4becb8",
+  "source_currency_changed": [],
+  "exit_code": 0,
+  "tests_passed": 3,
+  "tests_failed": 0,
+  "boundary_counts": {
+    "original-jim-registration-failed-question-unreached": 6,
+    "oracle-row-matched": 200,
+    "independent-adapter-admission-gap-not-asserted": 6,
+    "explicit-host-refusal-checked-not-c-conformance": 10
+  },
+  "cases": [
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/arity-no-name.tcl",
+      "runtime_validation": "independent-adapter-admission-gap-not-asserted"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/arity-too-many-missing.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/arity-too-many-populated.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/empty-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/empty-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/empty-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/empty-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/empty-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/empty-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/empty-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/missing-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/missing-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/missing-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/missing-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/missing-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/missing-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/populated-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/populated-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/populated-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/populated-invalid-regexp.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/populated-regexp-valid.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/populated-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/scalar-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/scalar-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/scalar-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/scalar-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/scalar-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/scalar-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "cases/scalar-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "traces/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "traces/missing-create-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "traces/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "traces/populated-fail-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "traces/populated-fail-too-many.tcl",
+      "runtime_validation": "independent-adapter-admission-gap-not-asserted"
+    },
+    {
+      "subject": "c-8.4.20",
+      "input": "traces/populated-too-many.tcl",
+      "runtime_validation": "independent-adapter-admission-gap-not-asserted"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/arity-no-name.tcl",
+      "runtime_validation": "independent-adapter-admission-gap-not-asserted"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/arity-too-many-missing.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/arity-too-many-populated.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/empty-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/empty-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/empty-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/empty-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/empty-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/empty-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/empty-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/missing-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/missing-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/missing-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/missing-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/missing-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/missing-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/populated-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/populated-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/populated-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/populated-invalid-regexp.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/populated-regexp-valid.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/populated-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/scalar-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/scalar-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/scalar-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/scalar-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/scalar-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/scalar-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "cases/scalar-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "traces/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "traces/missing-create-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "traces/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "traces/populated-fail-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "traces/populated-fail-too-many.tcl",
+      "runtime_validation": "independent-adapter-admission-gap-not-asserted"
+    },
+    {
+      "subject": "c-8.5.19",
+      "input": "traces/populated-too-many.tcl",
+      "runtime_validation": "independent-adapter-admission-gap-not-asserted"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/arity-no-name.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/arity-too-many-missing.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/arity-too-many-populated.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/empty-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/empty-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/empty-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/empty-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/empty-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/empty-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/empty-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/missing-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/missing-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/missing-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/missing-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/missing-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/missing-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/populated-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/populated-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/populated-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/populated-invalid-regexp.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/populated-regexp-valid.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/populated-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/scalar-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/scalar-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/scalar-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/scalar-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/scalar-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/scalar-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "cases/scalar-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "traces/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "traces/missing-create-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "traces/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "traces/populated-fail-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "traces/populated-fail-too-many.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-8.6.18",
+      "input": "traces/populated-too-many.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/arity-no-name.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/arity-too-many-missing.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/arity-too-many-populated.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/empty-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/empty-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/empty-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/empty-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/empty-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/empty-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/empty-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/missing-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/missing-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/missing-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/missing-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/missing-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/missing-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/populated-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/populated-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/populated-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/populated-invalid-regexp.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/populated-regexp-valid.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/populated-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/scalar-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/scalar-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/scalar-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/scalar-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/scalar-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/scalar-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "cases/scalar-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "traces/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "traces/missing-create-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "traces/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "traces/populated-fail-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "traces/populated-fail-too-many.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.0.4",
+      "input": "traces/populated-too-many.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/arity-no-name.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/arity-too-many-missing.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/arity-too-many-populated.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/empty-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/empty-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/empty-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/empty-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/empty-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/empty-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/empty-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/missing-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/missing-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/missing-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/missing-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/missing-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/missing-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/populated-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/populated-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/populated-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/populated-invalid-regexp.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/populated-regexp-valid.tcl",
+      "runtime_validation": "explicit-host-refusal-checked-not-c-conformance"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/populated-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/scalar-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/scalar-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/scalar-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/scalar-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/scalar-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/scalar-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "cases/scalar-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "traces/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "traces/missing-create-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "traces/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "traces/populated-fail-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "traces/populated-fail-too-many.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "c-9.1.0",
+      "input": "traces/populated-too-many.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/arity-no-name.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/arity-too-many-missing.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/arity-too-many-populated.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/empty-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/empty-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/empty-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/empty-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/empty-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/empty-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/empty-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/missing-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/missing-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/missing-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/missing-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/missing-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/missing-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/missing-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/populated-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/populated-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/populated-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/populated-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/populated-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/populated-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/populated-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/scalar-ambiguous-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/scalar-bad-mode.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/scalar-exact-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/scalar-glob-prefix.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/scalar-invalid-regexp.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/scalar-regexp-valid.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "cases/scalar-single-dash-pattern.tcl",
+      "runtime_validation": "oracle-row-matched"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "traces/missing-bad-mode.tcl",
+      "runtime_validation": "original-jim-registration-failed-question-unreached"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "traces/missing-create-bad-mode.tcl",
+      "runtime_validation": "original-jim-registration-failed-question-unreached"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "traces/populated-bad-mode.tcl",
+      "runtime_validation": "original-jim-registration-failed-question-unreached"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "traces/populated-fail-bad-mode.tcl",
+      "runtime_validation": "original-jim-registration-failed-question-unreached"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "traces/populated-fail-too-many.tcl",
+      "runtime_validation": "original-jim-registration-failed-question-unreached"
+    },
+    {
+      "subject": "jim-5bac7c9",
+      "input": "traces/populated-too-many.tcl",
+      "runtime_validation": "original-jim-registration-failed-question-unreached"
+    }
+  ],
+  "limits": [
+    "No populated-regexp C conformance",
+    "No VM execution of these array inputs",
+    "No custom-object getter execution",
+    "No fresh upstream 8.5 var.test run",
+    "No workspace/CI gate claim"
+  ]
+}

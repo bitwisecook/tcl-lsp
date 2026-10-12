@@ -1,0 +1,60 @@
+[
+  {
+    "provider": "C Tcl",
+    "version": "8.4.20",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "input": "marker.tcl",
+    "input_sha256": "cca181d266cba333eddbc76e4ac004e0f5f6c11450447ba4be6dce74c2844b98",
+    "exit_code": 0,
+    "stdout": "C Tcl/marker/stdout.txt",
+    "stderr": "C Tcl/marker/stderr.txt"
+  },
+  {
+    "provider": "runtime-before",
+    "version": "8.4.20",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.4"
+    ],
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input": "marker.tcl",
+    "input_sha256": "cca181d266cba333eddbc76e4ac004e0f5f6c11450447ba4be6dce74c2844b98",
+    "exit_code": 2,
+    "stdout": "runtime-before/marker/stdout.txt",
+    "stderr": "runtime-before/marker/stderr.txt"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "8.4.20",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "input": "literal-control.tcl",
+    "input_sha256": "1fb538fc6dd05ccbca43659166be1b17cb611c7227d05b9bb30ff74596d159f9",
+    "exit_code": 0,
+    "stdout": "C Tcl/literal-control/stdout.txt",
+    "stderr": "C Tcl/literal-control/stderr.txt"
+  },
+  {
+    "provider": "runtime-before",
+    "version": "8.4.20",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.4"
+    ],
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input": "literal-control.tcl",
+    "input_sha256": "1fb538fc6dd05ccbca43659166be1b17cb611c7227d05b9bb30ff74596d159f9",
+    "exit_code": 0,
+    "stdout": "runtime-before/literal-control/stdout.txt",
+    "stderr": "runtime-before/literal-control/stderr.txt"
+  }
+]

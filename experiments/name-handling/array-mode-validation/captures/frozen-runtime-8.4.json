@@ -1,0 +1,588 @@
+{
+  "captured_utc": "2026-10-12T15:23:24.028803+00:00",
+  "subject": "frozen-runtime-8.4",
+  "channel": "frozen native runner, no init; not current-tree build evidence",
+  "binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+  "TCL_LIBRARY": null,
+  "source_sha256": {
+    "tmp/tcl8.4.20/generic/tclVar.c": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+    "tmp/tcl8.5.19/generic/tclVar.c": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+    "tmp/tcl8.6.18/generic/tclVar.c": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+    "tmp/tcl9.0.4/generic/tclVar.c": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+    "tmp/tcl9.1.0/generic/tclVar.c": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+    "tmp/jimtcl-oracle/jim-array.c": "ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda",
+    "rust/tcl-cmd-core/src/array.rs": "d2d6cfa74af7f91e88cc60add4b308777b838e4a0d5b40309a79f7e8e9416999"
+  },
+  "identity": {
+    "argv": [
+      "/tmp/name-native-c84-declared-cell-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.4"
+    ],
+    "input": "identity.tcl",
+    "input_sha256": "54dc0b265591de5e4cc2cea8b6d0e6c1e695985436fb929ac909d716e3549eaa",
+    "exit_code": 0,
+    "stdout": "patchlevel 8.4.20\n",
+    "stderr": "",
+    "stdout_sha256": "dee4be617b508daa9970a1fced1320b2ea649bfc5dc3d3a10c739b42b37402db",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cases": [
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/arity-no-name.tcl",
+      "input_sha256": "18c690b3164d3594148abfcca76b6ce5469abbac2f1281aaf2d3c825065cedfc",
+      "exit_code": 0,
+      "stdout": "1 {wrong # args: should be \"array names arrayName ?mode? ?pattern?\"} NONE\n",
+      "stderr": "",
+      "stdout_sha256": "dc09fd8da270ec8465d39348a4ba18ab42093f1ddbae819b71d9204e72d41d26",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/arity-too-many-missing.tcl",
+      "input_sha256": "d1220928550450f0b0a630d63cf43fc018cef319e82266a6c8c725cec6a521b4",
+      "exit_code": 0,
+      "stdout": "1 {wrong # args: should be \"array names arrayName ?mode? ?pattern?\"} NONE\n",
+      "stderr": "",
+      "stdout_sha256": "dc09fd8da270ec8465d39348a4ba18ab42093f1ddbae819b71d9204e72d41d26",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/arity-too-many-populated.tcl",
+      "input_sha256": "d606abacb4a86b17f9b3b4a837c6691cbd0fa1b0f966a42491fab8b5dc99fd07",
+      "exit_code": 0,
+      "stdout": "1 {wrong # args: should be \"array names arrayName ?mode? ?pattern?\"} NONE\n",
+      "stderr": "",
+      "stdout_sha256": "dc09fd8da270ec8465d39348a4ba18ab42093f1ddbae819b71d9204e72d41d26",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/empty-ambiguous-mode.tcl",
+      "input_sha256": "b0d6e1707cfc3afd801f0e5d2f2543c0dc60b81a38f8931312db865889b9e2b4",
+      "exit_code": 0,
+      "stdout": "1 {ambiguous option \"-\": must be -exact, -glob, or -regexp} NONE\n",
+      "stderr": "",
+      "stdout_sha256": "ad384744292167c292b6ad303d1ff48b4fa5e93f740c632f8d6fc2f04e94c2b6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/empty-bad-mode.tcl",
+      "input_sha256": "1851fa2213fe427940882673ec424bd529748bcc55aa77ec6df077f41477d30e",
+      "exit_code": 0,
+      "stdout": "1 {bad option \"-bad\": must be -exact, -glob, or -regexp} NONE\n",
+      "stderr": "",
+      "stdout_sha256": "300f28f40919ab9b547600b21a540c9893e2d3adc4cf0b4acdf686264bbd0254",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/empty-exact-prefix.tcl",
+      "input_sha256": "a83c040a82db11050770c69019086ed72fef1e9a14248778bda0fe2da3d9f79c",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/empty-glob-prefix.tcl",
+      "input_sha256": "603f2755cb97f38f081b7c7d7491fa080b52d0f52ba2d2e2dd5a3d154d5f8959",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/empty-invalid-regexp.tcl",
+      "input_sha256": "329aedb0303886b2cdbe8ea700f018654aec970c1139dfab04ba3d3fe0a5ba6c",
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "run_script: execution refused: array names original regular-expression worker native handler policy is not selected\n",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "74bf87420888976fa6dbd22a556e85b30e9ed72687847a0f6a7e8f905d9d5240"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/empty-regexp-valid.tcl",
+      "input_sha256": "604109b824c508b8850cf2d996767c66f9f53efaffc9a46a5dddd7c746f89bc0",
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "run_script: execution refused: array names original regular-expression worker native handler policy is not selected\n",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "74bf87420888976fa6dbd22a556e85b30e9ed72687847a0f6a7e8f905d9d5240"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/empty-single-dash-pattern.tcl",
+      "input_sha256": "3ef228065391c789dddf32e653a3afb0c02ff07f357160b9f32b577ae1e0472b",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/missing-ambiguous-mode.tcl",
+      "input_sha256": "0b0867ec10829a3aa0ffab2ba1a8e764ff7f9d0c474556a003c84cdd55d48974",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/missing-bad-mode.tcl",
+      "input_sha256": "b23123fb1fc4f348e87ad847536e8798399e64a0b9e307123e6b649c9c1cee87",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/missing-exact-prefix.tcl",
+      "input_sha256": "55a217a36fa39bb138a31378211c94ec6df201a9cf05cc69262e759c8e6dc539",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/missing-glob-prefix.tcl",
+      "input_sha256": "b997c2540ac2100bd11385d730c3987fe8954945bf6a398824474bd2f4a2a2e5",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/missing-invalid-regexp.tcl",
+      "input_sha256": "c810714210addaa8dce534fcbd3ae2a8033b1ed80fb123e3c274fc6657f01bb4",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/missing-regexp-valid.tcl",
+      "input_sha256": "f59a0381092b6060ebb006b8a4a3ec8a1bb0f1729141df185117a47019ed17d2",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/missing-single-dash-pattern.tcl",
+      "input_sha256": "caac6a353c73e60a802cb7644be20192ed3e46fa26687a3207acff0a31f15ca8",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/populated-ambiguous-mode.tcl",
+      "input_sha256": "d624894c5bfc0303666cbb1209747556c37447cb8d8c176f11d03ebc0fd67fcb",
+      "exit_code": 0,
+      "stdout": "1 {ambiguous option \"-\": must be -exact, -glob, or -regexp} NONE\n",
+      "stderr": "",
+      "stdout_sha256": "ad384744292167c292b6ad303d1ff48b4fa5e93f740c632f8d6fc2f04e94c2b6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/populated-bad-mode.tcl",
+      "input_sha256": "3275661d65a7c1573ddf443d1bfe92b53394ff704ad6268ba5031246db855aca",
+      "exit_code": 0,
+      "stdout": "1 {bad option \"-bad\": must be -exact, -glob, or -regexp} NONE\n",
+      "stderr": "",
+      "stdout_sha256": "300f28f40919ab9b547600b21a540c9893e2d3adc4cf0b4acdf686264bbd0254",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/populated-exact-prefix.tcl",
+      "input_sha256": "897c08367f7b4b0b8e105796bfecb2dac70aeefa195ea04aab618d09f2817828",
+      "exit_code": 0,
+      "stdout": "0 x {}\n",
+      "stderr": "",
+      "stdout_sha256": "695bd626c8a3cd85672d203d33724f23da57d7f05743e3274acdd8b045e80ddd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/populated-glob-prefix.tcl",
+      "input_sha256": "d50c708f28b26972f8d1a7c38356966d0d00fb3f18ff04321edfab58b95c2516",
+      "exit_code": 0,
+      "stdout": "0 x {}\n",
+      "stderr": "",
+      "stdout_sha256": "695bd626c8a3cd85672d203d33724f23da57d7f05743e3274acdd8b045e80ddd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/populated-invalid-regexp.tcl",
+      "input_sha256": "35b504668d9656e51d5c9ab5710393879311a113f06587faf102b08e6552e965",
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "run_script: execution refused: array names original regular-expression worker native handler policy is not selected\n",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "74bf87420888976fa6dbd22a556e85b30e9ed72687847a0f6a7e8f905d9d5240"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/populated-regexp-valid.tcl",
+      "input_sha256": "84220258977ecaf3b78c9489962510c4c81e335965e4409692eafc933f3b8c0e",
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "run_script: execution refused: array names original regular-expression worker native handler policy is not selected\n",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "74bf87420888976fa6dbd22a556e85b30e9ed72687847a0f6a7e8f905d9d5240"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/populated-single-dash-pattern.tcl",
+      "input_sha256": "1ca3fcbad042493c014e7e66c6a9ccbb086bacadce6c966b6a836adeb8d05e49",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/scalar-ambiguous-mode.tcl",
+      "input_sha256": "a77340e05dafe16f15290c51442f5d5811b22210d09f9294b9d7b469c4f943e0",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/scalar-bad-mode.tcl",
+      "input_sha256": "c47f833415dbbb2e1d13010b4656cc32b18f8d38e18c893b2ce078ea821e242f",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/scalar-exact-prefix.tcl",
+      "input_sha256": "c34ccc69792da7238f391e25280c8affda786c5dd275399cbcca6015ab3a1999",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/scalar-glob-prefix.tcl",
+      "input_sha256": "96dfd99d531f5abe31befd18a120ce986fd7b072df2449c001f14f6618a228ab",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/scalar-invalid-regexp.tcl",
+      "input_sha256": "c44b7f65af20c54b76e8d1576064a55da822fded01c30f2614de8ab195dee3f3",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/scalar-regexp-valid.tcl",
+      "input_sha256": "e8e64e4fd28c29f8bd066827bf075c59644c3bcffe03ec8056ccd095c0d109fa",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "cases/scalar-single-dash-pattern.tcl",
+      "input_sha256": "0e7693d2bbd43ac9a1ae87444d9db16a3d629ea302b18fe0b3242366f4f2a189",
+      "exit_code": 0,
+      "stdout": "0 {} {}\n",
+      "stderr": "",
+      "stdout_sha256": "0201e25279dcb3c80f8a16a667bf2b14d50d7b2cb355565e93b15cb14716f40b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "traces/missing-bad-mode.tcl",
+      "input_sha256": "21d5d7c722ff35c9f3b86bbd2b7c6ae95607e291c7cfa76780c5f6575edec167",
+      "exit_code": 0,
+      "stdout": "registration 0 {}\n0 {} {}\nevents array\n",
+      "stderr": "",
+      "stdout_sha256": "1bd529c1d6f51c33fbeb21c1b6b8ab773722d661f4719fba7fae1f40e3ec7e86",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "traces/missing-create-bad-mode.tcl",
+      "input_sha256": "02fb99cf13e3c44018db448b2e74f439cbcf9e02cdef19c55439b09978702ad2",
+      "exit_code": 0,
+      "stdout": "registration 0 {}\n1 {bad option \"-bad\": must be -exact, -glob, or -regexp} NONE\nevents array\n",
+      "stderr": "",
+      "stdout_sha256": "02cb2e0737a4bfb98cdde4acbd12cf2b709370366e1d7564278bcd81e477f4fd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "traces/populated-bad-mode.tcl",
+      "input_sha256": "c98f805aaee0baffcbd27c8bf5cbbcc36721c2294d14de90c8f0cf583fe0dc60",
+      "exit_code": 0,
+      "stdout": "registration 0 {}\n1 {bad option \"-bad\": must be -exact, -glob, or -regexp} NONE\nevents array\n",
+      "stderr": "",
+      "stdout_sha256": "02cb2e0737a4bfb98cdde4acbd12cf2b709370366e1d7564278bcd81e477f4fd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "traces/populated-fail-bad-mode.tcl",
+      "input_sha256": "b9b9908672f88ee163110d658238166c8bcd973171983adf74b8d9d635fe6bef",
+      "exit_code": 0,
+      "stdout": "registration 0 {}\n1 {can't trace array \"a\": TRACE_FAILURE} NONE\nevents array\n",
+      "stderr": "",
+      "stdout_sha256": "f5c38894433fd36660f94795412caf355c8c6d1332865ea3b655b63f2fc89f5d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "traces/populated-fail-too-many.tcl",
+      "input_sha256": "fee63950df2b35c34a281a80fb555f75e24e463a648cb1a20de71bad88d6e3c5",
+      "exit_code": 0,
+      "stdout": "registration 0 {}\n1 {wrong # args: should be \"array names arrayName ?mode? ?pattern?\"} NONE\nevents {}\n",
+      "stderr": "",
+      "stdout_sha256": "bd88961f93cdd8cb06f2e7c25aca3ec91eca57223bb7c1103f1b2170752bcec1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.4"
+      ],
+      "input": "traces/populated-too-many.tcl",
+      "input_sha256": "819eb3e7076309dd5214fc15599626edf03acd66642e6dd5ae48031289931902",
+      "exit_code": 0,
+      "stdout": "registration 0 {}\n1 {wrong # args: should be \"array names arrayName ?mode? ?pattern?\"} NONE\nevents {}\n",
+      "stderr": "",
+      "stdout_sha256": "bd88961f93cdd8cb06f2e7c25aca3ec91eca57223bb7c1103f1b2170752bcec1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

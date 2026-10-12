@@ -1,0 +1,31 @@
+{
+  "subject_commit": "bd062ae6c9312f2db0ed276b9c063bec576dd74c",
+  "source_root": "/workspace/tcl-lsp/tmp/tcl8.4.20",
+  "version": "8.4",
+  "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+  "tcltest_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+  "overlay_sha256": "b966abe9d580ba8d180926ddc1b301d30aba642f32bba9a150df5ffc8d0a1e54",
+  "runner_sha256": "35dccdbb055b709e8ffa4f6a9d98cef15d5c8c6ee387206be765c6ad6ffa4833",
+  "method": "C/runtime stdin configure+source; VM run_test original file",
+  "engines": {
+    "c": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "runtime": [
+      "/tmp/name-native-c84-declared-cell-runner",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.4"
+    ]
+  },
+  "binary_sha256": {
+    "c": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "runtime": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473"
+  },
+  "timeout_seconds": 90,
+  "match": null,
+  "backend_constraints_applied": false,
+  "runner_source_snapshot": "runner-source.txt",
+  "started_utc": "2026-10-12T15:12:53Z"
+}

@@ -1,0 +1,27 @@
+{
+  "engine": "runtime",
+  "stem": "rename",
+  "exit_code": 0,
+  "seconds": 6.7,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/tmp/name-native-c84-declared-cell-runner",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "input_sha256": "cd3bd90ef68655232dbd50cf43e153e80c8e78f89984c78f69dc7eaad7608d77",
+  "test_sha256": "006b2e34f7a2b95d9590726230e35349d0f1df9d348a018dbecd986cafa458c1",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [],
+  "last_started_id": "rename-6.1",
+  "total": 11,
+  "passed": 11,
+  "skipped": 0,
+  "failed": 0,
+  "status": "pass"
+}

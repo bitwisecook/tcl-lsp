@@ -1,0 +1,16 @@
+{
+  "engine": "actual-native-runtime",
+  "version": "8.4",
+  "initialisation": "native core allocated before controls; init.tcl not loaded",
+  "command": [
+    "/tmp/name-native-compiled-alias-runner",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "exit_code": 0,
+  "executable_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+  "input_sha256": "027d826eebca717873028c6b98c2def397de17ba28ea11791747f1a29e1a690d",
+  "stdout_sha256": "1757a5562f97971407d863d549befa45a3b508d7ede43872705c663e61abb464",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

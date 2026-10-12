@@ -1,0 +1,86 @@
+377:     located
+378:         .cloned()
+379:         .map_or_else(|| ops.array_target_bytes(Frames::current(ops), name), Ok)
+380: }
+381: 
+382: /// `array names` retains original mode lookup and the selected name matcher.
+383: fn names<O, V>(ops: &mut O, rest: &[V], located: Option<&ArrayTarget>) -> Result<V, CmdError>
+384: where
+385:     O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
+386: {
+387:     use tcl_syntax::native_glob::{NativeGlobProtocol, NativeNameGlobPurpose};
+388: 
+389:     let policy = ops
+390:         .name_policy_protocol()
+391:         .ok_or(ValueError::CommandProtocolUnavailable(
+392:             "array names native grammar and pattern purpose",
+393:         ))?;
+394:     let grammar = NativeArrayNamesProtocol::from_name_policy(policy);
+395:     let max_operands = if grammar == NativeArrayNamesProtocol::C {
+396:         3
+397:     } else {
+398:         2
+399:     };
+400:     if rest.is_empty() || rest.len() > max_operands {
+401:         return Err(CmdError::wrong_args(&format!(
+402:             "array names {}",
+403:             grammar.wrong_arguments_suffix()
+404:         )));
+405:     }
+406:     let name = ops.native_string_bytes(&rest[0])?;
+407:     let target = locate(ops, &name, located)?;
+408:     let Some(keys) = ops.array_key_bytes_checked_at(&target)? else {
+409:         return Ok(ops.new_list(Vec::new()));
+410:     };
+411:     let (pattern, exact) = match rest {
+412:         [_] => (None, false),
+413:         [_, pattern] => (Some(ops.native_string_bytes(pattern)?), false),
+414:         [_, mode, pattern] => {
+415:             let pattern = ops.native_string_bytes(pattern)?;
+416:             static MODES: [&str; 3] = ["-exact", "-glob", "-regexp"];
+417:             let selected = crate::prefix::OptionTable::abbreviating("option", &MODES)
+418:                 .index_of_original(ops, mode)?;
+419:             if selected == 2 {
+420:                 return Err(ValueError::CommandProtocolUnavailable(
+421:                     "array names original regular-expression worker",
+422:                 )
+423:                 .into());
+424:             }
+425:             (Some(pattern), selected == 0)
+426:         }
+427:         _ => {
+428:             return Err(CmdError::wrong_args(&format!(
+429:                 "array names {}",
+430:                 grammar.wrong_arguments_suffix()
+431:             )));
+432:         }
+433:     };
+434:     let matcher = NativeGlobProtocol::from_name_policy(policy);
+435:     let mut items = Vec::new();
+436:     for key in keys {
+437:         let selected = match pattern.as_deref() {
+438:             None => true,
+439:             Some(pattern) if exact => {
+440:                 tcl_core_types::c_string_extent(pattern) == tcl_core_types::c_string_extent(&key)
+441:             }
+442:             Some(pattern) => matcher
+443:                 .match_name_pattern(NativeNameGlobPurpose::ArrayNamesSearch, pattern, &key)
+444:                 .map_err(|_| {
+445:                     ValueError::CommandProtocolUnavailable("array names native pattern purpose")
+446:                 })?,
+447:         };
+448:         if selected {
+449:             items.push(ops.new_bytes(&key));
+450:         }
+451:     }
+452:     Ok(ops.new_list(items))
+453: }
+454: 
+455: /// `array get arrayName ?pattern?` — a flat `key value …` list (glob-filtered on
+456: /// the key).
+457: fn get<O, V>(
+458:     ops: &mut O,
+459:     name: &V,
+460:     pattern: Option<&V>,
+461:     located: Option<&ArrayTarget>,
+462: ) -> Result<ArrayCommandResult<V>, CmdError>

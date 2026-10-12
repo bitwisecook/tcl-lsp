@@ -1,0 +1,27 @@
+{
+  "engine": "runtime",
+  "stem": "namespace",
+  "exit_code": 0,
+  "seconds": 18.686,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/tmp/name-native-compiled-alias-runner",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.5"
+  ],
+  "input_sha256": "558a8f9c709b81a23a0f14dd821e85e301c7e8fa6534eb0912034f220f4ba67a",
+  "test_sha256": "64bb1d3e550fa464144e9614a7ba1974c658e43f2dd7d78d5917def7c4b017cd",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [],
+  "last_started_id": "namespace-8.1",
+  "total": 281,
+  "passed": 1,
+  "skipped": 280,
+  "failed": 0,
+  "status": "pass"
+}

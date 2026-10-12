@@ -221,6 +221,20 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let Some(grammar) = interp
+        .native_invocation_dialect()
+        .native_variable_declaration_protocol()
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "namespace variable declaration grammar",
+            )
+            .into(),
+        );
+    };
+    if let Err(usage) = grammar.arguments(argv.len().saturating_sub(1)) {
+        return interp.wrong_args_for_invocation(argv, usage);
+    }
     if interp.native_c_variable_name_protocol().is_some() {
         for pair in argv[1..].chunks(2) {
             let code = interp.define_original_c_namespace_variable(pair[0], pair.get(1).copied());
@@ -235,7 +249,6 @@ fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(protocol) => protocol,
         Err(error) => return crate::builtins::var_error(interp, b"", error),
     };
-    // `variable` with no names is a no-op (TIP 323).
     let current = interp.current_ns();
     let mut i = 1;
     while i < argv.len() {

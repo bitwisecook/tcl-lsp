@@ -1,0 +1,16 @@
+{
+  "provider": "runtime",
+  "version": "8.4.20",
+  "argv": [
+    "/tmp/name-native-c84-declared-cell-runner",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+  "input": "literal-control.tcl",
+  "input_sha256": "1fb538fc6dd05ccbca43659166be1b17cb611c7227d05b9bb30ff74596d159f9",
+  "exit_code": 0,
+  "stdout": "runtime-after/literal-control/stdout.txt",
+  "stderr": "runtime-after/literal-control/stderr.txt"
+}

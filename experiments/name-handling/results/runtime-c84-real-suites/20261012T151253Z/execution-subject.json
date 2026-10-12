@@ -1,0 +1,10 @@
+{
+  "native_construction": "Interp::with_native_core",
+  "native_profile": "tcl8.4",
+  "frozen_binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+  "native_runner_source_snapshot": "native-runner-source.txt",
+  "native_runner_source_sha256": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+  "frozen_runner_context": "../../native-c84-declared-cell/README.md",
+  "source_currency": "../../native-c84-declared-cell/source-currency.json",
+  "limits": "The retained runner source and inspected build-input hashes identify implementation context; they are not an independently authenticated complete Cargo receipt. Concurrent repository HEAD is not asserted to have produced the frozen executable."
+}

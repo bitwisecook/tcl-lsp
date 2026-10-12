@@ -327,7 +327,9 @@ impl Interp {
         stage: OriginalCNameStage<'_>,
     ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
         match stage {
-            None => self.native_object_string_bytes(original).map_err(Into::into),
+            None => self
+                .native_object_string_bytes(original)
+                .map_err(Into::into),
             Some(_) => self.native_object_string_bytes_using(
                 original,
                 &|| self.check_original_c_name_operation_using(&[original], stage),
@@ -1349,12 +1351,19 @@ impl Interp {
                 && trace.base == local
                 && trace.binding_id == identity
         });
-        let local_observation = crate::vars::OriginalAliasTargetObservation::capture_home(
-            &self.frames.borrow(),
-            &self.namespaces(),
-            home,
-            local,
-        );
+        let local_observation = match compiled {
+            Some(slot) => crate::vars::OriginalAliasTargetObservation::capture_compiled(
+                &mut self.frames.borrow_mut(),
+                &self.namespaces(),
+                slot,
+            ),
+            None => crate::vars::OriginalAliasTargetObservation::capture_home(
+                &self.frames.borrow(),
+                &self.namespaces(),
+                home,
+                local,
+            ),
+        };
         let local_observation = match local_observation {
             Ok(observation) => observation,
             Err(_) => {
@@ -3368,17 +3377,15 @@ mod tests {
                     )
                     .unwrap()
                     .expect("actual native procedure artifact");
-                assert!(
-                    artifact
-                        .compiled_local_layout()
-                        .unwrap()
-                        .names
-                        .iter()
-                        .any(|name| {
-                            name.as_ref()
-                                .is_some_and(|name| name.as_bytes() == b"callback_local")
-                        })
-                );
+                assert!(artifact
+                    .compiled_local_layout()
+                    .unwrap()
+                    .names
+                    .iter()
+                    .any(|name| {
+                        name.as_ref()
+                            .is_some_and(|name| name.as_bytes() == b"callback_local")
+                    }));
                 let original = callback_name(b"::callback_target");
                 let command = Owned::fresh(obj::new_string_bytes(b"callback_run"));
                 reset_name_callback(mode);

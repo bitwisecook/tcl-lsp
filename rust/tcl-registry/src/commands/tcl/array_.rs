@@ -80,12 +80,9 @@ const DEFAULT_VALUES: &[ArgValue] = &[
 
 /// `array names arrayName ?mode? ?pattern?`'s `mode` word — one of `-exact`,
 /// `-glob` (the default when `mode` is omitted), or `-regexp`, present since
-/// Tcl 8.4. Completion/hover data only: `mode` and `pattern` share position 1
-/// when only one trailing word is given (confirmed against tclsh 8.6.14 —
-/// `array names arr -glob` with no further word reads `-glob` as `mode` with
-/// an empty pattern, while `array names arr -exact` against an array holding
-/// a literal `-exact` key with *no* other trailing word instead matches it as
-/// a literal glob pattern), so this position cannot be `closed_value_args`
+/// Tcl 8.4. Completion/hover data only: a sole trailing word is always a glob
+/// pattern, including `-glob` and `-exact`. Position 1 is a mode only when
+/// followed by a pattern, so it cannot be `closed_value_args`
 /// without risking a false-positive W127 on a legitimate pattern that happens
 /// to spell one of these words.
 const NAMES_MODE_VALUES: &[ArgValue] = &[

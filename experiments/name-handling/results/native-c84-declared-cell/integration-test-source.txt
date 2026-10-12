@@ -1,0 +1,326 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+#![cfg(have_tommath)]
+
+use std::path::Path;
+use std::rc::Rc;
+
+use tcl_dialect::TclVersion;
+use tcl_host_native::NativeHost;
+use tcl_platform::Host;
+use tcl_runtime::interp::{Code, Interp};
+use tcl_test_support::{locate_source_tree, run_script_from_source_tree};
+
+fn at(version: TclVersion) -> Interp {
+    Interp::with_native_core(
+        Rc::new(NativeHost::new()),
+        tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile(),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .expect("selected native core bootstrap")
+}
+
+#[test]
+fn real_legacy_init_libraries_install_lookup_procedures() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for version in [TclVersion::V8_4, TclVersion::V8_5] {
+        let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
+        else {
+            eprintln!("skipping unavailable real Tcl {version:?} source library");
+            continue;
+        };
+        let host = Rc::new(NativeHost::new());
+        host.env()
+            .set("TCL_LIBRARY", &tree.library_dir().to_string_lossy());
+        let mut interp = Interp::with_native_core(
+            host,
+            tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("selected native core bootstrap");
+        assert_eq!(
+            interp.init_library(),
+            Code::Ok,
+            "{version:?}: {:?}",
+            interp.result_bytes()
+        );
+        let script = r#"
+            info procs ::auto_load
+        "#;
+        let oracle = run_script_from_source_tree(
+            &tree,
+            version,
+            format!("puts [eval {{{script}}}]\n").as_bytes(),
+        )
+        .expect("matching C Tcl oracle");
+        assert!(oracle.success(), "{version:?}: {oracle:?}");
+        assert_eq!(oracle.stderr, b"", "{version:?}: {oracle:?}");
+
+        assert_eq!(
+            interp.eval_str(script.as_bytes()),
+            Code::Ok,
+            "{version:?}: {:?}",
+            interp.result_bytes()
+        );
+        let mut result = interp.result_bytes();
+        result.push(b'\n');
+        assert_eq!(result, oracle.stdout, "{version:?}");
+    }
+}
+
+#[test]
+fn package_unknown_arguments_follow_each_real_release() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let script = r#"
+        proc capture args {set ::captured $args}
+        package unknown capture
+        set results {}
+        foreach request {
+            {package require missing}
+            {package require missing 1.2}
+            {package require -exact missing 1.2}
+        } {
+            catch $request
+            lappend results $::captured
+        }
+        set results
+    "#;
+    for version in TclVersion::ALL {
+        let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
+        else {
+            continue;
+        };
+        let oracle = run_script_from_source_tree(
+            &tree,
+            version,
+            format!("puts [eval {{{script}}}]\n").as_bytes(),
+        )
+        .expect("C Tcl callback oracle");
+        assert!(
+            oracle.success() && oracle.stderr.is_empty(),
+            "{version:?}: {oracle:?}"
+        );
+        let mut interp = at(version);
+        assert_eq!(
+            interp.eval_str(script.as_bytes()),
+            Code::Ok,
+            "{version:?}: {:?}",
+            interp.result_bytes()
+        );
+        let mut result = interp.result_bytes();
+        result.push(b'\n');
+        assert_eq!(result, oracle.stdout, "{version:?}");
+    }
+}
+
+#[test]
+fn compiled_namespace_variable_links_select_the_original_local_cell() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let script = r#"
+        namespace eval ::N {
+            variable value ready
+            proc get {} {variable value; return $value}
+            proc replace {} {variable value changed; return $value}
+        }
+        list [::N::get] [::N::replace] [::N::get]
+    "#;
+    for version in TclVersion::ALL {
+        let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
+        else {
+            continue;
+        };
+        let oracle = run_script_from_source_tree(
+            &tree,
+            version,
+            format!("puts [eval {{{script}}}]\n").as_bytes(),
+        )
+        .expect("C Tcl namespace variable oracle");
+        assert!(
+            oracle.success() && oracle.stderr.is_empty(),
+            "{version:?}: {oracle:?}"
+        );
+        let mut interp = at(version);
+        assert_eq!(
+            interp.eval_str(script.as_bytes()),
+            Code::Ok,
+            "{version:?}: {:?}; refusal={:?}",
+            interp.result_bytes(),
+            interp.native_execution_refusal()
+        );
+        let mut result = interp.result_bytes();
+        result.push(b'\n');
+        assert_eq!(result, oracle.stdout, "{version:?}");
+    }
+}
+
+#[test]
+fn legacy_string_bytelength_matches_real_tcl_on_strings_and_binary() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let script = r#"
+        set results {}
+        foreach value [list {} abc \u00e9 \u65e5 [binary format H* 00] [binary format H* 00ff80]] {
+            lappend results [string bytelength $value]
+        }
+        set results
+    "#;
+    for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+        let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
+        else {
+            continue;
+        };
+        let oracle = run_script_from_source_tree(
+            &tree,
+            version,
+            format!("puts [eval {{{script}}}]\n").as_bytes(),
+        )
+        .expect("C Tcl bytelength oracle");
+        assert!(
+            oracle.success() && oracle.stderr.is_empty(),
+            "{version:?}: {oracle:?}"
+        );
+        let mut interp = at(version);
+        assert_eq!(
+            interp.eval_str(script.as_bytes()),
+            Code::Ok,
+            "{version:?}: {:?}",
+            interp.result_bytes()
+        );
+        let mut result = interp.result_bytes();
+        result.push(b'\n');
+        assert_eq!(result, oracle.stdout, "{version:?}");
+    }
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        let mut interp = at(version);
+        assert_eq!(interp.eval_str(b"string bytelength abc"), Code::Error);
+    }
+}
+
+#[test]
+fn init_auto_path_preserves_order_handles_missing_paths_and_observes_traces() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let version = TclVersion::V9_1;
+    let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
+    else {
+        return;
+    };
+    let script = r#"
+        set auto_path [list A A /oracle/lib/tcl9.1]
+        set tcl_library /oracle/lib/tcl9.1
+        set tcl_pkgPath [list A B B]
+        set env(TCLLIBPATH) IGNORED
+        set result [tcl::InitAutoPath]
+        set observed [list [lrange $result 0 3] [lindex $result end] \
+            [llength [lsearch -all -exact $result A]] [expr {$result eq $auto_path}]]
+        unset auto_path
+        set env(TCLLIBPATH) [list FIRST FIRST SECOND ~ ~/named]
+        set result [tcl::InitAutoPath]
+        lappend observed [lrange $result 0 1] \
+            [expr {[lindex $result 2] eq $env(HOME)}] \
+            [expr {[lindex $result 3] eq [file join $env(HOME) named]}]
+        set ::read_count 0
+        set ::write_count 0
+        proc count_trace {name element operation} {incr ::${operation}_count}
+        trace add variable ::auto_path {read write} count_trace
+        tcl::InitAutoPath
+        lappend observed $::read_count $::write_count
+        trace remove variable ::auto_path {read write} count_trace
+        interp create -safe safe
+        set safe_result [safe eval {
+            tcl::InitAutoPath
+            set empty [set auto_path]
+            set auto_path "\{"
+            list $empty [tcl::InitAutoPath] $auto_path
+        }]
+        interp delete safe
+        lappend observed $safe_result
+        set observed
+    "#;
+    let oracle = run_script_from_source_tree(
+        &tree,
+        version,
+        format!("puts [eval {{{script}}}]\n").as_bytes(),
+    )
+    .expect("C Tcl auto_path oracle");
+    assert!(oracle.success() && oracle.stderr.is_empty(), "{oracle:?}");
+    let mut interp = at(version);
+    assert_eq!(
+        interp.eval_str(script.as_bytes()),
+        Code::Ok,
+        "{:?}",
+        interp.result_bytes()
+    );
+    let mut result = interp.result_bytes();
+    result.push(b'\n');
+    assert_eq!(result, oracle.stdout);
+}
+
+#[test]
+fn init_auto_path_presence_matches_each_native_core() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for version in TclVersion::ALL {
+        let mut interp = at(version);
+        assert_eq!(
+            interp.eval_str(b"info commands ::tcl::InitAutoPath"),
+            Code::Ok
+        );
+        let mut result = interp.result_bytes();
+        result.push(b'\n');
+        let expected = if version == TclVersion::V9_1 {
+            b"::tcl::InitAutoPath\n".as_slice()
+        } else {
+            b"\n".as_slice()
+        };
+        assert_eq!(result, expected, "{version:?}");
+        let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
+        else {
+            continue;
+        };
+        let oracle = run_script_from_source_tree(
+            &tree,
+            version,
+            b"puts [info commands ::tcl::InitAutoPath]\n",
+        )
+        .expect("C Tcl command-presence oracle");
+        assert!(
+            oracle.success() && oracle.stderr.is_empty(),
+            "{version:?}: {oracle:?}"
+        );
+        assert_eq!(result, oracle.stdout, "{version:?}");
+    }
+    let interp = Interp::with_native_core(
+        Rc::new(NativeHost::new()),
+        tcl_registry::model::resolve_environment("jim").unit_profile(),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .expect("Jim native core");
+    assert!(
+        !interp
+            .backing_report()
+            .iter()
+            .any(|(name, _)| name == "tcl::InitAutoPath"),
+        "Jim native core command table"
+    );
+    if let Some(jim) = tcl_test_support::locate_jimsh().expect("Jim oracle discovery") {
+        let oracle =
+            tcl_test_support::run_script(&jim.path, b"puts [info commands ::tcl::InitAutoPath]\n")
+                .expect("Jim command-presence oracle");
+        assert!(oracle.success() && oracle.stderr.is_empty(), "{oracle:?}");
+        assert_eq!(oracle.stdout, b"\n", "Jim");
+    }
+}

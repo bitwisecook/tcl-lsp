@@ -1,0 +1,20 @@
+{
+  "provider": "runtime",
+  "version": "8.4.20",
+  "argv": [
+    "/tmp/name-native-c84-declared-cell-runner",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+  "input": "runtime-after/startup/input.tcl",
+  "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+  "exit_code": 0,
+  "stdout": "runtime-after/startup/stdout.txt",
+  "stderr": "runtime-after/startup/stderr.txt",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+  "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+  "tcltest_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+}

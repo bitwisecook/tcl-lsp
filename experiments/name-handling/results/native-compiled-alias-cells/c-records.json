@@ -1,0 +1,77 @@
+[
+  {
+    "provider": "C Tcl",
+    "version": "8.4.20",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "input": "c-input.tcl",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "question": "input.tcl",
+    "question_sha256": "4a32de9d9d9df50c923cf10b440d6e1c3212451afbce025b1cf8f5bd9d71662d",
+    "exit_code": 0,
+    "stdout": "c-8.4.20.stdout",
+    "stderr": "c-8.4.20.stderr"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "8.5.19",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "input": "c-input.tcl",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "question": "input.tcl",
+    "question_sha256": "4a32de9d9d9df50c923cf10b440d6e1c3212451afbce025b1cf8f5bd9d71662d",
+    "exit_code": 0,
+    "stdout": "c-8.5.19.stdout",
+    "stderr": "c-8.5.19.stderr"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "8.6.18",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "input": "c-input.tcl",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "question": "input.tcl",
+    "question_sha256": "4a32de9d9d9df50c923cf10b440d6e1c3212451afbce025b1cf8f5bd9d71662d",
+    "exit_code": 0,
+    "stdout": "c-8.6.18.stdout",
+    "stderr": "c-8.6.18.stderr"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "9.0.4",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "executable_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+    "input": "c-input.tcl",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "question": "input.tcl",
+    "question_sha256": "4a32de9d9d9df50c923cf10b440d6e1c3212451afbce025b1cf8f5bd9d71662d",
+    "exit_code": 0,
+    "stdout": "c-9.0.4.stdout",
+    "stderr": "c-9.0.4.stderr"
+  },
+  {
+    "provider": "C Tcl",
+    "version": "9.1.0",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "executable_sha256": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+    "input": "c-input.tcl",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "question": "input.tcl",
+    "question_sha256": "4a32de9d9d9df50c923cf10b440d6e1c3212451afbce025b1cf8f5bd9d71662d",
+    "exit_code": 0,
+    "stdout": "c-9.1.0.stdout",
+    "stderr": "c-9.1.0.stderr"
+  }
+]

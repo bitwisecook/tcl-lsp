@@ -1,0 +1,2 @@
+NH_EXTRA declaration-three 1 {wrong # args: should be "variable name ?value?"}
+NH_EXTRA declaration-four 1 {wrong # args: should be "variable name ?value?"}

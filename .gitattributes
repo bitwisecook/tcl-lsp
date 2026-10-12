@@ -11,6 +11,8 @@ experiments/name-handling/patterns/wiki-results/** -whitespace
 experiments/name-handling/patterns/wiki-subject-results/** -whitespace
 experiments/name-handling/patterns/jim-results-*/** -whitespace
 experiments/name-handling/patterns/jim-discovery-*/** -whitespace
+experiments/name-handling/array-mode-validation/source-excerpts/*.txt -whitespace
+experiments/name-handling/array-mode-validation/validation/*.log -whitespace
 rust/tcl-registry/tests/data/native_corpus_naming_patterns/*.txt -whitespace
 rust/tcl-registry/tests/data/native_wiki_naming_patterns/*.txt -whitespace
 scripts/dev/bigip-probes/resolution-2286/evidence/** -whitespace

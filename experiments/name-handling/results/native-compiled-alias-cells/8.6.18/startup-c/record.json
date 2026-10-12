@@ -1,0 +1,13 @@
+{
+  "provider": "C Tcl",
+  "version": "8.6.18",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+  ],
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+  "exit_code": 0,
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+  "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+}
