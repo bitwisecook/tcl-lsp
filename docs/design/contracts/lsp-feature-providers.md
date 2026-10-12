@@ -190,3 +190,13 @@ indexes and preserve complete braced Unicode names. Partial editor variable
 triggers retain their own completion purpose. Source syntax alone supplies no
 receiver identity, method navigation, Native dispatch or rewrite permission;
 original method and current source/context owners remain independent.
+
+
+Itcl class-member assistance selects its definition-body family from the actual
+analysis-owned Registry. Missing input, unavailable context or an absent grammar
+cannot be replaced by a same-profile catalogue and cannot establish a different
+class-method family. Explicit standalone constructed metadata accepts a supplied
+Registry through the same family/projection worker. This readonly family metadata
+supplies no package loading, native class, current method table, lookup or edit
+permission. The custom class-member prefix grammar and dispatch precedence retain
+their independent source purpose.

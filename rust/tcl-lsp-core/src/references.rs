@@ -1939,7 +1939,7 @@ fn canonicalise_class_name(analysis: &AnalysisResult, at: u32, name: &str) -> Op
 /// [`ClassHierarchy::next_provider`] likewise run across every definer
 /// family, with no itcl/Snit exclusion (unlike
 /// `find_obj_method_call_sites`'s classmethod dispatch-shape check, which
-/// *does* consult `is_itcl_class` for an unrelated concern), so gating only
+/// *does* consult `class_definer_family` for an unrelated concern), so gating only
 /// the constructor/destructor path here would be inconsistent: scoping the
 /// whole next/nextto reference system by family is the coherent alternative.
 pub(crate) fn constructor_next_chain_references(
@@ -3314,7 +3314,7 @@ pub(crate) fn find_obj_method_call_sites(
     )
 }
 
-use crate::definition::is_itcl_class;
+use crate::definition::class_definer_family;
 
 /// Every call site in this document that dispatches `class_q`'s [incr Tcl]
 /// class-scoped `proc` named `member` — the single `::`-qualified
@@ -3336,7 +3336,7 @@ use crate::definition::is_itcl_class;
 /// `::app::Factory` exists) reaches nothing at all.
 fn itcl_class_proc_call_sites(
     analysis: &AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     class_q: &str,
     member: &str,
 ) -> Vec<tcl_lexer::Span> {
@@ -3349,9 +3349,8 @@ fn itcl_class_proc_call_sites(
                 inv.range.start(),
                 &analysis.namespace_overrides,
             );
-            let (target_class, target_member) = crate::definition::itcl_class_proc_target(
-                analysis, dialect, &namespace, &inv.name,
-            )?;
+            let (target_class, target_member) =
+                crate::definition::itcl_class_proc_target(analysis, &namespace, &inv.name)?;
             if target_class != class_q || target_member != member {
                 return None;
             }
@@ -3369,7 +3368,6 @@ fn itcl_class_proc_call_sites(
 /// declaration and the temporal method entry agree.
 fn dispatch_receivers(
     analysis: &AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
     target: (&str, &str, bool),
     extra_cmd_names: &[String],
 ) -> CommandReceivers {
@@ -3379,7 +3377,10 @@ fn dispatch_receivers(
         instance_target: None,
     };
     if let Some(class) = analysis.all_classes.get(class_q) {
-        if is_classmethod && !is_itcl_class(class, dialect) {
+        if is_classmethod
+            && class_definer_family(analysis, class)
+                .is_some_and(|family| family != tcl_registry::definer::DefinerFamily::Itcl)
+        {
             if let Some(member) = class.class_methods.get(method) {
                 receivers.add_class_target(
                     &class.qualified_name,
@@ -3424,7 +3425,9 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     is_classmethod: bool,
     extra_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
-    if !analysis.allows_lexical_declaration_advice() {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
+        || !analysis.allows_lexical_declaration_advice()
+    {
         return Vec::new();
     }
     // [incr Tcl] class-scoped `proc`s land in the same `class_methods`
@@ -3435,21 +3438,15 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     // scanner (references, rename, the code lens, call hierarchy) gets itcl
     // edges from one place.
     let mut out: Vec<tcl_lexer::Span> = if is_classmethod
-        && analysis
-            .all_classes
-            .get(class_q)
-            .is_some_and(|cd| is_itcl_class(cd, dialect))
-    {
+        && analysis.all_classes.get(class_q).is_some_and(|cd| {
+            class_definer_family(analysis, cd) == Some(tcl_registry::definer::DefinerFamily::Itcl)
+        }) {
         itcl_class_proc_call_sites(analysis, dialect, class_q, method)
     } else {
         Vec::new()
     };
-    let receivers = dispatch_receivers(
-        analysis,
-        dialect,
-        (class_q, method, is_classmethod),
-        extra_cmd_names,
-    );
+    let receivers =
+        dispatch_receivers(analysis, (class_q, method, is_classmethod), extra_cmd_names);
     if !receivers.has_any() {
         return out;
     }

@@ -2708,23 +2708,40 @@ pub(crate) fn resolved_command_name(
         .find(|qname| exists(qname))
 }
 
-/// Whether `cd`'s definer command dispatches its class-scoped members as a
-/// single `::`-qualified identifier (`Factory::make`) rather than the
-/// two-word `Factory make` shape — true for [incr Tcl] only.  Registry data
-/// ([`tcl_registry::definer::DefinerFamily`]), not a hardcoded command-name
-/// check: `cd.metaclass` is looked up in `dialect`'s registry and its
-/// attached [`tcl_registry::definer::DefinitionBodyGrammar::family`]
-/// compared.  A metaclass the registry does not recognise as a definer
-/// (which should not happen for a real `ClassDef`) is conservatively treated
-/// as *not* itcl.
-pub(crate) fn is_itcl_class(
-    cd: &tcl_compiler::analyser::types::ClassDef,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> bool {
-    crate::registry_for_dialect_profile(dialect)
-        .get(&cd.metaclass)
-        .and_then(|spec| spec.definition_body)
-        .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+/// Family metadata from the complete input and command store retained by the
+/// analysis. Missing metadata is distinct from a known non-Itcl family; it does
+/// not establish native class identity, package loading or edit permission.
+pub(crate) fn class_definer_family(
+    analysis: &AnalysisResult,
+    class: &tcl_compiler::analyser::types::ClassDef,
+) -> Option<tcl_registry::definer::DefinerFamily> {
+    definer_family_in_registry(class, class_family_registry(analysis)?)
+}
+
+fn class_family_registry(analysis: &AnalysisResult) -> Option<&CommandRegistry> {
+    if analysis.analysis_context_unavailable.is_some() {
+        return None;
+    }
+    let input = analysis.resolved_input.as_ref()?;
+    if !analysis
+        .retained_command_realm()?
+        .matches_resolved_analysis_input(input)
+    {
+        return None;
+    }
+    analysis.resolved_registry()
+}
+
+/// Family metadata in an explicitly supplied store. This does not establish a
+/// native class, current command table, loader effect or editable identity.
+fn definer_family_in_registry(
+    class: &tcl_compiler::analyser::types::ClassDef,
+    registry: &CommandRegistry,
+) -> Option<tcl_registry::definer::DefinerFamily> {
+    registry
+        .get(&class.metaclass)?
+        .definition_body
+        .map(|grammar| grammar.family)
 }
 
 /// Read `qname` as an [incr Tcl] class-scoped `proc` — itcl's equivalent of
@@ -2741,19 +2758,27 @@ pub(crate) fn is_itcl_class(
 /// not a class namespace` — so only `class_methods` is consulted.
 pub(crate) fn itcl_class_proc_at<'a>(
     analysis: &'a AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
     qname: &str,
 ) -> Option<(&'a String, String)> {
-    // This is a constructed class/member key. Its reporting projection does
-    // not establish a native class; the actual definer/member guards below do
-    // their existing lexical selection independently.
+    itcl_class_proc_at_in_registry(analysis, class_family_registry(analysis)?, qname)
+}
+
+/// Standalone constructed metadata can supply its store explicitly. Contextual
+/// callers use their analysis-owned Registry and never recapture a profile.
+fn itcl_class_proc_at_in_registry<'a>(
+    analysis: &'a AnalysisResult,
+    registry: &CommandRegistry,
+    qname: &str,
+) -> Option<(&'a String, String)> {
     let (parent, member) = tcl_syntax::naming::key_holder_and_tail(qname);
     if member.is_empty() {
         return None;
     }
     let (class_q, class_def) = analysis.all_classes.get_key_value(parent)?;
-    (is_itcl_class(class_def, dialect) && class_def.class_methods.contains_key(member))
-        .then(|| (class_q, member.to_owned()))
+    (definer_family_in_registry(class_def, registry)
+        == Some(tcl_registry::definer::DefinerFamily::Itcl)
+        && class_def.class_methods.contains_key(member))
+    .then(|| (class_q, member.to_owned()))
 }
 
 /// Resolve a written command word to the [incr Tcl] class-scoped `proc` it
@@ -2771,24 +2796,23 @@ pub(crate) fn itcl_class_proc_at<'a>(
 ///    proc or class command shadows it exactly as it would at runtime.
 pub(crate) fn itcl_class_proc_target<'a>(
     analysis: &'a AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
     namespace: &str,
     word: &str,
 ) -> Option<(&'a String, String)> {
-    let winner = itcl_self_qualified_candidate(analysis, dialect, namespace, word)
+    let winner = itcl_self_qualified_candidate(analysis, namespace, word)
         // The custom resolver only claims a member the class really declares;
         // anything else falls through to the stock candidates (oracle: a
         // sibling class's `Other::omake`, and an undeclared `Factory::nope`,
         // both raise `invalid command name` rather than resolving).
-        .filter(|candidate| itcl_class_proc_at(analysis, dialect, candidate).is_some())
+        .filter(|candidate| itcl_class_proc_at(analysis, candidate).is_some())
         .or_else(|| {
             resolved_command_name(analysis, namespace, word, &|candidate| {
                 analysis.all_procs.contains_key(candidate)
                     || analysis.all_classes.contains_key(candidate)
-                    || itcl_class_proc_at(analysis, dialect, candidate).is_some()
+                    || itcl_class_proc_at(analysis, candidate).is_some()
             })
         })?;
-    itcl_class_proc_at(analysis, dialect, &winner)
+    itcl_class_proc_at(analysis, &winner)
 }
 
 /// [incr Tcl]'s own class-namespace command resolver: written *inside* a
@@ -2822,12 +2846,12 @@ pub(crate) fn itcl_class_proc_target<'a>(
 /// [`resolved_command_name`].
 fn itcl_self_qualified_candidate(
     analysis: &AnalysisResult,
-    dialect: &'static tcl_dialect::DialectProfile,
     namespace: &str,
     word: &str,
 ) -> Option<String> {
     let class_def = analysis.all_classes.get(namespace)?;
-    if !is_itcl_class(class_def, dialect) {
+    if class_definer_family(analysis, class_def) != Some(tcl_registry::definer::DefinerFamily::Itcl)
+    {
         return None;
     }
     let member = word
@@ -2872,16 +2896,14 @@ fn class_declaration_at(
 /// written word `word`, called from `namespace`, dispatches — go-to-definition's
 /// half of [`itcl_class_proc_target`].
 ///
-/// The empty dialect string picks the default Tcl registry, which is where
-/// the itcl definer grammar lives; `definition` has no dialect of its own to
-/// thread through.
+/// Family metadata comes from the analysis-owned command store, independently
+/// of the written member prefix and the original declaration-name span.
 fn itcl_class_proc_declaration(
     analysis: &AnalysisResult,
     namespace: &str,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
-    let (class_q, member) =
-        itcl_class_proc_target(analysis, crate::profile_for_dialect(""), namespace, word)?;
+    let (class_q, member) = itcl_class_proc_target(analysis, namespace, word)?;
     analysis
         .all_classes
         .get(class_q)
@@ -2900,11 +2922,12 @@ fn itcl_class_proc_declaration(
 #[must_use]
 pub fn itcl_class_proc_target_at(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
 ) -> Option<(String, String)> {
+    crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
     let line_index = LineIndex::new(source);
     let cursor = byte_offset_at(&line_index, source, line, character);
@@ -2913,7 +2936,7 @@ pub fn itcl_class_proc_target_at(
         cursor,
         &analysis.namespace_overrides,
     );
-    itcl_class_proc_target(analysis, dialect, &namespace, &word)
+    itcl_class_proc_target(analysis, &namespace, &word)
         .map(|(class_q, member)| (class_q.clone(), member))
 }
 
@@ -8165,12 +8188,13 @@ c\uD800";
             .all_classes
             .insert(class.qualified_name.clone(), class);
         let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let registry = crate::registry_for_dialect_profile(profile);
         assert_eq!(
-            itcl_class_proc_at(&analysis, profile, "::茶:::"),
+            itcl_class_proc_at_in_registry(&analysis, registry, "::茶:::"),
             Some((&"::茶".to_owned(), ":".to_owned()))
         );
         assert_eq!(
-            itcl_class_proc_at(&analysis, profile, "::茶::méthode"),
+            itcl_class_proc_at_in_registry(&analysis, registry, "::茶::méthode"),
             Some((&"::茶".to_owned(), "méthode".to_owned()))
         );
         for key in [
@@ -8181,12 +8205,12 @@ c\uD800";
             "::other::méthode",
         ] {
             assert!(
-                itcl_class_proc_at(&analysis, profile, key).is_none(),
+                itcl_class_proc_at_in_registry(&analysis, registry, key).is_none(),
                 "{key}"
             );
         }
         analysis.all_classes.get_mut("::茶").unwrap().metaclass = "oo::class".to_owned();
-        assert!(itcl_class_proc_at(&analysis, profile, "::茶:::").is_none());
+        assert!(itcl_class_proc_at_in_registry(&analysis, registry, "::茶:::").is_none());
     }
 
 }
@@ -8447,5 +8471,219 @@ mod configured_receiver_head_tests {
                 }
             }
         }
+    }
+}
+
+
+#[cfg(test)]
+mod itcl_family_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, ITCL_GRAMMAR};
+
+    const OTHER_FAMILY: DefinitionBodyGrammar = DefinitionBodyGrammar {
+        family: DefinerFamily::Snit,
+        ..ITCL_GRAMMAR
+    };
+
+    fn analyse(source: &str, grammar: Option<&'static DefinitionBodyGrammar>) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = CommandRegistry::build_default();
+        let mut spec = registry.get("itcl::class").unwrap().clone();
+        spec.name = "source_class";
+        spec.required_package = None;
+        spec.definition_body = grammar;
+        registry.insert(spec);
+        let context = tcl_registry::model::ingress::context_for_profile(profile)
+            .with_command_store(Arc::new(registry));
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn contextual_itcl_targets_use_the_actual_store_instead_of_a_display_profile() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Authored Logical definition grammar; no Native Itcl loader or class issuer.
+        let source = "source_class C {proc make {} {return OK}}\nC::make\n";
+        let analysis = analyse(source, Some(&ITCL_GRAMMAR));
+        assert!(analysis.allows_lexical_declaration_advice());
+        let class = &analysis.all_classes["::C"];
+        assert_eq!(class.metaclass, "source_class");
+        assert!(
+            crate::registry_for_dialect_profile(tcl_dialect::DialectProfile::plain_tcl())
+                .get("source_class")
+                .is_none()
+        );
+        assert_eq!(
+            class_definer_family(&analysis, class),
+            Some(DefinerFamily::Itcl)
+        );
+        let expected = Some(("::C".to_owned(), "make".to_owned()));
+        for nominal in ["tcl8.4", "tcl9.1"] {
+            assert_eq!(
+                itcl_class_proc_target_at(
+                    source,
+                    tcl_dialect::DialectProfile::find(nominal).unwrap(),
+                    1,
+                    4,
+                    &analysis
+                ),
+                expected
+            );
+        }
+        assert_eq!(
+            itcl_class_proc_declaration(&analysis, "::", "C::make"),
+            Some(class.class_methods["make"].name_span)
+        );
+        assert_eq!(
+            itcl_self_qualified_candidate(&analysis, "::C", "C::make"),
+            Some("::C::make".to_owned())
+        );
+        assert!(itcl_self_qualified_candidate(&analysis, "::C", "C::make::extra").is_none());
+        assert!(itcl_self_qualified_candidate(&analysis, "::C", "Other::make").is_none());
+        assert!(
+            itcl_class_proc_target_at(
+                &format!("{source}# changed"),
+                tcl_dialect::DialectProfile::plain_tcl(),
+                1,
+                4,
+                &analysis
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn same_profile_family_metadata_keeps_known_non_itcl_and_missing_grammar_distinct() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "source_class C {proc make {} {return OK}}\nC::make\nC make\n";
+        let itcl = analyse(source, Some(&ITCL_GRAMMAR));
+        let other = analyse(source, Some(&OTHER_FAMILY));
+        assert_eq!(
+            itcl.resolved_profile().unwrap().name,
+            other.resolved_profile().unwrap().name
+        );
+        assert_ne!(
+            itcl.resolved_registry().unwrap().snapshot().semantic_key(),
+            other.resolved_registry().unwrap().snapshot().semantic_key()
+        );
+        assert_eq!(
+            class_definer_family(&other, &other.all_classes["::C"]),
+            Some(DefinerFamily::Snit)
+        );
+        assert!(itcl_class_proc_at(&other, "::C::make").is_none());
+        let missing = analyse(source, None);
+        // An explicitly supplied descriptive class row is insufficient without
+        // its actual store's grammar; it does not acquire the old class receipt.
+        assert!(class_definer_family(&missing, &itcl.all_classes["::C"]).is_none());
+        assert!(itcl_class_proc_at(&missing, "::C::make").is_none());
+    }
+
+    #[test]
+    fn contextual_itcl_family_refuses_missing_or_foreign_retained_input() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "source_class C {proc make {} {return OK}}\nC::make\n";
+        let original = analyse(source, Some(&ITCL_GRAMMAR));
+        let mut changed = original.clone();
+        changed.resolved_input = None;
+        assert!(class_definer_family(&changed, &changed.all_classes["::C"]).is_none());
+        assert!(itcl_class_proc_at(&changed, "::C::make").is_none());
+        let other = analyse(source, Some(&OTHER_FAMILY));
+        changed.resolved_input = other.resolved_input.clone();
+        assert!(class_definer_family(&changed, &changed.all_classes["::C"]).is_none());
+        assert!(
+            itcl_class_proc_target_at(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                1,
+                4,
+                &changed
+            )
+            .is_none()
+        );
+        changed = original;
+        changed.dialect = "a reporting label".to_owned();
+        assert_eq!(
+            class_definer_family(&changed, &changed.all_classes["::C"]),
+            Some(DefinerFamily::Itcl)
+        );
+    }
+
+    #[test]
+    fn actual_itcl_reference_calls_keep_source_currency_and_the_selected_family() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "source_class C {proc make {} {return OK}}\nC::make\nC make\n";
+        let itcl = analyse(source, Some(&ITCL_GRAMMAR));
+        let sites = crate::references::obj_method_call_sites(
+            source,
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+            &itcl,
+            "::C",
+            "make",
+            true,
+            &[],
+        );
+        assert_eq!(sites.len(), 1);
+        assert_eq!(
+            &source[sites[0].start() as usize..sites[0].end() as usize],
+            "make"
+        );
+        assert_eq!(
+            sites[0].start() as usize,
+            source.find("C::make").unwrap() + 3
+        );
+        let changed = format!("{source}# changed");
+        assert!(
+            crate::references::obj_method_call_sites(
+                &changed,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &itcl,
+                "::C",
+                "make",
+                true,
+                &[]
+            )
+            .is_empty()
+        );
+        let mut missing = itcl.clone();
+        missing.resolved_input = None;
+        assert!(
+            crate::references::obj_method_call_sites(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &missing,
+                "::C",
+                "make",
+                true,
+                &[]
+            )
+            .is_empty()
+        );
+        let other = analyse(source, Some(&OTHER_FAMILY));
+        assert!(
+            crate::references::obj_method_call_sites(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &other,
+                "::C",
+                "make",
+                true,
+                &[]
+            )
+            .iter()
+            .all(|span| span.start() as usize != source.find("C::make").unwrap() + 3)
+        );
     }
 }
