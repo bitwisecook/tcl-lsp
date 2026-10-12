@@ -440,7 +440,8 @@ impl SourceInvocationBinding {
         }
         let rows = super::declaration_layout::original_declaration_layouts(
             self.declaration_layout_observations.as_deref()?,
-        )?.collect();
+        )?
+        .collect();
         self.original_lookup_from_rows(input, rows)
     }
 

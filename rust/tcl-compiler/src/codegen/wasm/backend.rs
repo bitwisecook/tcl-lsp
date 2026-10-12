@@ -1902,11 +1902,14 @@ fn record_direct_calls(
                 && mutations.trusts_proc_binding(&proc.qualified_name)
                 && !module.has_dynamic_trace
                 && !crate::registry_invocation::original_procedure_has_execution_trace(
-                    registry, context,
+                    registry,
+                    context,
                     crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
-                        unit.cfg.command_binding_sites.iter(), statement,
+                        unit.cfg.command_binding_sites.iter(),
+                        statement,
                     ),
-                    &proc.qualified_name, &module.traced_commands,
+                    &proc.qualified_name,
+                    &module.traced_commands,
                 )
             {
                 facts.direct_calls.insert(
@@ -3591,23 +3594,43 @@ mod tests {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         // Real source compilation and original entry; no Native trace execution.
-        let context = tcl_registry::model::ingress::resolve_environment("tcl8.6")
-            .default_context_registry();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let plain = retained_source_unit(
             std::sync::Arc::clone(&context),
             "proc p {x} {return $x}; p VALUE",
             tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
         );
         let current = function_facts(
-            &plain.top_level, &plain.ir_module, context.commands(),
-            &plain.command_mutations, true,
+            &plain.top_level,
+            &plain.ir_module,
+            context.commands(),
+            &plain.command_mutations,
+            true,
         );
         assert!(current.direct_calls.is_empty());
-        let tokens = plain.ir_module.top_level.statements.iter().rev()
-            .find_map(crate::ir::Statement::tokens).unwrap();
-        let target = tokens.source_binding.as_ref().unwrap().proved_execution_target().unwrap();
+        let tokens = plain
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .rev()
+            .find_map(crate::ir::Statement::tokens)
+            .unwrap();
+        let target = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .proved_execution_target()
+            .unwrap();
         assert!(target.identity.as_ref().unwrap().runtime.is_none());
-        assert!(!tokens.source_binding.as_ref().unwrap().unobserved_native_dispatch());
+        assert!(
+            !tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .unobserved_native_dispatch()
+        );
         let traced = retained_source_unit(
             std::sync::Arc::clone(&context),
             "proc cb args {}; proc p {x} {return $x}; proc other args {}; trace add execution other enter cb; p VALUE",
@@ -3615,8 +3638,11 @@ mod tests {
         );
         assert!(traced.ir_module.traced_commands.contains("other"));
         let refused = function_facts(
-            &traced.top_level, &traced.ir_module, context.commands(),
-            &traced.command_mutations, true,
+            &traced.top_level,
+            &traced.ir_module,
+            context.commands(),
+            &traced.command_mutations,
+            true,
         );
         assert!(refused.direct_calls.is_empty());
     }

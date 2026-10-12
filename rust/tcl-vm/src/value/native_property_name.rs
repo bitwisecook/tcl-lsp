@@ -83,7 +83,6 @@ impl Value {
             IntRep::NativePropertyName(NativePropertyName { reader, writer });
         Ok(lease)
     }
-
 }
 
 #[cfg(test)]

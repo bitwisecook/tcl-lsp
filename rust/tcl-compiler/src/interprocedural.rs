@@ -412,7 +412,8 @@ pub(crate) fn collect_positioned_call_by_name_reads(
 /// default such a param binds where the call omits it.
 fn add_call_by_name(cmd: &str, args: &[String], index: &ProcIndex, out: &mut HashSet<String>) {
     let candidates = (!cmd.is_empty() && !cmd.contains(['$', '[']))
-        .then(|| index.get(cmd)).flatten();
+        .then(|| index.get(cmd))
+        .flatten();
     let Some(candidates) = candidates.filter(|candidates| !candidates.is_empty()) else {
         // A missing key supplies no effect-free callee. These literal passed
         // names may be observed; opaque hidden reads remain the CFG owner's

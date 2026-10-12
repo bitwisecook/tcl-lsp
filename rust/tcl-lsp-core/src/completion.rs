@@ -2788,15 +2788,33 @@ mod tests {
             !items.iter().any(|item| item.label == "bark"),
             "malformed `${{x` must not dispatch through real `x`: {items:?}"
         );
-        assert_eq!(strip_instance_var("${x}", tcl_lexer::LexerConfig::default()), Some("x".to_owned()));
-        assert_eq!(strip_instance_var("$x", tcl_lexer::LexerConfig::default()), Some("x".to_owned()));
+        assert_eq!(
+            strip_instance_var("${x}", tcl_lexer::LexerConfig::default()),
+            Some("x".to_owned())
+        );
+        assert_eq!(
+            strip_instance_var("$x", tcl_lexer::LexerConfig::default()),
+            Some("x".to_owned())
+        );
         // Completion intentionally only dispatches simple scalar handles;
         // the shared codec still parses the array decoration, but this
         // feature's documented name validation rejects it.
-        assert_eq!(strip_instance_var("$arr(idx)", tcl_lexer::LexerConfig::default()), None);
-        assert_eq!(strip_instance_var("$::a:::b", tcl_lexer::LexerConfig::default()), Some("::a:::b".to_owned()));
-        assert_eq!(strip_instance_var("$foo:::", tcl_lexer::LexerConfig::default()).as_deref(), Some("foo:::"));
-        assert_eq!(strip_instance_var("${x", tcl_lexer::LexerConfig::default()).as_deref(), None);
+        assert_eq!(
+            strip_instance_var("$arr(idx)", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            strip_instance_var("$::a:::b", tcl_lexer::LexerConfig::default()),
+            Some("::a:::b".to_owned())
+        );
+        assert_eq!(
+            strip_instance_var("$foo:::", tcl_lexer::LexerConfig::default()).as_deref(),
+            Some("foo:::")
+        );
+        assert_eq!(
+            strip_instance_var("${x", tcl_lexer::LexerConfig::default()).as_deref(),
+            None
+        );
     }
 
     #[test]

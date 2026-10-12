@@ -477,8 +477,13 @@ impl SourceCommandBindings {
             } else {
                 context
             };
-            let entered =
-                self.walk_command_observer(site, observer, operation, &mut continuing, selected_context);
+            let entered = self.walk_command_observer(
+                site,
+                observer,
+                operation,
+                &mut continuing,
+                selected_context,
+            );
             outcomes.join(&entered);
         }
         outcomes.publish(state);

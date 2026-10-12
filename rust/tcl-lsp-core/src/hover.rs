@@ -6026,7 +6026,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn command_profile_metadata_keeps_foreign_surface_and_own_requirements() {
         // naming.analysis.constructed-key-consumer-projections
@@ -6065,8 +6064,6 @@ mod tests {
         assert!(text.contains("**Requires**: profile HTTP"), "{text}");
         assert!(!text.contains("profile DIAMETER"), "{text}");
     }
-
-
 }
 
 #[cfg(test)]

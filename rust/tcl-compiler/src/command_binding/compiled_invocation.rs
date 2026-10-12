@@ -3694,7 +3694,6 @@ mod tests {
     }
 }
 
-
 #[cfg(test)]
 mod original_logical_compiler_purpose_tests {
     use super::*;
@@ -3707,7 +3706,8 @@ mod original_logical_compiler_purpose_tests {
             profile,
             profile,
             tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
-                .unwrap().default_context_registry(),
+                .unwrap()
+                .default_context_registry(),
             tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
         );
         let bindings = SourceCommandBindings::analyse_with_options(
@@ -3729,11 +3729,27 @@ mod original_logical_compiler_purpose_tests {
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded VALUE",
         ] {
             let (bindings, input) = logical_source(source);
-            assert_eq!(bindings.final_state.logical_source_name_advice_input(), Some(&input));
+            assert_eq!(
+                bindings.final_state.logical_source_name_advice_input(),
+                Some(&input)
+            );
             assert!(bindings.final_state.baseline.native_entry.is_none());
-            assert!(bindings.final_state.baseline.execution_name_policy.is_none());
-            assert_eq!(bindings.final_state.baseline.native_compilation.mode, NativeCompilationMode::Unknown);
-            let points = bindings.points.iter().filter(|point| point.dispatch).collect::<Vec<_>>();
+            assert!(
+                bindings
+                    .final_state
+                    .baseline
+                    .execution_name_policy
+                    .is_none()
+            );
+            assert_eq!(
+                bindings.final_state.baseline.native_compilation.mode,
+                NativeCompilationMode::Unknown
+            );
+            let points = bindings
+                .points
+                .iter()
+                .filter(|point| point.dispatch)
+                .collect::<Vec<_>>();
             assert!(!points.is_empty());
             for point in points {
                 assert!(point.compiled_execution.admission.is_none());
@@ -3760,43 +3776,74 @@ mod original_logical_compiler_purpose_tests {
         assert!(binding.proved_execution_target().is_none());
         assert!(binding.proved_handler_target().is_none());
         let segments = crate::segmenter::segment_commands_with_offset_and_config(
-            source, 0, input.lexer_config(),
+            source,
+            0,
+            input.lexer_config(),
         );
         let mut tokens = crate::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::new(source), input.lexer_config(), segments.last().unwrap(),
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            segments.last().unwrap(),
         );
         bindings.stamp_original_tokens(&mut tokens);
-        assert!(tokens.source_binding.as_ref().unwrap()
-            .original_logical_declaration_call_targets(
-                &tokens, &input, input.borrowed_context_registry().commands(),
-            ).is_none());
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_declaration_call_targets(
+                    &tokens,
+                    &input,
+                    input.borrowed_context_registry().commands(),
+                )
+                .is_none()
+        );
     }
 
     #[test]
     fn original_native_and_authored_unknown_compiler_purposes_are_not_logical_source() {
         // naming.compiler.original-name-effect-separation
         // docs/design/analysis/name-resolution-proofs/original-compiler-name-effect-separation.md
-        let environment = tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();
+        let environment =
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();
         let profile = environment.unit_profile();
         let context = environment.default_context_registry();
         let (owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
-        let config = SourceAnalysisOptions { native_entry: Some(&entry), ..Default::default() }
-            .native_lexer_config(tcl_lexer::LexerConfig::for_file_grammar(profile.grammar));
+        let config = SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            ..Default::default()
+        }
+        .native_lexer_config(tcl_lexer::LexerConfig::for_file_grammar(profile.grammar));
         let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
         assert!(SourceAnalysisOptions::for_logical_source(&input).is_none());
         let source = "set checkpoint READY";
         let native = SourceCommandBindings::analyse_with_options(
-            source, config, context.commands(), SourceAnalysisOptions {
+            source,
+            config,
+            context.commands(),
+            SourceAnalysisOptions {
                 native_entry: Some(&entry),
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-                metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(&input)),
+                metadata_context:
+                    crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(
+                        &input,
+                    )),
                 ..Default::default()
             },
         );
-        assert!(native.final_state.logical_source_name_advice_input().is_none());
+        assert!(
+            native
+                .final_state
+                .logical_source_name_advice_input()
+                .is_none()
+        );
         assert!(native.final_state.baseline.native_entry.is_some());
-        assert_eq!(native.invocation_at_source("", 0).native_compilation_admission,
-            Some(NativeCompilationSelection::Unknown));
+        assert_eq!(
+            native
+                .invocation_at_source("", 0)
+                .native_compilation_admission,
+            Some(NativeCompilationSelection::Unknown)
+        );
         assert_eq!(entry.execution_point, environment.point());
         drop(owner);
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
@@ -3804,10 +3851,22 @@ mod original_logical_compiler_purpose_tests {
             source,
             tcl_lexer::LexerConfig::for_file_grammar(dialect.lexer_grammar),
             &tcl_registry::CommandRegistry::build_default(),
-            SourceAnalysisOptions { invocation_dialect: Some(dialect), ..Default::default() },
+            SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                ..Default::default()
+            },
         );
-        assert!(authored.final_state.logical_source_name_advice_input().is_none());
-        assert_eq!(authored.invocation_at_source("", 0).native_compilation_admission,
-            Some(NativeCompilationSelection::Unknown));
+        assert!(
+            authored
+                .final_state
+                .logical_source_name_advice_input()
+                .is_none()
+        );
+        assert_eq!(
+            authored
+                .invocation_at_source("", 0)
+                .native_compilation_admission,
+            Some(NativeCompilationSelection::Unknown)
+        );
     }
 }

@@ -5724,25 +5724,48 @@ mod tests {
             "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
         );
         let function = &unit.cfg_module.procedures["::add"];
-        let returns = function.blocks.iter().filter_map(|(&block, data)| {
-            matches!(data.terminator, Some(crate::cfg::Terminator::Return { .. }))
-                .then(|| function.source_tokens_at(block, usize::MAX))
-                .flatten()
-                .filter(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "return"))
-        }).collect::<Vec<_>>();
+        let returns = function
+            .blocks
+            .iter()
+            .filter_map(|(&block, data)| {
+                matches!(data.terminator, Some(crate::cfg::Terminator::Return { .. }))
+                    .then(|| function.source_tokens_at(block, usize::MAX))
+                    .flatten()
+                    .filter(|tokens| {
+                        tokens
+                            .argv_texts
+                            .first()
+                            .is_some_and(|head| head == "return")
+                    })
+            })
+            .collect::<Vec<_>>();
         assert_eq!(returns.len(), 1);
         assert!(returns[0].synthetic.is_none());
         assert_eq!(returns[0].argv_texts, ["return", "[expr {$b + $c}]"]);
-        assert!(function.blocks.values().all(|data| data.statements.iter().all(|statement| {
-            statement.tokens().is_none_or(|tokens| {
-                tokens.synthetic != Some(crate::ir::SyntheticMarker::EvaluatedArguments)
-                    || !tokens.argv_texts.first().is_some_and(|head| head == "return")
-            })
-        })));
+        assert!(
+            function
+                .blocks
+                .values()
+                .all(|data| data.statements.iter().all(|statement| {
+                    statement.tokens().is_none_or(|tokens| {
+                        tokens.synthetic != Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+                            || !tokens
+                                .argv_texts
+                                .first()
+                                .is_some_and(|head| head == "return")
+                    })
+                }))
+        );
         let evidence = unit.caller_scope.call_sites.get("::add").unwrap();
         assert!(!evidence.opaque_caller, "{evidence:?}");
         assert_eq!(evidence.arg_counts, BTreeSet::from([2]));
-        assert_eq!(evidence.slots[&0].values, BTreeSet::from(["2".into(), "3".into()]));
-        assert_eq!(evidence.slots[&1].values, BTreeSet::from(["4".into(), "5".into()]));
+        assert_eq!(
+            evidence.slots[&0].values,
+            BTreeSet::from(["2".into(), "3".into()])
+        );
+        assert_eq!(
+            evidence.slots[&1].values,
+            BTreeSet::from(["4".into(), "5".into()])
+        );
     }
 }

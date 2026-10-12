@@ -31,11 +31,11 @@ pub(crate) use original_procedure_call::{
     original_procedure_formal_count_shape, original_procedure_parameters,
     original_procedure_scalar_bindings,
 };
-mod metadata_context;
 mod execution_trace;
+mod metadata_context;
 pub(crate) use execution_trace::{
-    original_execution_trace_keys, original_invocation_has_execution_trace, original_procedure_has_execution_trace,
-    trace_set_requires_original_owner,
+    original_execution_trace_keys, original_invocation_has_execution_trace,
+    original_procedure_has_execution_trace, trace_set_requires_original_owner,
 };
 pub(crate) use metadata_context::retained_module_metadata_context;
 pub use metadata_context::{
@@ -10248,7 +10248,6 @@ mod original_argument_slice_purpose_tests {
     }
 }
 
-
 #[cfg(test)]
 mod original_logical_body_topology_input_tests {
     use super::*;
@@ -10264,51 +10263,87 @@ mod original_logical_body_topology_input_tests {
         let source = "if {1} {set value VALUE}";
         let image = tcl_lexer::SourceImage::document(source);
         let config = input.lexer_config();
-        let bindings = crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
-            &image,
-            &crate::var_resolve::VariableExecutionFrame::Unknown,
-            config,
-            registry,
-            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
-        ).unwrap();
-        let segment = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &image, 0, config,
-        ).unwrap().pop().unwrap();
+        let bindings =
+            crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
+                &image,
+                &crate::var_resolve::VariableExecutionFrame::Unknown,
+                config,
+                registry,
+                crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+            )
+            .unwrap();
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .pop()
+                .unwrap();
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
         bindings.stamp_original_tokens(&mut tokens);
         let metadata = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
-        assert!(conditional_body_topology_advice_with_metadata_context(
-            registry, metadata, &tokens, &bindings,
-        ).is_some());
-        assert!(tokens.source_binding.as_ref().unwrap().proved_handler_target().is_none());
+        assert!(
+            conditional_body_topology_advice_with_metadata_context(
+                registry, metadata, &tokens, &bindings,
+            )
+            .is_some()
+        );
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_handler_target()
+                .is_none()
+        );
         let mut shifted = config;
         shifted.strict_quoting = !shifted.strict_quoting;
         let changed = crate::analyser::ResolvedAnalysisInput::new(
-            input.analyser_profile(), input.unit_profile(), input.context_registry(), shifted,
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            shifted,
         );
-        let changed_metadata = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
+        let changed_metadata =
+            InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
         assert!(changed_metadata.permits_logical_source_names());
-        assert!(conditional_body_topology_advice_with_metadata_context(
-            registry, changed_metadata, &tokens, &bindings,
-        ).is_none());
-        let older = tcl_registry::model::ingress::resolve_known_environment("tcl8.4").unwrap()
+        assert!(
+            conditional_body_topology_advice_with_metadata_context(
+                registry,
+                changed_metadata,
+                &tokens,
+                &bindings,
+            )
+            .is_none()
+        );
+        let older = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
+            .unwrap()
             .default_context_registry();
         let older = crate::analyser::ResolvedAnalysisInput::new(
-            input.analyser_profile(), input.unit_profile(),
+            input.analyser_profile(),
+            input.unit_profile(),
             std::sync::Arc::new(older.with_command_store(registry.snapshot().shared_registry())),
             config,
         );
-        let older_metadata = InvocationMetadataContext::for_analysis_input(registry, &older).unwrap();
+        let older_metadata =
+            InvocationMetadataContext::for_analysis_input(registry, &older).unwrap();
         assert!(older_metadata.permits_logical_source_names());
         assert!(older_metadata.matches_registry(registry));
-        assert!(conditional_body_topology_advice_with_metadata_context(
-            registry, older_metadata, &tokens, &bindings,
-        ).is_none());
+        assert!(
+            conditional_body_topology_advice_with_metadata_context(
+                registry,
+                older_metadata,
+                &tokens,
+                &bindings,
+            )
+            .is_none()
+        );
         let mut missing = tokens.clone();
         missing.source_binding = None;
-        assert!(conditional_body_topology_advice_with_metadata_context(
-            registry, metadata, &missing, &bindings,
-        ).is_none());
+        assert!(
+            conditional_body_topology_advice_with_metadata_context(
+                registry, metadata, &missing, &bindings,
+            )
+            .is_none()
+        );
     }
 }
 

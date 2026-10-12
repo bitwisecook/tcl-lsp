@@ -132,7 +132,16 @@ fn checked_original_search_sort_key_and_pattern_refusals_keep_first_cause_and_re
             let cause = ops.native_execution_refusal().unwrap();
             assert_eq!(ops.get_obj_result(), prior.as_ptr());
             assert_eq!(LATER.get(), 0);
-            assert_eq!(REFS.get(), if operation == 2 { 1 } else if profile == "tcl8.4" && operation == 0 { 3 } else { 2 });
+            assert_eq!(
+                REFS.get(),
+                if operation == 2 {
+                    1
+                } else if profile == "tcl8.4" && operation == 0 {
+                    3
+                } else {
+                    2
+                }
+            );
             // SAFETY: actual observerref1 plus containingList hold, no temporary Native+1.
             assert_eq!(
                 unsafe { (*first.as_ptr()).ref_count },

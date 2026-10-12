@@ -1940,20 +1940,38 @@ mod tests {
         context.retain_namespace_world(
             static_namespace.clone(),
             [root, static_namespace],
-            Some(tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4)),
+            Some(tcl_syntax::naming::NativeNameProtocol::C(
+                tcl_dialect::TclVersion::V8_4,
+            )),
         );
-        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap()));
-        let ordinary = crate::var_resolve::resolve_literal_place("debug", &context, false, registry);
-        assert_eq!(namespace_storage_scope_for_place(&ordinary, registry.profile()), StorageScope::Namespace);
+        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+            registry.profile().unwrap(),
+        ));
+        let ordinary =
+            crate::var_resolve::resolve_literal_place("debug", &context, false, registry);
+        assert_eq!(
+            namespace_storage_scope_for_place(&ordinary, registry.profile()),
+            StorageScope::Namespace
+        );
         context.hosted_execution_context = Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule);
-        let selected = crate::var_resolve::resolve_literal_place("debug", &context, false, registry);
-        assert_eq!(namespace_storage_scope_for_place(&selected, registry.profile()), StorageScope::Static);
+        let selected =
+            crate::var_resolve::resolve_literal_place("debug", &context, false, registry);
+        assert_eq!(
+            namespace_storage_scope_for_place(&selected, registry.profile()),
+            StorageScope::Static
+        );
         let mut displayed = ordinary;
         displayed.ns = "::static".into();
         displayed.name = "static::debug".into();
-        assert_eq!(namespace_storage_scope_for_place(&displayed, registry.profile()), StorageScope::Namespace);
+        assert_eq!(
+            namespace_storage_scope_for_place(&displayed, registry.profile()),
+            StorageScope::Namespace
+        );
         let unknown = crate::place::unknown_top();
-        assert_eq!(namespace_storage_scope_for_place(&unknown, registry.profile()), StorageScope::Unknown);
+        assert_eq!(
+            namespace_storage_scope_for_place(&unknown, registry.profile()),
+            StorageScope::Unknown
+        );
     }
 
     #[test]

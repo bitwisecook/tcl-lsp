@@ -2603,14 +2603,22 @@ mod shared_boundary_tests {
         // naming.analysis.procedure-summary-candidate-keys
         // docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md
         // Pure constructed labels only, never Native namespace interpretation.
-        assert_eq!(key_suffixes("::a::b::p"), ["::a::b::p", "a::b::p", "b::p", "p"]);
+        assert_eq!(
+            key_suffixes("::a::b::p"),
+            ["::a::b::p", "a::b::p", "b::p", "p"]
+        );
         assert_eq!(key_suffixes(":::::p"), [":::::p", ":::p", "p"]);
-        assert_eq!(key_suffixes("::a:::::p"), ["::a:::::p", "a:::::p", ":::p", "p"]);
+        assert_eq!(
+            key_suffixes("::a:::::p"),
+            ["::a:::::p", "a:::::p", ":::p", "p"]
+        );
         assert_eq!(key_suffixes("::::::"), ["::::::", "::::", ":"]);
         assert_eq!(key_suffixes("::a::"), ["::a::", "a::"]);
         assert_eq!(key_suffixes("::"), ["::"]);
         assert_eq!(key_suffixes(""), [""]);
-        assert_eq!(key_suffixes("::é::雪\0p"), ["::é::雪\0p", "é::雪\0p", "雪\0p"]);
+        assert_eq!(
+            key_suffixes("::é::雪\0p"),
+            ["::é::雪\0p", "é::雪\0p", "雪\0p"]
+        );
     }
-
 }

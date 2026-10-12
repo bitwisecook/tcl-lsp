@@ -206,7 +206,11 @@ impl SourceInvocationBinding {
         snapshot.state.current_source_origin.as_ref() == Some(&site.source)
             && snapshot.state.variable_frame == self.variable_frame
             && head.is_current(&self.variable_context)
-            && target.identity.as_ref().and_then(|identity| identity.runtime).is_some()
+            && target
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.runtime)
+                .is_some()
             && self.proved_execution_target() == Some(target)
             && self.proved_target() == Some(target)
             && self.unobserved_native_dispatch()
@@ -1508,8 +1512,12 @@ mod original_math_body_purpose_tests {
         let registry = context.commands();
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.4");
-        let input =
-            crate::analyser::ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
         let policy = tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
             tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
         );
@@ -1526,7 +1534,8 @@ mod original_math_body_purpose_tests {
         let bindings =
             SourceCommandBindings::analyse_with_options(source, config, registry, entry.options());
         assert!(
-            bindings.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config,)
+            bindings
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config,)
         );
         let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
             registry,
@@ -1575,7 +1584,6 @@ mod original_math_body_purpose_tests {
             None
         );
     }
-
 }
 
 impl super::ModuleCommandBindings {

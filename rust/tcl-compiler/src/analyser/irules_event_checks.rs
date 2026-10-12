@@ -249,11 +249,9 @@ impl Analyser {
                 .collect();
             let hint = (!requirements.matched_form)
                 .then(|| {
-                    profiles
-                        .namespace_for_command_spec(spec)
-                        .and_then(|ns| {
-                            profile_info_description(ns.profiles, &file_profiles, profiles)
-                        })
+                    profiles.namespace_for_command_spec(spec).and_then(|ns| {
+                        profile_info_description(ns.profiles, &file_profiles, profiles)
+                    })
                 })
                 .flatten()
                 .or_else(|| {

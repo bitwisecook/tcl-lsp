@@ -23,10 +23,7 @@ pub enum ReportedQNameNamespacePurpose {
 /// This query supplies no written-name grammar, constructed-key partition,
 /// Native component path, source spelling or lookup authority.
 #[must_use]
-pub fn reported_qname_namespace(
-    qname: &str,
-    purpose: ReportedQNameNamespacePurpose,
-) -> String {
+pub fn reported_qname_namespace(qname: &str, purpose: ReportedQNameNamespacePurpose) -> String {
     let search = match purpose {
         ReportedQNameNamespacePurpose::AfterLeadingRoot => {
             qname.strip_prefix("::").unwrap_or(qname)

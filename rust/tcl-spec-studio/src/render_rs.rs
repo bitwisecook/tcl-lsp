@@ -2687,7 +2687,10 @@ mod tests {
         let mut checked = 0_usize;
         for pack in tcl_registry::commands::SPEC_PACKS {
             for spec in (pack.specs)() {
-                if !tcl_syntax::naming::unroot_rooted_key(&spec.name).unwrap_or(&spec.name).contains("::") {
+                if !tcl_syntax::naming::unroot_rooted_key(&spec.name)
+                    .unwrap_or(&spec.name)
+                    .contains("::")
+                {
                     continue;
                 }
                 assert!(
@@ -2720,7 +2723,9 @@ mod tests {
         for spec in (pack.specs)() {
             // One command may ship under both its bare and its fully-qualified
             // spelling, and the registry files those in one module.
-            let command = tcl_syntax::naming::unroot_rooted_key(&spec.name).unwrap_or(&spec.name).to_owned();
+            let command = tcl_syntax::naming::unroot_rooted_key(&spec.name)
+                .unwrap_or(&spec.name)
+                .to_owned();
             let path = suggested_path(spec.name, pack.id);
             if let Some(other) = seen.insert(path.clone(), command.clone())
                 && other != command

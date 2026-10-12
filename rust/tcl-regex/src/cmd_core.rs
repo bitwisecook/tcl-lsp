@@ -105,8 +105,8 @@ impl RegexEngine for AreEngine {
                     spans
                         .into_iter()
                         .map(|span| RegMatch {
-                                    so: span.start.unwrap_or(defs::NO_MATCH),
-                                    eo: span.end.unwrap_or(defs::NO_MATCH),
+                            so: span.start.unwrap_or(defs::NO_MATCH),
+                            eo: span.end.unwrap_or(defs::NO_MATCH),
                         })
                         .collect()
                 })

@@ -3,8 +3,7 @@
 Integration source basis: `c49ef6fd5d147edd0cf473070dfaac2834c20dd7`,
 12 October 2026. Local implementation/evidence checkpoint is `e803f53f1`;
 the current wild-pattern/evidence index checkpoint is `df919cbed`.
-The published `work` ref was
-`9ccec0883` when checked. Earlier `bcaf88c12` is the integrated upstream baseline.
+The published `work` ref is `8f6e25e5d` at this checkpoint. Earlier `bcaf88c12` is the integrated upstream baseline.
 Earlier `127dba9d9` source audits and `b7ad30f1f` engine captures are
 prior baselines, not fresh execution of the merged source.
 

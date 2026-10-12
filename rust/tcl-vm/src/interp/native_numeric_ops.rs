@@ -599,16 +599,15 @@ impl<'a> OriginalNumericOps<'a> {
         }
         let formatter = self.host.native_integer_formatter();
         current(value)?;
-        let reached =
-            value.native_string_bytes_checked_for_value_retaining(
-                protocol,
-                formatter,
-                &mut |original| {
-                    current(value)?;
-                    current(original)
-                },
-                &|error| self.retain_failure(&error.clone().into()),
-            );
+        let reached = value.native_string_bytes_checked_for_value_retaining(
+            protocol,
+            formatter,
+            &mut |original| {
+                current(value)?;
+                current(original)
+            },
+            &|error| self.retain_failure(&error.clone().into()),
+        );
         current(value)?;
         reached
     }

@@ -1285,7 +1285,8 @@ mod tests {
         );
     }
 
-    fn captured_provider_context() -> std::sync::Arc<tcl_registry::model::assembly::ContextRegistry> {
+    fn captured_provider_context() -> std::sync::Arc<tcl_registry::model::assembly::ContextRegistry>
+    {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut commands = baseline.commands().project_for_profile(profile);

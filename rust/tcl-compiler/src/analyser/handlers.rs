@@ -7765,8 +7765,7 @@ impl Analyser {
             if crate::naming::is_dynamic_word(written) {
                 return None;
             }
-            let (namespace, _) =
-                crate::naming::key_holder_and_tail(&class.qualified_name);
+            let (namespace, _) = crate::naming::key_holder_and_tail(&class.qualified_name);
             let qualified = crate::naming::qualify(namespace, written);
             let anchor = mro.iter().position(|name| name == &qualified)?;
             (anchor > current).then_some(anchor)?
@@ -19407,7 +19406,10 @@ mod constructed_projection_tests {
                 call_off: 0,
                 control_path: Vec::new(),
             };
-            assert_eq!(Analyser::unresolved_class_name(&candidate).as_deref(), Some(expected));
+            assert_eq!(
+                Analyser::unresolved_class_name(&candidate).as_deref(),
+                Some(expected)
+            );
             candidate.name_word = "C".to_owned();
             assert!(Analyser::unresolved_class_name(&candidate).is_none());
         }

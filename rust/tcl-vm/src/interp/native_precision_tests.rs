@@ -4,7 +4,6 @@
 
 //! Public precision lifecycle controls from six original native providers.
 
-
 #[test]
 fn original_precision_unset_matches_all_six_native_sources() {
     // naming.variable.original-precision-unset-publication

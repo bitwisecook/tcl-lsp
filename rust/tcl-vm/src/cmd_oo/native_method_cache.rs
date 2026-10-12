@@ -565,8 +565,10 @@ pub(super) fn remember(
         vm,
         &mut |vm| {
             let reached = (|| {
-                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &scope)?
-                    .string(original_lifetime.value(), protocol.strings())
+                crate::interp::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                    vm, &scope,
+                )?
+                .string(original_lifetime.value(), protocol.strings())
             })();
             if let Err(error) = &reached
                 && let Some(first) = error.native_execution_refusal()
@@ -866,7 +868,9 @@ mod tests {
             let weak = Rc::downgrade(&chain);
             drop(chain);
             assert_eq!(weak.strong_count(), 2);
-            let reached = lookup(&mut vm, object, "m", &original, true).unwrap().unwrap();
+            let reached = lookup(&mut vm, object, "m", &original, true)
+                .unwrap()
+                .unwrap();
             assert_eq!(weak.strong_count(), 3);
             let next_frame = reached.clone();
             assert_eq!(weak.strong_count(), 3);

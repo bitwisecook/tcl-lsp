@@ -695,9 +695,16 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
         // Supplied reporting descriptors, not new C registration/lookup evidence.
         let mut import = ExtensionImport::default();
-        import.merge_probe(&ProbeReport { package: "p".into(), version: None,
-            commands: vec![":::::p".into(), "::p".into(), ":p".into()] });
-        let names: Vec<_> = import.commands.iter().map(|row| row.name.as_str()).collect();
+        import.merge_probe(&ProbeReport {
+            package: "p".into(),
+            version: None,
+            commands: vec![":::::p".into(), "::p".into(), ":p".into()],
+        });
+        let names: Vec<_> = import
+            .commands
+            .iter()
+            .map(|row| row.name.as_str())
+            .collect();
         assert_eq!(names, [":::p", ":p", "p"]);
     }
 

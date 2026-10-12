@@ -300,8 +300,12 @@ impl Interp {
             .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
         let reached = (|| {
             let stored = captured.receiver.store(value.as_ptr());
-            original.check(self).map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
-            stored.map_err(|error| crate::builtins::var_error_using(self, &captured.root, error, Some(&stage)))?;
+            original
+                .check(self)
+                .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+            stored.map_err(|error| {
+                crate::builtins::var_error_using(self, &captured.root, error, Some(&stage))
+            })?;
             // Capture the original frame cause before the working value's
             // mandatory release can reach another callback.
             let published = original
@@ -312,10 +316,9 @@ impl Interp {
                 .check(self)
                 .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
             published?;
-            captured
-                .receiver
-                .check_current()
-                .map_err(|error| crate::builtins::var_error_using(self, &captured.root, error, Some(&stage)))?;
+            captured.receiver.check_current().map_err(|error| {
+                crate::builtins::var_error_using(self, &captured.root, error, Some(&stage))
+            })?;
             if self.original_variable_trace_requires_name(
                 &captured.home,
                 captured.element.as_deref(),
@@ -339,14 +342,18 @@ impl Interp {
                     &captured.home,
                     false,
                 );
-                let traced = self.fire_var_trace_resolved(&captured.home, &access, b"write")
+                let traced = self
+                    .fire_var_trace_resolved(&captured.home, &access, b"write")
                     .map_err(|first| self.refuse_native_execution(first))?;
-                original.check(self).map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
                 if traced.is_guest_error() {
                     return Err(crate::builtins::var_error_using(
                         self,
                         &spelling,
-                        crate::frame::VarError::TraceError, Some(&stage)
+                        crate::frame::VarError::TraceError,
+                        Some(&stage),
                     ));
                 }
             }

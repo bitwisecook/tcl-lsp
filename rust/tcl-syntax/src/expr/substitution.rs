@@ -813,8 +813,8 @@ mod original_expression_span_tests {
 
 #[cfg(test)]
 mod original_source_topology_tests {
-    use super::*;
     use super::super::parser::{CheckedExprParse, ExprParseUnsupported, NativeExprSyntax};
+    use super::*;
 
     #[test]
     fn original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax() {
@@ -826,29 +826,68 @@ mod original_source_topology_tests {
         let source = "![\u{feff}match λ λ out] || [right]";
         let substitutions = checked_source_expression_substitutions(source, &context).unwrap();
         assert!(substitutions.variables.is_empty());
-        assert_eq!(substitutions.commands.iter().map(|span| &source[span.as_range()]).collect::<Vec<_>>(), ["[\u{feff}match λ λ out]", "[right]"]);
+        assert_eq!(
+            substitutions
+                .commands
+                .iter()
+                .map(|span| &source[span.as_range()])
+                .collect::<Vec<_>>(),
+            ["[\u{feff}match λ λ out]", "[right]"]
+        );
         assert_eq!(substitutions.commands[0].start(), 1);
-        assert_eq!(substitutions.commands.last().unwrap().end(), u32::try_from(source.len()).unwrap());
+        assert_eq!(
+            substitutions.commands.last().unwrap().end(),
+            u32::try_from(source.len()).unwrap()
+        );
         assert!(checked_expression_substitutions(source, &context).is_none());
-        assert_eq!(parse_expr_checked_with_context(source, &context), CheckedExprParse::Unsupported(ExprParseUnsupported::UnknownNativeSyntax));
+        assert_eq!(
+            parse_expr_checked_with_context(source, &context),
+            CheckedExprParse::Unsupported(ExprParseUnsupported::UnknownNativeSyntax)
+        );
         assert_eq!(context.native_syntax, NativeExprSyntax::Unknown);
     }
 
     #[test]
-    fn original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix() {
+    fn original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix()
+     {
         // naming.grammar.checked-expression-substitution-context
         // docs/design/analysis/name-resolution-proofs/checked-expression-substitution-context.md
         let mut context = ExprParseContext::for_profile(DialectProfile::plain_tcl());
-        for source in ["[complete] +", "([complete]", "[unterminated", "\"$array(\"", "$array($key", "[complete] @", "[complete] [later]"] {
-            assert!(checked_source_expression_substitutions(source, &context).is_none(), "{source}");
+        for source in [
+            "[complete] +",
+            "([complete]",
+            "[unterminated",
+            "\"$array(\"",
+            "$array($key",
+            "[complete] @",
+            "[complete] [later]",
+        ] {
+            assert!(
+                checked_source_expression_substitutions(source, &context).is_none(),
+                "{source}"
+            );
         }
         context.expr_grammar_base = Some(tcl_dialect::TclVersion::V8_4);
         assert!(checked_source_expression_substitutions("[complete] ** 2", &context).is_none());
         assert!(checked_source_expression_substitutions("[complete] + 2", &context).is_some());
-        context.lexer_grammar.expr_comments = DialectProfile::find("tcl8.6").unwrap().grammar.expr_comments;
-        assert!(checked_source_expression_substitutions("[complete] # [inert]", &context).is_none());
-        context.lexer_grammar.expr_comments = DialectProfile::find("tcl9.0").unwrap().grammar.expr_comments;
-        assert_eq!(checked_source_expression_substitutions("[complete] # [inert]", &context).unwrap().commands.len(), 1);
+        context.lexer_grammar.expr_comments = DialectProfile::find("tcl8.6")
+            .unwrap()
+            .grammar
+            .expr_comments;
+        assert!(
+            checked_source_expression_substitutions("[complete] # [inert]", &context).is_none()
+        );
+        context.lexer_grammar.expr_comments = DialectProfile::find("tcl9.0")
+            .unwrap()
+            .grammar
+            .expr_comments;
+        assert_eq!(
+            checked_source_expression_substitutions("[complete] # [inert]", &context)
+                .unwrap()
+                .commands
+                .len(),
+            1
+        );
         context.native_syntax = NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_4);
         assert!(checked_expression_substitutions("[complete] ** 2", &context).is_none());
         assert!(checked_source_expression_substitutions("[complete] ** 2", &context).is_none());

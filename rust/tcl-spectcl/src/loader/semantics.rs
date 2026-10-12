@@ -951,9 +951,11 @@ fn depends_row(row: &Stmt, log: &mut Log) -> Vec<ContextDependency> {
                     depends.push(ContextDependency::Binding(BindingIdentity {
                         resolution_namespace: String::new(),
                         name: name.clone(),
-                        identity: tcl_syntax::naming::unroot_rooted_key(&key).unwrap_or(&key).to_owned(),
+                        identity: tcl_syntax::naming::unroot_rooted_key(&key)
+                            .unwrap_or(&key)
+                            .to_owned(),
                     }));
-                },
+                }
                 None => log.say(row.line, "`binding` needs a command name; dropped"),
             }
             continue;
@@ -1147,17 +1149,35 @@ speclib probe 2.2 {
         // naming.grammar.shared-written-name-boundaries
         // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
         // Authored pack dependency descriptors; no binding receipt or native lookup grant.
-        let source = TENANT.replace("depends {tcl_profile implementation_identity}",
-            "depends {binding :clock binding ::::clock binding other::clock}");
+        let source = TENANT.replace(
+            "depends {tcl_profile implementation_identity}",
+            "depends {binding :clock binding ::::clock binding other::clock}",
+        );
         let pack = evaluate_pack(&source);
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
         let semantics = declared(pack.command("tenant::label").unwrap().spec.semantics);
-        let DeclaredEvaluation::Implementation(implementation) = semantics.evaluation else { panic!("implementation") };
-        let pairs: Vec<_> = implementation.capability.depends.iter().map(|dependency| {
-            let ContextDependency::Binding(binding) = dependency else { panic!("binding") };
-            (binding.name.as_str(), binding.identity.as_str())
-        }).collect();
-        assert_eq!(pairs, [(":clock", ":clock"), ("::::clock", "clock"), ("other::clock", "other::clock")]);
+        let DeclaredEvaluation::Implementation(implementation) = semantics.evaluation else {
+            panic!("implementation")
+        };
+        let pairs: Vec<_> = implementation
+            .capability
+            .depends
+            .iter()
+            .map(|dependency| {
+                let ContextDependency::Binding(binding) = dependency else {
+                    panic!("binding")
+                };
+                (binding.name.as_str(), binding.identity.as_str())
+            })
+            .collect();
+        assert_eq!(
+            pairs,
+            [
+                (":clock", ":clock"),
+                ("::::clock", "clock"),
+                ("other::clock", "other::clock")
+            ]
+        );
     }
 
     #[test]

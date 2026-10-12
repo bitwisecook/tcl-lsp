@@ -319,7 +319,6 @@ fn original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_pa
     );
 }
 
-
 #[test]
 fn original_method_creation_epoch_refuses_after_actual_same_record_payload_retirement() {
     // naming.embedding.original-host-publication-and-fact-transport

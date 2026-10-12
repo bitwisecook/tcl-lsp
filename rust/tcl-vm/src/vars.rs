@@ -61,12 +61,18 @@ pub(crate) struct VarTable {
 
 impl Clone for VarTable {
     fn clone(&self) -> Self {
-        Self { birth: Rc::new(()), bindings: self.bindings.clone(),
-            native_keys: self.native_keys.clone(), order: self.order.clone() }
+        Self {
+            birth: Rc::new(()),
+            bindings: self.bindings.clone(),
+            native_keys: self.native_keys.clone(),
+            order: self.order.clone(),
+        }
     }
 }
 impl VarTable {
-    pub(crate) fn weak_birth(&self) -> std::rc::Weak<()> { Rc::downgrade(&self.birth) }
+    pub(crate) fn weak_birth(&self) -> std::rc::Weak<()> {
+        Rc::downgrade(&self.birth)
+    }
     pub(crate) fn has_original_birth(&self, original: &std::rc::Weak<()>) -> bool {
         original.ptr_eq(&Rc::downgrade(&self.birth))
     }
@@ -91,10 +97,14 @@ impl VarTable {
         self.bindings.insert(name, cell)
     }
     pub(crate) fn remove(&mut self, name: impl AsRef<[u8]>) -> Option<VarId> {
-        self.take_binding(name).map(RemovedVariableBinding::release_key)
+        self.take_binding(name)
+            .map(RemovedVariableBinding::release_key)
     }
     /// Extract the actual old table key role before releasing it outside storage access.
-    pub(crate) fn take_binding(&mut self, name: impl AsRef<[u8]>) -> Option<RemovedVariableBinding> {
+    pub(crate) fn take_binding(
+        &mut self,
+        name: impl AsRef<[u8]>,
+    ) -> Option<RemovedVariableBinding> {
         let id = self.bindings.remove(name.as_ref())?;
         self.order.get_mut().remove(name.as_ref());
         let key = self.native_keys.remove(name.as_ref());
@@ -1325,7 +1335,9 @@ pub(crate) struct RemovedVariableBinding {
     key: Option<Rc<NativeHashEntryKey>>,
 }
 impl RemovedVariableBinding {
-    pub(crate) fn id(&self) -> VarId { self.id }
+    pub(crate) fn id(&self) -> VarId {
+        self.id
+    }
     pub(crate) fn release_key(self) -> VarId {
         let Self { id, key } = self;
         drop(key);

@@ -7,8 +7,9 @@ ledger from the completed implementation diff. Git records implementation histor
 The integration baseline is `c49ef6fd5`, including remote `work` `bcaf88c12`.
 Local checkpoint `e803f53f1` contains the implementation and scoped validation;
 `df919cbed` contains the maintained wild-pattern catalogue and new Jim/F5
-bundles. Source advice, W210, runtime variable/array handling, native bootstrap,
-gate repair and consumer/documentation audits currently have assigned agents.
+bundles. Active small jobs are native source namespace advice, clock registration topology,
+three gate repairs and two reviewed proof records. The coordinator owns integration
+and tracking; check live assignments before editing shared sources.
 Check git and assignment status before taking shared-file ownership. Measurements identify their own source and binary;
 a source audit is not an executed test.
 
@@ -26,7 +27,7 @@ a source audit is not an executed test.
 | Related issue state and reproduction | Issue agent / coordinator | Updated; two defects remain open | #2450 closed from published removal. #2286 positives pass but direct/alias undefined-read controls fail. #2287 namespaced and top-level token controls fail; generic conditional import/path advice needs repair. |
 | Latest Jim oracle | Coordinator | Upstream reference verified and executed | Upstream HEAD matches shared pin `5bac7c99`; revision-bearing 0.84 build passes 339 tests in 12 real Jim naming suites. VM/runtime Jim conformance remains required. |
 | F5 appliance questions/answers | Appliance chat / coordinator | Exact pattern bundle pending | [Pattern bundle](../../../experiments/name-handling/patterns/f5/README.md) has 50 questions across eight contexts, all 400 rows pending. Existing BIG-IP controls are linked separately. Returned documents must bind exact input, release, execution channel and reached event; ingest only matching answers. |
-| Required gates and publication | Coordinator | Red; PR readiness blocked | Rust gate still needs formatting/full checks; latest complete proof audit has 158 changed implementation evidence digests. Command-backing and owner-resolution also report existing drift. An xtask build stopped at ENOSPC before any owner/backing gate executed; its entire cache was cleaned. Review evidence and repair all required gates at the PR stage. User-authorised development pushes may proceed with failures recorded. |
+| Required gates and publication | Gate agent / coordinator | Red; fresh bounded gates executed | AI generation/check and registry shipped-identity control pass. Owner scanner and manifest-column defects, InitAutoPath backing/profile mismatch and a missing OptionSpec.effect test fixture remain. Exact logs: experiments/name-handling/results/gate-validation/20261012T160049Z/. Three bounded repairs assigned. Full Rust/PR gates and reviewed proof bindings remain required. Development pushes are authorised while red. |
 
 ## Consumer acceptance census
 
@@ -90,8 +91,10 @@ temporary work directory and its links only when the consumer census is complete
   refusals; their remaining cases are unmeasured. C controls have 500 passes,
   42 skips and zero failures. See the [current report](../../../experiments/name-handling/results/RESULTS.md).
 - All 140 missing annotated test/catalog bindings were reviewed and reconciled.
-  The complete proof audit has 1,179 questions, zero pending candidates and zero
-  unlinked tests; 139 implementation evidence digests still require review.
+  The latest complete proof audit has 1,179 questions, zero pending candidates
+  and zero unlinked tests; 158 implementation evidence digests require review.
+  Syntax/LSP reviews cover 39 entries; meaning/test review is still required
+  for two LSP entries before any final source binding is renewed.
 
 ## Concrete next work
 
@@ -110,15 +113,16 @@ publication gates or establish current engine/static conformance.
 2. Restore genuine-undefined-read detection in selected Tcltest caller-shared
    phases, for direct and captured-prefix aliases. Keep expected-result data opaque.
 3. Provide actual native compiler recipes for the selected `namespace which`
-   worker. Repair 8.4 indexed receiver, 8.6 command-entry epoch and 9.x local-alias
-   handler prerequisites; bootstrap refusals cannot become Tcltest assertions.
+   worker. C 8.4 declared-cell and compiled-alias prerequisites now pass; finish
+   8.6 command-entry epochs and 9.x simple-cell startup; bootstrap refusals cannot become Tcltest assertions.
 4. Complete original regex enumeration and release-specific array trace/arity
-   admission. Jim variable maximum arity and the VM declaration matrix pass. The original C 8.5 var.test failures are fixed in the frozen capture;
-   original regex enumeration and broader VM/runtime conformance remain open.
+   admission. Jim variable maximum arity and the VM declaration matrix pass.
+   Original C 8.5 var.test failures are fixed in the frozen capture; broader
+   VM/runtime conformance remains open.
 5. Finish 8.6/9.x original bootstrap prerequisites and measured 8.4/8.5 namespace
    failures. The cached/fresh public question now matches C after real startup;
-   escaped NUL production still needs its actual string/source owner. The byte-count helper must
-   continue to read physical representation rather than reconstruct encoding.
+   escaped NUL production still needs its actual string/source owner. The
+   byte-count helper must continue to read physical representation rather than reconstruct encoding.
 6. Review the broader typing/class-relation/dispatch failures against actual
    source-entry prerequisites. Recover conditional candidates through shared
    facts; do not weaken negative controls or manufacture Native/Normal evidence.
@@ -126,8 +130,8 @@ publication gates or establish current engine/static conformance.
    drift; finish required gates and publish. Never rewrite original native
    inputs or provider answers merely to match a new implementation digest.
 8. Review remaining Jim adaptations and unreached setups separately; 11 reached
-   original corpus answers are registered in the existing canonical proof index. Add held-out
-   static consumer coverage and ingest matching F5 answers when the appliance
+   original corpus answers are registered in the existing canonical proof index.
+   Add held-out static consumer coverage and ingest matching F5 answers when the appliance
    chat returns them. Maintain the [wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md)
    alongside each new experiment, answer or recognised idiom.
 
@@ -140,7 +144,8 @@ separates passed controls, failed controls and gates which were not reached.
   and three missing-read controls remain red. All temporary tracing is removed;
   the remaining lifecycle/read admission guard still needs precise diagnosis.
 - Source advice: five new focused controls pass; six broader owner failures
-  need baseline attribution before packaged LSP validation.
+  are confirmed pre-existing by the exact counterfactual; both packaged LSP
+  #2287 regressions still fail and need the actual consumer ingress repaired.
 - Runtime cells: the C 8.4 declared-cell/public namespace-link checks and real
   init/Tcltest startup pass; var/proc/rename suites complete without failures.
   Namespace has ten assertion failures; upvar and interp hit explicit refusals;
@@ -148,8 +153,9 @@ separates passed controls, failed controls and gates which were not reached.
 - Jim variable arity: VM zero/three/four operand matrix and runtime matrices
   pass against all five C releases and Jim. Array mode validation passes 200
   oracle comparisons; ten populated-regexp refusals remain explicit.
-- Gate owners/backing and generated AI prompts: source fixes ready, gates and
-  generation unexecuted after the interrupted build.
+- Gate owners/backing: fresh executed failures retained in gate-validation/20261012T160049Z.
+  Generated AI prompt check and shipped-identity control pass; three bounded gate
+  repairs are assigned. InitAutoPath needs an actual profile-aware backing diagnosis.
 - Proof source review: [syntax](evidence-review/syntax.json) and
   [LSP](evidence-review/lsp.json) reviews are retained;
   final source freeze and explicit invariant/scope review are required before
@@ -159,3 +165,26 @@ Clean validation builds source `/tmp/name-env.sh`, which disables incremental
 caches and dev/test debug info. The interrupted cache was removed; do not reuse
 its artifacts or claim it ran a check. Coordinate source freezes and build
 ownership; use small jobs and update this snapshot before handoff.
+
+## Active compact handoff
+
+- Published implementation/evidence checkpoint: `8f6e25e5d` on `work`.
+- Formatter verified 125 pending Rust files equal rustfmt of their exact HEAD
+  contents; this batch changes formatting only. Remaining pending Rust edits
+  require separate semantic review. Original oracle inputs/captures are unchanged.
+- Native source namespace advice: LSP agent traced the two packaged failures to
+  compiler-owned source import/path/body inventory; actual server uses C 8.6 Native
+  source policy while passing helper controls use Logical. Preserve entered-world
+  guards and keep this source advice conditional. Narrow proposal assigned.
+- Clock registration: the C 8.6 constructor has no add/format/scan entries; real
+  init creates them without advancing compiler/resolver epochs. Synthetic runtime
+  preinstallation poisons compiler currency on replacement. Exact source/results
+  are in experiments/name-handling/clock-bootstrap-epoch/; bounded topology and
+  registry-descriptor repair assigned. Unknown refusal remains required.
+- W210 prototype: six Tcltest controls pass, three genuine-missing-read controls
+  fail (0 instead of 1/1/2 at their first C 8.4 assertion). Do not close #2286.
+- Two LSP proof records have completed meaning/coverage review; scoped updates
+  assigned. Other implementation digests remain unreconciled.
+- Cargo: gate agent owns tmp/name-target-issues; clock agent must request its
+  separate runtime cache before building. Source /tmp/name-env.sh; incremental
+  and debug info disabled to prevent renewed disk exhaustion.

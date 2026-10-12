@@ -743,12 +743,13 @@ impl super::SourceCommandBindings {
         body.try_text().ok()?;
         let base = usize::try_from(body.base()).ok()?;
         let end = base.checked_add(body.text.len())?;
-        (body.origin.source_image().bytes().get(base..end) == Some(body.text.bytes()))
-            .then(|| OriginalBodyWrittenWordOwner {
+        (body.origin.source_image().bytes().get(base..end) == Some(body.text.bytes())).then(|| {
+            OriginalBodyWrittenWordOwner {
                 body: body.clone(),
                 config,
                 input: input.clone(),
-            })
+            }
+        })
     }
     /// A materialized original body retains the exact written parent allocation
     /// and argument. The parent inventory, full metadata and canonical operand

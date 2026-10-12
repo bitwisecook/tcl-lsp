@@ -8197,7 +8197,6 @@ c\uD800";
         analysis.all_classes.get_mut("::茶").unwrap().metaclass = "oo::class".to_owned();
         assert!(itcl_class_proc_at_in_registry(&analysis, registry, "::茶:::").is_none());
     }
-
 }
 
 #[cfg(test)]
@@ -8458,7 +8457,6 @@ mod configured_receiver_head_tests {
         }
     }
 }
-
 
 #[cfg(test)]
 mod itcl_family_context_tests {

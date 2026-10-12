@@ -677,7 +677,10 @@ mod tests {
         // naming.grammar.shared-written-name-boundaries
         // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
         // Real analyser/import consumer; no native dispatch or compiler body authority.
-        let import = import_package(&file("namespace eval : { proc p {} { return OK } }"), "tcl9.0");
+        let import = import_package(
+            &file("namespace eval : { proc p {} { return OK } }"),
+            "tcl9.0",
+        );
         let procedure = find(&import, ":::p");
         assert_eq!(procedure.draft["name"], json!(":::p"));
         assert!(!import.commands.iter().any(|row| row.name == "p"));

@@ -4,8 +4,8 @@
 
 //! Physical Tcl frame selection owned by an execution activation.
 
-use super::{CallFrame, NsId, Vm};
 use super::native_operation_currency::SavedExecutionTarget;
+use super::{CallFrame, NsId, Vm};
 use tcl_cmd_core::CmdError;
 
 /// Actual caller frames hidden while a selected-frame script executes.
@@ -47,8 +47,11 @@ impl Vm {
         target: usize,
     ) -> Result<Option<SelectedFrameRestore>, CmdError> {
         let selected_target = SavedExecutionTarget::capture(self);
-        selected_target.check_current(self).map_err(CmdError::from_execution_refusal)?;
-        self.select_execution_frame_using(target, selected_target).map_err(CmdError::new)
+        selected_target
+            .check_current(self)
+            .map_err(CmdError::from_execution_refusal)?;
+        self.select_execution_frame_using(target, selected_target)
+            .map_err(CmdError::new)
     }
 
     fn select_execution_frame_using(
@@ -92,12 +95,12 @@ impl Vm {
         Ok(Some(SelectedFrameRestore {
             target: selected_target,
             state: SelectedFrameState {
-            target_len,
-            frames,
-            namespaces,
-            namespace_scripts,
-            recursion_depth: self.recursion_depth,
-            shifted: true,
+                target_len,
+                frames,
+                namespaces,
+                namespace_scripts,
+                recursion_depth: self.recursion_depth,
+                shifted: true,
             },
         }))
     }
@@ -108,7 +111,9 @@ impl Vm {
             return;
         };
         let SelectedFrameRestore { target, state } = selected;
-        if let Err(first) = target.in_original(self, |vm| vm.restore_selected_execution_frame(state)) {
+        if let Err(first) =
+            target.in_original(self, |vm| vm.restore_selected_execution_frame(state))
+        {
             self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first));
         }
     }

@@ -1217,7 +1217,8 @@ fn slice(source: &str, span: Span) -> &str {
 
 /// Call sites of the proc `name` / `qualified_name`.
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
-    let qn_no_prefix = tcl_syntax::naming::unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
+    let qn_no_prefix =
+        tcl_syntax::naming::unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
     let mut out = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for inv in &analysis.command_invocations {

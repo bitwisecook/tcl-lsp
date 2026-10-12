@@ -337,7 +337,13 @@ mod abstract_bootstrap_tests {
     fn original_abstract_bootstrap_recipe_is_c9_initial_state_without_live_factory_authority() {
         // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
             let dialect = InvocationDialect::for_version(version);
             let recipe = NativeAbstractClassBootstrap::select(dialect);
             assert_eq!(recipe.is_some(), version >= TclVersion::V9_0);
@@ -346,12 +352,24 @@ mod abstract_bootstrap_tests {
                 assert_eq!(recipe.command(), "::oo::abstract");
                 assert_eq!(recipe.canonical_command(), "oo::abstract");
                 assert_eq!(recipe.foundation_class(), "::oo::class");
-                assert_eq!(recipe.unexported_instance_methods(), ["create", "createWithNamespace", "new"]);
+                assert_eq!(
+                    recipe.unexported_instance_methods(),
+                    ["create", "createWithNamespace", "new"]
+                );
                 assert!(recipe.own_constructor_absent() && recipe.own_destructor_absent());
-                assert!(recipe.initialization_script().starts_with(b"oo::class create "));
+                assert!(
+                    recipe
+                        .initialization_script()
+                        .starts_with(b"oo::class create ")
+                );
             }
             assert!(NativeClassFactoryRecipe::select("oo::abstract", dialect).is_none());
         }
-        assert!(NativeAbstractClassBootstrap::select(InvocationDialect::of_profile(crate::model::resolve_environment("jim").unit_profile())).is_none());
+        assert!(
+            NativeAbstractClassBootstrap::select(InvocationDialect::of_profile(
+                crate::model::resolve_environment("jim").unit_profile()
+            ))
+            .is_none()
+        );
     }
 }

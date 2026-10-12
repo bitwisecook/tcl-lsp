@@ -48,20 +48,37 @@ impl NativeCommand for LeaveChild {
         ok(Value::string("UNPUBLISHED"))
     }
 }
-fn install(vm: &mut Vm, child: InterpId, prior_host: bool) -> (Rc<Cell<usize>>, Rc<Cell<usize>>, Rc<RefCell<Option<Weak<ActivationIdentity>>>>) {
+fn install(
+    vm: &mut Vm,
+    child: InterpId,
+    prior_host: bool,
+) -> (
+    Rc<Cell<usize>>,
+    Rc<Cell<usize>>,
+    Rc<RefCell<Option<Weak<ActivationIdentity>>>>,
+) {
     let calls = Rc::new(Cell::new(0));
     let later = Rc::new(Cell::new(0));
     let original = Rc::new(RefCell::new(None));
-    vm.register_native_command("leave_child", Rc::new(LeaveChild {
-        child, calls: calls.clone(), original_call: original.clone(), prior_host,
-    }));
+    vm.register_native_command(
+        "leave_child",
+        Rc::new(LeaveChild {
+            child,
+            calls: calls.clone(),
+            original_call: original.clone(),
+            prior_host,
+        }),
+    );
     vm.register_native_command("later", Rc::new(Later(later.clone())));
     (calls, later, original)
 }
 fn preserved(vm: &mut Vm, original: InterpId, child: InterpId, birth: &Weak<ActivationIdentity>) {
     assert_eq!(vm.cur_interp(), child);
     assert_eq!(vm.current_level(), 1);
-    assert!(Weak::ptr_eq(birth, &Rc::downgrade(&vm.retained_frame_identity(false))));
+    assert!(Weak::ptr_eq(
+        birth,
+        &Rc::downgrade(&vm.retained_frame_identity(false))
+    ));
     let current_ns = vm.current_ns_id();
     assert_ne!(current_ns, tcl_core_types::ROOT_NS);
     vm.in_interp(original, |vm| {
@@ -82,13 +99,22 @@ fn original_activation_abort_retires_userproc_in_parent_and_preserves_child_and_
         let mut vm = native();
         let original = vm.cur_interp();
         let child = child(&mut vm);
-        let birth = vm.in_interp(child, |vm| Rc::downgrade(&vm.retained_frame_identity(false)));
+        let birth = vm.in_interp(child, |vm| {
+            Rc::downgrade(&vm.retained_frame_identity(false))
+        });
         let (calls, later, frame) = install(&mut vm, child, prior_host);
-        assert_eq!(vm.try_eval_source("proc original_cleanup {owned} {leave_child; later}").unwrap().code, Code::Ok);
+        assert_eq!(
+            vm.try_eval_source("proc original_cleanup {owned} {leave_child; later}")
+                .unwrap()
+                .code,
+            Code::Ok
+        );
         let operand = Value::new_native_string_bytes(b"OWNED_LOCAL".as_slice());
         let baseline = operand.native_object_reference_count();
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
-        let error = vm.try_invoke_command("original_cleanup", std::slice::from_ref(&operand)).unwrap_err();
+        let error = vm
+            .try_invoke_command("original_cleanup", std::slice::from_ref(&operand))
+            .unwrap_err();
         let first = vm.execution_refusal.clone().unwrap();
         assert_eq!(error, first);
         assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
@@ -109,7 +135,9 @@ fn original_activation_abort_keeps_apply_publication_and_oo_cleanup_on_original_
         let mut vm = native();
         let original = vm.cur_interp();
         let child = child(&mut vm);
-        let birth = vm.in_interp(child, |vm| Rc::downgrade(&vm.retained_frame_identity(false)));
+        let birth = vm.in_interp(child, |vm| {
+            Rc::downgrade(&vm.retained_frame_identity(false))
+        });
         let (calls, later, frame) = install(&mut vm, child, true);
         if oo {
             assert_eq!(vm.try_eval_source("oo::class create ActivationCleanupClass {method run {} {leave_child; later}}; ActivationCleanupClass create activationCleanupObject").unwrap().code, Code::Ok);
@@ -117,7 +145,9 @@ fn original_activation_abort_keeps_apply_publication_and_oo_cleanup_on_original_
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
         let reached = if oo {
             vm.try_invoke_command("activationCleanupObject", &[Value::string("run")])
-        } else { vm.try_eval_source("apply {{} {leave_child; later}}") };
+        } else {
+            vm.try_eval_source("apply {{} {leave_child; later}}")
+        };
         let first = vm.execution_refusal.clone().unwrap();
         assert_eq!(reached.unwrap_err(), first);
         assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
@@ -155,8 +185,19 @@ fn original_activation_abort_preserves_callback_reborn_call_and_namespace_in_par
     let mut vm = native();
     let calls = Rc::new(Cell::new(0));
     let fresh = Rc::new(RefCell::new(None));
-    vm.register_native_command("reborn", Rc::new(Reborn { calls: calls.clone(), fresh: fresh.clone() }));
-    assert_eq!(vm.try_eval_source("proc original_rebirth {} {reborn}").unwrap().code, Code::Ok);
+    vm.register_native_command(
+        "reborn",
+        Rc::new(Reborn {
+            calls: calls.clone(),
+            fresh: fresh.clone(),
+        }),
+    );
+    assert_eq!(
+        vm.try_eval_source("proc original_rebirth {} {reborn}")
+            .unwrap()
+            .code,
+        Code::Ok
+    );
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
     let reached = vm.try_invoke_command("original_rebirth", &[]);
     let first = vm.execution_refusal.clone().unwrap();
@@ -165,7 +206,10 @@ fn original_activation_abort_preserves_callback_reborn_call_and_namespace_in_par
     assert_eq!(calls.get(), 1);
     assert_eq!(vm.current_level(), 1);
     assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
-    assert!(Weak::ptr_eq(fresh.borrow().as_ref().unwrap(), &Rc::downgrade(&vm.retained_frame_identity(false))));
+    assert!(Weak::ptr_eq(
+        fresh.borrow().as_ref().unwrap(),
+        &Rc::downgrade(&vm.retained_frame_identity(false))
+    ));
     assert!(vm.pending_exec_leave.is_none());
     vm.pop_call_frame();
     vm.pop_ns();
@@ -178,7 +222,9 @@ fn original_activation_unwind_keeps_saved_target_after_last_frame_before_leave_c
     let mut vm = native();
     let original = vm.cur_interp();
     let child = child(&mut vm);
-    let birth = vm.in_interp(child, |vm| Rc::downgrade(&vm.retained_frame_identity(false)));
+    let birth = vm.in_interp(child, |vm| {
+        Rc::downgrade(&vm.retained_frame_identity(false))
+    });
     let (calls, later, _) = install(&mut vm, child, false);
     assert_eq!(vm.try_eval_source("proc original_leave {} {return FINISHED}; trace add execution original_leave leave leave_child").unwrap().code, Code::Ok);
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
@@ -201,7 +247,9 @@ fn original_activation_empty_tailcall_cleanup_uses_issued_parent_and_preserves_c
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
     vm.pending_exec_leave = Some(Vm::original_scope_context(scope.clone()));
     let request = TailcallReq {
-        namespace: Value::string("::"), words: vec![Value::string("later")], original_list: None,
+        namespace: Value::string("::"),
+        words: vec![Value::string("later")],
+        original_list: None,
         original_scope: OriginalExecutionOwner::Entered(scope.clone()),
     };
     select(&mut vm, child);
@@ -217,7 +265,10 @@ fn original_activation_empty_tailcall_cleanup_uses_issued_parent_and_preserves_c
     assert_eq!(vm.cur_interp(), child);
     assert!(vm.pending_exec_leave.is_some());
     assert!(vm.st_of(original).unwrap().pending_exec_leave.is_none());
-    assert!(Weak::ptr_eq(&birth, &Rc::downgrade(&vm.retained_frame_identity(false))));
+    assert!(Weak::ptr_eq(
+        &birth,
+        &Rc::downgrade(&vm.retained_frame_identity(false))
+    ));
     select(&mut vm, original);
 }
 #[test]
@@ -225,19 +276,36 @@ fn original_activation_positive_procedure_keeps_existing_owned_roles_and_no_save
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     let mut vm = native();
-    assert_eq!(vm.try_eval_source("proc original_positive {owned} {return $owned}").unwrap().code, Code::Ok);
+    assert_eq!(
+        vm.try_eval_source("proc original_positive {owned} {return $owned}")
+            .unwrap()
+            .code,
+        Code::Ok
+    );
     let value = Value::new_native_string_bytes(b"POSITIVE".as_slice());
     let baseline = value.native_object_reference_count();
-    let result = vm.try_invoke_command("original_positive", std::slice::from_ref(&value)).unwrap();
+    let result = vm
+        .try_invoke_command("original_positive", std::slice::from_ref(&value))
+        .unwrap();
     assert_eq!(result.code, Code::Ok);
-    assert_eq!(result.result.resident_string_bytes().unwrap().as_ref(), b"POSITIVE");
+    assert_eq!(
+        result.result.resident_string_bytes().unwrap().as_ref(),
+        b"POSITIVE"
+    );
     assert_eq!(vm.current_level(), 0);
     assert_eq!(vm.current_ns_id(), tcl_core_types::ROOT_NS);
     assert!(vm.pending_exec_leave.is_none());
     assert!(vm.exec_step_scopes.is_empty());
     assert!(vm.execution_refusal.is_none());
-    assert!(NativeOperationScope::current_entered(&mut vm).unwrap().is_none());
+    assert!(
+        NativeOperationScope::current_entered(&mut vm)
+            .unwrap()
+            .is_none()
+    );
     drop(result);
-    assert_eq!(vm.try_eval_source("set cleanup_result CLEAR").unwrap().code, Code::Ok);
+    assert_eq!(
+        vm.try_eval_source("set cleanup_result CLEAR").unwrap().code,
+        Code::Ok
+    );
     assert_eq!(value.native_object_reference_count(), baseline);
 }

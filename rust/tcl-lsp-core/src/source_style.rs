@@ -925,7 +925,10 @@ mod tests {
             None,
             &analysis,
         );
-        let warning = diags.iter().find(|diag| diag.code == DiagCode::W115).unwrap();
+        let warning = diags
+            .iter()
+            .find(|diag| diag.code == DiagCode::W115)
+            .unwrap();
         assert_eq!(warning.range.start_line, 1);
         assert_eq!(warning.range.end_line, 2);
         assert_eq!(warning.range.end_character, 7);

@@ -34,7 +34,10 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         let incoming = boxed_source_branch(state);
         let mut outcomes = SourceOutcomes::normal(&incoming);
-        let context = if selection.selection_unknown || selection.no_match_possible || selection.bodies.len() != 1 {
+        let context = if selection.selection_unknown
+            || selection.no_match_possible
+            || selection.bodies.len() != 1
+        {
             context.conditional()
         } else {
             context

@@ -557,7 +557,6 @@ mod tests {
         assert!(at(source, &blocked, "top").is_none());
     }
 
-
     #[test]
     fn original_registry_profile_hover_uses_selected_descriptor_and_complete_input() {
         // naming.core.original-registry-source-hover
@@ -595,6 +594,4 @@ mod tests {
         let analysis = Analyser::new().analyse(source, "f5-irules");
         assert!(at(source, &analysis, "ACCESS::log").is_none());
     }
-
-
 }

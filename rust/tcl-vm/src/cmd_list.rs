@@ -468,7 +468,10 @@ fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::index::NativeIndexOps;
     if vm.index_c_version().is_some() || vm.index_jim_sort_selected() {
         return match tcl_cmd_core::lsort::run_original(
-            vm, args, vm_compare_original, crate::command::completion_from_cmd_error,
+            vm,
+            args,
+            vm_compare_original,
+            crate::command::completion_from_cmd_error,
         ) {
             Ok(value) => ok(value),
             Err(completion) => completion,
@@ -528,17 +531,26 @@ fn vm_compare_original(
 ) -> Result<core::cmp::Ordering, Completion<Value>> {
     use tcl_cmd_core::index::NativeIndexOps;
     let mut completion = if vm.index_jim_sort_selected() {
-        vm.eval_original_script_value(command,
-            tcl_registry::native_eval_object::EvalObjectPurpose::Eval, None)
-            .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?
+        vm.eval_original_script_value(
+            command,
+            tcl_registry::native_eval_object::EvalObjectPurpose::Eval,
+            None,
+        )
+        .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?
     } else {
-        let words = vm.index_list_elements(command)
+        let words = vm
+            .index_list_elements(command)
             .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
         let Some((name, arguments)) = words.split_first() else {
             return Err(err("invalid command name \"\""));
         };
-        vm.invoke_command_value_at(vm.current_ns_id(), name, arguments, &[],
-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary)
+        vm.invoke_command_value_at(
+            vm.current_ns_id(),
+            name,
+            arguments,
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        )
     };
     vm.check_index_operation(original)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
@@ -577,11 +589,15 @@ fn original_comparison_string(
 ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
     use crate::interp::native_numeric_ops::OriginalNumericOps;
     let selected = vm.object_materialization().ok_or(
-        tcl_syntax::value::ValueError::CommandProtocolUnavailable("original comparison diagnostic String"),
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "original comparison diagnostic String",
+        ),
     )?;
     let numeric = OriginalNumericOps::in_original_scope(vm, original.original_scope())?;
     let reached = numeric.string(result, selected.protocol());
-    if let Err(first) = &reached { numeric.retain_failure(first); }
+    if let Err(first) = &reached {
+        numeric.retain_failure(first);
+    }
     numeric.current_for_value(result)?;
     reached
 }
@@ -599,25 +615,32 @@ fn original_comparison_result(
         original: Some(original.original_scope()),
         authored: vm.authored_numeric_context(),
     };
-    original_numeric_command_ops(vm, context,
-        NativeNumericCommandPurpose::ListSortComparisonResult, |numeric, selected| {
-        let reached = numeric.getter(result, selected.getter_kind());
-        if let Err(first) = &reached { numeric.retain_failure(first); }
-        numeric.current_for_value(result)?;
-        let reached = reached.map_err(|error| {
-            if error.native_execution_refusal().is_some()
-                || error.clone().into_byte_details().primitive_getter.is_none() {
-                return error;
+    original_numeric_command_ops(
+        vm,
+        context,
+        NativeNumericCommandPurpose::ListSortComparisonResult,
+        |numeric, selected| {
+            let reached = numeric.getter(result, selected.getter_kind());
+            if let Err(first) = &reached {
+                numeric.retain_failure(first);
             }
-            selected.comparison_result_error().map_or(error, |wrapper| {
-                CmdError::with_error_code_bytes(wrapper.message, wrapper.error_code)
-            })
-        })?;
-        let NativeScalarGetterValue::Wide(integer) = reached else {
-            return Err(ValueError::ScalarNumericInputUnavailable.into());
-        };
-        Ok(integer.cmp(&0))
-    })
+            numeric.current_for_value(result)?;
+            let reached = reached.map_err(|error| {
+                if error.native_execution_refusal().is_some()
+                    || error.clone().into_byte_details().primitive_getter.is_none()
+                {
+                    return error;
+                }
+                selected.comparison_result_error().map_or(error, |wrapper| {
+                    CmdError::with_error_code_bytes(wrapper.message, wrapper.error_code)
+                })
+            })?;
+            let NativeScalarGetterValue::Wide(integer) = reached else {
+                return Err(ValueError::ScalarNumericInputUnavailable.into());
+            };
+            Ok(integer.cmp(&0))
+        },
+    )
 }
 
 /// The `lsort -command` comparator: invoke `<prefix words...> a b` and read its

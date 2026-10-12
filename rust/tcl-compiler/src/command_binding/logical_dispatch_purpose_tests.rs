@@ -34,7 +34,12 @@ fn logical_original_statement(
     let mut found = Vec::new();
     let mut collect = |statement: &crate::ir::Statement| {
         if statement.span().start() == offset {
-            found.push(statement.tokens().expect("original statement vector").clone());
+            found.push(
+                statement
+                    .tokens()
+                    .expect("original statement vector")
+                    .clone(),
+            );
         }
     };
     crate::ir::for_each_statement(&module.top_level, &mut collect);
@@ -85,7 +90,12 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
         let tokens = nested.then(|| logical_original_statement(&input, source, offset));
         let binding = tokens
             .as_ref()
-            .map(|tokens| tokens.source_binding.as_ref().expect("original declaration binding"))
+            .map(|tokens| {
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .expect("original declaration binding")
+            })
             .unwrap_or(&original);
         let target = if let Some(tokens) = &tokens {
             let targets = binding
@@ -95,8 +105,14 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
                 panic!("one original source target")
             };
             assert!(original.lookup_state.is_none());
-            assert_ne!(original.runtime_reachability(), SourceRuntimeReachability::Conditional);
-            assert_ne!(original.runtime_reachability(), SourceRuntimeReachability::Reached);
+            assert_ne!(
+                original.runtime_reachability(),
+                SourceRuntimeReachability::Conditional
+            );
+            assert_ne!(
+                original.runtime_reachability(),
+                SourceRuntimeReachability::Reached
+            );
             assert!(original.proved_target().is_none());
             assert!(original.unknown);
             assert!(original.targets.is_empty());
@@ -105,12 +121,20 @@ fn original_logical_root_and_nested_dispatch_keep_conditional_targets_and_origin
             assert!(binding.targets.is_empty());
             assert!(binding.lookup_state.is_none());
             assert!(binding.logical_source_name_advice_input().is_none());
-            assert_ne!(binding.runtime_reachability(), SourceRuntimeReachability::Conditional);
-            assert_ne!(binding.runtime_reachability(), SourceRuntimeReachability::Reached);
+            assert_ne!(
+                binding.runtime_reachability(),
+                SourceRuntimeReachability::Conditional
+            );
+            assert_ne!(
+                binding.runtime_reachability(),
+                SourceRuntimeReachability::Reached
+            );
             let metadata = binding
                 .original_invocation_metadata_for_input(tokens, &input, context.commands())
                 .expect("complete original Logical source owner");
-            let owner = metadata.source_analysis_input().expect("retained source input");
+            let owner = metadata
+                .source_analysis_input()
+                .expect("retained source input");
             assert!(owner == &input || owner == &input.for_nested_source());
             target.clone()
         } else {

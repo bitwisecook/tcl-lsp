@@ -96,29 +96,49 @@ pub enum SessionError {
     Projection(tcl_syntax::raw_string::UnicodeAccessError),
 }
 
-fn session_projection_error(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, error: tcl_vm::TclError) -> SessionError {
+fn session_projection_error(
+    vm: &mut Vm,
+    original: &tcl_vm::embed::OriginalOperandProjection,
+    error: tcl_vm::TclError,
+) -> SessionError {
     let error = match error {
         tcl_vm::TclError::Host(failure) => vm.retain_original_operand_failure(original, failure),
-        tcl_vm::TclError::Guest(_) => unreachable!("raw String/context projection supplies only operational refusals"),
+        tcl_vm::TclError::Guest(_) => {
+            unreachable!("raw String/context projection supplies only operational refusals")
+        }
     };
     match error {
-        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error)))) => SessionError::Projection(error),
-        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error),
+            ),
+        )) => SessionError::Projection(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => {
+            SessionError::Execution(error)
+        }
         _ => unreachable!("the actual first-cause owner returns an execution carrier"),
     }
 }
 
 fn session_capture_error(error: tcl_vm::TclError) -> SessionError {
     match error {
-        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => {
+            SessionError::Execution(error)
+        }
         _ => unreachable!("original observation capture supplies only an execution refusal"),
     }
 }
 
 fn session_settlement_error(error: tcl_vm::TclError) -> SessionError {
     match error {
-        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error)))) => SessionError::Projection(error),
-        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error),
+            ),
+        )) => SessionError::Projection(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => {
+            SessionError::Execution(error)
+        }
         _ => unreachable!("original observation settlement supplies only an execution refusal"),
     }
 }
@@ -180,19 +200,33 @@ impl NativeCommand for EventSourceHook {
         let reached = vm.with_original_operand_projection(|vm, original| {
             let event = vm.original_operand_unicode(original, event)?;
             vm.check_original_operand_projection(original)?;
-            let Some(build) = self.selection.build.get().filter(|_| event == "HTTP_REQUEST") else {
-                return vm.try_eval_original_source_value(source)
+            let Some(build) = self
+                .selection
+                .build
+                .get()
+                .filter(|_| event == "HTTP_REQUEST")
+            else {
+                return vm
+                    .try_eval_original_source_value(source)
                     .map_err(tcl_vm::TclError::from_execution_failure);
             };
             let event = BigIpNameEvent::HttpRequest;
             let context = BigIpExecutionContext::TmmIRule;
-            let Some(policy) = tcl_registry::f5::naming::observed_name_policy(build, context, event) else {
-                return Ok(vm.refuse_host_command("measured event naming issuer is unavailable".into()));
+            let Some(policy) =
+                tcl_registry::f5::naming::observed_name_policy(build, context, event)
+            else {
+                return Ok(
+                    vm.refuse_host_command("measured event naming issuer is unavailable".into())
+                );
             };
-            let storage = AuthoredObservedFrameStorageContext { policy, tmm: self.tmm, domain: self.domain };
-            vm.with_original_observed_event_inputs(original, build, context, event, storage,
-                |vm| vm.try_eval_original_source_value(source))
-
+            let storage = AuthoredObservedFrameStorageContext {
+                policy,
+                tmm: self.tmm,
+                domain: self.domain,
+            };
+            vm.with_original_observed_event_inputs(original, build, context, event, storage, |vm| {
+                vm.try_eval_original_source_value(source)
+            })
         });
         reached.unwrap_or_else(|error| original_completion(vm, error))
     }
@@ -225,8 +259,16 @@ impl NativeCommand for EnrollEventHook {
                 return Ok(vm.refuse_host_command("event domain identity is exhausted".into()));
             };
             self.0.next_domain.set(next);
-            let command = Rc::new(EventSourceHook { selection: Rc::clone(&self.0), tmm, domain });
-            let reached = vm.try_register_child_native_command(&child, "::tmm::_observed_event_source", command);
+            let command = Rc::new(EventSourceHook {
+                selection: Rc::clone(&self.0),
+                tmm,
+                domain,
+            });
+            let reached = vm.try_register_child_native_command(
+                &child,
+                "::tmm::_observed_event_source",
+                command,
+            );
             vm.check_original_operand_projection(original)?;
             if !reached? {
                 return Ok(vm.refuse_host_command("actual event worker is unavailable".into()));
@@ -409,23 +451,38 @@ impl LiveSession {
     }
 
     fn eval_host_initialization(&mut self, script: &str) -> Result<(), SessionError> {
-        let completion = self.vm.try_eval_native_host_source(script).map_err(SessionError::Execution)?;
+        let completion = self
+            .vm
+            .try_eval_native_host_source(script)
+            .map_err(SessionError::Execution)?;
         // The existing evaluation producer owns execution. This receipt begins
         // at its returned result projection and claims no earlier script stage.
-        let original = self.vm.capture_original_operand_projection().map_err(session_capture_error)?;
+        let original = self
+            .vm
+            .capture_original_operand_projection()
+            .map_err(session_capture_error)?;
         let reached = (|| {
             let reached = if completion.code == Code::Error {
-                match self.vm.original_operand_unicode(&original, &completion.result) {
+                match self
+                    .vm
+                    .original_operand_unicode(&original, &completion.result)
+                {
                     Ok(text) => Err(SessionError::Eval(text)),
                     Err(error) => Err(session_projection_error(&mut self.vm, &original, error)),
                 }
-            } else { Ok(()) };
+            } else {
+                Ok(())
+            };
             drop(completion);
-            self.vm.check_original_operand_projection(&original)
+            self.vm
+                .check_original_operand_projection(&original)
                 .map_err(|error| session_projection_error(&mut self.vm, &original, error))?;
             reached
         })();
-        let settled = self.vm.finish_original_operand_projection(original).map_err(session_settlement_error);
+        let settled = self
+            .vm
+            .finish_original_operand_projection(original)
+            .map_err(session_settlement_error);
         settled?;
         reached
     }
@@ -458,18 +515,31 @@ impl LiveSession {
             return Err(SessionError::Eval(format!("script called exit {code}")));
         }
         let completion = result?;
-        let original = self.vm.capture_original_operand_projection().map_err(session_capture_error)?;
+        let original = self
+            .vm
+            .capture_original_operand_projection()
+            .map_err(session_capture_error)?;
         let reached = (|| {
-            let text = self.vm.original_operand_unicode(&original, &completion.result)
+            let text = self
+                .vm
+                .original_operand_unicode(&original, &completion.result)
                 .map_err(|error| session_projection_error(&mut self.vm, &original, error));
             let code = completion.code;
             drop(completion);
-            self.vm.check_original_operand_projection(&original)
+            self.vm
+                .check_original_operand_projection(&original)
                 .map_err(|error| session_projection_error(&mut self.vm, &original, error))?;
             let text = text?;
-            if code == Code::Error { Err(SessionError::Eval(text)) } else { Ok(text) }
+            if code == Code::Error {
+                Err(SessionError::Eval(text))
+            } else {
+                Ok(text)
+            }
         })();
-        let settled = self.vm.finish_original_operand_projection(original).map_err(session_settlement_error);
+        let settled = self
+            .vm
+            .finish_original_operand_projection(original)
+            .map_err(session_settlement_error);
         settled?;
         reached
     }

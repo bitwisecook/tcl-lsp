@@ -1171,7 +1171,7 @@ mod constructed_projection_tests {
         // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
         // Constructed recovery inventory only, with no declaration/lookup authority.
         let mut analyser = Analyser::new();
-        for qname in [":::" , "::a::::p", "::é::λ", "::empty::", "bare"] {
+        for qname in [":::", "::a::::p", "::é::λ", "::empty::", "bare"] {
             analyser.result.all_classes.insert(
                 qname.to_owned(),
                 crate::analyser::types::ClassDef::default(),
@@ -1179,11 +1179,7 @@ mod constructed_projection_tests {
         }
         assert_eq!(
             analyser.user_command_tail_names(),
-            std::collections::HashSet::from([
-                ":".to_owned(),
-                ":p".to_owned(),
-                "λ".to_owned(),
-            ]),
+            std::collections::HashSet::from([":".to_owned(), ":p".to_owned(), "λ".to_owned(),]),
         );
     }
 }

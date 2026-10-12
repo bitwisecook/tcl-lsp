@@ -740,16 +740,18 @@ pub(crate) fn parse_source_expression_checked(
     context: &ExprParseContext,
 ) -> Option<ExprNode> {
     let (raw, failures) = tcl_lexer::tokenise_expr_bytes_with_failures(
-        source.as_bytes(), &context.lexer_grammar,
-        context.expr_grammar_base, context.f5_word_grammar,
+        source.as_bytes(),
+        &context.lexer_grammar,
+        context.expr_grammar_base,
+        context.f5_word_grammar,
     );
     if !failures.is_empty() {
         return None;
     }
     match parse_checked_tokens_using(raw, false, context, CheckedParsePurpose::SourceTopology) {
-        CheckedExprParse::Parsed(node) => Some(node.map_text(|text| {
-            String::from_utf8(text).expect("Unicode original source leaves")
-        })),
+        CheckedExprParse::Parsed(node) => Some(
+            node.map_text(|text| String::from_utf8(text).expect("Unicode original source leaves")),
+        ),
         CheckedExprParse::ProvedSyntaxFailure(_) | CheckedExprParse::Unsupported(_) => None,
     }
 }

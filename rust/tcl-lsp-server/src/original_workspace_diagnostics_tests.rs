@@ -339,7 +339,10 @@ fn original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_ow
     let mut descriptor = changed.get("set").unwrap().clone();
     descriptor.name = "workspace_reporting_pack_change";
     changed.insert(descriptor);
-    assert_ne!(changed.snapshot().semantic_key(), registry.snapshot().semantic_key());
+    assert_ne!(
+        changed.snapshot().semantic_key(),
+        registry.snapshot().semantic_key()
+    );
     assert!(!select(&analysis, &changed));
     assert!(
         settle_cross_file_calls(&index, &analysis, &changed, "file:///caller.tcl")

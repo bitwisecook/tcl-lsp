@@ -57,7 +57,13 @@ macro_rules! rows {
     };
 }
 
-fn compare(interp: &mut crate::interp::Interp, source: &[u8], expected: &str, phase: &str, context: &str) {
+fn compare(
+    interp: &mut crate::interp::Interp,
+    source: &[u8],
+    expected: &str,
+    phase: &str,
+    context: &str,
+) {
     let code = interp.eval_str(source);
     assert!(
         !interp.host_refusal_pending(),

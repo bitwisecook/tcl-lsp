@@ -1420,7 +1420,8 @@ fn command_has_execution_trace(
     // Native inventories require token history; ambiguous authored descriptor
     // punctuation likewise supplies no constructed-key encoding contract.
     crate::registry_invocation::trace_set_requires_original_owner(
-        registry, module,
+        registry,
+        module,
         crate::registry_invocation::InvocationMetadataContext::for_module(registry, module),
     ) || (!module.traced_commands.is_empty() && command.label().starts_with("::"))
         || module.traced_commands.contains(command.label())
@@ -1767,8 +1768,11 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
         return decline(DirectProcDecline::DynamicExecutionTrace);
     }
     if crate::registry_invocation::original_procedure_has_execution_trace(
-        input.registry, input.metadata, input.site.tokens.as_deref(),
-        input.callee_name, &input.unit.ir_module.traced_commands,
+        input.registry,
+        input.metadata,
+        input.site.tokens.as_deref(),
+        input.callee_name,
+        &input.unit.ir_module.traced_commands,
     ) {
         return decline(DirectProcDecline::ExecutionTrace);
     }

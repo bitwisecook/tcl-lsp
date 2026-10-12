@@ -1508,5 +1508,4 @@ mod tests {
         assert_eq!(tcl_syntax::naming::qualify("::茶:::", "*"), "::茶:::::*");
         assert_eq!(tcl_syntax::naming::qualify("::", "*"), "::*");
     }
-
 }

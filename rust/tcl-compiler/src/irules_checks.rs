@@ -2129,7 +2129,10 @@ fn matches_generic_variable_pattern(simple_name: &str, compiled: &[regex::Regex]
 
 #[cfg(test)]
 fn is_generic_static_name(var_name: &str, compiled: &[regex::Regex]) -> bool {
-    matches_generic_variable_pattern(var_name.strip_prefix("static::").unwrap_or(var_name), compiled)
+    matches_generic_variable_pattern(
+        var_name.strip_prefix("static::").unwrap_or(var_name),
+        compiled,
+    )
 }
 
 /// Generic-static-name warnings for IRULE4002. `generic_patterns` follows the
@@ -2181,10 +2184,13 @@ pub fn find_generic_static_name_warnings(
                     Statement::Call { defs, .. } => defs.iter().map(String::as_str).collect(),
                     _ => continue,
                 };
-                let places = crate::place_bridge::def_places_at(stmt, bn, index, &contexts, registry);
+                let places =
+                    crate::place_bridge::def_places_at(stmt, bn, index, &contexts, registry);
                 for place in places {
-                    if crate::side_effects::namespace_storage_scope_for_place(&place, registry.profile())
-                        != crate::side_effects::StorageScope::Static
+                    if crate::side_effects::namespace_storage_scope_for_place(
+                        &place,
+                        registry.profile(),
+                    ) != crate::side_effects::StorageScope::Static
                     {
                         continue;
                     }
@@ -2207,7 +2213,15 @@ pub fn find_generic_static_name_warnings(
                     let Some(label) = label else {
                         continue;
                     };
-                    check_generic_static(&place, key, label, fu.abs_span(stmt.span()), &compiled, &mut seen, &mut out);
+                    check_generic_static(
+                        &place,
+                        key,
+                        label,
+                        fu.abs_span(stmt.span()),
+                        &compiled,
+                        &mut seen,
+                        &mut out,
+                    );
                 }
             }
         }
@@ -3631,24 +3645,48 @@ mod tests {
         ] {
             let source = format!("when RULE_INIT {{{operation}}}");
             let warnings = generic_warnings(&source);
-            let selected: Vec<_> = warnings.iter().filter(|warning| warning.code == DiagCode::Irule4002).collect();
+            let selected: Vec<_> = warnings
+                .iter()
+                .filter(|warning| warning.code == DiagCode::Irule4002)
+                .collect();
             assert_eq!(selected.len(), 1, "{source}: {warnings:?}");
             let text = &source[selected[0].span.start() as usize..selected[0].span.end() as usize];
-            assert_eq!(text, operation.rsplit_once("; ").map_or(operation, |(_, write)| write));
+            assert_eq!(
+                text,
+                operation
+                    .rsplit_once("; ")
+                    .map_or(operation, |(_, write)| write)
+            );
         }
         let source = "when RULE_INIT {set static::debug 1; set ::static::debug 2}";
-        assert_eq!(generic_warnings(source).iter().filter(|warning| warning.code == DiagCode::Irule4002).count(), 1);
+        assert_eq!(
+            generic_warnings(source)
+                .iter()
+                .filter(|warning| warning.code == DiagCode::Irule4002)
+                .count(),
+            1
+        );
         for source in [
             "when RULE_INIT {set other::static::debug 1}",
             "when RULE_INIT {set ::static::inner::debug 1}",
             "when HTTP_REQUEST {set debug 1}",
             "when RULE_INIT {if {0} {set ::static::debug 1}}",
         ] {
-            assert!(generic_warnings(source).iter().all(|warning| warning.code != DiagCode::Irule4002), "{source}");
+            assert!(
+                generic_warnings(source)
+                    .iter()
+                    .all(|warning| warning.code != DiagCode::Irule4002),
+                "{source}"
+            );
         }
         let patterns = vec![r"^debug\(key\)$".to_owned()];
-        assert_eq!(generic_warnings_with("when RULE_INIT {set ::static::debug(key) 1}", &patterns)
-            .iter().filter(|warning| warning.code == DiagCode::Irule4002).count(), 1);
+        assert_eq!(
+            generic_warnings_with("when RULE_INIT {set ::static::debug(key) 1}", &patterns)
+                .iter()
+                .filter(|warning| warning.code == DiagCode::Irule4002)
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -3658,10 +3696,26 @@ mod tests {
         // A real built source Module loses its actual document correspondence.
         let source = "when RULE_INIT {set static::debug 1}";
         let mut unit = CompilationUnit::build_for(source, &registry(), false);
-        assert_eq!(find_generic_static_name_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)), None)
-            .iter().filter(|warning| warning.code == DiagCode::Irule4002).count(), 1);
+        assert_eq!(
+            find_generic_static_name_warnings(
+                &unit,
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+                None
+            )
+            .iter()
+            .filter(|warning| warning.code == DiagCode::Irule4002)
+            .count(),
+            1
+        );
         unit.ir_module.source = tcl_lexer::SourceImage::document("foreign source");
-        assert!(find_generic_static_name_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)), None).is_empty());
+        assert!(
+            find_generic_static_name_warnings(
+                &unit,
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+                None
+            )
+            .is_empty()
+        );
     }
 
     #[test]

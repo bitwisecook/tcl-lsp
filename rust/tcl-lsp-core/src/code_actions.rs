@@ -989,8 +989,7 @@ fn package_owned_by_original_input(
                 .ok()?;
             // Only an analytical presentation for descriptor ownership. It
             // cannot recreate the original slot or grant Native namespace use.
-            let namespace =
-                tcl_syntax::naming::native_namespace_full_name_bytes(&slot.namespace);
+            let namespace = tcl_syntax::naming::native_namespace_full_name_bytes(&slot.namespace);
             let namespace = std::str::from_utf8(&namespace).ok()?;
             ownership
                 .package_for_namespace(namespace)
@@ -4742,7 +4741,6 @@ mod original_package_suggestion_tests {
         );
     }
 
-
     fn selected_namespace_package_input() -> tcl_compiler::analyser::ResolvedAnalysisInput {
         use std::sync::Arc;
         let mut store = tcl_registry::CommandRegistry::build_default();
@@ -4916,9 +4914,6 @@ mod original_package_suggestion_tests {
                 .is_empty()
         );
     }
-
-
-
 }
 
 #[cfg(test)]

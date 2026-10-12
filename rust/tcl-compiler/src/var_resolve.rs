@@ -4605,9 +4605,13 @@ pub fn canonical_place_key(bound: &Place) -> Option<VariableCellKey> {
 /// Borrow a namespace root from its retained owner, including an actual variable link.
 fn retained_namespace_variable_root(cell: &CellIdentity) -> Option<(&CellOwner, &NameBytes)> {
     match &cell.owner {
-        CellOwner::NamespaceIdentity(_) | CellOwner::Namespace(_) => Some((&cell.owner, &cell.name)),
+        CellOwner::NamespaceIdentity(_) | CellOwner::Namespace(_) => {
+            Some((&cell.owner, &cell.name))
+        }
         CellOwner::RetainedSlot(slot) => match slot.as_ref() {
-            crate::raw_binding::RawBindingSlotId::Variable(cell) => retained_namespace_variable_root(cell),
+            crate::raw_binding::RawBindingSlotId::Variable(cell) => {
+                retained_namespace_variable_root(cell)
+            }
             crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
         },
         _ => None,
@@ -6873,10 +6877,20 @@ mod namespace_simple_projection_tests {
         selected.ns = "::".into();
         assert_eq!(namespace_variable_simple_name(&selected), Some("débug"));
         assert_eq!(root_namespace_variable_simple_name(&selected), None);
-        let root = resolve_literal_place("debug", &ResolveContext::for_namespace("::"), false, registry);
+        let root = resolve_literal_place(
+            "debug",
+            &ResolveContext::for_namespace("::"),
+            false,
+            registry,
+        );
         assert_eq!(namespace_variable_simple_name(&root), Some("debug"));
         assert_eq!(root_namespace_variable_simple_name(&root), Some("debug"));
-        let local = resolve_literal_place("debug", &ResolveContext::for_function("::p"), false, registry);
+        let local = resolve_literal_place(
+            "debug",
+            &ResolveContext::for_function("::p"),
+            false,
+            registry,
+        );
         assert_eq!(namespace_variable_simple_name(&local), None);
         assert_eq!(root_namespace_variable_simple_name(&local), None);
     }
