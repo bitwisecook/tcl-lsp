@@ -65,9 +65,9 @@ This precise Rust source contract has no native execution receipt.
 ## Exact evidence
 
 - `implementation-0` (implementation): [rust/tcl-lsp-core/src/type_definition.rs](../../../../rust/tcl-lsp-core/src/type_definition.rs). SHA-256 `384ccc4b1ea166c52d01656d4bfd49c35aaf8f693d3684a1d7e92f0fccb81225`. Current Rust source and fixed assertion bindings; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/implementation.rs](../../../../rust/tcl-lsp-core/src/implementation.rs). SHA-256 `d20b3e902762c6a847428af7d97e6fb43ac52af5e13bae1d3df51bf256c7c41b`. Current Rust source and fixed assertion bindings; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/implementation.rs](../../../../rust/tcl-lsp-core/src/implementation.rs). SHA-256 `3cd445f538f26544985fe18fc392391c98f23049033490529ce4bcfd2b6cd4e4`. Current Rust source and fixed assertion bindings; no execution receipt.
 - `implementation-2` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). SHA-256 `a4d76d8b8eb4d2a06cf2680c8fb57bb2960b3bcd7c7ea766a92ead79d34cb84d`. Current Rust source and fixed assertion bindings; no execution receipt.
-- `implementation-3` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f`. Current Rust source and fixed assertion bindings; no execution receipt.
+- `implementation-3` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac`. Current Rust source and fixed assertion bindings; no execution receipt.
 - `implementation-class-inventory` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e`. Current common readonly class inventory and meaningful fixed assertions; no native or Rust execution receipt.
 
 ## Source inspection

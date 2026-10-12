@@ -64,7 +64,7 @@ This Rust consumer contract has no native execution receipt.
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). SHA-256 `2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). SHA-256 `0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 
 ## Source inspection
 

@@ -64,9 +64,9 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-core-original-dispatch-region-context-references.rs` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). SHA-256 `bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
-
+- `naming-core-original-dispatch-region-context-references.rs` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). SHA-256 `650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200`. Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
 - `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+- `own-source350-core-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json). SHA-256 `4430bc0a73265f91e97b56507108488bfa9319899dd188babfff8cf17870e7c6`. JSON pointer `/by_question/naming.core.original-dispatch-region-context`. Exact original source350 body/question/document joins to the owned Core image, actual inventory/admission and 14 passing selections. Other source images and external-provider answers receive no outcome.
 
 ## Source inspection
 
@@ -122,21 +122,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
-
-
-## Exact original-source347 software outcomes
-
-These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
-
-| Original operation | Passed | Failed |
-| --- | ---: | ---: |
-| `integration-core-consumer-tests347` | 1 | 0 |
-
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
-
-
-## Exact owning Core source350 software outcomes
-
-The owning Core image executes 1 original selections paired with this question and all pass. These are bounded Rust software assertions for the exact source350 map and executable. The process selects 14 tests and all pass, with no ignored tests and 2,953 other tests filtered out. Producer and inventory operations execute no assertions.
-
-[Exact original body hashes and raw harness outcomes](rust-validation/frozen350/question-body-outcomes.json) join the full unchanged receipts, streams, source map, inventory/admission and owned executable bytes. Native provider answers and other source-image results remain independent.

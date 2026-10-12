@@ -12,7 +12,7 @@ Do package suggestions retain the genuine original unresolved head/lookup and ca
 
 ## Conclusion
 
-Known original heads require exact current Input, positioned lookup and the emitting W123 UnresolvedCommand subject with the same Key and lookup. A bounded fixed-ASCII catalogue hint is compared against the selected native command geometry; it proves neither a loader nor callable command. Existing requirements are compared by SourcePackageName NativePackageNameKey, while missing original source operands withdraw the answer. Text ContextDiagnostic ranges and messages cannot supply an original issuer.
+Known original heads require exact current Input, positioned lookup and the emitting W123 UnresolvedCommand subject with the same Key and lookup. Unanimous package ownership from actual context-selected namespace descriptors supplies a hint under the selected native command geometry; it proves neither a loader nor callable command. Existing requirements are compared by SourcePackageName NativePackageNameKey, while missing original source operands withdraw the answer. Text ContextDiagnostic ranges and messages cannot supply an original issuer.
 
 ## Scope
 
@@ -64,7 +64,7 @@ This is a current Rust implementation contract. No native provider observation o
 
 ## Exact evidence
 
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). SHA-256 `2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). SHA-256 `0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
 
 ## Source inspection
 

@@ -47794,7 +47794,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/references.rs",
-          "sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+          "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
           "description": "Current implementation source and fixed assertion bindings; no execution receipt."
         }
       ],
@@ -48165,7 +48165,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/definition.rs",
-          "sha256": "9a007866a6ef2779b4535505e5ff36fff9d98866862ca8a8c09259324a56c5c8",
+          "sha256": "32ac7a990c58b855bb61e3e240a8caf4c01bd9b8e3201a321bf015f0d98cba10",
           "description": "Current Rust source and fixed assertion bindings; no execution receipt."
         }
       ],
@@ -48275,7 +48275,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Current implementation source and fixed assertion bindings; no execution receipt."
         }
       ],
@@ -50452,7 +50452,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/implementation.rs",
-          "sha256": "d20b3e902762c6a847428af7d97e6fb43ac52af5e13bae1d3df51bf256c7c41b",
+          "sha256": "3cd445f538f26544985fe18fc392391c98f23049033490529ce4bcfd2b6cd4e4",
           "description": "Current Rust source and fixed assertion bindings; no execution receipt."
         },
         {
@@ -50466,7 +50466,7 @@
           "id": "implementation-3",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Current Rust source and fixed assertion bindings; no execution receipt."
         },
         {
@@ -50766,7 +50766,29 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "receiver-workspace-source603-fc5e047254448481",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "description": "Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached."
+        },
+        {
+          "id": "receiver-workspace-source603-e53bdf1bc59ff08f",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+          "sha256": "43d5da928c774579b91deebbcca54102b2a3f6f1b6121621eae8d30cec4ec8ce",
+          "description": "Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached."
+        },
+        {
+          "id": "receiver-workspace-source603-6923f13443c0c002",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/registry.rs",
+          "sha256": "e1a5885d0e0e8a312240f35f283f618a32f794a6c4d80490607deaf67fe33d4a",
+          "description": "Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached."
+        }
+      ],
       "source_anchors": [],
       "tests": [
         {
@@ -50858,6 +50880,12 @@
           "selector": "original_workspace_diagnostics_tests::original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners",
           "assertion": "Workspace reporting withholds changed pack generations, missing input, stale grammar and populated unavailable owners; the reporting result supplies no physical frame or Native execution authority.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+          "selector": "original_workspace_diagnostics_tests::original_workspace_reporting_currency_keeps_full_store_and_independent_context",
+          "status": "linked",
+          "assertion": "The actual Logical server reporting-context consumer accepts two genuine contexts over one frozen Arc command store while preserving different release availability. A same-profile foreign projected store with an authored row, missing input, stale complete source configuration and the genuine C8.6 source case refuse. Restoring the genuine original context remains nonvacuous. Source definition only; no matched owned assertion outcome or external-provider observation is attached."
         }
       ],
       "owners": [
@@ -50950,6 +50978,11 @@
           "path": "rust/tcl-compiler/src/command_binding.rs",
           "symbol": "SourceBindingPoint::original_lookup_binding",
           "purpose": "Select interpreted command lookup only from the positively retained Logical input and its genuine static original head; caller query labels cannot choose another source slot."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "workspace_reporting_context",
+          "purpose": "Check complete immutable RegistrySnapshot semantic store currency under the retained source/input/lexer owner and its existing independent source-advice admission. Actual ContextRegistry availability stays separate; neither matching profiles nor store identity supplies a rewrite, runtime lookup or Native identity grant."
         }
       ],
       "replay": {
@@ -52873,7 +52906,7 @@
           "id": "naming-core-original-dispatch-region-context-references.rs",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/references.rs",
-          "sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+          "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
           "description": "Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result."
         },
         {
@@ -53224,7 +53257,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
           "description": "Current original consumer implementation and fixed assertions. No Rust or native execution receipt."
         }
       ],
@@ -54908,7 +54941,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/hover.rs",
-          "sha256": "683a2cf1613cd6dd7b98e35667b1e6fdcf136704cee979bd573a9d7b0fbf9c25",
+          "sha256": "67e823d01ac86d8f4b200df00170873a584b0e4b806d5b08b5cdbe76ec0ec398",
           "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
         },
         {
@@ -55220,7 +55253,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/rename.rs",
-          "sha256": "354f90f68b6702fe5ff4aa66fc28183d5cd767d44b43101796dc02dfc9393e0d",
+          "sha256": "dab421d27ffabf66b110d9ec453c0f266d83d22352fb8fbce7dd74fc6f58a6ba",
           "description": "Current shared owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
         },
         {
@@ -56020,7 +56053,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/original-package-suggestion-subjects.md",
       "problem_statement": "A package hint can be suggested for a displayed head even after aliases, stale source or message-only diagnostics disconnect it from the emitting call. Textual package-require scanning also misses escaped original package values and can conflate opaque package keys. A reviewed loading suggestion needs its genuine unresolved subject and canonical package-purpose keys.",
       "question": "Do package suggestions retain the genuine original unresolved head/lookup and canonical source package requirements instead of reconstructing evidence from reporting strings?",
-      "conclusion": "Known original heads require exact current Input, positioned lookup and the emitting W123 UnresolvedCommand subject with the same Key and lookup. A bounded fixed-ASCII catalogue hint is compared against the selected native command geometry; it proves neither a loader nor callable command. Existing requirements are compared by SourcePackageName NativePackageNameKey, while missing original source operands withdraw the answer. Text ContextDiagnostic ranges and messages cannot supply an original issuer.",
+      "conclusion": "Known original heads require exact current Input, positioned lookup and the emitting W123 UnresolvedCommand subject with the same Key and lookup. Unanimous package ownership from actual context-selected namespace descriptors supplies a hint under the selected native command geometry; it proves neither a loader nor callable command. Existing requirements are compared by SourcePackageName NativePackageNameKey, while missing original source operands withdraw the answer. Text ContextDiagnostic ranges and messages cannot supply an original issuer.",
       "scope": "Original static command heads under a selected native recipe and a genuine typed unresolved diagnostic. Readonly computed or expanded heads do not acquire this static suggestion. Source key and policy, package loading, catalogue assistance and actual command presence remain independent. Logical-only profiles retain their explicit bounded legacy advice. Jim flat keys are not reparsed as C namespace holders.",
       "providers": [
         {
@@ -56099,7 +56132,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
           "description": "Current original consumer implementation and fixed assertions. No Rust or native execution receipt."
         }
       ],
@@ -57985,14 +58018,14 @@
           "id": "naming-core-selected-variable-cursor-syntax-hover.rs",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/hover.rs",
-          "sha256": "683a2cf1613cd6dd7b98e35667b1e6fdcf136704cee979bd573a9d7b0fbf9c25",
+          "sha256": "67e823d01ac86d8f4b200df00170873a584b0e4b806d5b08b5cdbe76ec0ec398",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
           "id": "naming-core-selected-variable-cursor-syntax-rename.rs",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/rename.rs",
-          "sha256": "354f90f68b6702fe5ff4aa66fc28183d5cd767d44b43101796dc02dfc9393e0d",
+          "sha256": "dab421d27ffabf66b110d9ec453c0f266d83d22352fb8fbce7dd74fc6f58a6ba",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -85367,7 +85400,7 @@
           "id": "implementation",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Shared participant collector and fixed mixed-workspace assertion source; no Rust or native execution receipt."
         }
       ],
@@ -85809,7 +85842,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Current typed invalidation owner and meaningful fixed assertion source; no Rust or native execution receipt."
         }
       ],
@@ -162529,7 +162562,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/minify.rs",
-          "sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+          "sha256": "493dd5396f3fea806a3e3e85f768e0471ad3ea64b5a63a649cd4b45667d215c9",
           "description": "Current source owner and fixed authored assertions; no native or Rust execution receipt."
         }
       ],
@@ -213613,7 +213646,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "sha256": "2960ddcc5f322bb8efb254a7e4077b835b20c300f11e40a13c0c6397f53a4a5d",
+          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
           "description": "Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied."
         }
       ],
@@ -226297,7 +226330,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Exact current Rust consumer source and linked fixed assertions; no native or Rust execution receipt."
         },
         {
@@ -226430,7 +226463,7 @@
           "id": "consumer-source",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Current actual typed Server consumer and fixed emitted-edit/collision assertion; not an execution receipt."
         }
       ],
@@ -226561,7 +226594,7 @@
           "id": "server-package-consumers",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Inspected shared original inheritance/refinement consumer and constraint/dependency-preference regression."
         }
       ],
@@ -226715,7 +226748,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Current Rust owner for this readonly source purpose; this digest is not an execution receipt."
         },
         {
@@ -226853,7 +226886,7 @@
           "id": "plan",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.",
           "contains": "original_variable_rename_shares_source_plans_and_typed_workspace_collisions"
         }
@@ -227005,7 +227038,7 @@
           "id": "actual-consumer-source",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Exact current consumer and fixed test source; not an execution receipt or native observation."
         }
       ],
@@ -232614,7 +232647,7 @@
           "id": "naming-source-original-class-publications-lib.rs",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         }
       ],
@@ -555830,7 +555863,7 @@
           "id": "actual-source-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/references.rs",
-          "sha256": "bd9c94c7d4b9d0adeeed869458123a9280126e3cf61d6efdd4e724113c1df158",
+          "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
           "description": "Exact current source/API owner or bounded current usage contract for Logical source targets. Definition and inspection only; no matching owned executable/assertion or external provider result is attached."
         },
         {
@@ -555844,7 +555877,7 @@
           "id": "actual-source-3",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "6c779bcb6f4f40f655aa5c0ef5a3819c857000e32d5d4912aee26775544da37f",
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
           "description": "Exact current source/API owner or bounded current usage contract for Logical source targets. Definition and inspection only; no matching owned executable/assertion or external provider result is attached."
         },
         {
