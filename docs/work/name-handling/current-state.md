@@ -1,7 +1,6 @@
 # Current state
 
-Branch: `work`. Latest published checkpoint at this snapshot: `8b4c41ad6`.
-Inspect git for subsequent commits and uncommitted ownership. This document is
+Branch: `work`. Inspect git for the current local/remote commit and uncommitted ownership. This document is
 current coordination material; delete it and its references before merge.
 
 ## Semantic authorities
@@ -67,7 +66,7 @@ are integrated from `755f78207`. Incoming `db9950eb3` finish documents add
 279 separate native proof records and a supplement of40 derived variants/307
 investigation references. No new original execution was claimed; original400
 coverage remains93/244/63. Source substitutions are not original observations.
-F5Tcl in TMM/MCPD cannot run Tcltest; use supported host-native probes. Review verified 30 seals/26,097 entries and 93
+F5Tcl in TMM/MCPD cannot run Tcltest; use supported host-native probes. Review verified 30 seals/26,091 retained entries and 93
 matching input/context pointers with no missing files or hash mismatches. General
 [requests](../../../experiments/name-handling/f5/REQUEST.md) and prior BIG-IP
 controls remain separate. Admit only exact release/input/channel/reached-event

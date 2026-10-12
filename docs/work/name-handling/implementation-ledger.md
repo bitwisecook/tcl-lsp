@@ -1,7 +1,7 @@
 # Name-handling current obligations
 
 Temporary coordination snapshot; remove this file and its links before merge.
-Published checkpoint: `8b4c41ad6` on `work`; clock fixes are in `e20c572d6`.
+Branch: `work`; git identifies the current local/remote checkpoint.
 The coordinator owns integration, publication, issue receipts and source freezes.
 Confirm live ownership before shared edits; source inspection is not execution.
 Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. All Cargo leases are released; all source owners are quiescent. Final source checker complete:2,606 records,315 implementation-digest errors only; frozen4,840 selected inputs unchanged. Previous trace owners are byte-exact restored. C8.6 suite captures complete; no runtime build lease. Never reuse interrupted/ENOSPC artefacts.

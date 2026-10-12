@@ -51,3 +51,5 @@ issues require exact input/source/reached-stage/output evidence. F5 answers
 remain independent until returned by the appliance chat.
 
 Current #2286 receipt: [published retained-binding check](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6131216111), commit `5597256ba`. Owner regression1/1 passes; nine-control filter remains6pass/3fail. Issue remains open; no warning repair claimed.
+
+Current #2286 [producer/consumer receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6132237889): `d74cac0ae` owner controls2/2 pass, packaged regressions2/2 pass, diagnostic filter6/3 remains red (direct/alias2vs1; original0vs2). #2286 open; #2287 closed with no observed packaged regression.
