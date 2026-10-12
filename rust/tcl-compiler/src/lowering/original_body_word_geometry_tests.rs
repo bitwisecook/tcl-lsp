@@ -18,7 +18,14 @@ struct Fixture {
 }
 
 fn fixture(environment: &str) -> Fixture {
-    let source = "if {$condition} {set result VALUE}";
+    fixture_with_source(environment, "if {$condition} {set result VALUE}", 0)
+}
+
+fn unentered_fixture(environment: &str) -> Fixture {
+    fixture_with_source(environment, "return DONE; if {$condition} {set result VALUE}", 1)
+}
+
+fn fixture_with_source(environment: &str, source: &str, parent: usize) -> Fixture {
     let environment = tcl_registry::model::ingress::resolve_known_environment(environment).unwrap();
     let context = environment.default_context_registry();
     let profile = environment.unit_profile();
@@ -41,7 +48,7 @@ fn fixture(environment: &str) -> Fixture {
     let image = tcl_lexer::SourceImage::document(source);
     let segments =
         crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config).unwrap();
-    let mut parent = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+    let mut parent = CommandTokens::from_segmented(&image.source_map(), config, &segments[parent]);
     bindings.stamp_original_tokens(&mut parent);
     let binding = parent.source_binding.as_ref().unwrap();
     let body = binding
@@ -64,6 +71,12 @@ fn fixture(environment: &str) -> Fixture {
 }
 
 fn original_body_tokens(fixture: &Fixture) -> CommandTokens {
+    let mut tokens = unbound_body_tokens(fixture);
+    fixture.bindings.stamp_original_tokens(&mut tokens);
+    tokens
+}
+
+fn unbound_body_tokens(fixture: &Fixture) -> CommandTokens {
     let config = fixture.input.lexer_config();
     let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
         &fixture.body.text,
@@ -77,7 +90,9 @@ fn original_body_tokens(fixture: &Fixture) -> CommandTokens {
         fixture.body.text.channel(),
     );
     let mut tokens = CommandTokens::from_segmented(&words.map(), config, &segments[0]);
-    fixture.bindings.stamp_original_tokens(&mut tokens);
+    // Construct the original parser vector before any declaration/reached stamp.
+    // Explicit unknown is a missing receipt, not a replacement for a real one.
+    tokens.source_binding = Some(crate::command_binding::SourceInvocationBinding::unknown());
     tokens
 }
 
@@ -85,9 +100,9 @@ fn original_body_tokens(fixture: &Fixture) -> CommandTokens {
 fn original_conditional_body_retains_written_geometry_without_lookup_or_native_entry() {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-    // Actual held VM issuer; software geometry only, no entered child proof.
+    // Actual held VM issuer; abrupt completion keeps this child unentered.
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
-        let fixture = fixture(environment);
+        let fixture = unentered_fixture(environment);
         let mut lowerer =
             Lowerer::with_config(fixture.context.commands(), fixture.input.lexer_config())
                 .with_dialect(Some(fixture.input.unit_profile()))
@@ -121,6 +136,15 @@ fn original_conditional_body_retains_written_geometry_without_lookup_or_native_e
             "{environment}"
         );
         assert!(binding.proved_execution_target().is_none(), "{environment}");
+        assert!(binding.lookup_state.is_none(), "{environment}");
+        assert!(binding.compiler_lookup_state.is_none(), "{environment}");
+        assert!(binding.native_compilation_admission.is_none(), "{environment}");
+        assert!(
+            crate::registry_invocation::normal_transfer_invocation_in_context(
+                &fixture.context, tokens,
+            ).is_none(),
+            "{environment}"
+        );
         assert!(
             binding
                 .original_invocation_metadata_for_input(
@@ -141,7 +165,8 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let fixture = fixture("tcl8.4");
     let config = fixture.input.lexer_config();
-    let mut original = original_body_tokens(&fixture);
+    // The geometry-only issuer must receive the actual pre-stamp vector.
+    let mut original = unbound_body_tokens(&fixture);
     let owner = fixture
         .bindings
         .original_body_written_word_owner(
@@ -200,7 +225,7 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
         (&foreign_input, fixture.context.commands()),
         (&fixture.input, foreign_context.commands()),
     ] {
-        let mut tokens = original_body_tokens(&fixture);
+        let mut tokens = unbound_body_tokens(&fixture);
         assert!(
             owner
                 .stamp_original_tokens(registry, input, &mut tokens)
@@ -232,11 +257,11 @@ fn original_body_word_geometry_refuses_foreign_input_source_config_and_vector() 
             )
             .is_none()
     );
-    let mut changed_span = original_body_tokens(&fixture);
+    let mut changed_span = unbound_body_tokens(&fixture);
     crate::lattice_rebase::rebase_command_tokens(&mut changed_span, 1);
-    let mut changed_vector = original_body_tokens(&fixture);
+    let mut changed_vector = unbound_body_tokens(&fixture);
     changed_vector.argv_texts[0].push('!');
-    let mut missing = original_body_tokens(&fixture);
+    let mut missing = unbound_body_tokens(&fixture);
     missing.source_binding = None;
     for mut tokens in [changed_span, changed_vector, missing] {
         assert!(
@@ -317,7 +342,7 @@ fn original_body_geometry_is_absent_without_namespace_descent_or_retained_owner(
     );
     assert!(lowerer.original_body_word_source.is_none());
     // A structural namespace memo remains insufficient outside authentic body
-    // descent: ordinary materialized lowering keeps its unknown point.
+    // descent: its declared location supplies no entered or compiler point.
     lowerer.source_bindings = Some(fixture.bindings.clone().into());
     let selected = fixture
         .bindings
@@ -332,14 +357,95 @@ fn original_body_geometry_is_absent_without_namespace_descent_or_retained_owner(
     let tokens = script
         .retained_source_tokens_for_statement(&script.statements[0])
         .unwrap();
+    let binding = tokens.source_binding.as_ref().unwrap();
+    assert!(binding.invocation_site().is_some());
+    assert!(binding.declaration_operand_layout_advice(tokens).is_some());
+    assert!(binding.lookup_state.is_none());
+    assert!(binding.compiler_lookup_state.is_none());
+    assert!(binding.proved_execution_target().is_none());
+    assert!(binding.proved_handler_target().is_none());
+    assert!(!binding.unobserved_native_dispatch());
+    assert!(binding.native_compilation_admission.is_none());
+    assert!(binding.admitted_inline_invocation().is_none());
+    assert!(binding.admitted_named_invocation().is_none());
+    assert!(binding.source_origin().is_none());
+    assert!(binding.invocation_realm().is_none());
     assert!(
-        tokens
-            .source_binding
-            .as_ref()
-            .unwrap()
-            .invocation_site()
-            .is_none()
+        binding.original_invocation_metadata_for_input(
+            tokens, &fixture.input, fixture.context.commands(),
+        ).is_none()
     );
+    assert!(
+        crate::registry_invocation::resolved_handler_invocation(
+            fixture.context.commands(), None, tokens,
+        ).is_none()
+    );
+    assert!(
+        crate::registry_invocation::normal_transfer_invocation_in_context(
+            &fixture.context, tokens,
+        ).is_none()
+    );
+}
+
+#[test]
+fn original_body_geometry_cannot_overwrite_an_actual_declaration_owner() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // The real declaration and its location remain intact after geometry refuses.
+    let fixture = fixture("tcl8.4");
+    let mut original = original_body_tokens(&fixture);
+    let retained = original.clone();
+    let binding = original.source_binding.as_ref().unwrap();
+    assert!(binding.invocation_site().is_some());
+    assert!(binding.declaration_operand_layout_advice(&original).is_some());
+    let owner = fixture.bindings.original_body_written_word_owner(
+        &fixture.body, fixture.input.lexer_config(), fixture.context.commands(),
+        &fixture.input,
+    ).unwrap();
+    assert!(owner.stamp_original_tokens(
+        fixture.context.commands(), &fixture.input, &mut original,
+    ).is_none());
+    assert_eq!(original, retained);
+    let binding = original.source_binding.as_ref().unwrap();
+    assert!(binding.lookup_state.is_none());
+    assert!(binding.compiler_lookup_state.is_none());
+    assert!(binding.proved_execution_target().is_none());
+    assert!(binding.proved_handler_target().is_none());
+    assert!(!binding.unobserved_native_dispatch());
+    assert!(binding.native_compilation_admission.is_none());
+    assert!(binding.admitted_inline_invocation().is_none());
+    assert!(binding.admitted_named_invocation().is_none());
+    assert!(crate::registry_invocation::normal_transfer_invocation_in_context(
+        &fixture.context, &original,
+    ).is_none());
+}
+
+#[test]
+fn original_jim_body_source_point_remains_without_a_proved_execution_target() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Original held Jim source correspondence is distinct from executable proof.
+    let fixture = fixture("jimtcl");
+    let mut lowerer = Lowerer::with_config(
+        fixture.context.commands(), fixture.input.lexer_config(),
+    ).with_dialect(Some(fixture.input.unit_profile()))
+        .with_resolved_analysis_input(fixture.input.clone());
+    lowerer.set_source_analysis_options(fixture.entry.options());
+    lowerer.source_bindings = Some(fixture.bindings.clone().into());
+    let script = lowerer.lower_original_body(fixture.body.clone(), Some(&fixture.namespace));
+    assert_eq!(script.namespace_context.as_deref(), Some(&fixture.namespace));
+    assert_eq!(script.statements.len(), 1);
+    let tokens = script.retained_source_tokens_for_statement(&script.statements[0]).unwrap();
+    assert_eq!(tokens.argv_texts, ["set", "result", "VALUE"]);
+    let binding = tokens.source_binding.as_ref().unwrap();
+    assert_eq!(binding.invocation_site().unwrap().source, fixture.body.origin);
+    assert_eq!(binding.original_lexer_config_for_tokens(tokens), Some(fixture.input.lexer_config()));
+    assert!(binding.lookup_state.is_some());
+    assert!(binding.original_invocation_metadata_for_input(
+        tokens, &fixture.input, fixture.context.commands(),
+    ).is_some());
+    assert!(binding.proved_execution_target().is_none());
+    assert!(lowerer.original_body_word_source.is_none());
 }
 
 fn folded_fixture(environment: &str) -> (Fixture, CommandTokens) {
