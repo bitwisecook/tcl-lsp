@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "ssh",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPersist=600",
+    "-o",
+    "ControlPath=/tmp/tcl_lsp_oracle_01a13073_%C",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=10",
+    "-o",
+    "ForwardAgent=no",
+    "-o",
+    "IdentityAgent=none",
+    "-i",
+    "/Users/jimd/.ssh/github_rsa",
+    "bigip-211",
+    "bash -s"
+  ],
+  "exit_code": 0,
+  "stdin_sha256": "9ad5b876bff01d94c41e526407dd197cb383e6e21f09a2947e9f60e80c4671b1"
+}

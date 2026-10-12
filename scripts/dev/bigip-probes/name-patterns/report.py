@@ -198,6 +198,13 @@ def _stage(fields):
     value = by_name.get("result")
     metadata = by_name.get("metadata")
     metadata_text = metadata.get("text") if metadata and metadata["complete"] else None
+    if metadata and metadata["complete"] and metadata_text is None:
+        metadata_bytes = bytes.fromhex(metadata["value_hex"])
+        if re.fullmatch(
+            rb"errorcode-present [01] errorinfo-present [01] return-options (?:unavailable|captured)",
+            metadata_bytes,
+        ):
+            metadata_text = metadata_bytes.decode("ascii")
     unavailable = []
     options_field = by_name.get("returnoptions") or by_name.get("return_options")
     options_availability = re.search(r"return-options ([^\s]+)", metadata_text or "")
@@ -578,7 +585,7 @@ def build_records(run_path, root=ROOT):
                         "This question does not establish successful case setup or final intended lookup."
                     )
                     canonical_id = None
-                    scope = "Entire-program evaluation stage only; an empty capture setup is not evidence that the program's own setup succeeded. Final intended lookup reachability is recorded separately."
+                    scope = "Entire-program evaluation stage only; capture ownership-guard completion does not by itself establish completion of the original program's setup prefix. Final intended lookup reachability is recorded separately."
                     reason = (
                         (reason + " " if reason else "")
                         + "Observed code 1 belongs to evaluation of the entire portable program. "
@@ -659,6 +666,180 @@ def build_records(run_path, root=ROOT):
     return records
 
 
+def apply_reachability_review(run_path, records, root=ROOT):
+    """Verify independently authored source/stack reviews before using them."""
+    run = Path(run_path).resolve()
+    root = Path(root).resolve()
+    path = run / "reviewed-reachability.json"
+    if not path.exists():
+        return records
+    bundle = _json(path)
+    if bundle["schema_version"] != 1 or bundle["run_id"] != run.name:
+        raise ValueError("Reachability review identity differs")
+
+    def verified_bytes(descriptor):
+        target = (root / descriptor["path"]).resolve()
+        if not target.is_relative_to(root):
+            raise ValueError("Review evidence escapes repository")
+        data = target.read_bytes()
+        if hashlib.sha256(data).hexdigest() != descriptor["sha256"]:
+            raise ValueError("Reachability review evidence digest changed")
+        return data
+
+    reviewed_identities = set()
+    for index, review in enumerate(bundle["reviews"]):
+        identity = review["identity"]
+        identity_key = tuple(
+            identity[key]
+            for key in ("case_id", "context", "tmm_unit", "invocation_id", "variant_id")
+        )
+        if identity_key in reviewed_identities:
+            raise ValueError("Duplicate reachability review identity")
+        reviewed_identities.add(identity_key)
+        matches = [
+            record
+            for record in records
+            if record["case_id"] == identity["case_id"]
+            and record["provider"]["context"] == identity["context"]
+            and record["provider"]["tmm_unit"] == identity["tmm_unit"]
+            and record["invocation_id"] == identity["invocation_id"]
+            and record["variant_id"] == identity["variant_id"]
+        ]
+        if len(matches) != 1:
+            raise ValueError("Review requires one exact measurement identity")
+        record = matches[0]
+        if record["load"]["status"] not in {"accept", "not-applicable"}:
+            raise ValueError("Review cannot promote rejected input")
+        if (
+            record["adaptation"] is not None
+            or identity["variant_id"] != "whole-portable-source-v1"
+        ):
+            raise ValueError("Review requires unchanged whole original source")
+        for key in ("original_input", "actual_input"):
+            descriptor = review[key]
+            if any(
+                record[key][field] != descriptor[field] for field in ("path", "sha256")
+            ):
+                raise ValueError("Review input differs from captured input")
+            verified_bytes(descriptor)
+        operation = review["executed_operation"]
+        if (
+            operation["path"] != record["case_metadata"]["path"]
+            or operation["sha256"] != record["case_metadata"]["sha256"]
+            or operation["json_pointer"]
+            != record["case_metadata"]["json_pointer"] + "/operation"
+            or review["canonical_question_id"]
+            != record["requested_canonical_question_id"]
+        ):
+            raise ValueError("Review operation or canonical question differs")
+        value = json.loads(verified_bytes(operation))
+        for part in operation["json_pointer"].strip("/").split("/"):
+            value = value[int(part)] if isinstance(value, list) else value[part]
+        if hashlib.sha256(value.encode()).hexdigest() != operation[
+            "value_sha256"
+        ] or value.encode() != verified_bytes(review["original_input"]):
+            raise ValueError("Reviewed operation is not the exact original bytes")
+        for key in ("completion_code", "result_encoding", "result_hex"):
+            if record["setup"][key] != review["ownership_guard"][key]:
+                raise ValueError("Reviewed guard differs from capture")
+            if record["lookup"][key] != review["whole_program"][key]:
+                raise ValueError("Reviewed completion differs from capture")
+        if (
+            record["setup"]["completion_code"] != 0
+            or record["lookup"]["completion_code"] != 1
+        ):
+            raise ValueError(
+                "Review requires successful ownership guard and captured error"
+            )
+        error = review["whole_program"]["errorinfo"]
+        if record["lookup"]["errorinfo"] != {
+            key: error[key] for key in ("encoding", "hex")
+        }:
+            raise ValueError("Reviewed error stack differs from capture")
+        if error["encoding"] == "utf-8":
+            projected_error = bytes.fromhex(error["hex"]).decode("utf-8")
+        elif (
+            error["encoding"] == "binary-scan-tcl-value"
+            and error.get("text_projection")
+            == "ASCII bytes only; original Tcl-value encoding remains binary-scan-tcl-value"
+        ):
+            projected_error = bytes.fromhex(error["hex"]).decode("ascii")
+        else:
+            raise ValueError("Reviewed stack requires a reversible text projection")
+        if projected_error != error["text"]:
+            raise ValueError("Reviewed error stack text differs from bytes")
+        final = review["final_authored_operation"]
+        first_line, last_line = final["lines"]
+        source_lines = value.splitlines()
+        if (
+            not 1
+            <= first_line
+            <= final["eval_body_line"]
+            <= last_line
+            <= len(source_lines)
+            or '\n"' + final["failing_command"] + '"\n' not in error["text"]
+            or f'("eval" body line {final["eval_body_line"]})' not in error["text"]
+            or final["text"] not in value
+            or "\n".join(source_lines[first_line - 1 : last_line]).strip()
+            != final["text"].strip()
+            or any(line.strip() for line in source_lines[last_line:])
+        ):
+            raise ValueError("Review does not locate the authored final operation")
+        if not review["raw_capture_sources"]:
+            raise ValueError("Review requires retained raw rows")
+        error_rows = []
+        for source in review["raw_capture_sources"]:
+            lines = verified_bytes(source).splitlines()
+            if not source["rows"]:
+                raise ValueError("Review requires nonempty raw rows")
+            for row in source["rows"]:
+                if lines[row["line"] - 1].hex() != row["line_hex"]:
+                    raise ValueError("Reviewed raw row differs from retained bytes")
+                marker = (
+                    f"NHO|{run.name}|{identity['case_id']}|{identity['context']}|"
+                    f"{row['stage']}|{row['completion_code']}|"
+                    f"{identity['tmm_unit'] or 'none'}|{identity['invocation_id']}|"
+                    f"{row['field']}|{row['encoding']}|{row['chunk_index']}|"
+                    f"{row['chunk_count']}|{row['chunk_hex']}"
+                ).encode()
+                if marker not in bytes.fromhex(row["line_hex"]):
+                    raise ValueError("Reviewed raw row identity differs")
+                if row["stage"] == "lookup" and row["field"] == "errorinfo":
+                    error_rows.append(row)
+        error_rows.sort(key=lambda row: row["chunk_index"])
+        if (
+            not error_rows
+            or [row["chunk_index"] for row in error_rows]
+            != list(range(len(error_rows)))
+            or any(row["chunk_count"] != len(error_rows) for row in error_rows)
+            or "".join(row["chunk_hex"] for row in error_rows) != error["hex"]
+        ):
+            raise ValueError("Reviewed raw rows do not reproduce the error stack")
+        if not all(
+            review["review"][key] is True
+            for key in (
+                "intended_lookup_reached",
+                "original_setup_prefix_completed",
+                "canonical_final_lookup_supported",
+            )
+        ):
+            raise ValueError("Review does not establish final operation reachability")
+        record["canonical_question_id"] = review["canonical_question_id"]
+        record["question_id"] = record["question_id"].removesuffix(
+            "-whole-program-evaluation"
+        )
+        record["canonical_question"] = None
+        record["canonical_lookup_answer"] = True
+        record["intended_lookup_reached"] = True
+        record["operation_scope"] = "original-final-operation-source-reviewed"
+        record["scope"] = review["review"]["reason"] + " " + review["review"]["limits"]
+        record["reason"] = record["scope"]
+        record["reachability_review"] = _descriptor(path, root, "observation")
+        record["reachability_review"]["json_pointer"] = f"/reviews/{index}"
+        record["raw_evidence"].append(record["reachability_review"])
+    return records
+
+
 def _cell(value):
     return (
         str(value).replace("|", "\\|").replace("\n", " ")
@@ -686,7 +867,7 @@ def _link(descriptor):
 def write_report(run_path):
     """Write derived records and a reviewable Markdown report, without promotion."""
     run = Path(run_path).resolve()
-    records = build_records(run)
+    records = apply_reachability_review(run, build_records(run))
     (run / "records.json").write_text(
         json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
