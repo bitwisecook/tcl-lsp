@@ -96,6 +96,33 @@ pub enum SessionError {
     Projection(tcl_syntax::raw_string::UnicodeAccessError),
 }
 
+fn session_projection_error(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, error: tcl_vm::TclError) -> SessionError {
+    let error = match error {
+        tcl_vm::TclError::Host(failure) => vm.retain_original_operand_failure(original, failure),
+        tcl_vm::TclError::Guest(_) => unreachable!("raw String/context projection supplies only operational refusals"),
+    };
+    match error {
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error)))) => SessionError::Projection(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        _ => unreachable!("the actual first-cause owner returns an execution carrier"),
+    }
+}
+
+fn session_capture_error(error: tcl_vm::TclError) -> SessionError {
+    match error {
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        _ => unreachable!("original observation capture supplies only an execution refusal"),
+    }
+}
+
+fn session_settlement_error(error: tcl_vm::TclError) -> SessionError {
+    match error {
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(error)))) => SessionError::Projection(error),
+        tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(error)) => SessionError::Execution(error),
+        _ => unreachable!("original observation settlement supplies only an execution refusal"),
+    }
+}
+
 impl std::fmt::Display for SessionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -150,39 +177,31 @@ impl NativeCommand for EventSourceHook {
             return vm
                 .refuse_host_command("event source hook requires original event and body".into());
         };
-        let event = match event.try_to_str() {
-            Ok(event) => event,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let Some(build) = self
-            .selection
-            .build
-            .get()
-            .filter(|_| event.as_ref() == "HTTP_REQUEST")
-        else {
-            return match vm.try_eval_original_source_value(source) {
-                Ok(completion) => completion,
-                Err(error) => vm.refuse_host_command(error.to_string()),
+        let reached = vm.with_original_operand_projection(|vm, original| {
+            let event = vm.original_operand_unicode(original, event)?;
+            vm.check_original_operand_projection(original)?;
+            let Some(build) = self.selection.build.get().filter(|_| event == "HTTP_REQUEST") else {
+                return vm.try_eval_original_source_value(source)
+                    .map_err(tcl_vm::TclError::from_execution_failure);
             };
-        };
-        let event = BigIpNameEvent::HttpRequest;
-        let context = BigIpExecutionContext::TmmIRule;
-        let Some(policy) = tcl_registry::f5::naming::observed_name_policy(build, context, event)
-        else {
-            return vm.refuse_host_command("measured event naming issuer is unavailable".into());
-        };
-        let storage = AuthoredObservedFrameStorageContext {
-            policy,
-            tmm: self.tmm,
-            domain: self.domain,
-        };
-        match vm.with_observed_name_policy(build, context, event, |vm| {
-            vm.with_observed_frame_storage(storage, |vm| vm.try_eval_original_source_value(source))
-        }) {
-            Ok(Ok(Ok(completion))) => completion,
-            Ok(Ok(Err(error))) => vm.refuse_host_command(error.to_string()),
-            Ok(Err(error)) | Err(error) => vm.refuse_host_command(error.to_string()),
-        }
+            let event = BigIpNameEvent::HttpRequest;
+            let context = BigIpExecutionContext::TmmIRule;
+            let Some(policy) = tcl_registry::f5::naming::observed_name_policy(build, context, event) else {
+                return Ok(vm.refuse_host_command("measured event naming issuer is unavailable".into()));
+            };
+            let storage = AuthoredObservedFrameStorageContext { policy, tmm: self.tmm, domain: self.domain };
+            vm.with_original_observed_event_inputs(original, build, context, event, storage,
+                |vm| vm.try_eval_original_source_value(source))
+
+        });
+        reached.unwrap_or_else(|error| original_completion(vm, error))
+    }
+}
+
+fn original_completion(vm: &mut Vm, error: tcl_vm::TclError) -> Completion<Value> {
+    match error.into_completion() {
+        Ok(guest) => guest,
+        Err(failure) => vm.refuse_tcl_host_failure(failure),
     }
 }
 
@@ -194,32 +213,27 @@ impl NativeCommand for EnrollEventHook {
                 "event worker enrolment requires actual child and worker".into(),
             );
         };
-        let child = match child.try_to_str() {
-            Ok(child) => child,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let tmm = match tmm
-            .try_to_str()
-            .ok()
-            .and_then(|text| text.parse::<u64>().ok())
-        {
-            Some(tmm) => tmm,
-            None => return vm.refuse_host_command("event worker identity is unavailable".into()),
-        };
-        let domain = self.0.next_domain.get();
-        let Some(next) = domain.checked_add(1) else {
-            return vm.refuse_host_command("event domain identity is exhausted".into());
-        };
-        self.0.next_domain.set(next);
-        let command = Rc::new(EventSourceHook {
-            selection: Rc::clone(&self.0),
-            tmm,
-            domain,
+        let reached = vm.with_original_operand_projection(|vm, original| {
+            let child = vm.original_operand_unicode(original, child)?;
+            let text = vm.original_operand_unicode(original, tmm)?;
+            let Ok(tmm) = text.parse::<u64>() else {
+                return Ok(vm.refuse_host_command("event worker identity is unavailable".into()));
+            };
+            vm.check_original_operand_projection(original)?;
+            let domain = self.0.next_domain.get();
+            let Some(next) = domain.checked_add(1) else {
+                return Ok(vm.refuse_host_command("event domain identity is exhausted".into()));
+            };
+            self.0.next_domain.set(next);
+            let command = Rc::new(EventSourceHook { selection: Rc::clone(&self.0), tmm, domain });
+            let reached = vm.try_register_child_native_command(&child, "::tmm::_observed_event_source", command);
+            vm.check_original_operand_projection(original)?;
+            if !reached? {
+                return Ok(vm.refuse_host_command("actual event worker is unavailable".into()));
+            }
+            Ok(Completion::new(Code::Ok, Value::empty(), Value::empty()))
         });
-        if !vm.register_child_native_command(&child, "::tmm::_observed_event_source", command) {
-            return vm.refuse_host_command("actual event worker is unavailable".into());
-        }
-        Completion::new(Code::Ok, Value::empty(), Value::empty())
+        reached.unwrap_or_else(|error| original_completion(vm, error))
     }
 }
 
@@ -395,20 +409,25 @@ impl LiveSession {
     }
 
     fn eval_host_initialization(&mut self, script: &str) -> Result<(), SessionError> {
-        let completion = self
-            .vm
-            .try_eval_native_host_source(script)
-            .map_err(SessionError::Execution)?;
-        if completion.code == Code::Error {
-            return Err(SessionError::Eval(
-                completion
-                    .result
-                    .try_to_str()
-                    .map_err(SessionError::Projection)?
-                    .to_string(),
-            ));
-        }
-        Ok(())
+        let completion = self.vm.try_eval_native_host_source(script).map_err(SessionError::Execution)?;
+        // The existing evaluation producer owns execution. This receipt begins
+        // at its returned result projection and claims no earlier script stage.
+        let original = self.vm.capture_original_operand_projection().map_err(session_capture_error)?;
+        let reached = (|| {
+            let reached = if completion.code == Code::Error {
+                match self.vm.original_operand_unicode(&original, &completion.result) {
+                    Ok(text) => Err(SessionError::Eval(text)),
+                    Err(error) => Err(session_projection_error(&mut self.vm, &original, error)),
+                }
+            } else { Ok(()) };
+            drop(completion);
+            self.vm.check_original_operand_projection(&original)
+                .map_err(|error| session_projection_error(&mut self.vm, &original, error))?;
+            reached
+        })();
+        let settled = self.vm.finish_original_operand_projection(original).map_err(session_settlement_error);
+        settled?;
+        reached
     }
 
     /// Evaluate a Tcl script without projecting its result or options as text.
@@ -434,23 +453,25 @@ impl LiveSession {
     /// [`SessionError::Projection`] on non-Unicode result bytes.
     pub fn eval(&mut self, script: &str) -> Result<String, SessionError> {
         let result = self.eval_completion(script);
-        // A guest `exit` records a code on the VM rather than killing the host;
-        // surface it as a handleable error and clear it so the next eval is
-        // clean (the session, not the process, decides what to do).
+        // Keep the existing reached exit settlement before result projection.
         if let Some(code) = self.vm.take_exit() {
             return Err(SessionError::Eval(format!("script called exit {code}")));
         }
         let completion = result?;
-        let text = completion
-            .result
-            .try_to_str()
-            .map_err(SessionError::Projection)?
-            .to_string();
-        if completion.code == Code::Error {
-            Err(SessionError::Eval(text))
-        } else {
-            Ok(text)
-        }
+        let original = self.vm.capture_original_operand_projection().map_err(session_capture_error)?;
+        let reached = (|| {
+            let text = self.vm.original_operand_unicode(&original, &completion.result)
+                .map_err(|error| session_projection_error(&mut self.vm, &original, error));
+            let code = completion.code;
+            drop(completion);
+            self.vm.check_original_operand_projection(&original)
+                .map_err(|error| session_projection_error(&mut self.vm, &original, error))?;
+            let text = text?;
+            if code == Code::Error { Err(SessionError::Eval(text)) } else { Ok(text) }
+        })();
+        let settled = self.vm.finish_original_operand_projection(original).map_err(session_settlement_error);
+        settled?;
+        reached
     }
 
     /// Load an iRule into the orchestrator (`::orch::load_irule`) as one Tcl
@@ -2439,3 +2460,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "live/original_projection_tests.rs"]
+mod original_projection_tests;

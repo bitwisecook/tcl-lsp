@@ -154,6 +154,167 @@ impl std::fmt::Debug for FunctionHandle {
     }
 }
 
+/// Original context for a host's value projections. This opaque observation
+/// inherits an existing entry when present and never issues Native permission.
+pub struct OriginalOperandProjection {
+    original: crate::interp::original_authored_operands::OriginalAuthoredOperandScope,
+}
+
+fn original_operand_error(vm: &mut Vm, error: tcl_cmd_core::CmdError) -> TclError {
+    if let Some(first) = error.native_execution_refusal() {
+        let first = vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        TclError::from_execution_failure(first)
+    } else {
+        TclError::from_completion(crate::command::completion_from_cmd_error(vm, error))
+    }
+}
+
+impl Vm {
+    /// Observe the actual caller before any value getter. Captured operation/context,
+    /// frame, namespace and per-operand header checks grant no entry or provider.
+    ///
+    /// # Errors
+    /// Returns the actual first Host failure or unchanged Guest error carrier.
+    pub fn capture_original_operand_projection(&mut self) -> Result<OriginalOperandProjection, TclError> {
+        crate::interp::original_authored_operands::OriginalAuthoredOperandScope::capture(self)
+            .map(|original| OriginalOperandProjection { original })
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Check the same original caller before semantic continuation.
+    ///
+    /// # Errors
+    /// Retains the original full failure rather than resolving another owner.
+    pub fn check_original_operand_projection(&mut self, original: &OriginalOperandProjection) -> Result<(), TclError> {
+        original.original.check(self).map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Check this actual operand and the original caller before projection.
+    ///
+    /// # Errors
+    /// Refuses retired headers and changed original contexts with full cause.
+    pub fn check_original_projected_value(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<(), TclError> {
+        original.original.current_for_value(self, value).map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Reach the existing formatter-None raw String worker under the original
+    /// context, including checks inside each reached recursive child.
+    ///
+    /// # Errors
+    /// Returns the first failure retained before unused backing cleanup.
+    pub fn original_operand_raw_bytes(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<Rc<[u8]>, TclError> {
+        original.original.raw_bytes(self, value).map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Reach the existing selected String worker without granting its provider.
+    ///
+    /// # Errors
+    /// Retains unavailable providers, original header and context failures.
+    pub fn original_operand_string_bytes(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<Rc<[u8]>, TclError> {
+        original.original.string(self, value).map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Reach the existing selected List worker under that same original context.
+    ///
+    /// # Errors
+    /// Keeps Guest parse errors separate from full operational Host failures.
+    pub fn original_operand_list(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<Vec<Value>, TclError> {
+        original.original.list(self, value).map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Project strict Rust UTF-8 through the original legacy raw byte worker.
+    ///
+    /// # Errors
+    /// Retains non-UTF-8 bytes as a typed value refusal before continuation.
+    pub fn original_operand_unicode(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<String, TclError> {
+        original.original.unicode(self, value).map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Read the selected String recipe and immediately require strict Rust UTF-8.
+    /// This is distinct from Tcl/Jim counted Unicode projection.
+    ///
+    /// # Errors
+    /// Retains a failed recipe or UTF-8 conversion before the next operand.
+    pub fn original_operand_strict_string(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<String, TclError> {
+        let bytes = original.original.string(self, value)
+            .map_err(|error| original_operand_error(self, error))?;
+        let reached = std::str::from_utf8(&bytes).map(str::to_owned)
+            .map_err(tcl_syntax::raw_string::UnicodeAccessError::from)
+            .map_err(tcl_syntax::value::ValueError::from)
+            .map_err(tcl_cmd_core::CmdError::from);
+        if let Err(error) = &reached {
+            original.original.retain(self, error);
+        }
+        original.original.current_for_value(self, value)
+            .map_err(|error| original_operand_error(self, error))?;
+        reached.map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Keep the same original observation through a host operation and its
+    /// mandatory local cleanup. This supplies no Native entry or provider.
+    ///
+    /// # Errors
+    /// Returns the first full failure after original observation retirement.
+    pub fn with_original_operand_projection<T>(&mut self, work: impl FnOnce(&mut Self, &OriginalOperandProjection) -> Result<T, TclError>) -> Result<T, TclError> {
+        let original = self.capture_original_operand_projection()?;
+        let reached = work(self, &original);
+        if let Err(TclError::Host(failure)) = &reached {
+            self.retain_tcl_host_failure(failure.clone());
+        }
+        if let Err(first) = self.check_original_operand_projection(&original) {
+            drop(reached);
+            let _ = self.finish_original_operand_projection(original);
+            return Err(first);
+        }
+        if let Err(first) = self.finish_original_operand_projection(original) {
+            drop(reached);
+            return Err(first);
+        }
+        reached
+    }
+
+    /// Execute an explicitly measured event through its original authorised
+    /// input-transition owner. Policy selection supplies no physical Native role.
+    ///
+    /// # Errors
+    /// Callback invalidation remains terminal after mandatory saved restoration.
+    pub fn with_original_observed_event_inputs(
+        &mut self,
+        original: &OriginalOperandProjection,
+        build: tcl_registry::f5::evidence::BigIpBuild,
+        context: tcl_registry::f5::BigIpExecutionContext,
+        event: tcl_registry::f5::naming::BigIpNameEvent,
+        storage: tcl_runtime_api::authored_tmm::AuthoredObservedFrameStorageContext,
+        body: impl FnOnce(&mut Self) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError>,
+    ) -> Result<Completion<Value>, TclError> {
+        self.with_original_observed_event_inputs_using(&original.original, build, context, event, storage, body)
+            .map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Retain a reached actual failure before mandatory caller-owned cleanup.
+    /// This diagnostic operation grants no getter, provider or entry authority.
+    #[must_use]
+    pub fn retain_original_operand_failure(&mut self, original: &OriginalOperandProjection, failure: crate::TclHostFailure) -> TclError {
+        let first = self.retain_tcl_host_failure(failure);
+        let error = tcl_cmd_core::CmdError::from_execution_refusal(first.clone());
+        original.original.retain(self, &error);
+        TclError::from_execution_failure(first)
+    }
+
+    /// Retire the actual observation's allocation-only leases, then settle the
+    /// same original caller. Call only after mandatory caller-owned cleanup.
+    ///
+    /// # Errors
+    /// Returns the first full failure after reached observation retirement.
+    pub fn finish_original_operand_projection(&mut self, original: OriginalOperandProjection) -> Result<(), TclError> {
+        let reached = original.original.finish(self).map_err(|error| original_operand_error(self, error));
+        if let Some(first) = self.take_host_boundary_refusal() {
+            return Err(TclError::from_execution_failure(first));
+        }
+        reached
+    }
+}
+
 impl Vm {
     /// Convert host callback arguments under their already entered operation.
     ///
@@ -1155,3 +1316,7 @@ mod procedure_definition_tests {
         assert!(vm.lookup_command("::missing_header::body").is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "embed/original_operand_projection_tests.rs"]
+mod original_operand_projection_tests;

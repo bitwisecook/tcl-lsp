@@ -48,6 +48,7 @@ impl NativeOperationContext {
 pub(crate) struct NativeOperationCurrency {
     owner: Rc<NativeOperationContext>,
     generation: u64,
+    authorised_generation: Rc<Cell<Option<u64>>>,
     interpreter: NativeInterpreterIdentity,
     context: RuntimeContext,
     profile: &'static tcl_dialect::DialectProfile,
@@ -69,6 +70,73 @@ impl OriginalOperationObservation {
     }
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
         self.original.check(vm)
+    }
+
+    /// Advance only at the actual measured-input publication point. Cache
+    /// retirement remains checked work, with the same first-cause owner.
+    pub(super) fn replace_observed_inputs_using(
+        &self,
+        vm: &mut Vm,
+        names: Option<super::execution_name_policy::ObservedNameSelection>,
+        storage: Option<super::execution_name_policy::ObservedFrameStorage>,
+        mandatory_retirement: bool,
+        current: &mut dyn FnMut(&mut Vm) -> Result<(), CmdError>,
+    ) -> Result<(), CmdError> {
+        use super::execution_name_policy::ObservedInputReplacementStage;
+        if !self.original.owns_saved_target(vm, vm.cur) {
+            return Err(CmdError::from_execution_refusal(retain_first(
+                vm,
+                unavailable(),
+            )));
+        }
+        let before = self.original.check_native(vm);
+        if !mandatory_retirement && let Err(first) = &before {
+            return Err(CmdError::from_execution_refusal(first.clone()));
+        }
+        let generation = self.original.current_generation();
+        let reached = vm.replace_observed_operation_inputs_using(
+            names,
+            storage,
+            Some(&mut |vm, stage| {
+                if let ObservedInputReplacementStage::Published { changed } = stage {
+                    before
+                        .as_ref()
+                        .map_err(|first| CmdError::from_execution_refusal(first.clone()))?;
+                    let next = generation
+                        .checked_add(u64::from(changed))
+                        .ok_or_else(|| retain_first(vm, unavailable()))
+                        .map_err(CmdError::from_execution_refusal)?;
+                    let interpreter = vm.cur;
+                    self.original
+                        .check_saved_target_at_generation(vm, interpreter, next)
+                        .map_err(CmdError::from_execution_refusal)?;
+                    self.original.authorised_generation.set(Some(next));
+                }
+                self.original.check(vm)?;
+                current(vm)
+            }),
+        );
+        before.map_err(CmdError::from_execution_refusal)?;
+        self.original.check(vm)?;
+        current(vm)?;
+        reached.map(|_| ())
+    }
+
+    #[cfg(test)]
+    fn replace_observed_inputs(
+        &self,
+        vm: &mut Vm,
+        names: Option<super::execution_name_policy::ObservedNameSelection>,
+        storage: Option<super::execution_name_policy::ObservedFrameStorage>,
+        mandatory_retirement: bool,
+    ) -> Result<(), CmdError> {
+        self.replace_observed_inputs_using(
+            vm,
+            names,
+            storage,
+            mandatory_retirement,
+            &mut |_| Ok(()),
+        )
     }
 }
 
@@ -299,6 +367,7 @@ impl NativeOperationCurrency {
         Ok(Self {
             owner,
             generation,
+            authorised_generation: Rc::new(Cell::new(None)),
             interpreter: vm.native_interpreter_identity(),
             context: vm.runtime_context().clone(),
             profile: vm.dialect_profile(),
@@ -330,12 +399,25 @@ impl NativeOperationCurrency {
         vm: &mut Vm,
         interpreter: InterpId,
     ) -> Result<(), NativeExecutionError> {
+        self.check_saved_target_at_generation(vm, interpreter, self.current_generation())
+    }
+
+    fn current_generation(&self) -> u64 {
+        self.authorised_generation.get().unwrap_or(self.generation)
+    }
+
+    fn check_saved_target_at_generation(
+        &self,
+        vm: &mut Vm,
+        interpreter: InterpId,
+        generation: u64,
+    ) -> Result<(), NativeExecutionError> {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(first);
         }
         let current = self.owns_saved_target(vm, interpreter)
             && vm.st_of(interpreter).is_some_and(|state| {
-                self.owner.generation.get() == Some(self.generation)
+                self.owner.generation.get() == Some(generation)
                     && state.pin.context == self.context
                     && std::ptr::eq(state.pin.profile, self.profile)
                     && state.actual_engine_profile.map(std::ptr::from_ref)
@@ -1229,5 +1311,295 @@ mod tests {
             });
             assert_eq!(vm.execution_refusal, Some(first));
         }
+    }
+    fn measured_names(vm: &mut Vm) -> super::super::execution_name_policy::ObservedNameSelection {
+        assert!(vm.set_observed_bigip_name_policy(
+            tcl_registry::f5::evidence::BigIpBuild::MEASURED_21_1_0_1,
+            tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+            tcl_registry::f5::naming::BigIpNameEvent::HttpRequest,
+        ));
+        let selected = vm.observed_names.clone().unwrap();
+        vm.replace_observed_operation_inputs(None, None);
+        selected
+    }
+
+    #[test]
+    fn original_observed_transition_advances_same_entered_lineage_without_new_authority() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let names = measured_names(&mut vm);
+        let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let original = OriginalOperationObservation::capture(&mut vm).unwrap();
+        let issued = outer.currency().generation;
+        let identity = vm.native_interpreter_identity();
+        let strings = vm
+            .actual_native_invocation_dialect()
+            .native_string_protocol();
+        let objects = vm.object_materialization();
+        original
+            .replace_observed_inputs(&mut vm, Some(names), None, false)
+            .unwrap();
+        outer.check_native(&mut vm).unwrap();
+        let inner = NativeOperationScope::enter_native(&mut vm).unwrap();
+        assert!(Rc::ptr_eq(
+            &outer.currency().authorised_generation,
+            &inner.currency().authorised_generation
+        ));
+        assert_eq!(outer.currency().generation, issued);
+        assert_eq!(inner.currency().generation, issued);
+        assert_eq!(vm.native_interpreter_identity(), identity);
+        assert_eq!(
+            vm.actual_native_invocation_dialect()
+                .native_string_protocol(),
+            strings
+        );
+        assert_eq!(vm.object_materialization(), objects);
+        assert!(outer.currency().current_generation() > issued);
+        original
+            .replace_observed_inputs(&mut vm, None, None, true)
+            .unwrap();
+        outer.check_native(&mut vm).unwrap();
+        inner.check_native(&mut vm).unwrap();
+        assert!(vm.observed_names.is_none());
+        assert!(vm.execution_refusal.is_none());
+    }
+
+    #[test]
+    fn original_observed_transition_none_stays_readonly_and_keeps_missing_string_provider() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = Vm::new();
+        let names = measured_names(&mut vm);
+        let original =
+            super::super::original_authored_operands::OriginalAuthoredOperandScope::capture(
+                &mut vm,
+            )
+            .unwrap();
+        assert!(
+            vm.actual_native_invocation_dialect()
+                .native_string_protocol()
+                .is_none()
+        );
+        original
+            .replace_observed_inputs(&mut vm, Some(names), None, false)
+            .unwrap();
+        assert!(!vm.native_operation_context.has_entered_operation());
+        assert!(
+            vm.actual_native_invocation_dialect()
+                .native_string_protocol()
+                .is_none()
+        );
+        let resident = Value::string("RESIDENT");
+        assert_eq!(
+            original.string(&mut vm, &resident).unwrap().as_ref(),
+            b"RESIDENT"
+        );
+        original
+            .replace_observed_inputs(&mut vm, None, None, true)
+            .unwrap();
+        original.finish(&mut vm).unwrap();
+        assert!(!vm.native_operation_context.has_entered_operation());
+        let missing =
+            super::super::original_authored_operands::OriginalAuthoredOperandScope::capture(
+                &mut vm,
+            )
+            .unwrap();
+        assert!(missing.string(&mut vm, &Value::double(1.5)).is_err());
+        assert!(!vm.native_operation_context.has_entered_operation());
+    }
+
+    #[test]
+    fn original_observed_transition_never_authorises_foreign_aba_or_raw_policy_setters() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for stage in 0..3 {
+            let mut vm = native();
+            let names = measured_names(&mut vm);
+            let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+            let original = OriginalOperationObservation::capture(&mut vm).unwrap();
+            original
+                .replace_observed_inputs(&mut vm, Some(names.clone()), None, false)
+                .unwrap();
+            let allowed = scope.currency().authorised_generation.get();
+            match stage {
+                0 => {
+                    let host = vm.host_rc();
+                    vm.set_host(Rc::new(crate::host_native::NativeHost::new()));
+                    vm.set_host(host);
+                }
+                1 => {
+                    let profile = vm.dialect_profile();
+                    vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.1"));
+                    vm.set_dialect_profile(profile);
+                }
+                _ => {
+                    vm.replace_observed_operation_inputs(None, None);
+                    vm.replace_observed_operation_inputs(Some(names), None);
+                }
+            }
+            let first = original.check(&mut vm).unwrap_err();
+            let cause = first.native_execution_refusal().unwrap().clone();
+            assert_eq!(
+                original
+                    .replace_observed_inputs(&mut vm, None, None, true)
+                    .unwrap_err()
+                    .native_execution_refusal(),
+                Some(&cause)
+            );
+            assert!(vm.observed_names.is_none());
+            assert_eq!(scope.currency().authorised_generation.get(), allowed);
+            assert_eq!(scope.check_native(&mut vm).unwrap_err(), cause);
+            assert_eq!(vm.execution_refusal, Some(cause));
+        }
+    }
+
+    #[test]
+    fn original_observed_transition_exhaustion_at_enter_or_restore_never_advances_lineage() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for exhaust_on_restore in [false, true] {
+            let mut vm = native();
+            let names = measured_names(&mut vm);
+            vm.native_operation_context
+                .generation
+                .set(Some(if exhaust_on_restore {
+                    u64::MAX - 1
+                } else {
+                    u64::MAX
+                }));
+            let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+            let original = OriginalOperationObservation::capture(&mut vm).unwrap();
+            let entered = original.replace_observed_inputs(&mut vm, Some(names), None, false);
+            if exhaust_on_restore {
+                entered.unwrap();
+                assert_eq!(scope.currency().authorised_generation.get(), Some(u64::MAX));
+            } else {
+                assert!(entered.is_err());
+                assert_eq!(scope.currency().authorised_generation.get(), None);
+                assert!(vm.observed_names.is_some());
+            }
+            let allowed = scope.currency().authorised_generation.get();
+            assert!(
+                original
+                    .replace_observed_inputs(&mut vm, None, None, true)
+                    .is_err()
+            );
+            assert!(vm.observed_names.is_none());
+            assert_eq!(vm.native_operation_context.generation.get(), None);
+            assert_eq!(scope.currency().authorised_generation.get(), allowed);
+            let cause = vm.execution_refusal.clone().unwrap();
+            assert_eq!(scope.check_native(&mut vm).unwrap_err(), cause);
+            assert!(NativeOperationScope::enter_native(&mut vm).is_err());
+        }
+    }
+    #[test]
+    fn original_observed_readonly_transition_does_not_refresh_ended_native_currency() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let names = measured_names(&mut vm);
+        let entered = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let saved = entered.currency().clone();
+        drop(entered);
+        let original = OriginalOperationObservation::capture(&mut vm).unwrap();
+        assert!(!Rc::ptr_eq(
+            &saved.authorised_generation,
+            &original.original.authorised_generation
+        ));
+        original
+            .replace_observed_inputs(&mut vm, Some(names), None, false)
+            .unwrap();
+        assert!(!vm.native_operation_context.has_entered_operation());
+        assert_eq!(saved.authorised_generation.get(), None);
+        let first = saved.check_native(&mut vm).unwrap_err();
+        assert!(NativeOperationScope::resume_saved(&mut vm, &saved).is_err());
+        assert!(
+            original
+                .replace_observed_inputs(&mut vm, None, None, true)
+                .is_err()
+        );
+        assert!(vm.observed_names.is_none());
+        assert_eq!(saved.authorised_generation.get(), None);
+        assert_eq!(vm.execution_refusal, Some(first));
+    }
+    #[test]
+    fn original_observed_mandatory_transition_refuses_foreign_physical_inputs() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let names = measured_names(&mut vm);
+        let parent = vm.cur_interp();
+        let child_name = vm.create_child(Some("observed_transition_child".into()), false);
+        let child = vm.child_id(&child_name).unwrap();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let original = OriginalOperationObservation::capture(&mut vm).unwrap();
+        super::super::oo_cleanup::select_cleanup_fixture_interpreter(&mut vm, child);
+        let generation = vm.native_operation_context.generation.get();
+        assert!(vm.observed_names.is_none());
+        assert!(
+            original
+                .replace_observed_inputs(&mut vm, Some(names), None, true)
+                .is_err()
+        );
+        assert!(vm.observed_names.is_none());
+        assert_eq!(vm.native_operation_context.generation.get(), generation);
+        assert_eq!(scope.currency().authorised_generation.get(), None);
+        let first = vm.execution_refusal.clone().unwrap();
+        vm.in_interp(parent, |vm| {
+            assert!(
+                original
+                    .replace_observed_inputs(vm, None, None, true)
+                    .is_err()
+            );
+            assert!(vm.observed_names.is_none());
+        });
+        assert!(vm.interp_is_current(child));
+        assert_eq!(vm.execution_refusal, Some(first));
+    }
+
+    #[test]
+    fn original_observed_transition_checks_actual_cache_retirement_before_next_stage() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software stage check after the actual first cache clear; this does
+        // not claim a Native child-Drop or external callback chronology.
+        let mut vm = native();
+        let names = measured_names(&mut vm);
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let original = OriginalOperationObservation::capture(&mut vm).unwrap();
+        let operands =
+            super::super::original_authored_operands::OriginalAuthoredOperandScope::capture(
+                &mut vm,
+            )
+            .unwrap();
+        let mut checks = 0;
+        let reached =
+            original.replace_observed_inputs_using(&mut vm, Some(names), None, false, &mut |vm| {
+                checks += 1;
+                if checks == 2 {
+                    let namespace = vm.current_ns_id();
+                    tcl_runtime_api::Frames::push(vm, namespace);
+                }
+                operands.check(vm)
+            });
+        assert!(reached.is_err());
+        assert_eq!(checks, 2);
+        assert!(vm.eval_cache.is_empty());
+        assert!(vm.eval_cache_plain.is_empty());
+        assert!(vm.module_procs.is_empty());
+        assert_eq!(
+            scope.currency().authorised_generation.get(),
+            vm.native_operation_context.generation.get()
+        );
+        let first = vm.execution_refusal.clone().unwrap();
+        assert!(
+            original
+                .replace_observed_inputs(&mut vm, None, None, true)
+                .is_err()
+        );
+        assert!(vm.observed_names.is_none());
+        assert_eq!(vm.execution_refusal, Some(first));
+        tcl_runtime_api::Frames::pop(&mut vm);
     }
 }

@@ -47,42 +47,35 @@ struct PureFunction {
 
 impl NativeCommand for PureFunction {
     fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-        let mut texts: Vec<Rc<str>> = Vec::with_capacity(args.len());
-        for arg in args {
-            let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(vm, arg) {
-                Ok(bytes) => bytes,
-                Err(error) => return refuse_value_access(vm, error),
+        let reached = vm.with_original_operand_projection(|vm, original| {
+            let mut texts = Vec::with_capacity(args.len());
+            for arg in args {
+                texts.push(vm.original_operand_strict_string(original, arg)?);
+            }
+            let words: Vec<&str> = texts.iter().map(String::as_str).collect();
+            let value = match irules::call(self.command, &words) {
+                Ok(Output::Text(text)) => Value::string(text),
+                Ok(Output::Int(value)) => Value::int(value),
+                Ok(Output::Bytes(bytes)) => match vm.byte_array_result(
+                    Rc::from(bytes),
+                    Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
+                ) {
+                    Ok(value) => value,
+                    Err(error) => return Ok(refuse_value_access(vm, error)),
+                },
+                Err(irules::Unmodelled) => return self.stub_using(vm, args, original),
             };
-            let text = match std::str::from_utf8(&bytes) {
-                Ok(text) => Rc::from(text),
-                Err(error) => {
-                    return vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(
-                        tcl_syntax::raw_string::UnicodeAccessError {
-                            valid_up_to: error.valid_up_to(),
-                            error_len: error.error_len(),
-                        }
-                        .into(),
-                    ));
-                }
-            };
-            texts.push(text);
-        }
-        let words: Vec<&str> = texts.iter().map(AsRef::as_ref).collect();
-        let value = match irules::call(self.command, &words) {
-            Ok(Output::Text(text)) => Value::string(text),
-            Ok(Output::Int(value)) => Value::int(value),
-            Ok(Output::Bytes(bytes)) => match vm.byte_array_result(
-                Rc::from(bytes),
-                Some(
-                    tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
-                ),
-            ) {
-                Ok(value) => value,
-                Err(error) => return refuse_value_access(vm, error),
-            },
-            Err(irules::Unmodelled) => return self.stub(vm, args),
-        };
-        Completion::new(Code::Ok, value, Value::empty())
+            vm.check_original_operand_projection(original)?;
+            Ok(Completion::new(Code::Ok, value, Value::empty()))
+        });
+        reached.unwrap_or_else(|error| original_completion(vm, error))
+    }
+}
+
+fn original_completion(vm: &mut Vm, error: tcl_vm::TclError) -> Completion<Value> {
+    match error.into_completion() {
+        Ok(guest) => guest,
+        Err(failure) => vm.refuse_tcl_host_failure(failure),
     }
 }
 
@@ -98,31 +91,43 @@ fn refuse_value_access(vm: &mut Vm, error: tcl_syntax::value::ValueError) -> Com
 impl PureFunction {
     /// The generated stub's answer for an input the core does not model: the
     /// stub `register_all` would have registered, when the table names one.
+    #[cfg(test)]
     fn stub(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-        let table = format!("::itest::cmd::_stub_actions({})", self.mock);
-        let action = match vm.read_variable(&table) {
-            Ok(original) => match tcl_syntax::value::ValueOps::list_elements(vm, &original) {
-                Ok(action) => Some(action),
-                Err(error) => {
-                    if let Some(refusal) = error.native_access_refusal() {
-                        return vm
-                            .refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(refusal));
-                    }
-                    None
-                }
-            },
-            Err(error) => match error.into_completion() {
-                Ok(_) => None,
-                Err(failure) => return vm.refuse_tcl_host_failure(failure),
-            },
-        };
-        let Some(action) = action else {
-            return Completion::new(Code::Ok, Value::empty(), Value::empty());
-        };
-        let mut words = action;
-        words.extend_from_slice(args);
-        vm.invoke_command("::itest::cmd::_stub", &words)
+        let reached = vm.with_original_operand_projection(|vm, original| self.stub_using(vm, args, original));
+        reached.unwrap_or_else(|error| original_completion(vm, error))
     }
+
+    fn stub_using(&self, vm: &mut Vm, args: &[Value], operation: &tcl_vm::embed::OriginalOperandProjection) -> Result<Completion<Value>, tcl_vm::TclError> {
+        let table = format!("::itest::cmd::_stub_actions({})", self.mock);
+        let reached = vm.read_variable(&table);
+        vm.check_original_operand_projection(operation)?;
+        let action = match reached {
+            Ok(original) => {
+                let reached = vm.original_operand_list(operation, &original);
+                drop(original);
+                vm.check_original_operand_projection(operation)?;
+                match reached {
+                    Ok(action) => Some(action),
+                    Err(tcl_vm::TclError::Guest(_)) => None,
+                    Err(host) => return Err(host),
+                }
+            }
+            Err(tcl_vm::TclError::Guest(_)) => None,
+            Err(host) => return Err(host),
+        };
+        vm.check_original_operand_projection(operation)?;
+        let Some(mut words) = action else {
+            return Ok(Completion::new(Code::Ok, Value::empty(), Value::empty()));
+        };
+        words.extend_from_slice(args);
+        let reached = vm.invoke_command("::itest::cmd::_stub", &words);
+        let before_cleanup = vm.check_original_operand_projection(operation);
+        drop(words);
+        vm.check_original_operand_projection(operation)?;
+        before_cleanup?;
+        Ok(reached)
+    }
+
 }
 
 /// Register every pure function the shared cores run, under its mock name,
@@ -833,3 +838,7 @@ mod binary_boundary_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "pure_functions/original_projection_tests.rs"]
+mod original_projection_tests;

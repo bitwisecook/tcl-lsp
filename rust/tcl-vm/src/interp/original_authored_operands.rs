@@ -58,6 +58,32 @@ impl OriginalAuthoredOperandScope {
             Ok(())
         })
     }
+
+    pub(super) fn replace_observed_inputs(
+        &self,
+        vm: &mut Vm,
+        names: Option<super::execution_name_policy::ObservedNameSelection>,
+        storage: Option<super::execution_name_policy::ObservedFrameStorage>,
+        mandatory_retirement: bool,
+    ) -> Result<(), CmdError> {
+        let before = self.check(vm);
+        if !mandatory_retirement && let Err(first) = &before {
+            return Err(first.clone());
+        }
+        let reached = self.observed.replace_observed_inputs_using(
+            vm,
+            names,
+            storage,
+            mandatory_retirement,
+            &mut |vm| self.check(vm),
+        );
+        if let Err(error) = &reached {
+            self.retain(vm, error);
+        }
+        before?;
+        self.check(vm)?;
+        reached
+    }
     pub(crate) fn current_for_value(&self, vm: &mut Vm, value: &Value) -> Result<(), CmdError> {
         self.check(vm)?;
         value
