@@ -243,5 +243,15 @@ or switching the entire source to Logical compatibility.
   sources; inspect hits rather than erasing issue numbers mechanically.
 - Remove `docs/work/name-handling/` and temporary index links from the final
   diff; durable experiments/answers stay under `experiments/name-handling/`.
+- Treat this cleanup as merge acceptance, not optional follow-up. Find temporary
+  ledgers, continuation prompts, state documents and coordination narratives
+  throughout the tracked tree, not just this directory. Remove their links and
+  generated copies. Review references to phases, lanes, steps, slices and agents
+  in context; keep actual compiler/runtime semantics and user procedures.
+  Review retained experiment descriptions too: preserve inputs, results and
+  provenance, while removing coordination/process narration around them.
+- Verify the final tracked tree and branch diff have no dangling coordination
+  links or temporary process documents. Keep the cleanup obligation here while
+  work is active, then remove this checklist with the rest of this directory.
 - Rewrite any final PR title/body for the final behaviour and validation only.
   Git retains development history. Do not publish a phase/slice/agent chronology.

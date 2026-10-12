@@ -221,7 +221,14 @@ address its failures when a PR is requested or already exists. Do not run
 unnecessary full-suite loops after appropriate checks pass.
 
 When all obligations are complete, remove `docs/work/name-handling/` and its
-temporary references from the final diff. Preserve
+temporary references from the final diff. Cleanup is required before merge:
+remove temporary ledgers, continuation prompts, state documents and process
+narratives anywhere in the tracked tree, including generated copies and links.
+Review mentions of phases, lanes, steps, slices and agents in context, preserving
+real current semantics and user procedures. Retained experiment descriptions
+must explain their question, source, method, observations and limits rather
+than how agents organised implementation. Verify the final tree and branch diff
+after removal; do not defer cleanup to a later PR. Preserve
 `docs/design/contracts/name-handling.md`, accurate existing contracts, retained
 experiments, BIG-IP answer documents and real-oracle conformance tests.
 Development history belongs in git. Any final PR describes the concrete final

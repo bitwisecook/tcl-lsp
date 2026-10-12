@@ -48,7 +48,11 @@ state and remaining obligations accurate while work is active. Do not append
 session narratives, completed-step diaries or abandoned approaches.
 
 At completion remove this directory and its temporary links from the final
-branch diff. Keep the current architecture/API contract, executable
+branch diff. This is a merge acceptance requirement: remove temporary ledgers,
+continuation prompts, state documents and process narratives wherever they
+appear, including generated copies and links. Review mentions of phases, lanes
+and steps in context; retain only real current semantics or user procedures.
+Keep the current architecture/API contract, executable
 experiments, raw measurements, BIG-IP answers and conformance fixtures.
 Experiments preserve reproducible evidence, not development history. Git owns
 implementation history. The final PR describes the resulting behaviour,

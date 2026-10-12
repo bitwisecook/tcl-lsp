@@ -229,6 +229,15 @@ glossary, and screenshot updates in the same PR
 ([CONTRIBUTING.md](CONTRIBUTING.md) § *Documentation required for a PR*);
 `cargo xtask kcs-index-links` fails on an unindexed note or a broken link.
 
+Before merge, remove temporary implementation ledgers, continuation prompts,
+state documents and development-process narratives, including their links and
+generated copies. Audit process references to phases, lanes and steps in context;
+retain terminology that actually describes current runtime/compiler semantics or
+user procedures. Shipped documentation describes the current code and its
+contracts; minimal comments explain necessary how/why. Preserve reproducible
+experiment sources, results, oracle provenance and conformance tests. Development
+history belongs in git, not the final PR or architecture documentation.
+
 ## Build and release
 
 - Four layers — Makefile + cargo bins, `scripts/*` helpers, CI, gated
