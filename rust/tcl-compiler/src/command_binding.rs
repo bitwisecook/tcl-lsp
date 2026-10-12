@@ -171,6 +171,8 @@ pub(crate) use retained_body_inventory::RetainedSourceBodyInventory;
 mod original_body_namespace;
 #[cfg(test)]
 mod original_script_parse_entry_tests;
+#[cfg(test)]
+mod original_restored_nested_declaration_tests;
 pub(crate) use conditional_body::SourceConditionalBodyEntry;
 pub use conditional_body::{SourceCallerFrameInvocationTemplate, SourceDeclaredReceiverBodyEntry};
 pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;
@@ -7163,9 +7165,7 @@ impl SourceCommandBindings {
                     bindings.stamp_original_logical_declaration_targets(tokens);
                     tokens.variable_accesses =
                         bindings.variable_accesses_during_expression_invocation(site.span.start());
-                    for (offset, proof) in &mut tokens.nested_bindings {
-                        *proof = bindings.invocation_at_source("", *offset);
-                    }
+                    bindings.restore_original_nested_bindings(tokens);
                 }
             }
             for statement in &mut script.statements {
@@ -7181,12 +7181,65 @@ impl SourceCommandBindings {
                 bindings.stamp_original_logical_declaration_targets(tokens);
                 tokens.variable_accesses =
                     bindings.variable_accesses_during_expression_invocation(offset);
-                for (offset, proof) in &mut tokens.nested_bindings {
-                    *proof = bindings.invocation_at_source("", *offset);
-                }
+                bindings.restore_original_nested_bindings(tokens);
             }
         });
         valid
+    }
+
+    /// Refresh only the retained child inventory, then re-seal an original
+    /// Logical declaration through its existing full source/vector issuer.
+    /// Unmatched children keep the ordinary raw query; no offset is added.
+    fn restore_original_nested_bindings(&self, tokens: &mut crate::ir::CommandTokens) {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        for (offset, binding) in &mut tokens.nested_bindings {
+            *binding = self.invocation_at_source("", *offset);
+        }
+        let Some(config) = self.lexer_config else {
+            return;
+        };
+        let Some(parent) = tokens.source_binding.as_ref() else {
+            return;
+        };
+        let Some(site) = parent.invocation_site() else {
+            return;
+        };
+        let mut original_parent = parent.clone();
+        original_parent.original_logical_declaration_targets = None;
+        if parent.original_lexer_config_for_tokens(tokens) != Some(config)
+            || self.root_origin.as_ref() != Some(&site.source)
+            || original_parent != self.invocation_at_source("", site.offset)
+        {
+            return;
+        }
+        let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
+            return;
+        };
+        for index in 0..tokens.nested_bindings.len() {
+            let offset = tokens.nested_bindings[index].0;
+            if tokens.nested_bindings.iter().filter(|(site, _)| *site == offset).count() != 1 {
+                continue;
+            }
+            let mut matching = calls.iter().filter_map(|call| {
+                let child = call.tokens.as_ref()?;
+                child.words().first()
+                    .is_some_and(|head| head.source().span.start() == offset)
+                    .then_some(child)
+            });
+            let Some(original) = matching.next() else {
+                continue;
+            };
+            if matching.any(|other| other.words() != original.words()) {
+                continue;
+            }
+            let mut child = original.clone();
+            child.source_binding = Some(tokens.nested_bindings[index].1.clone());
+            self.stamp_original_logical_declaration_targets(&mut child);
+            if let Some(binding) = child.source_binding {
+                tokens.nested_bindings[index].1 = binding;
+            }
+        }
     }
 
     /// Attach exact retained source proofs to original command words. Missing
