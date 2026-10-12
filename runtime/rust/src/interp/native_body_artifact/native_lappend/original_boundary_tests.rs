@@ -232,7 +232,7 @@ fn original_argument_list_concat_checks_source_free_before_target_mutation_and_f
             } else {
                 assert!(reached.is_err());
                 assert!(original.check(&actual).is_err());
-                assert_eq!(obj::bytes_of(target.as_ptr()).as_ref(), b"A");
+                assert_eq!(obj::bytes_of(target.as_ptr()).as_slice(), b"A");
             }
             MODE.set(0);
         }
