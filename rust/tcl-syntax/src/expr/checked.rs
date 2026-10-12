@@ -734,15 +734,52 @@ fn legacy_source_error(source: &[u8], reason: &str, jim: bool) -> Vec<u8> {
     message
 }
 
+/// Complete source topology only, without Native diagnostics or preparation.
+pub(crate) fn parse_source_expression_checked(
+    source: &str,
+    context: &ExprParseContext,
+) -> Option<ExprNode> {
+    let (raw, failures) = tcl_lexer::tokenise_expr_bytes_with_failures(
+        source.as_bytes(), &context.lexer_grammar,
+        context.expr_grammar_base, context.f5_word_grammar,
+    );
+    if !failures.is_empty() {
+        return None;
+    }
+    match parse_checked_tokens_using(raw, false, context, CheckedParsePurpose::SourceTopology) {
+        CheckedExprParse::Parsed(node) => Some(node.map_text(|text| {
+            String::from_utf8(text).expect("Unicode original source leaves")
+        })),
+        CheckedExprParse::ProvedSyntaxFailure(_) | CheckedExprParse::Unsupported(_) => None,
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CheckedParsePurpose {
+    NativeSyntax,
+    SourceTopology,
+}
+
 fn parse_checked_tokens<Text: super::ExprText>(
     raw: Vec<tcl_lexer::ExprToken<Text>>,
     unknown: bool,
     context: &ExprParseContext,
 ) -> CheckedExprParse<Text> {
+    parse_checked_tokens_using(raw, unknown, context, CheckedParsePurpose::NativeSyntax)
+}
+
+fn parse_checked_tokens_using<Text: super::ExprText>(
+    raw: Vec<tcl_lexer::ExprToken<Text>>,
+    unknown: bool,
+    context: &ExprParseContext,
+    purpose: CheckedParsePurpose,
+) -> CheckedExprParse<Text> {
     if unknown {
         return CheckedExprParse::Unsupported(ExprParseUnsupported::UnknownLexing);
     }
-    if context.native_syntax == NativeExprSyntax::Unknown {
+    if purpose == CheckedParsePurpose::NativeSyntax
+        && context.native_syntax == NativeExprSyntax::Unknown
+    {
         return CheckedExprParse::Unsupported(ExprParseUnsupported::UnknownNativeSyntax);
     }
     let tokens: Vec<_> = raw

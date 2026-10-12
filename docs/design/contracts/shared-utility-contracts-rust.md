@@ -3956,3 +3956,13 @@ software controls cover mandatory metadata after refusal and default caller
 restoration, including scope expiry and same-target saved cleanup. The shared
 physical kernel and its own ordinary-result disposal tests are independently
 owned by the current SavedExecutionTarget contract.
+
+The Syntax expression owner separates Native checked parsing from checked source
+substitution topology. `checked_source_expression_substitutions` uses the same
+lexer, Pratt parser, operator-availability and complete-consumption worker,
+retaining the original grammar axes and complete bracket ranges. It returns no
+Native error, preparation, result representation, folding or execution receipt.
+Authenticated Logical immediate-body advice uses this source purpose only after
+checking the original input, configured word/image/extent and selected Expr
+role. Native advice retains the independently selected Native syntax gate;
+unknown Native policy remains unavailable rather than borrowing a C profile.
