@@ -51,6 +51,13 @@ impl Drop for VmIndexKeyState {
     }
 }
 impl VmIndexKey {
+    fn held(value: Value) -> Self {
+        Self(Rc::new(VmIndexKeyState {
+            value: value.native_lifetime_lease().into_value(),
+            created: std::cell::Cell::new(false),
+            result: std::cell::RefCell::new(Some(value)),
+        }))
+    }
     fn borrowed(original: &Value) -> Self {
         Self(Rc::new(VmIndexKeyState {
             value: original.native_lifetime_lease().into_value(),
@@ -67,6 +74,11 @@ pub struct VmJimIndexScope {
 }
 /// Currency-only complete indexed command entry; no operand getter authority.
 pub struct VmIndexOperation(NativeOperationScope);
+impl VmIndexOperation {
+    pub(crate) fn original_scope(&self) -> &NativeOperationScope {
+        &self.0
+    }
+}
 impl NativeIndexOps for Vm {
     type IndexOperation = VmIndexOperation;
     type IndexBinaryReceipt = Option<crate::value::NativeBinaryStorageReceipt>;
@@ -282,6 +294,84 @@ impl NativeIndexOps for Vm {
         let held = VmIndexKey::borrowed(original);
         *held.0.result.borrow_mut() = Some(original.clone());
         Ok(held)
+    }
+    fn index_sort_copy(&mut self, original: &Value) -> Result<VmIndexKey, CmdError> {
+        tcl_cmd_core::native_list_index::NativeListIndexOps::index_list_copy_checked(self, original)
+            .map(VmIndexKey::held)
+    }
+    fn index_sort_duplicate(
+        &mut self, original: &Value, only_shared: bool,
+    ) -> Result<VmIndexKey, CmdError> {
+        let scope = NativeOperationScope::enter(self)?;
+        let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
+        numeric.current_for_value(original)?;
+        if only_shared && !original.native_object_is_shared() {
+            return Ok(VmIndexKey::borrowed(original));
+        }
+        let protocol = numeric.dialect().native_string_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("original sort duplicate issuer"),
+        )?;
+        let copied = original.duplicate_native_object_checked(
+            protocol,
+            &mut || numeric.current_for_value(original),
+            &mut |value| numeric.string(value, protocol),
+            &mut |error| numeric.retain_failure(error),
+        )?;
+        drop(numeric);
+        if protocol.is_jim084() {
+            // Jim_DuplicateObj is fresh-zero; Eval/result takes its own hold.
+            self.index_created_key(copied)
+        } else {
+            Ok(VmIndexKey::held(copied))
+        }
+    }
+
+    fn index_sort_list(
+        &mut self, members: Vec<Value>, held: bool,
+    ) -> Result<VmIndexKey, CmdError> {
+        let scope = NativeOperationScope::enter(self)?;
+        scope.check(self)?;
+        let protocol = self.actual_native_invocation_dialect().native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable("original sort List issuer"))?;
+        for member in &members {
+            member.check_native_header()?;
+        }
+        let list = Value::native_list_constructor(members, protocol);
+        if held { Ok(VmIndexKey::held(list)) } else { self.index_created_key(list) }
+    }
+    fn index_sort_append(&mut self, list: &VmIndexKey, members: &[Value]) -> Result<(), CmdError> {
+        let scope = NativeOperationScope::enter(self)?;
+        let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
+        let original = &list.0.value;
+        let protocol = numeric.dialect().native_string_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("original sort List append issuer"),
+        )?;
+        let reached = original.native_list_append_prepared_elements_checked(
+            members, protocol,
+            &mut || numeric.current_for_value(original),
+            &mut |value| numeric.string(value, protocol),
+        );
+        if let Err(first) = &reached { numeric.retain_failure(first); }
+        numeric.current_for_value(original)?;
+        reached
+    }
+    fn index_sort_replace(
+        &mut self, list: &VmIndexKey, first: usize, delete: usize, members: &[Value],
+    ) -> Result<(), CmdError> {
+        let scope = NativeOperationScope::enter(self)?;
+        let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
+        let original = &list.0.value;
+        let protocol = numeric.dialect().native_string_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("original sort List replacement issuer"),
+        )?;
+        let reached = original.native_list_replace_prepared_range_checked(
+            first, delete, members, protocol,
+            &mut || numeric.current_for_value(original),
+            &mut |value| numeric.string(value, protocol),
+        );
+        if let Err(first) = &reached { numeric.retain_failure(first); }
+        numeric.current_for_value(original)?;
+        reached
     }
     fn index_jim_sort_selected(&self) -> bool {
         self.actual_native_invocation_dialect()

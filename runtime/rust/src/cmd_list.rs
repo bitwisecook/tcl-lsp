@@ -733,6 +733,15 @@ fn parse_wide(b: &[u8]) -> Option<i128> {
 /// the core; `-command` is split (the core prepares, this adapter runs the merge
 /// sort over the user comparator via `lsort_cmd_compare`, then the core builds).
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use tcl_cmd_core::index::NativeIndexOps;
+    if interp.index_c_version().is_some() || interp.index_jim_sort_selected() {
+        return match tcl_cmd_core::lsort::run_original(
+            interp, &argv[1..], lsort_compare_original, Interp::report_cmd_error,
+        ) {
+            Ok(value) => { interp.set_result(value); Code::Ok }
+            Err(code) => code,
+        };
+    }
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let job = match prepare(interp, &argv[1..]) {
         Ok(Lsort::Done(v)) => {
@@ -778,6 +787,69 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let v = build_command(interp, &job);
     interp.set_result(v);
     Code::Ok
+}
+
+/// Dispatch the genuine command object and get the actual returned original.
+fn lsort_compare_original(
+    interp: &mut Interp,
+    original: &<Interp as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+    command: &*mut TclObj,
+) -> Result<core::cmp::Ordering, Code> {
+    use tcl_cmd_core::index::NativeIndexOps;
+    let code = if interp.index_jim_sort_selected() {
+        interp.eval_body_obj(*command)
+    } else {
+        let words = interp.index_list_elements(command)
+            .map_err(|error| interp.report_cmd_error(error))?;
+        interp.dispatch(&words)
+    };
+    interp.check_index_operation(original).map_err(|error| interp.report_cmd_error(error))?;
+    if code != Code::Ok {
+        if interp.index_c_version().is_some() {
+            interp.append_error_info_context(b"(-compare command)");
+        }
+        return Err(code);
+    }
+    lsort_original_comparison_result(interp, original)
+        .map_err(|error| interp.report_cmd_error(error))
+}
+
+fn lsort_original_comparison_result(
+    interp: &mut Interp,
+    original: &<Interp as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+) -> Result<core::cmp::Ordering, tcl_cmd_core::CmdError> {
+    use tcl_cmd_core::index::NativeIndexOps;
+    use tcl_cmd_core::CmdError;
+    use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+    use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
+    let result = interp.get_obj_result();
+    interp.check_index_operation(original)?;
+    obj::check_native_liveness(result)?;
+    let lifetime = obj::NativeObjectLifetime::retain(result);
+    let dialect = interp.native_invocation_dialect();
+    let selected = dialect.native_numeric_command_protocol(
+        NativeNumericCommandPurpose::ListSortComparisonResult,
+    ).ok_or(ValueError::CommandProtocolUnavailable("original sort comparison-result purpose"))?;
+    let reached = {
+        let host = interp.host();
+        crate::typed_value::native_scalar_getter_with_environment_and_currency(
+            result, dialect, selected.getter_kind(), host.numeric_environment(), Some(original.original_currency()),
+        )
+    };
+    let live = obj::check_native_liveness(lifetime.as_ptr());
+    drop(lifetime);
+    interp.check_index_operation(original)?;
+    live?;
+    let reached = reached.map_err(|error| {
+        if !matches!(error, ValueError::NativeScalarGetter(_)) { return CmdError::from(error); }
+        selected.comparison_result_error().map_or_else(|| CmdError::from(error), |wrapper| {
+            CmdError::with_error_code_bytes(wrapper.message, wrapper.error_code)
+        })
+    })?;
+    let NativeScalarGetterValue::Wide(integer) = reached else {
+        return Err(ValueError::ScalarNumericInputUnavailable.into());
+    };
+    Ok(integer.cmp(&0))
 }
 
 /// Evaluate `<prefix words...> a b` and read its integer result (the `-command`
@@ -1723,3 +1795,7 @@ mod native_checked_search_sort_controls;
 
 #[cfg(test)]
 mod native_original_numeric_controls;
+
+#[cfg(test)]
+#[path = "cmd_list/native_original_group_command_controls.rs"]
+mod native_original_group_command_controls;

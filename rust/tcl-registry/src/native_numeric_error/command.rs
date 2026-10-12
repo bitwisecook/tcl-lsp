@@ -27,6 +27,8 @@ pub enum NativeNumericCommandPurpose {
     ListSortInteger,
     /// Reached original floating sort key.
     ListSortReal,
+    /// The actual original object returned by a reached sort comparator.
+    ListSortComparisonResult,
     /// Original list search group length.
     ListSearchStride,
     /// Original list sort group length.
@@ -129,6 +131,8 @@ impl NativeNumericCommandProtocol {
         use NativeScalarGetterKind as Kind;
         match self.purpose {
             Purpose::DebugFrame => Kind::Boolean,
+            Purpose::ListSortComparisonResult if self.version.is_none() => Kind::Wide,
+            Purpose::ListSortComparisonResult => Kind::Int,
             Purpose::ListSearchReal | Purpose::ListSortReal => Kind::Double,
             Purpose::ListSearchInteger
                 if matches!(self.version, Some(TclVersion::V8_4 | TclVersion::V8_5)) =>
@@ -240,6 +244,22 @@ impl NativeNumericCommandProtocol {
         Some(NativeNumericCommandError {
             message,
             error_code,
+        })
+    }
+
+    /// C's command wrapper follows the actual Int getter failure. Jim keeps
+    /// its primitive diagnostic; no preceding String projection is authorised.
+    #[must_use]
+    pub fn comparison_result_error(self) -> Option<NativeNumericCommandError> {
+        (self.purpose == NativeNumericCommandPurpose::ListSortComparisonResult
+            && self.version.is_some())
+        .then(|| NativeNumericCommandError {
+            message: b"-compare command returned non-integer result".to_vec(),
+            error_code: if matches!(self.version, Some(TclVersion::V8_4 | TclVersion::V8_5)) {
+                b"NONE".to_vec()
+            } else {
+                b"TCL OPERATION LSORT COMPARISONFAILED".to_vec()
+            },
         })
     }
 

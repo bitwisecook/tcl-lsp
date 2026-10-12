@@ -308,6 +308,41 @@ pub trait NativeIndexOps: ValueOps {
         Err(ValueError::CommandProtocolUnavailable("original C84 sort member hold").into())
     }
 
+    /// Actual C85+ command List copy, retaining its genuine temporary hold.
+    fn index_sort_copy(&mut self, _original: &Self::Value) -> Result<Self::IndexKeyOwner, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original sort List copy").into())
+    }
+
+    /// Duplicate the genuine prefix or selected Jim input without String rebuilding.
+    /// `only_shared` samples the original receiver before a working hold.
+    fn index_sort_duplicate(
+        &mut self, _original: &Self::Value, _only_shared: bool,
+    ) -> Result<Self::IndexKeyOwner, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original sort duplication").into())
+    }
+
+    /// Construct the actual group/parent List; `held` is its source-selected +1.
+    fn index_sort_list(
+        &mut self, _members: Vec<Self::Value>, _held: bool,
+    ) -> Result<Self::IndexKeyOwner, CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original sort List constructor").into())
+    }
+
+    /// Append through the existing checked List worker on the selected header.
+    fn index_sort_append(
+        &mut self, _list: &Self::IndexKeyOwner, _members: &[Self::Value],
+    ) -> Result<(), CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original sort List append").into())
+    }
+
+    /// Replace through the existing checked range worker without another COW test.
+    fn index_sort_replace(
+        &mut self, _list: &Self::IndexKeyOwner, _first: usize, _delete: usize,
+        _members: &[Self::Value],
+    ) -> Result<(), CmdError> {
+        Err(ValueError::CommandProtocolUnavailable("original sort List replacement").into())
+    }
+
     /// True only for the actual selected Jim command producer, independent of
     /// neutral Index grammar. This read-only fact grants no host or getter.
     fn index_jim_sort_selected(&self) -> bool {
@@ -1268,6 +1303,17 @@ pub struct IndexedKey<K> {
 /// Borrow the selected value without an extra native reference.
 pub fn key_value<O: NativeIndexOps>(key: &IndexedKey<O::IndexKeyOwner>) -> &O::Value {
     O::index_key_value(&key.selected)
+}
+
+/// Transport the same selected original into a reached container constructor.
+///
+/// # Errors
+/// The original header or entered operation refuses the selected argument role.
+pub fn key_argument<O: NativeIndexOps>(
+    ops: &mut O,
+    key: &IndexedKey<O::IndexKeyOwner>,
+) -> Result<O::Value, CmdError> {
+    ops.index_key_argument(&key.selected)
 }
 
 /// Transfer the exact selected result before mandatory backing cleanup.

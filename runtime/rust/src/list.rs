@@ -1583,38 +1583,49 @@ fn replace_elements_native_with_duplicate_check<E>(
     };
     check()?;
     obj::check_native_liveness(original_lifetime.as_ptr()).map_err(refuse)?;
-    prepare_native_list_mutation_using(value.as_ptr(), protocol, check, refuse)?;
-    if protocol.tcl_version().is_some() {
-        let length = unsafe { list_ref(value.as_ptr()) }.elems.len();
-        native_list_storage::replace_prepared_native_elements_using(
-            value.as_ptr(),
-            0,
-            length,
-            elements,
-            protocol,
-            false,
-            check,
-            refuse,
-        )?;
-    } else {
-        // Jim's distinct whole member store replacement retains the original
-        // selected members before its old backing is retired.
-        for &element in elements {
-            unsafe { obj::incr_ref_count(element) };
-        }
-        native_list_storage::replace_storage(
-            value.as_ptr(),
-            NativeListStorage::new(elements.to_vec()),
-            check,
-            refuse,
-        )?;
-        // Keep the later canonical-field stage after real old-member retirement.
-        unsafe { list_mut(value.as_ptr()) }.canonical = Rc::new(Cell::new(false));
-    }
-    obj::invalidate_string(value.as_ptr());
+    replace_prepared_native_range_using(
+        value.as_ptr(), 0, usize::MAX, elements, protocol, check, refuse,
+    )?;
     drop(original_lifetime);
     check()?;
     Ok(value)
+}
+
+/// Replace an original range on the already selected private List header.
+/// This is the existing physical replacement kernel with the caller's checks.
+pub(crate) fn replace_prepared_native_range_using<E>(
+    value: *mut TclObj,
+    first: usize,
+    delete: usize,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<(), E> {
+    prepare_native_list_mutation_using(value, protocol, check, refuse)?;
+    if protocol.tcl_version().is_some() {
+        native_list_storage::replace_prepared_native_elements_using(
+            value, first, delete, elements, protocol, false, check, refuse,
+        )?;
+    } else {
+        let members = list_elements_native_using(value, protocol, check, refuse)?;
+        let first = first.min(members.len());
+        let delete = delete.min(members.len() - first);
+        let replaced: Vec<_> = members[..first].iter().chain(elements)
+            .chain(&members[first + delete..]).copied().collect();
+        for &element in &replaced {
+            check()?;
+            obj::check_native_liveness(element).map_err(refuse)?;
+            unsafe { obj::incr_ref_count(element) };
+        }
+        native_list_storage::replace_storage(
+            value, NativeListStorage::new(replaced), check, refuse,
+        )?;
+        unsafe { list_mut(value) }.canonical = Rc::new(Cell::new(false));
+    }
+    check()?;
+    obj::invalidate_string(value);
+    check()
 }
 
 /// `Tcl_ListObjAppendElement` — append `elem` (retained) in place and invalidate

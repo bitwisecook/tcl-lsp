@@ -465,6 +465,15 @@ impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Vm {
 /// `-command` (the comparator evaluates Tcl through `vm.dispatch`) alongside
 /// the comparison modes.
 fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use tcl_cmd_core::index::NativeIndexOps;
+    if vm.index_c_version().is_some() || vm.index_jim_sort_selected() {
+        return match tcl_cmd_core::lsort::run_original(
+            vm, args, vm_compare_original, crate::command::completion_from_cmd_error,
+        ) {
+            Ok(value) => ok(value),
+            Err(completion) => completion,
+        };
+    }
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let mut job = match prepare(vm, args) {
         Ok(Lsort::Done(v)) => return ok(v),
@@ -508,6 +517,107 @@ fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return c;
     }
     ok(build_command(vm, &job))
+}
+
+/// Evaluate the actual command List and convert its returned original under
+/// Registry's independent comparison-result purpose, retaining the outer scope.
+fn vm_compare_original(
+    vm: &mut Vm,
+    original: &<Vm as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+    command: &Value,
+) -> Result<core::cmp::Ordering, Completion<Value>> {
+    use tcl_cmd_core::index::NativeIndexOps;
+    let mut completion = if vm.index_jim_sort_selected() {
+        vm.eval_original_script_value(command,
+            tcl_registry::native_eval_object::EvalObjectPurpose::Eval, None)
+            .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?
+    } else {
+        let words = vm.index_list_elements(command)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+        let Some((name, arguments)) = words.split_first() else {
+            return Err(err("invalid command name \"\""));
+        };
+        vm.invoke_command_value_at(vm.current_ns_id(), name, arguments, &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary)
+    };
+    vm.check_index_operation(original)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    if !completion.code.is_ok() {
+        if vm.index_c_version().is_some() {
+            let restored = vm.restore_completion_error_state(&completion);
+            vm.check_index_operation(original)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            restored.map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
+            if vm.error_info_value().is_none() {
+                let message = original_comparison_string(vm, original, &completion.result)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                vm.seed_error_info_original(&completion.result, &message);
+            }
+            vm.seed_error_info_frame(b"", b"\n    (-compare command)");
+            vm.check_index_operation(original)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+            if completion.code == tcl_runtime_api::Code::Error {
+                let options = vm.completion_options_snapshot(&completion);
+                vm.check_index_operation(original)
+                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+                completion.options = options
+                    .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
+            }
+        }
+        return Err(completion);
+    }
+    original_comparison_result(vm, original, &completion.result)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+}
+
+fn original_comparison_string(
+    vm: &mut Vm,
+    original: &<Vm as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+    result: &Value,
+) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+    use crate::interp::native_numeric_ops::OriginalNumericOps;
+    let selected = vm.object_materialization().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("original comparison diagnostic String"),
+    )?;
+    let numeric = OriginalNumericOps::in_original_scope(vm, original.original_scope())?;
+    let reached = numeric.string(result, selected.protocol());
+    if let Err(first) = &reached { numeric.retain_failure(first); }
+    numeric.current_for_value(result)?;
+    reached
+}
+
+fn original_comparison_result(
+    vm: &mut Vm,
+    original: &<Vm as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
+    result: &Value,
+) -> Result<core::cmp::Ordering, tcl_cmd_core::CmdError> {
+    use crate::expr::original_numeric_context::{OriginalNumericCommandContext, original_numeric_command_ops};
+    use tcl_cmd_core::CmdError;
+    use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
+    use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
+    let context = OriginalNumericCommandContext {
+        original: Some(original.original_scope()),
+        authored: vm.authored_numeric_context(),
+    };
+    original_numeric_command_ops(vm, context,
+        NativeNumericCommandPurpose::ListSortComparisonResult, |numeric, selected| {
+        let reached = numeric.getter(result, selected.getter_kind());
+        if let Err(first) = &reached { numeric.retain_failure(first); }
+        numeric.current_for_value(result)?;
+        let reached = reached.map_err(|error| {
+            if error.native_execution_refusal().is_some()
+                || error.clone().into_byte_details().primitive_getter.is_none() {
+                return error;
+            }
+            selected.comparison_result_error().map_or(error, |wrapper| {
+                CmdError::with_error_code_bytes(wrapper.message, wrapper.error_code)
+            })
+        })?;
+        let NativeScalarGetterValue::Wide(integer) = reached else {
+            return Err(ValueError::ScalarNumericInputUnavailable.into());
+        };
+        Ok(integer.cmp(&0))
+    })
 }
 
 /// The `lsort -command` comparator: invoke `<prefix words...> a b` and read its
@@ -922,3 +1032,7 @@ mod native_original_stride_controls;
 
 #[cfg(test)]
 mod native_original_numeric_controls;
+
+#[cfg(test)]
+#[path = "cmd_list/native_original_group_command_controls.rs"]
+mod native_original_group_command_controls;

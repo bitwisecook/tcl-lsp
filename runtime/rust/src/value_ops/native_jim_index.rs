@@ -56,6 +56,11 @@ impl Drop for RuntimeIndexKeyState {
     }
 }
 impl RuntimeIndexKey {
+    fn held(value: obj::Owned) -> Self {
+        let key = Self::borrowed(value.as_ptr());
+        *key.state.result.borrow_mut() = Some(value);
+        key
+    }
     fn borrowed(pointer: *mut TclObj) -> Self {
         Self {
             pointer,
@@ -72,6 +77,11 @@ impl RuntimeIndexKey {
 pub struct RuntimeJimIndexScope(OriginalArguments);
 /// Currency-only complete indexed command entry; no operand getter authority.
 pub struct RuntimeIndexOperation(OriginalArguments);
+impl RuntimeIndexOperation {
+    pub(crate) fn original_currency(&self) -> &crate::interp::native_operation_currency::NativeOperationCurrency {
+        self.0.currency()
+    }
+}
 impl NativeIndexOps for Interp {
     type IndexOperation = RuntimeIndexOperation;
     type IndexBinaryReceipt = Option<obj::NativePrimaryReceipt>;
@@ -313,6 +323,76 @@ impl NativeIndexOps for Interp {
         let held = RuntimeIndexKey::borrowed(*original);
         *held.state.result.borrow_mut() = Some(obj::Owned::retain(*original));
         Ok(held)
+    }
+    fn index_sort_copy(&mut self, original: &*mut TclObj) -> Result<RuntimeIndexKey, CmdError> {
+        let arguments = OriginalArguments::enter(self, &[*original])?;
+        let protocol = self.native_invocation_dialect().native_string_protocol()
+            .filter(|protocol| protocol.tcl_version().is_some())
+            .ok_or(ValueError::CommandProtocolUnavailable("original sort List copy issuer"))?;
+        crate::list::native_list_copy_using(
+            *original, protocol,
+            &|| arguments.check_original_for(self, 0, *original),
+            &|error| arguments.retain_refusal(error.into()),
+        ).map(RuntimeIndexKey::held)
+    }
+    fn index_sort_duplicate(
+        &mut self, original: &*mut TclObj, only_shared: bool,
+    ) -> Result<RuntimeIndexKey, CmdError> {
+        let arguments = OriginalArguments::enter(self, &[*original])?;
+        arguments.check_original_for(self, 0, *original)?;
+        if only_shared && !obj::is_shared(*original) {
+            return Ok(RuntimeIndexKey::borrowed(*original));
+        }
+        let copied = obj::duplicate_with_stage_check::<CmdError>(
+            *original,
+            &mut || arguments.check_original_for(self, 0, *original),
+            &mut |error| { arguments.retain_refusal(error.clone()); },
+        )?;
+        if self.index_jim_sort_selected() {
+            // Jim_DuplicateObj is fresh-zero; Eval/result takes its own hold.
+            self.index_created_key(copied)
+        } else {
+            Ok(RuntimeIndexKey::held(obj::Owned::fresh(copied)))
+        }
+    }
+    fn index_sort_list(
+        &mut self, members: Vec<*mut TclObj>, held: bool,
+    ) -> Result<RuntimeIndexKey, CmdError> {
+        let arguments = OriginalArguments::enter(self, &members)?;
+        arguments.check_for(self)?;
+        let protocol = self.native_invocation_dialect().native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable("original sort List issuer"))?;
+        let list = crate::list::new_list_obj_native(&members, protocol);
+        if held {
+            Ok(RuntimeIndexKey::held(obj::Owned::fresh(list)))
+        } else {
+            self.index_created_key(list)
+        }
+    }
+    fn index_sort_append(
+        &mut self, list: &RuntimeIndexKey, members: &[*mut TclObj],
+    ) -> Result<(), CmdError> {
+        let arguments = OriginalArguments::enter(self, &[list.pointer])?;
+        let protocol = self.native_invocation_dialect().native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable("original sort List append issuer"))?;
+        crate::list::append_prepared_native_elements_using(
+            list.pointer, members, protocol,
+            &|| arguments.check_original_for(self, 0, list.pointer),
+            &|error| arguments.retain_refusal(error.into()),
+        )
+    }
+    fn index_sort_replace(
+        &mut self, list: &RuntimeIndexKey, first: usize, delete: usize,
+        members: &[*mut TclObj],
+    ) -> Result<(), CmdError> {
+        let arguments = OriginalArguments::enter(self, &[list.pointer])?;
+        let protocol = self.native_invocation_dialect().native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable("original sort List replacement issuer"))?;
+        crate::list::replace_prepared_native_range_using(
+            list.pointer, first, delete, members, protocol,
+            &|| arguments.check_original_for(self, 0, list.pointer),
+            &|error| arguments.retain_refusal(error.into()),
+        )
     }
     fn index_jim_sort_selected(&self) -> bool {
         self.native_invocation_dialect()

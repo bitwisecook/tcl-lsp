@@ -5400,26 +5400,65 @@ impl Value {
         } else {
             original.clone()
         };
-        drop(value.native_object_list_elements(protocol)?);
-        let mut primary = value.0.intrep.borrow_mut();
-        let IntRep::List {
-            items, canonical, ..
-        } = &mut *primary
-        else {
+        value.native_list_replace_prepared_using(
+            0,
+            usize::MAX,
+            elements,
+            protocol,
+            &mut None,
+            &mut None,
+        )?;
+        Ok(value)
+    }
+
+    /// Replace a reached range on the already selected private List header.
+    /// The caller owns the real working hold and its original operation.
+    pub(crate) fn native_list_replace_prepared_range_checked(
+        &self,
+        first: usize,
+        delete: usize,
+        elements: &[Self],
+        protocol: NativeStringProtocol,
+        check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.native_list_replace_prepared_using(
+            first, delete, elements, protocol, &mut Some(check), &mut Some(strings),
+        )
+    }
+
+    fn native_list_replace_prepared_using<E: From<ValueError>>(
+        &self,
+        first: usize,
+        delete: usize,
+        elements: &[Self],
+        protocol: NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+    ) -> Result<(), E> {
+        drop(self.native_object_list_elements_using(protocol, check, strings)?);
+        Self::native_stage_check(check)?;
+        let mut primary = self.0.intrep.borrow_mut();
+        let IntRep::List { items, canonical, .. } = &mut *primary else {
             unreachable!("selected native List replacement cache");
         };
-        let length = items.len();
+        let first = first.min(items.len());
+        let delete = delete.min(items.len() - first);
         if let Some(version) = protocol.tcl_version() {
-            items.replace_native(0, length, elements, version)?;
+            items.replace_native(first, delete, elements, version)?;
             *canonical = items.canonical_state();
         } else {
-            let members = crate::NativeListItems::new(elements.to_vec(), false);
-            *canonical = members.canonical_state();
-            *items = members;
+            let members = items.as_ref()[..first].iter()
+                .chain(elements)
+                .chain(&items.as_ref()[first + delete..])
+                .cloned().collect();
+            *items = crate::NativeListItems::new(members, false);
+            *canonical = items.canonical_state();
         }
         drop(primary);
-        value.invalidate_native_list_string();
-        Ok(value)
+        Self::native_stage_check(check)?;
+        self.invalidate_native_list_string();
+        Self::native_stage_check(check)
     }
 
     /// Append original member objects under the selected native List recipe.
@@ -5458,7 +5497,31 @@ impl Value {
         elements: &[Self],
         protocol: NativeStringProtocol,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        drop(self.native_object_list_elements(protocol)?);
+        self.native_list_append_prepared_using(elements, protocol, &mut None, &mut None)
+    }
+
+    /// The existing append kernel under the caller's retained original checks.
+    pub(crate) fn native_list_append_prepared_elements_checked(
+        &self,
+        elements: &[Self],
+        protocol: NativeStringProtocol,
+        check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.native_list_append_prepared_using(
+            elements, protocol, &mut Some(check), &mut Some(strings),
+        )
+    }
+
+    fn native_list_append_prepared_using<E: From<ValueError>>(
+        &self,
+        elements: &[Self],
+        protocol: NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+    ) -> Result<(), E> {
+        drop(self.native_object_list_elements_using(protocol, check, strings)?);
+        Self::native_stage_check(check)?;
         let mut primary = self.0.intrep.borrow_mut();
         let IntRep::List {
             items, canonical, ..
@@ -5474,7 +5537,7 @@ impl Value {
             if !preserve {
                 self.invalidate_native_list_string();
             }
-            return Ok(());
+            return Self::native_stage_check(check);
         }
         let flag = if items.native_is_shared() {
             protocol.copied_list_canonical(canonical.get())
@@ -5493,8 +5556,9 @@ impl Value {
         }
         *canonical = items.canonical_state();
         drop(primary);
+        Self::native_stage_check(check)?;
         self.invalidate_native_list_string();
-        Ok(())
+        Self::native_stage_check(check)
     }
 
     fn invalidate_native_list_string(&self) {
