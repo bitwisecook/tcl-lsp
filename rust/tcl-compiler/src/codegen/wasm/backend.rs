@@ -1791,7 +1791,7 @@ fn function_facts(
                     context,
                     mutations,
                     &bindings,
-                    &unit.cfg.command_binding_sites,
+                    unit,
                     (block, stmt_idx),
                     statement,
                 );
@@ -1886,7 +1886,7 @@ fn record_direct_calls(
     context: Option<InvocationMetadataContext<'_>>,
     mutations: &ModuleCommandMutations,
     bindings: &CommandBinding<'_>,
-    sites: &crate::ir::CommandBindingSites,
+    unit: &FunctionUnit,
     site: (crate::cfg::BlockId, usize),
     statement: &Statement,
 ) {
@@ -1904,7 +1904,7 @@ fn record_direct_calls(
                 && !crate::registry_invocation::original_procedure_has_execution_trace(
                     registry, context,
                     crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
-                        sites.iter(), statement,
+                        unit.cfg.command_binding_sites.iter(), statement,
                     ),
                     &proc.qualified_name, &module.traced_commands,
                 )
