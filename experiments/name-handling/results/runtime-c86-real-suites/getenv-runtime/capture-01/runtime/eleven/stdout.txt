@@ -1,0 +1,11 @@
+{} 1 {wrong # args: should be "clock format clockval ?-format string? ?-gmt boolean? ?-locale LOCALE? ?-timezone ZONE?"} {CLOCK wrongNumArgs}
+0 0 {{%a %b %d %H:%M:%S %Z %Y} C {}} UNSET
+{0 -g 1} 0 {{%a %b %d %H:%M:%S %Z %Y} C :GMT} UNSET
+{0 -format A -format B} 0 {B C {}} UNSET
+{0 -gmt 0 -timezone :GMT} 1 {cannot use -gmt and -timezone in same call} {CLOCK gmtWithTimezone}
+{bad -gmt bad} 1 {expected boolean value but got "bad"} {TCL VALUE NUMBER}
+{bad -gmt 1 -timezone :GMT} 1 {expected integer but got "bad"} {TCL VALUE NUMBER}
+{0 -z X} 1 {bad option "-z": must be -format, -gmt, -locale, or -timezone} {CLOCK badOption -z}
+{0 - X} 1 {ambiguous option "-": must be -format, -gmt, -locale, or -timezone} {CLOCK badOption -}
+{0 -format} 1 {wrong # args: should be "clock format clockval ?-format string? ?-gmt boolean? ?-locale LOCALE? ?-timezone ZONE?"} {CLOCK wrongNumArgs}
+9223372036854775808 0 {{%a %b %d %H:%M:%S %Z %Y} C {}} UNSET

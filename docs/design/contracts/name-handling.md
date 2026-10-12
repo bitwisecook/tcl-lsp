@@ -195,8 +195,11 @@ See [namespace-model.md](namespace-model.md).
 The C8.6 private `tcl::clock::ParseFormatArgs` worker has release-selected
 registry admission and a shared original-object parser in `tcl-cmd-core::clock`.
 Its runtime adapter owns retained literals and the object-command destructor.
-The other six C clock workers and their shared literal-pool lifetime remain
-unsupported; see the [exact controls and limits](../../../experiments/name-handling/results/clock-parse-format-args-runtime/README.md).
+The C8.6 `tcl::clock::getenv` adapter reads an optional current-host byte
+environment capability, preserving raw Unix keys/values and operational
+refusal on unsupported adapters. Both implemented workers share actual literal
+ownership. Guest `env` write synchronisation, the other five C clock workers
+and full seven-worker pool lifetime remain unsupported; see the [exact controls and limits](../../../experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/README.md).
 
 ## Evidence and enforcement
 

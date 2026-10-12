@@ -1,0 +1,133 @@
+NH_INIT
+NH_HARNESS
+NH_ORCHESTRATION_ENTER
+Tests running in interp:  /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh
+Tests located in:  /workspace/tcl-lsp/tmp/tcl8.6.18/tests
+Tests running in:  /tmp/getenv-runtime-cx3arx3l
+Temporary files stored in /tmp/getenv-runtime-cx3arx3l
+Test files sourced into current interpreter
+Running tests that match:  *
+Skipping test files that match:  l.*.test
+Only running test files that match:  var.test
+Tests began at 2026-10-12 21:44:40 UTC
+var.test
+---- var-1.1 start
+---- var-1.2 start
+---- var-1.3 start
+---- var-1.4 start
+---- var-1.5 start
+---- var-1.6 start
+---- var-1.7 start
+---- var-1.8 start
+---- var-1.9 start
+---- var-1.10 start
+---- var-1.11 start
+---- var-1.12 start
+---- var-1.13 start
+---- var-1.14 start
+---- var-1.15 start
+---- var-1.16 start
+---- var-1.17 start
+---- var-1.18 start
+---- var-1.19 start
+---- var-1.20 start
+---- var-1.21 start
+---- var-2.1 start
+---- var-3.1 start
+---- var-3.2 start
+++++ var-3.3 SKIPPED: testupvar
+++++ var-3.4 SKIPPED: testupvar
+---- var-3.5 start
+---- var-3.6 start
+---- var-3.7 start
+---- var-3.8 start
+---- var-3.9 start
+---- var-3.10 start
+---- var-3.11 start
+++++ var-4.1 SKIPPED: testgetvarfullname
+++++ var-4.2 SKIPPED: testgetvarfullname
+++++ var-4.3 SKIPPED: testgetvarfullname
+---- var-5.1 start
+---- var-5.2 start
+---- var-5.3 start
+---- var-6.1 start
+---- var-6.2 start
+---- var-6.3 start
+---- var-6.4 start
+---- var-6.5 start
+---- var-6.6 start
+---- var-7.1 start
+---- var-7.2 start
+---- var-7.3 start
+---- var-7.4 start
+---- var-7.5 start
+---- var-7.6 start
+---- var-7.7 start
+---- var-7.8 start
+---- var-7.9 start
+---- var-7.10 start
+---- var-7.11 start
+---- var-7.12 start
+---- var-7.13 start
+---- var-7.14 start
+---- var-7.15 start
+---- var-7.16 start
+---- var-7.17 start
+---- var-8.1 start
+---- var-8.2 start
+++++ var-8.3 SKIPPED: memory
+++++ var-9.1 SKIPPED: testsetnoerr
+++++ var-9.2 SKIPPED: testsetnoerr
+++++ var-9.3 SKIPPED: testsetnoerr
+++++ var-9.4 SKIPPED: testsetnoerr
+++++ var-9.5 SKIPPED: testsetnoerr
+++++ var-9.6 SKIPPED: testsetnoerr
+++++ var-9.7 SKIPPED: testsetnoerr
+++++ var-9.8 SKIPPED: testsetnoerr
+++++ var-9.9 SKIPPED: testsetnoerr
+++++ var-9.10 SKIPPED: testsetnoerr
+++++ var-9.11 SKIPPED: testsetnoerr
+++++ var-9.12 SKIPPED: testsetnoerr
+---- var-10.1 start
+---- var-10.2 start
+---- var-11.1 start
+---- var-11.2 start
+---- var-11.3 start
+---- var-12.1 start
+---- var-13.1 start
+---- var-13.2 start
+---- var-13.3 start
+---- var-14.1 start
+---- var-14.2 start
+---- var-15.1 start
+---- var-15.2 start
+---- var-16.1 start
+---- var-17.1 start
+---- var-17.2 start
+---- var-18.1 start
+---- var-19.1 start
+---- var-20.1 start
+---- var-20.2 start
+---- var-20.3 start
+---- var-20.4 start
+---- var-20.5 start
+---- var-20.6 start
+---- var-20.7 start
+---- var-20.8 start
+---- var-20.9 start
+---- var-20.10 start
+---- var-20.11 start
+---- var-20.12 start
+---- var-21.0 start
+++++ var-22.0 SKIPPED: memory
+++++ var-22.1 SKIPPED: memory
+
+Tests ended at 2026-10-12 21:44:40 UTC
+all.tcl:	Total	110	Passed	90	Skipped	20	Failed	0
+Sourced 1 Test Files.
+Number of tests skipped for each constraint:
+	3	memory
+	3	testgetvarfullname
+	12	testsetnoerr
+	2	testupvar
+NH_ORCHESTRATION_RETURN

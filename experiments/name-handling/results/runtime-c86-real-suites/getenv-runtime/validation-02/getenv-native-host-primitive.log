@@ -1,0 +1,18 @@
+   Compiling sha2 v0.11.0
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+    Finished `test` profile [unoptimized] target(s) in 1.24s
+     Running unittests src/lib.rs (tmp/name-target-runtime/debug/deps/tcl_host_native-92b09ab71ab161bf)
+
+running 1 test
+test tests::native_environment_bytes_preserve_actual_unix_input_and_current_host_view ... 
+running 1 test
+test tests::native_environment_bytes_preserve_actual_unix_input_and_current_host_view ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

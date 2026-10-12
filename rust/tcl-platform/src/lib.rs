@@ -387,9 +387,21 @@ pub trait StdIo {
     fn flush_stderr(&self) {}
 }
 
+/// Current native environment bytes, independently supplied by the host.
+pub trait NativeEnvironmentBytes {
+    /// Look up an exact key in the current host view. Native C string callers
+    /// select their input extent before lookup; None means an absent entry.
+    fn get_bytes(&self, key: &[u8]) -> Option<Vec<u8>>;
+}
+
 /// Environment variables and the working directory (`env`, `pwd`, `cd`).
 /// Mandatory — virtualised on the browser.
 pub trait Env {
+    /// An actual byte environment view. Absence grants no empty-value fallback.
+    fn native_environment_bytes(&self) -> Option<&dyn NativeEnvironmentBytes> {
+        None
+    }
+
     /// The value of environment variable `key`.
     fn get(&self, key: &str) -> Option<String>;
     /// Set environment variable `key` to `val`.

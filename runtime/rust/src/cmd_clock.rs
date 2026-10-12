@@ -23,11 +23,18 @@
 //! `set_result`.
 
 use tcl_cmd_core::clock as core_clock;
+use tcl_syntax::value::{ValueError, ValueOps};
+
+use std::rc::Rc;
 
 use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
 
-struct FormatArgumentPool {
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "host_wasm.rs"]
+mod test_browser_host;
+
+struct ClockLiteralPool {
     format: crate::obj::Owned,
     locale: crate::obj::Owned,
     timezone: crate::obj::Owned,
@@ -35,7 +42,7 @@ struct FormatArgumentPool {
     conflict: crate::obj::Owned,
 }
 
-impl FormatArgumentPool {
+impl ClockLiteralPool {
     fn new() -> Self {
         Self {
             format: crate::obj::Owned::fresh(crate::obj::new_string_bytes(
@@ -60,9 +67,9 @@ impl FormatArgumentPool {
     }
 }
 
-unsafe extern "C" fn delete_format_argument_pool(data: *mut std::ffi::c_void) {
-    // SAFETY: registration transfers this Box to its once-only delete callback.
-    unsafe { drop(Box::from_raw(data.cast::<FormatArgumentPool>())) };
+unsafe extern "C" fn delete_clock_pool(data: *mut std::ffi::c_void) {
+    // SAFETY: each registration transfers one Rc to its once-only callback.
+    unsafe { drop(Rc::from_raw(data.cast::<ClockLiteralPool>())) };
 }
 
 unsafe extern "C" fn parse_format_arguments(
@@ -72,7 +79,7 @@ unsafe extern "C" fn parse_format_arguments(
     words: *const *mut TclObj,
 ) -> std::ffi::c_int {
     // SAFETY: the object-command owner supplies live client data and argv.
-    let originals = unsafe { &*data.cast::<FormatArgumentPool>() }.originals();
+    let originals = unsafe { &*data.cast::<ClockLiteralPool>() }.originals();
     let interp = unsafe { &mut *interp };
     let Ok(count) = usize::try_from(count) else {
         interp.report_obj_cmd_error(tcl_cmd_core::CmdError::new("invalid argument count"));
@@ -90,7 +97,7 @@ unsafe extern "C" fn parse_format_arguments(
         }
         Err(core_clock::FormatArgumentError::GmtWithTimezone) => {
             // SAFETY: no callback has retired client data during successful conversions.
-            let conflict = unsafe { &*data.cast::<FormatArgumentPool>() }
+            let conflict = unsafe { &*data.cast::<ClockLiteralPool>() }
                 .conflict
                 .as_ptr();
             interp.set_result(conflict);
@@ -100,19 +107,81 @@ unsafe extern "C" fn parse_format_arguments(
     }
 }
 
+fn getenv_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 2 {
+        let code = interp.wrong_args_for_invocation(argv, b"name");
+        if !interp.host_refusal_pending() {
+            interp.note_c_api_error();
+        }
+        return code;
+    }
+    let name = match interp.native_string_bytes(&argv[1]) {
+        Ok(name) => name,
+        Err(error) => return interp.report_obj_cmd_error(error.into()),
+    };
+    let host = interp.host();
+    let Some(environment) = host.env().native_environment_bytes() else {
+        return interp.report_obj_cmd_error(
+            ValueError::CommandProtocolUnavailable("native environment byte getter").into(),
+        );
+    };
+    let value = environment
+        .get_bytes(tcl_core_types::c_string_extent(&name))
+        .unwrap_or_default();
+    if let Err(error) = interp.check_entered_native_operation() {
+        return interp.refuse_native_execution(error);
+    }
+    let result = interp.new_bytes(&value);
+    interp.set_result(result);
+    Code::Ok
+}
+
+unsafe extern "C" fn clock_getenv(
+    _data: *mut std::ffi::c_void,
+    interp: *mut Interp,
+    count: std::ffi::c_int,
+    words: *const *mut TclObj,
+) -> std::ffi::c_int {
+    // SAFETY: the object-command owner supplies a live interpreter and argv.
+    let interp = unsafe { &mut *interp };
+    let Ok(count) = usize::try_from(count) else {
+        interp.report_obj_cmd_error(tcl_cmd_core::CmdError::new("invalid argument count"));
+        return 1;
+    };
+    let words = unsafe { std::slice::from_raw_parts(words, count) };
+    if getenv_cmd(interp, words) == Code::Ok {
+        0
+    } else {
+        1
+    }
+}
+
 /// Register `clock`.
 pub fn install(interp: &mut Interp) {
     if let Some(name) = interp
         .native_invocation_dialect()
         .clock_parse_format_args_registration()
     {
-        let pool = Box::into_raw(Box::new(FormatArgumentPool::new()));
+        let pool = Rc::new(ClockLiteralPool::new());
+        if let Some(getenv) = interp
+            .native_invocation_dialect()
+            .clock_getenv_registration()
+        {
+            interp.register_stock_obj_command(
+                getenv.as_bytes(),
+                crate::interp::ObjCommand::new_owned_runtime_shim(
+                    clock_getenv,
+                    Rc::into_raw(Rc::clone(&pool)).cast_mut().cast(),
+                    Some(delete_clock_pool),
+                ),
+            );
+        }
         interp.register_stock_obj_command(
             name.as_bytes(),
             crate::interp::ObjCommand::new_owned_runtime_shim(
                 parse_format_arguments,
-                pool.cast(),
-                Some(delete_format_argument_pool),
+                Rc::into_raw(Rc::clone(&pool)).cast_mut().cast(),
+                Some(delete_clock_pool),
             ),
         );
     }
@@ -218,6 +287,176 @@ mod bootstrap_tests {
     }
 
     #[test]
+    fn private_clock_workers_have_actual_selected_c86_shipped_backing_and_null_hooks() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
+            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+            let registry = crate::environment::store_for_profile(profile);
+            let interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let report = interp.backing_report();
+            for identity in ["tcl::clock::ParseFormatArgs", "tcl::clock::getenv"] {
+                let selected = version == tcl_dialect::TclVersion::V8_6;
+                let declared = registry
+                    .get_for_surface(identity, dialect.authoring_query())
+                    .map(|spec| spec.runtime_backing);
+                let actual = report
+                    .iter()
+                    .find(|(name, _)| name == identity)
+                    .map(|(_, backing)| *backing);
+                assert_eq!(
+                    declared,
+                    selected.then_some(tcl_registry::RuntimeBacking::shipped(identity))
+                );
+                assert_eq!(
+                    actual,
+                    selected.then_some(tcl_runtime_api::RegisteredBacking::Builtin)
+                );
+                let token = interp.resolve_cmd_token(format!("::{identity}").as_bytes());
+                assert_eq!(token.is_some(), selected);
+                if let Some(token) = token {
+                    assert!(matches!(
+                        interp.namespaces().native_compiler_recipe(token),
+                        Some(NativeCompilerRecipe::Absent)
+                    ));
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn getenv_preserves_actual_unix_bytes_and_current_host_view() {
+        use std::os::unix::ffi::OsStringExt as _;
+        use tcl_platform::Host as _;
+        const MARKER: &str = "NH_RUNTIME_GETENV_CHILD";
+        const KEY: &str = "NH_RUNTIME_GETENV_VALUE";
+        const MISSING: &str = "NH_RUNTIME_GETENV_MISSING";
+        const RAW_VALUE: &str = "NH_RUNTIME_GETENV_RAW_VALUE";
+        let raw_key = b"NH_RUNTIME_GETENV_\xff";
+        if std::env::var_os(MARKER).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .arg("--exact")
+                .arg("cmd_clock::bootstrap_tests::getenv_preserves_actual_unix_bytes_and_current_host_view")
+                .arg("--nocapture")
+                .env(MARKER, "1")
+                .env(KEY, "actual")
+                .env_remove(MISSING)
+                .env(std::ffi::OsString::from_vec(raw_key.to_vec()), "raw-name")
+                .env(RAW_VALUE, std::ffi::OsString::from_vec(vec![0xff]))
+                .status().unwrap();
+            assert!(
+                status.success(),
+                "actual Unix getter child failed: {status}"
+            );
+            return;
+        }
+        let host = std::rc::Rc::new(tcl_host_native::NativeHost::new());
+        let mut interp = Interp::with_native_core(
+            host.clone(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(interp.eval_str(b"set ::errorCode UNSET; set ::readCalls 0; proc readTrap {a b op} {incr ::readCalls; error SHOULD_NOT_READ_ENV_ARRAY}; trace add variable ::env(NH_RUNTIME_GETENV_VALUE) read readTrap; ::tcl::clock::getenv NH_RUNTIME_GETENV_VALUE"), Code::Ok);
+        assert_eq!(interp.result_bytes(), b"actual");
+        assert_eq!(
+            crate::obj::bytes_of(interp.var_get(b"::readCalls").unwrap()),
+            b"0"
+        );
+        assert_eq!(
+            interp.eval_str(b"trace remove variable ::env(NH_RUNTIME_GETENV_VALUE) read readTrap"),
+            Code::Ok
+        );
+        host.env().set(KEY, "updated");
+        assert_eq!(interp.eval_str(b"list $::env(NH_RUNTIME_GETENV_VALUE) [::tcl::clock::getenv NH_RUNTIME_GETENV_VALUE]"), Code::Ok);
+        assert_eq!(interp.result_bytes(), b"actual updated");
+        for (name, expected) in [
+            (
+                b"NH_RUNTIME_GETENV_VALUE\0suffix".as_slice(),
+                b"updated".as_slice(),
+            ),
+            (raw_key.as_slice(), b"raw-name".as_slice()),
+            (RAW_VALUE.as_bytes(), b"\xff".as_slice()),
+            (MISSING.as_bytes(), b"".as_slice()),
+        ] {
+            let original = crate::obj::Owned::fresh(crate::obj::new_string_bytes(name));
+            interp.var_set(b"name", original.as_ptr()).unwrap();
+            assert_eq!(interp.eval_str(b"::tcl::clock::getenv $name"), Code::Ok);
+            assert_eq!(interp.result_bytes(), expected);
+            assert_eq!(
+                crate::obj::bytes_of(interp.var_get(b"::errorCode").unwrap()),
+                b"UNSET"
+            );
+        }
+        for command in [
+            b"::tcl::clock::getenv".as_slice(),
+            b"::tcl::clock::getenv a b",
+        ] {
+            assert_eq!(interp.eval_str(command), Code::Error);
+            assert_eq!(
+                interp.result_bytes(),
+                b"wrong # args: should be \"::tcl::clock::getenv name\""
+            );
+            assert_eq!(interp.error_code(), b"TCL WRONGARGS");
+        }
+        assert_eq!(
+            interp.eval_str(b"rename ::tcl::clock::getenv ::renamedGetter"),
+            Code::Ok
+        );
+        assert_eq!(interp.eval_str(b"::renamedGetter a b"), Code::Error);
+        assert_eq!(
+            interp.result_bytes(),
+            b"wrong # args: should be \"::renamedGetter name\""
+        );
+        assert_eq!(interp.error_code(), b"TCL WRONGARGS");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn absent_native_environment_capability_refuses_and_failed_creation_releases_pool_owner() {
+        use super::{clock_getenv, delete_clock_pool, ClockLiteralPool};
+        let host = std::rc::Rc::new(super::test_browser_host::BrowserHost::new());
+        let mut interp = Interp::with_native_core(
+            host,
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            interp.eval_str(b"catch {::tcl::clock::getenv KEY} result; set after forbidden"),
+            Code::Error
+        );
+        assert!(matches!(
+            interp.native_execution_refusal(),
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native environment byte getter"
+                )
+            ))
+        ));
+        let first = interp.native_execution_refusal();
+        let pool = std::rc::Rc::new(ClockLiteralPool::new());
+        let installed = interp.register_stock_obj_command(
+            b"::tcl::clock::unpublished",
+            crate::interp::ObjCommand::new_owned_runtime_shim(
+                clock_getenv,
+                std::rc::Rc::into_raw(std::rc::Rc::clone(&pool))
+                    .cast_mut()
+                    .cast(),
+                Some(delete_clock_pool),
+            ),
+        );
+        assert!(installed.is_none());
+        assert_eq!(std::rc::Rc::strong_count(&pool), 1);
+        assert_eq!(interp.native_execution_refusal(), first);
+    }
+
+    #[test]
     fn parse_format_args_matches_the_eleven_original_c86_cases() {
         let mut interp = c86();
         let input = include_str!(
@@ -275,9 +514,42 @@ mod bootstrap_tests {
             Code::Ok
         );
         assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
+        assert_eq!(unsafe { (*members[0]).ref_count }, 3);
+        assert_eq!(interp.eval_str(b"rename ::tcl::clock::getenv {}"), Code::Ok);
+        assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
         assert_eq!(unsafe { (*members[0]).ref_count }, 2);
         assert_eq!(crate::obj::bytes_of(members[0]), b"%a %b %d %H:%M:%S %Z %Y");
         assert_eq!(crate::obj::bytes_of(originals[0]), b"supplied");
+    }
+
+    #[test]
+    fn deleting_getenv_first_keeps_parse_format_args_pool_until_its_retirement() {
+        use tcl_syntax::value::ValueOps;
+        let mut interp = c86();
+        let before = interp.native_compiler_cache_epochs(GLOBAL).unwrap();
+        assert_eq!(
+            interp.eval_str(b"::tcl::clock::ParseFormatArgs 0"),
+            Code::Ok
+        );
+        let result = crate::obj::Owned::retain(interp.get_obj_result());
+        let members = interp.list_elements(&result.as_ptr()).unwrap();
+        assert_eq!(interp.eval_str(b"rename ::tcl::clock::getenv {}"), Code::Ok);
+        assert_eq!(unsafe { (*members[0]).ref_count }, 2);
+        assert_eq!(
+            interp.eval_str(b"::tcl::clock::ParseFormatArgs 0 -g 1"),
+            Code::Ok
+        );
+        let later = crate::obj::Owned::retain(interp.get_obj_result());
+        let again = interp.list_elements(&later.as_ptr()).unwrap();
+        assert_eq!(members[0], again[0]);
+        assert_eq!(unsafe { (*members[0]).ref_count }, 3);
+        assert_eq!(
+            interp.eval_str(b"rename ::tcl::clock::ParseFormatArgs {}"),
+            Code::Ok
+        );
+        assert_eq!(unsafe { (*members[0]).ref_count }, 2);
+        assert_eq!(crate::obj::bytes_of(again[2]), b":GMT");
+        assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
     }
 
     #[test]
@@ -296,7 +568,16 @@ mod bootstrap_tests {
                 Some(NativeCompilerRecipe::Registered { .. })
             ));
         }
-        for member in ["add", "format", "scan", "getenv"] {
+        for member in [
+            "add",
+            "format",
+            "scan",
+            "Oldscan",
+            "ConvertLocalToUTC",
+            "GetDateFields",
+            "GetJulianDayFromEraYearMonthDay",
+            "GetJulianDayFromEraYearWeekDay",
+        ] {
             assert!(interp
                 .resolve_cmd_token(format!("::tcl::clock::{member}").as_bytes())
                 .is_none());

@@ -41,6 +41,14 @@ const VERSIONED_CLOCK_CONTEXT_RESULT: SubCommand = SubCommand {
 };
 
 impl crate::InvocationDialect {
+    /// Measured C8.6 process-environment worker constructor.
+    #[must_use]
+    pub fn clock_getenv_registration(self) -> Option<&'static str> {
+        (self.family() == Some(tcl_dialect::model::Family::Tcl)
+            && self.tcl_version == Some(TclVersion::V8_6))
+        .then_some("::tcl::clock::getenv")
+    }
+
     /// Measured C8.6 private worker constructor, separate from handler effects.
     #[must_use]
     pub fn clock_parse_format_args_registration(self) -> Option<&'static str> {
@@ -627,9 +635,43 @@ pub fn parse_format_args_spec() -> CommandSpec {
     }
 }
 
+pub fn getenv_spec() -> CommandSpec {
+    CommandSpec {
+        name: "tcl::clock::getenv",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        runtime_backing: RuntimeBacking::shipped("tcl::clock::getenv"),
+        surface: Some(SpecSurface::TCL86),
+        arity: Arity::exact(1),
+        return_type: Some(TclType::String),
+        ..CommandSpec::DEFAULT
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{TclVersion, Traits};
+    #[test]
+    fn private_environment_worker_has_only_the_measured_c86_surface_and_null_hook() {
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let compiler =
+                registry.native_compilation_for_registration("tcl::clock::getenv", dialect);
+            assert_eq!(
+                dialect.clock_getenv_registration().is_some(),
+                version == TclVersion::V8_6
+            );
+            assert_eq!(compiler.is_some(), version == TclVersion::V8_6);
+            if let Some(compiler) = compiler {
+                assert_eq!(compiler.compiler_hook_presence(dialect), Some(false));
+            }
+        }
+        assert!(!super::getenv_spec().traits.contains(Traits::PURE));
+    }
     #[test]
     fn private_format_worker_has_only_the_measured_c86_surface_and_null_hook() {
         let registry = crate::CommandRegistry::build_default();
@@ -675,7 +717,7 @@ mod tests {
                     .is_none()
             );
         }
-        for member in ["add", "format", "scan", "getenv", "unmeasured"] {
+        for member in ["add", "format", "scan", "unmeasured"] {
             assert!(
                 registry
                     .native_compilation_for_registration(&format!("tcl::clock::{member}"), dialect)

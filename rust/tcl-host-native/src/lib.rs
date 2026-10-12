@@ -254,6 +254,11 @@ struct NativeEnv {
 }
 
 impl Env for NativeEnv {
+    #[cfg(unix)]
+    fn native_environment_bytes(&self) -> Option<&dyn tcl_platform::NativeEnvironmentBytes> {
+        Some(self)
+    }
+
     fn get(&self, key: &str) -> Option<String> {
         if let Some(v) = self.overrides.borrow().get(key) {
             return Some(v.clone());
@@ -295,6 +300,20 @@ impl Env for NativeEnv {
         std::env::current_exe()
             .ok()
             .map(|p| p.to_string_lossy().into_owned())
+    }
+}
+
+#[cfg(unix)]
+impl tcl_platform::NativeEnvironmentBytes for NativeEnv {
+    fn get_bytes(&self, key: &[u8]) -> Option<Vec<u8>> {
+        use std::os::unix::ffi::OsStrExt as _;
+        if let Ok(text) = std::str::from_utf8(key)
+            && let Some(value) = self.overrides.borrow().get(text)
+        {
+            return Some(value.as_bytes().to_vec());
+        }
+        std::env::var_os(std::ffi::OsStr::from_bytes(key))
+            .map(|value| value.as_os_str().as_bytes().to_vec())
     }
 }
 
@@ -595,6 +614,68 @@ impl Process for NativeProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn native_environment_bytes_preserve_actual_unix_input_and_current_host_view() {
+        use std::os::unix::ffi::OsStringExt as _;
+
+        const MARKER: &str = "NH_NATIVE_ENV_BYTES_CHILD";
+        const KEY: &str = "NH_NATIVE_ENV_BYTES_VALUE";
+        const EMPTY: &str = "NH_NATIVE_ENV_BYTES_EMPTY";
+        const MISSING: &str = "NH_NATIVE_ENV_BYTES_MISSING";
+        const RAW_VALUE: &str = "NH_NATIVE_ENV_BYTES_RAW_VALUE";
+        let raw_key = b"NH_NATIVE_ENV_BYTES_\xff";
+        if std::env::var_os(MARKER).is_some() {
+            let host = NativeHost::new();
+            let environment = host.env().native_environment_bytes().unwrap();
+            assert_eq!(
+                environment.get_bytes(KEY.as_bytes()),
+                Some(b"actual".to_vec())
+            );
+            assert_eq!(environment.get_bytes(EMPTY.as_bytes()), Some(Vec::new()));
+            assert_eq!(environment.get_bytes(MISSING.as_bytes()), None);
+            assert_eq!(environment.get_bytes(raw_key), Some(b"raw-name".to_vec()));
+            assert_eq!(
+                environment.get_bytes(RAW_VALUE.as_bytes()),
+                Some(vec![0xff])
+            );
+            host.env().set(KEY, "updated");
+            assert_eq!(
+                environment.get_bytes(KEY.as_bytes()),
+                Some(b"updated".to_vec())
+            );
+            assert_eq!(
+                NativeHost::new()
+                    .env()
+                    .native_environment_bytes()
+                    .unwrap()
+                    .get_bytes(KEY.as_bytes()),
+                Some(b"actual".to_vec())
+            );
+            assert_eq!(
+                std::env::var_os(KEY),
+                Some(std::ffi::OsString::from("actual"))
+            );
+            return;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("tests::native_environment_bytes_preserve_actual_unix_input_and_current_host_view")
+            .arg("--nocapture")
+            .env(MARKER, "1")
+            .env(KEY, "actual")
+            .env(EMPTY, "")
+            .env_remove(MISSING)
+            .env(std::ffi::OsString::from_vec(raw_key.to_vec()), "raw-name")
+            .env(RAW_VALUE, std::ffi::OsString::from_vec(vec![0xff]))
+            .status()
+            .unwrap();
+        assert!(
+            status.success(),
+            "actual Unix environment child failed: {status}"
+        );
+    }
 
     #[cfg(unix)]
     #[test]

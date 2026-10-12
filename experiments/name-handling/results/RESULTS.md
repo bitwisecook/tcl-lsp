@@ -19,7 +19,7 @@ matching init/Tcltest and upstream single-process constraints. C completes with
 17 skips,0 failures; five files refuse and ooNext2 exits with a script error.
 Those incomplete files retain34 assertion failures; no full Native total exists.
 The earlier upstream all.tcl capture fails before any suite on the missing
-clock worker `ParseFormatArgs`. The [fresh worker capture](clock-parse-format-args-runtime/README.md) advances past that worker and stops before suites on `getenv`. Discrete questions retain exact files,
+clock worker `ParseFormatArgs`. The [fresh worker capture](clock-parse-format-args-runtime/README.md) advances past that worker and stops before suites on `getenv`. The [byte-host getter capture](runtime-c86-real-suites/getenv-runtime/README.md) advances past `getenv` and refuses native bytes-to-Unicode conversion before suites. Discrete questions retain exact files,
 streams, skips, failure IDs, original orchestration and two diagnostic harness
 attempts; only the final upstream-consistent attempt supplies conformance counts.
 
@@ -30,7 +30,7 @@ were measured in all five real C releases and pinned Jim. C8.5/C8.6 each return
 four successes and seven worker errors; other providers lack this private
 command. Error wording/codes differ between the two responding releases, and
 both accept the retained unsigned-boundary clock value. This answers worker
-behaviour. The [selected runtime implementation](clock-parse-format-args-runtime/README.md) now matches all eleven C8.6 answers and passes three object/bootstrap controls; full shared-worker pool lifetime and public clock conformance remain open.
+behaviour. The [selected runtime implementation](clock-parse-format-args-runtime/README.md) now matches all eleven C8.6 answers and passes three object/bootstrap controls; full shared-worker pool lifetime and public clock conformance remain open. The getter implementation passes seven runtime controls, one real Unix host primitive and one registry unit; env synchronisation differences remain measured and open.
 
 The package compilation failure at the ordered comparison fixture is [repaired and measured](registry-ordered-probe-api/README.md): one existing control passes,26 filtered tests remain unmeasured.
 

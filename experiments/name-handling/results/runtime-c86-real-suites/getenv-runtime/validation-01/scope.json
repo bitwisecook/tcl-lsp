@@ -1,0 +1,18 @@
+{
+  "source_snapshot": "frozen-rust-source-snapshot.json.gz",
+  "scope": "All Rust source/manifests/locks under rust and runtime/rust, including actual compiled dependencies and test sources; snapshot during first runtime compilation under coordinator-announced global freeze. Five edited owners additionally have pre-build source-ready.json hashes. Compare same exact source paths after all commands. This wide collection is a source inventory, NOT an all-Rust stability claim. Independent xtask owner_resolution is excluded from dependency currency; shared-utility document is not collected. Use the named actual compiled dependencies and frozen getter/compiler/VM sources only.",
+  "temporary_compiler_diagnostics": [
+    "rust/tcl-compiler/src/command_binding.rs",
+    "rust/tcl-compiler/src/provider_fixtures.rs",
+    "rust/tcl-compiler/src/script_binds.rs"
+  ],
+  "binary_scope": "Registry package dev-dependencies can compile temporary diagnostic compiler/VM owners. Such test binaries are diagnostic-frozen builds, not normal production binaries. Runtime standalone dependencies do not include tcl-compiler/tcl-vm.",
+  "source_count": 4942,
+  "rust_edits_during_validation": false,
+  "dependency_currency_excluded": [
+    "rust/xtask/src/owner_resolution.rs"
+  ],
+  "unexpected_compile_failure": "Runtime native lib test references wasm32-only crate::host_wasm::BrowserHost; E0433, zero tests executed.",
+  "cargo_exit_code": 101,
+  "correction_status": "No Rust/Cargo after failure; await coordinator stopping other shared builds before any test-source correction."
+}

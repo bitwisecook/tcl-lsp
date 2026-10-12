@@ -1,0 +1,216 @@
+{
+  "source_and_binary_before": {
+    "/workspace/tcl-lsp/rust/tcl-platform/src/lib.rs": "7dc60681a4127c56ecf8b47d6d7c7107ea83d74ca4988c2fda7baffc53818158",
+    "/workspace/tcl-lsp/rust/tcl-host-native/src/lib.rs": "3d3f8ec0b5b1b6b7716573cf3d2bb6e8e0e6aa1289af9dd0c0552f0cac6d6483",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/clock_.rs": "31c88b47e0d315b3f84c6fb59d19c7f0853aa5e3a0b3160b46928b51fde48ebd",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/mod.rs": "184f6f4dc396de4fb0fbb6d9fd7593eb246c071062a8ac04297636a5d2827d67",
+    "/workspace/tcl-lsp/runtime/rust/src/cmd_clock.rs": "d795639ddf88eea0c08c48cafa6b7ce848692aa42b2091ed3e92d73c8b4444f9",
+    "/workspace/tcl-lsp/runtime/rust/src/host_wasm.rs": "80af72bd0dfd1af4c57c1656c5eb9c1282be39b4e80647a12263d8db27a4e36f",
+    "/workspace/tcl-lsp/runtime/rust/src/interp.rs": "5bb09bed466ef0df6af67ec4a08401172018cc97f03974c29dfd685493a3c7e3",
+    "/workspace/tcl-lsp/runtime/rust/examples/run_script.rs": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture.py": "26115d6fe85a1ecfca7cc55f44d513eee958bf1b1006d852ae4a46e77f733f4a",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/two-worker-control.c": "65eb0b54586d296784a8ffc38d63f3df335b31cfbcc7be932e6757537c68c774",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-question/command-control.c": "b8925ede1a16eb46ac9e083323405c930c8158fc443fbf4a183da9148a302c9d",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "source_and_binary_after": {
+    "/workspace/tcl-lsp/rust/tcl-platform/src/lib.rs": "7dc60681a4127c56ecf8b47d6d7c7107ea83d74ca4988c2fda7baffc53818158",
+    "/workspace/tcl-lsp/rust/tcl-host-native/src/lib.rs": "3d3f8ec0b5b1b6b7716573cf3d2bb6e8e0e6aa1289af9dd0c0552f0cac6d6483",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/clock_.rs": "31c88b47e0d315b3f84c6fb59d19c7f0853aa5e3a0b3160b46928b51fde48ebd",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/mod.rs": "184f6f4dc396de4fb0fbb6d9fd7593eb246c071062a8ac04297636a5d2827d67",
+    "/workspace/tcl-lsp/runtime/rust/src/cmd_clock.rs": "d795639ddf88eea0c08c48cafa6b7ce848692aa42b2091ed3e92d73c8b4444f9",
+    "/workspace/tcl-lsp/runtime/rust/src/host_wasm.rs": "80af72bd0dfd1af4c57c1656c5eb9c1282be39b4e80647a12263d8db27a4e36f",
+    "/workspace/tcl-lsp/runtime/rust/src/interp.rs": "5bb09bed466ef0df6af67ec4a08401172018cc97f03974c29dfd685493a3c7e3",
+    "/workspace/tcl-lsp/runtime/rust/examples/run_script.rs": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture.py": "26115d6fe85a1ecfca7cc55f44d513eee958bf1b1006d852ae4a46e77f733f4a",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/two-worker-control.c": "65eb0b54586d296784a8ffc38d63f3df335b31cfbcc7be932e6757537c68c774",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-question/command-control.c": "b8925ede1a16eb46ac9e083323405c930c8158fc443fbf4a183da9148a302c9d",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "c_control_binaries": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/getter-control": "3ef0ab28dec211266f434e797bb7a85b7b8281535bce51321b35e04e97eff094",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/two-worker-control": "3ac40075ff60b78c7969a7ef0654bfde149dd3e9c946c9632410ad63fc73edc1"
+  },
+  "records": [
+    {
+      "name": "compile-getter-control",
+      "argv": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-question/command-control.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/getter-control"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.117,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "compile-two-worker-control",
+      "argv": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/two-worker-control.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/two-worker-control"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.115,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c-getter-object",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/getter-control"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.004,
+      "stdout_sha256": "6fc5665a6e8b15c933b575598328361664f49fbd0d3ccf95dd6bcab83f636951",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c-two-owner-parser-first",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/two-worker-control",
+        "parser-first"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.006,
+      "stdout_sha256": "fd8b301ed3394b18485805cccafbd292a948aa6556954f7e5b40a90205acc1a2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c-two-owner-getenv-first",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/two-worker-control",
+        "getenv-first"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.004,
+      "stdout_sha256": "7d788180be5dacaa8a72f71fa0f853d1f0f23125c044fd34f7b3388b84521831",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c/getter-script",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/getter-script.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.006,
+      "stdout_sha256": "0ced962b2b53fa6bf4fc30a648c6363500a94b8303e6a2ccb7185b1aad8e8a75",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c/eleven",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/eleven.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.008,
+      "stdout_sha256": "85b0a0bacc856d8ebaca03681560fa384ef2ca6065f5d029ab4498c9518b3545",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c/all-tcl-var",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.032,
+      "stdout_sha256": "cc2171311bb57c1a6a8b76c915efa123c61e9e6cbfa406ab2e435f354b060e0f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "runtime/getter-script",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/getter-script.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.48,
+      "stdout_sha256": "c10d46275ef804bd3abc30f74df73c877d2c1912b6f78491dee2488077660484",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "runtime/eleven",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/eleven.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.37,
+      "stdout_sha256": "85b0a0bacc856d8ebaca03681560fa384ef2ca6065f5d029ab4498c9518b3545",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "runtime/all-tcl-var",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 3.625,
+      "stdout_sha256": "f1b7b14f8ee35fa72b83bcf9319669a3071cffc2e204e2ca03bb5643ab7e764f",
+      "stderr_sha256": "0e374aee1c03b86076213dae5fa48e539743ba9dae8c119439ec6a8775c662cb"
+    }
+  ],
+  "inputs": {
+    "getter-script.tcl": "e77fa5ce8adcb80c82e21d5aa2704f7cb4c92d309d7052e1a2266069efa327ec",
+    "eleven.tcl": "ed6c3aafb11c64da72d90acd1afc60604914308e8b52abe2d5881e461e90bd1c",
+    "all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9"
+  },
+  "scope": "Selected Native C86 on actual Unix NativeHost; real matching init/tcltest and unchanged all.tcl selecting var.test; control explicitly retires other five C workers before observing two surviving owners.",
+  "environment_control": "Only explicitly named benign NH_CLOCK_GETENV_* controls are queried/output; no environment dump. Native normal env-array write/unset synchronisation remains separate.",
+  "binary_scope": "Fresh standalone runner has no tcl-compiler/LSP dependencies. Separate registry unit build contains diagnostic-frozen dependency sources, recorded in validation-02.",
+  "timeout_seconds": 60,
+  "address_space_limit_bytes": 1073741824,
+  "overlay": false,
+  "F5": "unmeasured"
+}

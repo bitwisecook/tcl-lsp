@@ -1,0 +1,28 @@
+{
+  "selected_manifests": [
+    "runtime/rust/Cargo.toml",
+    "rust/tcl-bytecode/Cargo.toml",
+    "rust/tcl-cmd-core/Cargo.toml",
+    "rust/tcl-core-types/Cargo.toml",
+    "rust/tcl-dialect/Cargo.toml",
+    "rust/tcl-engine-api/Cargo.toml",
+    "rust/tcl-host-c-abi/Cargo.toml",
+    "rust/tcl-host-native/Cargo.toml",
+    "rust/tcl-lexer/Cargo.toml",
+    "rust/tcl-platform/Cargo.toml",
+    "rust/tcl-regex/Cargo.toml",
+    "rust/tcl-registry/Cargo.toml",
+    "rust/tcl-runtime-api/Cargo.toml",
+    "rust/tcl-syntax/Cargo.toml",
+    "rust/tcl-test-support/Cargo.toml"
+  ],
+  "dependency_scope": "Static local path-dependency closure of actual standalone runtime and host-native test roots, normal/build plus root-only dev deps; all target/optional pathdeps included conservatively. Does not claim all workspace sources unchanged.",
+  "source_count": 2966,
+  "excluded_concurrent_sources": [
+    "rust/tcl-lsp-core/**",
+    "rust/xtask/src/owner_resolution.rs"
+  ],
+  "before_boundary": "Corrected standalone runtime dependency snapshot immediately following successful7tests, before host-native primitive/build runner/capture. Approved test-only fix source-ready-corrected.json precedes corrected runtime test.",
+  "registry_target": "held until new callback source freeze; registry dev spectcl/compiler scope must be recorded separately",
+  "compiler_TEMP3": "Not dependencies of standalone runtime/host-native commands; previous broad inventory retains source images only, no production or execution claim."
+}

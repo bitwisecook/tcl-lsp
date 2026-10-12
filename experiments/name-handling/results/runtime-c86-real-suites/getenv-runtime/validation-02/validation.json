@@ -1,0 +1,124 @@
+{
+  "checks": [
+    {
+      "name": "runtime-bootstrap",
+      "exit_code": 0,
+      "focused_passed": 7,
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "cmd_clock::bootstrap_tests",
+        "--",
+        "--test-threads=1"
+      ],
+      "log": "getenv-runtime-bootstrap-tests-corrected.log",
+      "log_sha256": "fb214d5c2114dfb66892e81688877ba9547ced50b58f6847c66c3ec5adcd53b1",
+      "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "binary_sha256": "4b8136ea8077d973ad9ea7bd2ac0b25be38052d5bb638d99dfd9289065627de3",
+      "binary_scope": "standalone native source scope"
+    },
+    {
+      "name": "native-host-byte-primitive",
+      "exit_code": 0,
+      "focused_passed": 1,
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-host-native",
+        "--lib",
+        "native_environment_bytes_preserve_actual_unix_input_and_current_host_view",
+        "--",
+        "--test-threads=1"
+      ],
+      "log": "getenv-native-host-primitive.log",
+      "log_sha256": "11d749a22414e4d8344522e80fa2f586c47e288e40942e2ab1704d9e8cc78834",
+      "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_host_native-92b09ab71ab161bf",
+      "binary_sha256": "43ca55e05aa4d277275b660c12026278f8cbcd4cc362e3d4f06a47e551220348",
+      "binary_scope": "standalone native source scope"
+    },
+    {
+      "name": "registry-getter-unit",
+      "exit_code": 0,
+      "focused_passed": 1,
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "private_environment_worker_has_only_the_measured_c86_surface_and_null_hook",
+        "--",
+        "--test-threads=1"
+      ],
+      "log": "getenv-registry-getter-unit.log",
+      "log_sha256": "c8cf4272c9e93f4086ac7b3d44a2026536d2e0e2628a2003833d82fa648185e7",
+      "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_registry-30152f1b62ed4924",
+      "binary_sha256": "9dda8e5f4907fa0ff4d11e2f948a2bd72c4bd9b1b778a705d08dde1ab5489587",
+      "binary_scope": "diagnostic-frozen dependency source build, not normal production"
+    }
+  ],
+  "runner_build": {
+    "argv": [
+      "cargo",
+      "build",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script"
+    ],
+    "exit_code": 0,
+    "log": "getenv-runtime-runner-build.log",
+    "log_sha256": "c62053394ed9cfd7437137ceda87355227377b0b4c2af065b7bed68489426397"
+  },
+  "observations": {
+    "eleven_byte_equal": true,
+    "eleven_matches_prior_c86": true,
+    "getter_first_five_and_read_trace_equal": true,
+    "getter_full_script_equal": false,
+    "env_synchronisation_divergence": {
+      "c": [
+        "after-element-write script-value",
+        "after-element-unset {}",
+        "after-array-replacement before-array-unset local-only"
+      ],
+      "runtime": [
+        "after-element-write host-value",
+        "after-element-unset host-value",
+        "after-array-replacement host-value local-only"
+      ]
+    },
+    "c_all_summary": [
+      110,
+      90,
+      20,
+      0
+    ],
+    "runtime_all_suite_started": false,
+    "runtime_all_error": "run_script: execution refused: native string bytes cannot be represented as host Unicode at byte 3\n",
+    "capture_source_currency_unchanged": true,
+    "dependency_source_changes": {
+      "standalone": {},
+      "registry": {}
+    },
+    "F5": "unmeasured"
+  },
+  "prior_failure": "../validation-01/getenv-runtime-bootstrap-tests.log",
+  "prior_failure_status": "E0433 native test referred to wasm32-only module; coordinator-authorised test-only file-scope actual adapter inclusion corrected it, prior failure preserved",
+  "scope": "Actual selected native C86 Unix getter + two implemented owners; other5 absent/full7pool/maporder/envsync/otherprofiles/F5 outside repair. Registry temporary-diagnostic source scope separate from standalone runner. No complete rust-check/prep-pr or suite pass claim."
+}

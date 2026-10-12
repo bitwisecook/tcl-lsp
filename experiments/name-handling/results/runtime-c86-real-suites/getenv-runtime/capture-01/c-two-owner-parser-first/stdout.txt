@@ -1,0 +1,7 @@
+present 1 1 null-hooks 1 1 same-clientdata 1
+explicitly-retired-other-five
+first-length 3 literal-refcount 2
+same-default-originals 1 literal-refcount 3
+first-retirement ParseFormatArgs literal-refcount 3
+surviving-worker-result host-value
+last-retirement literal-refcount 2 retained-value %a %b %d %H:%M:%S %Z %Y

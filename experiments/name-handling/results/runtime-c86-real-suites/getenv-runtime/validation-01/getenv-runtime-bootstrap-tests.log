@@ -1,0 +1,41 @@
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+error[E0433]: cannot find `host_wasm` in the crate root
+   --> src/cmd_clock.rs:418:44
+    |
+418 |         let host = std::rc::Rc::new(crate::host_wasm::BrowserHost::new());
+    |                                            ^^^^^^^^^ could not find `host_wasm` in the crate root
+    |
+note: found an item that was configured out
+   --> src/lib.rs:146:9
+    |
+145 | #[cfg(target_arch = "wasm32")]
+    |       ---------------------- the item is gated behind the `wasm32` feature
+146 | pub mod host_wasm;
+    |         ^^^^^^^^^
+
+warning: unused import: `native_list_storage::native_list_range`
+  --> src/list.rs:57:16
+   |
+57 | pub(crate) use native_list_storage::native_list_range;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `scope`
+   --> src/interp/native_body_artifact/original_word_input_tests.rs:208:17
+    |
+208 |             let scope =
+    |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_scope`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0433`.
+warning: `tcl-runtime` (lib test) generated 2 warnings
+error: could not compile `tcl-runtime` (lib test) due to 1 previous error; 2 warnings emitted

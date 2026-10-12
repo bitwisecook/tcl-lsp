@@ -1,0 +1,17 @@
+{
+  "question": "Does selected C86 current-host byte getenv with two actual pool owners match its scoped original worker observations and advance original all.tcl?",
+  "sources": {
+    "rust/tcl-platform/src/lib.rs": "7dc60681a4127c56ecf8b47d6d7c7107ea83d74ca4988c2fda7baffc53818158",
+    "rust/tcl-host-native/src/lib.rs": "3d3f8ec0b5b1b6b7716573cf3d2bb6e8e0e6aa1289af9dd0c0552f0cac6d6483",
+    "rust/tcl-registry/src/commands/tcl/clock_.rs": "31c88b47e0d315b3f84c6fb59d19c7f0853aa5e3a0b3160b46928b51fde48ebd",
+    "rust/tcl-registry/src/commands/tcl/mod.rs": "184f6f4dc396de4fb0fbb6d9fd7593eb246c071062a8ac04297636a5d2827d67",
+    "runtime/rust/src/cmd_clock.rs": "9d3feb90f29f789d41075494ce0419f9abf9dc7b126864b7ca29fb738fa44df4"
+  },
+  "rustfmt": "targeted skip_children=true, workspace files edition2024/runtime edition2021",
+  "whitespace_check": "git diff --check of five owned Rust files passed",
+  "cargo_executed": false,
+  "tests": "authored, not executed",
+  "original_controls": "../getenv-question/capture-02/provenance.json",
+  "original_all_tcl_new_result": "unexecuted",
+  "limits": "Other five workers, original seven-worker constructor/pool lifetime, map order, other profiles, env write synchronisation and F5 unproved."
+}

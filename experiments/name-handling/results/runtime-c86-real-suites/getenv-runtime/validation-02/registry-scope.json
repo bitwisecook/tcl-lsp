@@ -1,0 +1,38 @@
+{
+  "selected_manifests": [
+    "rust/tcl-bigip/Cargo.toml",
+    "rust/tcl-bytecode/Cargo.toml",
+    "rust/tcl-cmd-core/Cargo.toml",
+    "rust/tcl-compiler/Cargo.toml",
+    "rust/tcl-core-types/Cargo.toml",
+    "rust/tcl-dialect/Cargo.toml",
+    "rust/tcl-engine-api/Cargo.toml",
+    "rust/tcl-engine-tclvm/Cargo.toml",
+    "rust/tcl-host-c-abi/Cargo.toml",
+    "rust/tcl-host-native/Cargo.toml",
+    "rust/tcl-irules/Cargo.toml",
+    "rust/tcl-lexer/Cargo.toml",
+    "rust/tcl-lsp-core/Cargo.toml",
+    "rust/tcl-pkg-model/Cargo.toml",
+    "rust/tcl-platform/Cargo.toml",
+    "rust/tcl-regex/Cargo.toml",
+    "rust/tcl-registry/Cargo.toml",
+    "rust/tcl-runtime-api/Cargo.toml",
+    "rust/tcl-spec-hooks/Cargo.toml",
+    "rust/tcl-spectcl/Cargo.toml",
+    "rust/tcl-sslictcl/Cargo.toml",
+    "rust/tcl-syntax/Cargo.toml",
+    "rust/tcl-test-support/Cargo.toml",
+    "rust/tcl-userdirs/Cargo.toml",
+    "rust/tcl-vm/Cargo.toml"
+  ],
+  "source_count": 3912,
+  "freeze": "Coordinator callback3 test-source corrections now released/refrozen before this snapshot and registry command",
+  "temporary_compiler_diagnostics": [
+    "rust/tcl-compiler/src/command_binding.rs",
+    "rust/tcl-compiler/src/provider_fixtures.rs",
+    "rust/tcl-compiler/src/script_binds.rs"
+  ],
+  "binary_scope": "Registry unit dependency build includes temporary diagnostic source compiler/VM owners; label diagnostic-frozen test build, not normal production binary",
+  "excluded": "Independent xtask owner_resolution and documentation not dependency source. This exact local pathclosure is a source superset; no all-Rust unchanged claim."
+}
