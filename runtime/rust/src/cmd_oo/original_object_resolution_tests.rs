@@ -265,13 +265,13 @@ fn original_jim_alias_lookup_uses_the_stored_list_and_keeps_absent_context_termi
         };
         interpreter.bind_command_replacement(GLOBAL, b"portableTarget", Command::OoObject(target));
         let member = lazy(b"portableTarget", 0);
-        let list = Rc::new(obj::Owned::fresh(
+        let list = Rc::new(crate::interp::NativeAliasHeader::new(obj::Owned::fresh(
             interpreter.new_list_object(&[member.as_ptr()]),
-        ));
+        )));
         interpreter
             .install_alias_objects(
                 b"originalAlias",
-                Rc::new(word(b"originalAlias")),
+                Rc::new(crate::interp::NativeAliasHeader::new(word(b"originalAlias"))),
                 Rc::clone(&list),
             )
             .unwrap();

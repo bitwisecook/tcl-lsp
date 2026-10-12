@@ -262,7 +262,7 @@ fn original_import_retirement_uses_release_order_and_depth_first_original_genera
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
         let (p, mut records) = probe(&actual, 2);
-        install_chain(&mut actual, &p, &mut records[..]);
+        install_chain(&mut actual, &p, &mut records);
         actual
             .create_obj_command(
                 b"middleObserver",
@@ -419,19 +419,18 @@ fn original_deletion_retains_first_cause_and_finishes_actual_import_cleanup() {
         for mode in 4..=6 {
             let mut actual = actual(profile);
             let (p, mut records) = probe(&actual, mode);
-            install_chain(&mut actual, &p, &mut records[..]);
+            install_chain(&mut actual, &p, &mut records);
             actual.set_result_bytes(b"PRIOR");
             assert!(actual
                 .retire_original_command_generation(p.generation.get(), true)
                 .is_err());
             let first = actual.native_execution_refusal().unwrap();
             if mode == 4 {
-                assert_eq!(
-                    first,
-                    tcl_runtime_api::NativeExecutionError::HostCommandRefusal {
-                        message: "original deletion first Host".into()
-                    }
-                );
+                assert!(matches!(
+                    &first,
+                    tcl_runtime_api::NativeExecutionError::HostCommandRefusal(details)
+                        if details.reason == "original deletion first Host"
+                ));
             }
             assert_eq!(p.deletes[0].get(), 1);
             for name in [
@@ -462,7 +461,7 @@ fn original_namespace_and_forget_routes_retire_captured_command_generations() {
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut actual = actual(profile);
         let (p, mut records) = probe(&actual, 2);
-        install_chain(&mut actual, &p, &mut records[..]);
+        install_chain(&mut actual, &p, &mut records);
         assert_eq!(
             actual.eval_str(b"namespace eval middle {namespace forget target}"),
             Code::Ok

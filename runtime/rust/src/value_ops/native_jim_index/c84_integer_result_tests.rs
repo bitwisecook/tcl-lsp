@@ -88,7 +88,10 @@ fn original_c84_index_integer_result_has_its_actual_long_descriptor_and_receivin
         ],
         tcl_dialect::TclVersion::V8_4,
     )
-    .unwrap();
+    .unwrap_or_else(|error| {
+        drop(error);
+        panic!("valid original C84 integer result fixture");
+    });
     assert_eq!(unsafe { (*searched).ref_count }, 0);
     let searched = obj::Owned::fresh(searched);
     assert_eq!(
@@ -119,7 +122,10 @@ fn original_c84_index_integer_result_has_its_actual_long_descriptor_and_receivin
             ],
             tcl_dialect::TclVersion::V8_4,
         )
-        .unwrap(),
+        .unwrap_or_else(|error| {
+            drop(error);
+            panic!("valid original C84 all integer result fixture");
+        }),
     );
     let members = ValueOps::list_elements(&mut interpreter, &searched.as_ptr()).unwrap();
     assert_eq!(members.len(), 1);

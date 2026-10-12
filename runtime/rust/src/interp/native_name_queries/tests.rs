@@ -234,7 +234,11 @@ fn original_alias_query_checks_actual_generation_and_namespace_after_lazy_member
         ]));
         let name = text(b"::Holder::a");
         assert!(interpreter
-            .install_alias_objects(b"::Holder::a", Rc::new(name), Rc::new(original.clone()))
+            .install_alias_objects(
+                b"::Holder::a",
+                Rc::new(crate::interp::NativeAliasHeader::new(name)),
+                Rc::new(crate::interp::NativeAliasHeader::new(original.clone())),
+            )
             .unwrap()
             .is_none());
         let id = interpreter.find_command_id(GLOBAL, b"::Holder::a").unwrap();

@@ -3436,10 +3436,11 @@ mod tests {
         obj::change_type(canonical, &NAME_FREE_TYPE, 0);
         let original = callback_name(b"value");
         reset_name_callback(3);
-        let result = interp.install_original_c_name_cache(
+        let result = interp.install_original_c_name_cache_using(
             original.as_ptr(),
             &selected,
             operation.currency(),
+            None,
         );
         assert!(result.is_err());
         assert!(obj::native_variable_name::with_local(original.as_ptr(), |_| ()).is_some());
