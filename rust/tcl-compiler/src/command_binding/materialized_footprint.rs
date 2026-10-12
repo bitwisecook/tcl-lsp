@@ -2609,10 +2609,11 @@ mod tests {
         // naming.diagnostic.original-materialized-write-footprint
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
         // Conditional MAY names; no reached handler, child entry or physical store.
+        // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
         for source in [
-            "run-script {set {$literal} VALUE; set {café(open} VALUE; puts $read; set byname}",
-            "interp alias {} shared {} run-script {set {$literal} VALUE; set {café(open} VALUE; puts $read; set byname}; shared",
+            "return DONE; run-script {set {$literal} VALUE; set {café(open} VALUE; puts $read; set byname}",
+            "interp alias {} shared {} run-script {set {$literal} VALUE; set {café(open} VALUE; puts $read; set byname}; return DONE; shared",
         ] {
             let (analysis, tokens) = logical_original_tokens(source, &context);
             let binding = tokens
@@ -2672,8 +2673,9 @@ mod tests {
     fn original_logical_materialized_names_refuse_changed_and_missing_source_owners() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
-        let source = "run-script {set x VALUE}";
+        let source = "return DONE; run-script {set x VALUE}";
         let (analysis, tokens) = logical_original_tokens(source, &context);
         let binding = tokens.source_binding.as_ref().unwrap();
         assert!(binding.lookup_state.is_none());
@@ -2906,12 +2908,13 @@ mod tests {
     fn original_logical_materialized_horizon_refuses_dynamic_expanded_and_invalid_vectors() {
         // naming.diagnostic.original-materialized-write-footprint
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // An actual abrupt prefix retains lexical declarations without a source dispatch point.
         let context = logical_script_context();
         for (source, expected) in [
-            ("run-script {set x VALUE}", true),
-            ("run-script $script", false),
-            ("run-script [unknown]", false),
-            ("run-script {*}{set x VALUE}", false),
+            ("return DONE; run-script {set x VALUE}", true),
+            ("return DONE; run-script $script", false),
+            ("return DONE; run-script [unknown]", false),
+            ("return DONE; run-script {*}{set x VALUE}", false),
         ] {
             let (analysis, tokens) = logical_original_tokens(source, &context);
             let binding = tokens.source_binding.as_ref().unwrap();
@@ -3371,6 +3374,41 @@ mod tests {
             assert!(binding.proved_execution_target().is_none());
             assert!(binding.proved_handler_target().is_none());
         }
+    }
+
+    #[test]
+    fn original_logical_materialized_root_keeps_its_actual_source_lookup_point() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // The root source point supplies conditional schema and MAY names;
+        // it is distinct from an unentered suffix and grants no handler/store.
+        let context = logical_script_context();
+        let source = "run-script {set x VALUE}";
+        let (analysis, tokens) = logical_original_tokens(source, &context);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let point = binding.lookup_state.as_ref().unwrap();
+        assert_eq!(point.state.logical_source_name_advice_input(), Some(input));
+        assert!(point.state.baseline.native_entry.is_none());
+        assert_eq!(binding.runtime_reachability(), super::super::SourceRuntimeReachability::Conditional);
+        let words = crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+            source, &analysis, &tokens,
+        ).expect("same original source point and Registry source role");
+        let bodies = words.source_script_bodies_for(
+            &context,
+            crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+        );
+        assert_eq!(bodies.len(), 1);
+        let metadata = InvocationMetadataContext::for_analysis_input(context.commands(), input);
+        let footprint = binding.original_materialized_footprint(
+            &tokens, source, context.commands(), metadata,
+        ).unwrap();
+        let names = footprint.body_name_ownership(&bodies[0]);
+        assert!(!names.opaque);
+        assert!(names.names.iter().any(|name| name == "x"));
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.proved_handler_target().is_none());
+        assert!(binding.lookup_state.as_ref().is_some_and(|retained| Arc::ptr_eq(retained, point)));
     }
 
 }
