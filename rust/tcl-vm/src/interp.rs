@@ -3617,17 +3617,62 @@ impl Vm {
     /// if the target was deleted while (re-)entered, the last exit drops its
     /// state (C's `Tcl_Preserve`/`Tcl_Release`; tclsh-pinned).
     pub(crate) fn in_interp<R>(&mut self, id: InterpId, f: impl FnOnce(&mut Vm) -> R) -> R {
+        self.in_interp_for_cleanup(
+            id, native_operation_currency::CleanupRestoration::RestoreCaller, f,
+        )
+    }
+
+    /// The same physical calling convention with a mandatory-cleanup policy.
+    /// Direct-current command/variable retirement adds no preservation hold.
+    fn in_interp_for_cleanup<R>(
+        &mut self,
+        id: InterpId,
+        policy: native_operation_currency::CleanupRestoration,
+        f: impl FnOnce(&mut Vm) -> R,
+    ) -> R {
+        self.in_interp_using(id, policy, f, Vm::finalize_slot_for_cleanup)
+    }
+
+    fn in_interp_using<R>(
+        &mut self,
+        id: InterpId,
+        policy: native_operation_currency::CleanupRestoration,
+        f: impl FnOnce(&mut Vm) -> R,
+        finalize: impl FnOnce(&mut Vm, InterpId, native_operation_currency::CleanupRestoration),
+    ) -> R {
+        use native_operation_currency::CleanupRestoration;
         let prev = self.cur;
+        if policy == CleanupRestoration::PreserveCallbackSelection && prev == id {
+            return f(self);
+        }
         self.interps[id.0].active += 1;
         self.switch_to(id);
         let r = f(self);
-        self.switch_to(prev);
+        let selected = self.cleanup_return_target(id, prev, policy);
+        self.switch_to(selected);
         let slot = &mut self.interps[id.0];
         slot.active -= 1;
         if slot.dying && slot.active == 0 {
-            self.finalize_slot(id);
+            finalize(self, id, policy);
         }
         r
+    }
+
+    fn cleanup_return_target(
+        &self,
+        original: InterpId,
+        caller: InterpId,
+        policy: native_operation_currency::CleanupRestoration,
+    ) -> InterpId {
+        if policy == native_operation_currency::CleanupRestoration::PreserveCallbackSelection
+            && self.cur != original
+        {
+            // Observe the actual current state at this stage, never a saved
+            // pre-finalization child or a newly issued execution receipt.
+            self.cur
+        } else {
+            caller
+        }
     }
 
     /// Make `id` current by swapping its parked state with the current one.
@@ -3730,11 +3775,34 @@ impl Vm {
     /// Drop a dying interpreter's state (frames, commands, channels,
     /// coroutines) once nothing is executing in it any more.
     fn finalize_slot(&mut self, id: InterpId) {
+        self.finalize_slot_for_cleanup(
+            id, native_operation_currency::CleanupRestoration::RestoreCaller,
+        );
+    }
+
+    fn finalize_slot_for_cleanup(
+        &mut self,
+        id: InterpId,
+        policy: native_operation_currency::CleanupRestoration,
+    ) {
+        self.finalize_slot_using(id, policy, Vm::retire_jim_interpreter);
+    }
+
+    fn finalize_slot_using(
+        &mut self,
+        id: InterpId,
+        policy: native_operation_currency::CleanupRestoration,
+        retire: impl FnOnce(&mut Vm),
+    ) {
         let previous = self.cur;
         self.switch_to(id);
-        self.retire_jim_interpreter();
+        retire(self);
+        let selected = self.cleanup_return_target(id, previous, policy);
+        // Finalizer callbacks may have selected a child. Retire the actual
+        // original world before following the selected return convention.
+        self.switch_to(id);
         self.name_world.borrow_mut().retire();
-        self.switch_to(previous);
+        self.switch_to(selected);
         let slot = &mut self.interps[id.0];
         debug_assert!(slot.dying && slot.active == 0);
         slot.parked = None;

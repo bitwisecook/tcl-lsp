@@ -74,6 +74,27 @@ pub(crate) struct SavedExecutionTarget {
     currency: Result<Option<NativeOperationCurrency>, NativeExecutionError>,
 }
 
+/// Calling convention for physical mandatory retirement, not invocation admission.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum CleanupRestoration {
+    RestoreCaller,
+    PreserveCallbackSelection,
+}
+
+/// Already reached mandatory-continuation transport and its retained first cause.
+/// Metadata may own extracted retirement iterators or tickets. It is neither
+/// ordinary result publication nor permission to acquire a new Native role.
+pub(super) struct ReachedCleanup<T> {
+    pub(super) metadata: T,
+    pub(super) first_cause: Option<NativeExecutionError>,
+}
+
+#[derive(Clone, Copy)]
+enum CleanupPublication {
+    OrdinaryResult,
+    MandatoryContinuation,
+}
+
 impl SavedExecutionTarget {
     /// Observe the actual target before callbacks or hidden-frame publication.
     /// A refused readonly issue is retained without fabricating a receipt.
@@ -101,7 +122,12 @@ impl SavedExecutionTarget {
         })
     }
 
-    fn owns_target(&self, vm: &Vm) -> bool {
+    pub(super) fn interpreter(&self) -> InterpId {
+        self.interpreter
+    }
+
+    /// Authenticate allocation identity only; this is not a currency/entry check.
+    pub(super) fn owns_target(&self, vm: &Vm) -> bool {
         self.owner == vm.owner_nonce
             && self.context.upgrade().is_some_and(|context| {
                 vm.st_of(self.interpreter).is_some_and(|state| {
@@ -131,21 +157,56 @@ impl SavedExecutionTarget {
         }
     }
 
-    /// Complete same-target mandatory cleanup before returning the first cause.
-    /// Foreign or dead physical targets refuse before selecting any saved state.
-    /// None and failed issue metadata never create an entered Native receipt.
+    /// Complete original cleanup before publishing an ordinary checked result.
+    /// Refused owned results retire at their reached attachment/restoration stage.
     pub(crate) fn in_original<T>(
         &self,
         vm: &mut Vm,
         work: impl FnOnce(&mut Vm) -> T,
     ) -> Result<T, NativeExecutionError> {
-        // Preserve a callback's foreign-current or earlier typed refusal before
-        // restoring the saved target for mandatory reached cleanup.
+        let reached = self.settle_in_original(
+            vm, CleanupRestoration::RestoreCaller, CleanupPublication::OrdinaryResult, work,
+        )?;
+        match reached.first_cause {
+            Some(first) => {
+                drop(reached.metadata);
+                Err(retain_first(vm, first))
+            }
+            None => Ok(reached.metadata.expect("unrefused reached result")),
+        }
+    }
+
+    /// Transport reached original retirement work even after a typed refusal.
+    /// Outer Err means the physical target was unavailable and no work ran.
+    pub(super) fn retire_in_original<T>(
+        &self,
+        vm: &mut Vm,
+        policy: CleanupRestoration,
+        work: impl FnOnce(&mut Vm) -> T,
+    ) -> Result<ReachedCleanup<T>, NativeExecutionError> {
+        let reached = self.settle_in_original(
+            vm, policy, CleanupPublication::MandatoryContinuation, work,
+        )?;
+        Ok(ReachedCleanup {
+            metadata: reached.metadata.expect("mandatory reached metadata is retained"),
+            first_cause: reached.first_cause,
+        })
+    }
+
+    fn settle_in_original<T>(
+        &self,
+        vm: &mut Vm,
+        restoration: CleanupRestoration,
+        publication: CleanupPublication,
+        work: impl FnOnce(&mut Vm) -> T,
+    ) -> Result<ReachedCleanup<Option<T>>, NativeExecutionError> {
+        // Preserve the callback-selected refusal before parking it. Withdrawn
+        // currency still permits already-reached same-physical-target cleanup.
         let _ = self.check_current(vm);
         if !self.owns_target(vm) {
             return Err(retain_first(vm, unavailable()));
         }
-        let reached = vm.in_interp(self.interpreter, |vm| {
+        let reached = vm.in_interp_for_cleanup(self.interpreter, restoration, |vm| {
             let cleanup = match &self.currency {
                 Ok(Some(currency)) => {
                     Some(NativeOperationScope::enter_saved_cleanup(vm, currency, self.interpreter)?)
@@ -156,30 +217,30 @@ impl SavedExecutionTarget {
                     None
                 }
             };
-            let reached = work(vm);
-            let checked = self.check_current(vm);
-            if let Err(first) = checked {
-                // Any returned owned storage retires outside state borrows while
-                // the genuine saved cleanup receipt still preserves first cause.
-                drop(reached);
+            let mut metadata = Some(work(vm));
+            let _ = self.check_current(vm);
+            if matches!(publication, CleanupPublication::OrdinaryResult)
+                && vm.execution_refusal.is_some()
+            {
+                // Preserve the existing refused-result disposal while the
+                // genuine original cleanup attachment is still present.
+                drop(metadata.take());
                 let _ = self.check_current(vm);
-                drop(cleanup);
-                return Err(first);
             }
             drop(cleanup);
-            self.check_current(vm)?;
-            Ok(reached)
-        });
-        // Restoring the callback target can finish a dying saved interpreter.
-        // Its genuine teardown may refuse after the inner cleanup returned Ok.
-        // The restored callback target is intentional, so only inspect the
-        // retained full cause here; do not require it to equal the saved target.
-        if let Some(first) = vm.execution_refusal.clone() {
-            drop(reached);
-            return Err(retain_first(vm, first));
-        }
-        reached
+            let _ = self.check_current(vm);
+            if matches!(publication, CleanupPublication::OrdinaryResult)
+                && vm.execution_refusal.is_some()
+            {
+                drop(metadata.take());
+            }
+            Ok::<_, NativeExecutionError>(metadata)
+        })?;
+        // Actual restoration/finalization can retain a later teardown cause.
+        // Its intentional current selection must not be checked against self.
+        Ok(ReachedCleanup { metadata: reached, first_cause: vm.execution_refusal.clone() })
     }
+
 }
 
 fn unavailable() -> NativeExecutionError {
@@ -785,5 +846,241 @@ mod tests {
         assert_eq!(scope.check_native(&mut vm).err(), Some(first));
         crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(&mut vm, parent);
         assert_eq!(vm.frames.len(), 1);
+    }
+    #[test]
+    fn original_retirement_transports_owned_iterator_after_failed_issue_until_mandatory_cleanup() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Existing owned roles remain mandatory-continuation transport, not publication.
+        let mut vm = native();
+        drop(vm.refuse_host_command("mandatory iterator first Host".into()));
+        let first = vm.execution_refusal.clone().unwrap();
+        let target = SavedExecutionTarget::capture(&mut vm);
+        let value = Value::string("EXTRACTED_OLD_OWNER");
+        let lease = value.native_lifetime_lease();
+        let reached = target.retire_in_original(
+            &mut vm, CleanupRestoration::PreserveCallbackSelection, |vm| {
+                assert!(!vm.native_operation_context.has_entered_operation());
+                assert_eq!(vm.interps[vm.cur_interp().0].active, 0);
+                vec![value].into_iter()
+            },
+        ).unwrap();
+        assert_eq!(reached.first_cause, Some(first.clone()));
+        assert!(lease.value().native_object_is_live());
+        let cleanup = target.retire_in_original(
+            &mut vm, CleanupRestoration::PreserveCallbackSelection, |_| drop(reached.metadata),
+        ).unwrap();
+        assert_eq!(cleanup.first_cause, Some(first.clone()));
+        assert!(!lease.value().native_object_is_live());
+        assert_eq!(vm.execution_refusal, Some(first));
+        assert!(!vm.native_operation_context.has_entered_operation());
+    }
+
+    #[test]
+    fn original_retirement_policies_keep_direct_current_callback_selection_and_hold_schedule() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual current/parked arenas; no native callback or preservation chronology claim.
+        for policy in [CleanupRestoration::RestoreCaller, CleanupRestoration::PreserveCallbackSelection] {
+            let mut vm = native();
+            let parent = vm.cur_interp();
+            let name = vm.create_child(Some("direct_retirement_child".into()), false);
+            let child = vm.child_id(&name).unwrap();
+            let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+            let target = SavedExecutionTarget::capture(&mut vm);
+            let reached = target.retire_in_original(&mut vm, policy, |vm| {
+                assert_eq!(vm.interps[parent.0].active, u32::from(policy == CleanupRestoration::RestoreCaller));
+                vm.activation_depth = 19;
+                crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, child);
+                23
+            }).unwrap();
+            assert_eq!(reached.metadata, 23);
+            assert_eq!(reached.first_cause, vm.execution_refusal);
+            assert!(reached.first_cause.is_some());
+            assert_eq!(vm.cur_interp(), if policy == CleanupRestoration::RestoreCaller { parent } else { child });
+            assert_eq!(vm.interps[parent.0].active, 0);
+            vm.in_interp(parent, |vm| assert_eq!(vm.activation_depth, 19));
+            assert!(scope.check_native(&mut vm).is_err());
+        }
+    }
+
+    #[test]
+    fn original_retirement_parked_target_preserves_latest_work_selection_or_entry_caller() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let parent = vm.cur_interp();
+        let caller_name = vm.create_child(Some("retirement_entry_caller".into()), false);
+        let caller = vm.child_id(&caller_name).unwrap();
+        let latest_name = vm.create_child(Some("retirement_latest_child".into()), false);
+        let latest = vm.child_id(&latest_name).unwrap();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let target = SavedExecutionTarget::capture(&mut vm);
+        for policy in [CleanupRestoration::RestoreCaller, CleanupRestoration::PreserveCallbackSelection] {
+            crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(&mut vm, caller);
+            let reached = target.retire_in_original(&mut vm, policy, |vm| {
+                assert_eq!(vm.cur_interp(), parent);
+                assert_eq!(vm.interps[parent.0].active, 1);
+                crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, latest);
+                31
+            }).unwrap();
+            assert_eq!(reached.metadata, 31);
+            assert_eq!(reached.first_cause, vm.execution_refusal);
+            assert!(reached.first_cause.is_some());
+            assert_eq!(vm.cur_interp(), if policy == CleanupRestoration::RestoreCaller { caller } else { latest });
+            assert_eq!(vm.interps[parent.0].active, 0);
+        }
+        assert!(scope.check_native(&mut vm).is_err());
+    }
+
+    #[test]
+    fn original_retirement_ordinary_refused_owner_drops_inside_original_attachment() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        struct Observed {
+            context: Weak<NativeOperationContext>,
+            attached: Rc<Cell<bool>>,
+            value: Value,
+        }
+        impl Drop for Observed {
+            fn drop(&mut self) {
+                self.attached.set(self.context.upgrade().unwrap().has_entered_operation());
+                assert!(self.value.native_object_is_live());
+            }
+        }
+        let mut vm = native();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let target = SavedExecutionTarget::capture(&mut vm);
+        drop(scope);
+        assert!(!vm.native_operation_context.has_entered_operation());
+        let attached = Rc::new(Cell::new(false));
+        let value = Value::string("REFUSED_AT_ORIGINAL_ATTACHMENT");
+        let lease = value.native_lifetime_lease();
+        let reached = target.in_original(&mut vm, |vm| {
+            drop(vm.refuse_host_command("owned settlement first Host".into()));
+            Observed { context: Rc::downgrade(&vm.native_operation_context), attached: Rc::clone(&attached), value }
+        });
+        assert!(reached.is_err());
+        assert!(attached.get());
+        assert!(!lease.value().native_object_is_live());
+        assert!(!vm.native_operation_context.has_entered_operation());
+        assert_eq!(reached.err(), vm.execution_refusal);
+    }
+
+    #[test]
+    fn original_retirement_metadata_survives_real_jim_post_restoration_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real dying-slot teardown and retained output role; no native callback chronology.
+        let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+        let parent = vm.cur_interp();
+        let name = vm.create_child(Some("mandatory_retirement_teardown".into()), false);
+        let child = vm.child_id(&name).unwrap();
+        crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(&mut vm, child);
+        let context = vm.native_jim_object_context().unwrap();
+        let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
+        let target = SavedExecutionTarget::capture(&mut vm);
+        let value = Value::string("REACHED_MANDATORY_OWNER");
+        let lease = value.native_lifetime_lease();
+        let reached = target.retire_in_original(&mut vm, CleanupRestoration::RestoreCaller, |vm| {
+            assert!(vm.delete_interp(child));
+            assert_eq!(vm.interps[child.0].active, 1);
+            context.retire();
+            target.check_current(vm).unwrap();
+            value
+        }).unwrap();
+        let first = NativeExecutionError::ValueAccessRefusal(
+            NativeValueAccessRefusal::CommandProtocolUnavailable("retired Jim interpreter"),
+        );
+        assert_eq!(reached.first_cause, Some(first.clone()));
+        assert_eq!(vm.execution_refusal, Some(first.clone()));
+        assert!(lease.value().native_object_is_live());
+        drop(reached.metadata);
+        assert!(!lease.value().native_object_is_live());
+        assert_eq!(scope.check_native(&mut vm).err(), Some(first));
+        crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(&mut vm, parent);
+        assert_eq!(vm.frames.len(), 1);
+    }
+
+    #[test]
+    fn original_retirement_foreign_physical_target_refuses_before_reached_metadata() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut original = native();
+        let scope = NativeOperationScope::enter_native(&mut original).unwrap();
+        let target = SavedExecutionTarget::capture(&mut original);
+        let mut foreign = native();
+        let selected = foreign.cur_interp();
+        let mut calls = 0;
+        let reached = target.retire_in_original(&mut foreign, CleanupRestoration::PreserveCallbackSelection, |_| {
+            calls += 1;
+            41
+        });
+        assert!(reached.is_err());
+        assert_eq!(calls, 0);
+        assert_eq!(foreign.cur_interp(), selected);
+        assert!(!foreign.native_operation_context.has_entered_operation());
+        scope.check_native(&mut original).unwrap();
+    }
+    #[test]
+    fn original_retirement_finalizer_follows_later_callback_child_and_retires_only_original_world() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Supplied software retirement callback at the shared finalization frontier;
+        // this asserts physical return policy, not Native/Jim defer chronology.
+        for policy in [CleanupRestoration::RestoreCaller, CleanupRestoration::PreserveCallbackSelection] {
+            let mut vm = native();
+            let caller = vm.cur_interp();
+            let original_name = vm.create_child(Some("finalized_original_target".into()), false);
+            let original = vm.child_id(&original_name).unwrap();
+            let earlier_name = vm.create_child(Some("earlier_retirement_selection".into()), false);
+            let earlier = vm.child_id(&earlier_name).unwrap();
+            let later_name = vm.create_child(Some("later_finalizer_selection".into()), false);
+            let later = vm.child_id(&later_name).unwrap();
+            vm.in_interp(earlier, |vm| vm.activation_depth = 47);
+            vm.in_interp(later, |vm| vm.activation_depth = 79);
+            let original_world = vm.in_interp(original, |vm| Rc::downgrade(&vm.name_world));
+            let earlier_frame = vm.in_interp(earlier, |vm| Rc::downgrade(&vm.frames[0].activation));
+            let later_frame = vm.in_interp(later, |vm| Rc::downgrade(&vm.frames[0].activation));
+            let callbacks = Cell::new(0);
+            let expected_first = RefCell::new(None);
+            let reached = vm.in_interp_using(original, policy, |vm| {
+                assert_eq!(vm.interps[original.0].active, 1);
+                assert!(vm.delete_interp(original));
+                drop(vm.refuse_host_command("original physical retirement first Host".into()));
+                *expected_first.borrow_mut() = vm.execution_refusal.clone();
+                crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, earlier);
+                83
+            }, |vm, id, actual_policy| {
+                assert_eq!(id, original);
+                assert_eq!(vm.interps[id.0].active, 0);
+                assert!(original_world.upgrade().unwrap().borrow().is_live());
+                vm.finalize_slot_using(id, actual_policy, |vm| {
+                    assert_eq!(vm.cur_interp(), original);
+                    callbacks.set(callbacks.get() + 1);
+                    drop(vm.refuse_host_command("later finalizer Host".into()));
+                    crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, later);
+                });
+            });
+            assert_eq!(reached, 83);
+            assert_eq!(callbacks.get(), 1);
+            assert_eq!(vm.cur_interp(), if policy == CleanupRestoration::RestoreCaller { caller } else { later });
+            assert!(vm.interps[original.0].parked.is_none());
+            assert_eq!(vm.interps[original.0].active, 0);
+            assert!(original_world.upgrade().is_none());
+            let first = vm.execution_refusal.clone().unwrap();
+            assert_eq!(Some(&first), expected_first.borrow().as_ref());
+            vm.in_interp(earlier, |vm| {
+                assert_eq!(vm.activation_depth, 47);
+                assert!(vm.name_world.borrow().is_live());
+                assert!(earlier_frame.upgrade().is_some_and(|frame| Rc::ptr_eq(&frame, &vm.frames[0].activation)));
+            });
+            vm.in_interp(later, |vm| {
+                assert_eq!(vm.activation_depth, 79);
+                assert!(vm.name_world.borrow().is_live());
+                assert!(later_frame.upgrade().is_some_and(|frame| Rc::ptr_eq(&frame, &vm.frames[0].activation)));
+            });
+            assert_eq!(vm.execution_refusal, Some(first));
+        }
     }
 }
