@@ -324131,6 +324131,111 @@
           "path": "rust/xtask/src/command_backing.rs",
           "sha256": "9a815a000fe42456acb071ee6e0ae27f73f9238e1ec287a7b08d1a3e41a75f17",
           "description": "Current constructed diagnostic report producer, explicit exact-unrooted map or actual xtask report consumer and finite software controls. A one-root report projection supplies no Native token/name recipe, dispatch proof or executed assertion."
+        },
+        {
+          "id": "original-operand-source-bbc20959e09d47ea",
+          "role": "implementation",
+          "path": "rust/tcl-spec-hooks/src/pack_eval.rs",
+          "sha256": "b5888f5f22712b305a25b4c4af99fe8e85a677ea80a1c25bb50c0ed2ddbdfa2e",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-b515d7ffc90b36fd",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/native_string/callback_unicode.rs",
+          "sha256": "2780d3d47b09b051b05ae559334fe4d3062713b2b86a452f0eb62340c68fee9e",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-de9637d8a150103b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_binary.rs",
+          "sha256": "bc5c0d8e634371a67550e14f6d7c7d363f55331fca1aac9c3377de876d83d811",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-e50d6d930a25eb22",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/embed.rs",
+          "sha256": "d1fd7d6c0d49f11d5100ca295aac39a65a8eb74d74846ca2eb7764fe5a25ed28",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-5870190dbac49f28",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/authored_package.rs",
+          "sha256": "3ea96be8175495b2b3115a2a8cf7247e8ea4c173eb90c9364cce6161c1408faa",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-f3775d9e47ac3aff",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/authored_rule_callables.rs",
+          "sha256": "28fb095920c1a3b19c14e9bf1a7820169847149de1278979246f8d7b745760be",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-9fe3d851a225feee",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "sha256": "e0c90231d9f056fdbaa48a52a06f034846e857c02b64d29e3aa2902448d6756a",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-7ef0221b7828f819",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+          "sha256": "49fcbd9577c1dd84360eedfb5785a1bc2f19a0362b1288f2dc4b97317ccdca53",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-932627151fe278ce",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_name_consumers.rs",
+          "sha256": "c5f5ea72e2d75814686fae81150d97cd135c2ed843374377af437fd0169c767d",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-49ca33f00067c04d",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs",
+          "sha256": "aef2a8b78e9265d41fab8a2fee594af13265aaab64cf0bdcaa5f33108d2037dc",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-6841ae549bb1b2bd",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "sha256": "204bcf3a6fc5e1ff4e0fc5a95ed141c966d655bfb8885fe32318ded1a6156d18",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-9e78c862e7416a6c",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/callback_unicode_words_tests.rs",
+          "sha256": "de47cdf9f9650cb8c6621d4efc2fa47997c1f5cb6f8409ba75a6490c40c7199f",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-0b5b85ce7de9f58d",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "sha256": "3a75a89b8a4173eaca30d51fd58d6f0a9345bb91988ec25ca08693ff6da1ca1a",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-38ff92f9a24c3212",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/original_authored_operands.rs",
+          "sha256": "49faee8ceac4744557e0a0076ac9a817e5b69baeaa81cdef4c0383fc59f5d0de",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-0b0f0d3b26806528",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/value.rs",
+          "sha256": "1e98040e759ed24d52cd7d6b541a7f66defd762a50e18227abf8a7c90ca5a773",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
         }
       ],
       "source_anchors": [],
@@ -325049,6 +325154,76 @@
           "path": "rust/xtask/src/command_backing.rs",
           "symbol": "Reports::ask",
           "purpose": "Consume the actual Runtime and VM unrooted diagnostic report producers through the explicit unrooted constructor; stock descriptor queries and rooted compatibility keep their own documented domain."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_authored_operands.rs",
+          "symbol": "OriginalAuthoredOperandScope",
+          "purpose": "Capture and check original operation/Name/frame/Host/recipe before actual authored getters; raw/selected/strictUTF8/List purposes share the existing workers and full cause."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "symbol": "OriginalOperationObservation",
+          "purpose": "Opaque readonly capture/check through the existing currency kernel; no scope/Native provider/source authority from None."
+        },
+        {
+          "path": "rust/tcl-vm/src/value.rs",
+          "symbol": "Value::string_bytes_checked_for_value_retaining",
+          "purpose": "Same legacy renderer, quote/depth/cache and retained compound formatter-None behavior; original checks and cause retention inside actual children before failure cleanup."
+        },
+        {
+          "path": "rust/tcl-vm/src/value.rs",
+          "symbol": "Value::native_string_bytes_checked_for_value_retaining",
+          "purpose": "Same native String worker; actual intrinsic formatter/root/current header failures invoke the supplied original full-cause retainer before backing retirement."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers.rs",
+          "symbol": "OriginalNameConsumerState",
+          "purpose": "Shared actual Name/world/namespace/frame observation; genuine entered Native capture and original frame-absence policy stay independent."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs",
+          "symbol": "OriginalNumericOps::string_with_original_check",
+          "purpose": "Same current operation and checked native String provider at each reached original value; no new numeric recipe."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+          "symbol": "OriginalLiteralOperation::string",
+          "purpose": "Original literal frame/world/episode and header checks retain their full first cause inside the same actual String updater."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_package.rs",
+          "symbol": "namespace_member",
+          "purpose": "Authored original keyword bytes, selected List table and strict legacy UTF8 members under one original owner."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_rule_callables.rs",
+          "symbol": "counted_length",
+          "purpose": "Same explicit authored provider and counted-byte/Native fast branch; original header is checked before shortcut/getter."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "symbol": "cmd_configure",
+          "purpose": "Original configuration name byte getter/currentness before unchanged authored domain/publication recipe."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_binary.rs",
+          "symbol": "binary_name_operand",
+          "purpose": "Actual authored selector uses the supplied original observation; canonical Native numeric/String context branch remains separate."
+        },
+        {
+          "path": "rust/tcl-vm/src/embed.rs",
+          "symbol": "Vm::original_callback_unicode_words",
+          "purpose": "Genuine already-entered callback owner and selected String getter, followed immediately by shared counted native Unicode projection."
+        },
+        {
+          "path": "rust/tcl-syntax/src/native_string/callback_unicode.rs",
+          "symbol": "NativeStringProtocol::counted_unicode_text",
+          "purpose": "Pure selected native-unit text projection; no getter/parser/entered owner or Unicode rewrite fallback."
+        },
+        {
+          "path": "rust/tcl-spec-hooks/src/pack_eval.rs",
+          "symbol": "WordAdapter::invoke",
+          "purpose": "Actual pack callback arguments consume the same original Unicode batch; whitelist descriptor and written invocation axes remain separate."
         }
       ],
       "tests": [
@@ -330733,6 +330908,120 @@
           "selector": "backing::tests::exact_unrooted_backing_keys_keep_literal_leading_colons",
           "status": "linked",
           "assertion": "The explicit unrooted BackingReport constructor and lookup preserve run, :run, ::run and :::run as four separate pure map keys with their distinct backing values. The rooted compatibility lookup removes its single constructed root and selects run without changing the exact unrooted interfaces. This association records software source coverage only; it supplies no passed assertion or new Native observation."
+        },
+        {
+          "path": "rust/tcl-spec-hooks/src/pack_eval.rs",
+          "selector": "pack_eval::tests::pack_registration_keeps_constructed_colon_name_after_real_lookup",
+          "status": "linked",
+          "assertion": "Actual pack command registration keeps the constructed literal-colon descriptor after real lookup and its callback Unicode conversion preserves counted NUL. The authored axis classifier remains distinct from written invocation lookup."
+        },
+        {
+          "path": "rust/tcl-syntax/src/native_string/callback_unicode.rs",
+          "selector": "native_string::callback_unicode::tests::callback_unicode_keeps_counted_zero_and_actual_selected_units",
+          "status": "linked",
+          "assertion": "The existing shared native unit decoder keeps counted literal/modified zero and non-BMP units under the genuinely selected C/Jim string protocol; its pure projection issues no getter/frame/reference permission."
+        },
+        {
+          "path": "rust/tcl-syntax/src/native_string/callback_unicode.rs",
+          "selector": "native_string::callback_unicode::tests::callback_unicode_pairs_c8_units_without_forgiving_c9_surrogates",
+          "status": "linked",
+          "assertion": "The pure decoder pairs actual C8 UTF16 units and refuses unsupported C9 unpaired units; byte extent and Unicode conversion remain separate from any command or Native execution."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/callback_unicode_words_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::callback_unicode_words_tests::original_callback_batch_uses_actual_dispatch_and_counted_unicode_without_new_roles",
+          "status": "linked",
+          "assertion": "Actual VM command dispatch supplies the genuine entered owner and selected String protocol; sequential counted Unicode callback arguments preserve original reference counts without formatter queries."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/callback_unicode_words_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::callback_unicode_words_tests::original_callback_batch_requires_entered_operation_and_genuine_string_provider",
+          "status": "linked",
+          "assertion": "Actual callback batch refuses absent entered operation and missing genuine String provider, retaining full cause without issuing permission from a profile or resident value."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/callback_unicode_words_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::callback_unicode_words_tests::original_callback_batch_refuses_non_text_before_reaching_later_getters",
+          "status": "linked",
+          "assertion": "Actual callback batch projects the first getter immediately to text and refuses unsupported units before the later original formatter or cache is reached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/callback_unicode_words_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::callback_unicode_words_tests::original_callback_batch_retains_formatter_failure_before_changed_name_owner",
+          "status": "linked",
+          "assertion": "Supplied software formatter failure is retained inside the String worker before later Name-world checks; the later original argument getter and refused String caches remain unread."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/callback_unicode_words_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::callback_unicode_words_tests::supplied_callback_name_scope_keeps_original_frame_before_string_stages",
+          "status": "linked",
+          "assertion": "Actual supplied original Name scope observes the same entered operation/frame; a changed namespace/frame refuses before String formatter/query stages and keeps mandatory allocation-lease cleanup."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_binary.rs",
+          "selector": "cmd_binary::original_decode_owner_tests::original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal",
+          "status": "linked",
+          "assertion": "Actual authored binary selector retains the unknown original keyword Guest sentence independently of a retired original selector header; typed header refusal is terminal and no fresh entered Scope is created."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_package.rs",
+          "selector": "interp::authored_package::tests::original_authored_namespace_selector_keeps_table_members_and_strict_utf8_refusal",
+          "status": "linked",
+          "assertion": "Actual authored namespace keyword selection retains its original List table/member projection, resolves a genuine prefix and keeps strict UTF8 refusal for non-text members under the original operation without fresh entry."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_rule_callables.rs",
+          "selector": "interp::authored_rule_callables::tests::original_authored_string_selector_and_counted_length_keep_actual_provider_and_roles",
+          "status": "linked",
+          "assertion": "Actual installed authored string selector and counted-byte length preserve their genuine provider and original values/reference counts; a retired original length operand refuses before the shortcut or getter."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "selector": "interp::authored_tmm_static::tests::original_authored_static_fronts_preserve_domain_configuration_and_refused_header",
+          "status": "linked",
+          "assertion": "Actual authored domain/configuration helpers keep their existing selected domain and original configured Value; an already retired domain operand refuses before name lookup/publication with the full original header cause."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_authored_operand_tests::original_authored_operand_resident_none_has_no_entry_or_provider_donation",
+          "status": "linked",
+          "assertion": "Actual independent observation accepts resident counted bytes and legacy scalar rendering without entry or formatter queries, refuses stringless selected getter when its real recipe is absent, and preserves the full failed-issue cause without issuing an entered Scope."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_authored_operand_tests::original_authored_operand_neutral_utf8_keeps_raw_units_and_legacy_scalar_worker",
+          "status": "linked",
+          "assertion": "Actual C84 cache uses the unchanged legacy formatter-None scalar output. Raw modified UTF8 remains exact bytes and strict UTF8 projection refuses it; no counted native Unicode or new entered operation is substituted."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_authored_operand_tests::original_authored_operand_detects_frame_birth_and_original_host_aba_without_entry",
+          "status": "linked",
+          "assertion": "Actual independent original frame absence/birth and Host change-and-restore are checked before the first selected String getter; cache and formatter/query counters remain unread and no fresh scope is issued."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_authored_operand_tests::original_authored_operand_first_formatter_failure_survives_world_withdrawal",
+          "status": "linked",
+          "assertion": "Supplied software formatter refuses once and retires the real original Name world; the exact first StringUpdater cause survives later world checks, and refused original String storage stays unpublished."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_authored_operand_tests::original_authored_operand_retainer_precedes_native_compound_backing_retirement",
+          "status": "linked",
+          "assertion": "The same retained compound worker with formatter None encounters its genuine unsupported C84 minimum formatter purpose after a supplied checker replaces the root primary. Its actual child backing is alive when the first error is latched and retired on worker exit; no external callback/reference chronology is asserted."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_authored_operand_tests::original_authored_operand_successful_formatter_frame_change_stops_cache_adoption",
+          "status": "linked",
+          "assertion": "A supplied original checker observes successful software formatter completion then changes the actual frame. The genuine owner refuses before String cache adoption and retains its first cause through caller cleanup."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_string_stage_tests/original_authored_operand_tests.rs",
+          "selector": "interp::native_numeric_ops::original_string_stage_tests::original_authored_operand_tests::original_string_intrinsic_root_header_failure_is_retained_before_child_backing_drop",
+          "status": "linked",
+          "assertion": "A supplied registration-style checker releases the original root last reference during actual child traversal. The same native String worker retains its exact intrinsic root-header failure while the old child backing is still live, then retires that backing before returning."
         }
       ],
       "replay": {
@@ -592437,6 +592726,34 @@
           "path": "rust/tcl-vm/src/lib.rs",
           "sha256": "03b30bf5ee368c7603dda87dc0048d16817d4ddb3cb65b7b93b8da7b84157720",
           "description": "Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome."
+        },
+        {
+          "id": "original-operand-source-bc8dad4b97a528fc",
+          "role": "implementation",
+          "path": "rust/tcl-diagram/src/data.rs",
+          "sha256": "228eae279e469796ce457eb73aa4418ab8e18c4fbd92b7f58217c76d1436c33f",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-81049755e21df1e9",
+          "role": "implementation",
+          "path": "rust/tcl-spec-studio/src/infer.rs",
+          "sha256": "ff94d3f1957a84e02f2183df60e562c6bdfc098fe4589ec1a26586db33005f69",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-fbe95d95bd569e34",
+          "role": "implementation",
+          "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+          "sha256": "66d7f42733de81619cbd214e3d2895ab730fb5e7a7073d01287e35e724d10979",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
+        },
+        {
+          "id": "original-operand-source-62228af4a8eacb85",
+          "role": "implementation",
+          "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+          "sha256": "e4811304b56916c60ba27125d2f393d102d245df158c6c7d733aa7a8dbd7e50f",
+          "description": "Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result."
         }
       ],
       "source_anchors": [],
@@ -592458,6 +592775,24 @@
           "selector": "ranges::shared_boundary_tests::array_index_nested_variables_use_the_shared_ascii_name_scanner",
           "status": "linked",
           "assertion": "Fixed actual array-index structural scanner cases use the shared ASCII nested bare-variable boundary with complete colon runs and the existing selected braced/array style. Non-ASCII/lone-colon text is not promoted to a scanned bare name; no runtime variable lookup or Native grammar outcome is asserted. Source-defined control only; no matched owned executable/assertion outcome is attached."
+        },
+        {
+          "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+          "selector": "loader::semantics::tests::declared_binding_keeps_written_name_and_projects_expected_identity_separately",
+          "status": "linked",
+          "assertion": "Actual SpecTcl loader preserves written input while separately projecting the expected authored descriptor identity; rooted colon geometry stays exact under the existing resolution owner."
+        },
+        {
+          "path": "rust/tcl-spec-studio/src/infer.rs",
+          "selector": "infer::tests::imported_procedure_descriptor_keeps_colon_named_namespace_holder",
+          "status": "linked",
+          "assertion": "Actual imported procedure descriptor retains the one-root constructed namespace holder and literal colon component; it supplies no Native written lookup."
+        },
+        {
+          "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+          "selector": "infer::extension::tests::probe_descriptor_projection_keeps_colon_components_separate",
+          "status": "linked",
+          "assertion": "Actual extension report-key projection removes one constructed root and keeps literal colon/Unicode descriptor components independently of runtime lookup."
         }
       ],
       "owners": [
@@ -592510,6 +592845,26 @@
           "path": "rust/tcl-registry/src/mathfunc.rs",
           "symbol": "global_command_bare_name",
           "purpose": "Existing Registry math namespace descriptor selects only direct global functions, independently of generic reporting/key geometry and actual runtime implementation ownership."
+        },
+        {
+          "path": "rust/tcl-spectcl/src/loader/semantics.rs",
+          "symbol": "depends_row",
+          "purpose": "Preserve raw written binding name and independently project only its expected authored descriptor identity."
+        },
+        {
+          "path": "rust/tcl-spec-studio/src/infer.rs",
+          "symbol": "draft_for_proc",
+          "purpose": "Retain exact one-root constructed namespace/Procedure descriptor including literal colon components."
+        },
+        {
+          "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+          "symbol": "normalised",
+          "purpose": "Shared exact one-root projection for constructed extension report keys; no written lookup authority."
+        },
+        {
+          "path": "rust/tcl-diagram/src/data.rs",
+          "symbol": "registry_command",
+          "purpose": "Actual source/position/context owner selects Native or Logical route before the separate Logical candidate/result key projection."
         }
       ],
       "replay": {
