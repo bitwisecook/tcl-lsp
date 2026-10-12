@@ -187,6 +187,7 @@ No execution of this question is attached for this provider. An API or command o
 - `file-6-row-10` (provider): [runtime/rust/tests/data/native_c84_error_code/nonempty/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/nonempty/manifest.json). SHA-256 `27e20a699c572a236e348f4a14dea997f6c60ecf20b48b197ba32b2a25fec959`. JSON pointer `/3`. Original provider/capture association at its exact selected row.
 - `file-6-row-11` (provider): [runtime/rust/tests/data/native_c84_error_code/nonempty/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/nonempty/manifest.json). SHA-256 `27e20a699c572a236e348f4a14dea997f6c60ecf20b48b197ba32b2a25fec959`. JSON pointer `/4`. Original provider/capture association at its exact selected row.
 - `file-12` (input): [runtime/rust/tests/data/native_c84_error_code/nonempty/probe.c](../../../../runtime/rust/tests/data/native_c84_error_code/nonempty/probe.c). SHA-256 `23c80028c690ec5d2e1520b6ab867d5dd9fe8978c9627d0b04e5ed0a7e6b6379`. Exact retained input/program bytes; purpose is limited to this question.
+- `authored-consumer645d-1bfa2199f14a` (implementation): [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs). SHA-256 `d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5`. Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
 
 ## Source inspection
 
@@ -194,7 +195,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs), `interp::native_append::original_c84_counted_append_tests::original_c84_write_outcome_settles_flags_before_refusing_later_getters` (linked): Reached C84 write callbacks settle the selected real error flags before refusing subsequent getters; Host/context cause remains terminal. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 
 A named test is a coverage binding, not a claim that it executed.
 

@@ -254,6 +254,7 @@ No execution of this question is attached for this provider. An API or command o
 - `file-13-row-17` (provider): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). SHA-256 `4b7036526bcacf93bf640a3263b492174cb06f8510650a47092ad86ab14570c1`. JSON pointer `/3`. Original provider/capture association at its exact selected row.
 - `file-13-row-18` (provider): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). SHA-256 `4b7036526bcacf93bf640a3263b492174cb06f8510650a47092ad86ab14570c1`. JSON pointer `/4`. Original provider/capture association at its exact selected row.
 - `file-19` (input): [runtime/rust/tests/data/native_c84_error_code/probe.c](../../../../runtime/rust/tests/data/native_c84_error_code/probe.c). SHA-256 `b3f3510f1d6b4f5c2dd0d277f85bea17be03d7effc4b092fed4437eae0056b97`. Exact retained input/program bytes; purpose is limited to this question.
+- `authored-consumer645d-1bfa2199f14a` (implementation): [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs). SHA-256 `d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5`. Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
 
 ## Source inspection
 
@@ -261,7 +262,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs), `interp::native_append::original_c84_counted_append_tests::original_c84_counted_worker_checks_getter_and_primary_retirement_before_write` (linked): The C84 counted append worker checks original getter and primary-retirement stages before its write, preserving actual observed references and earliest full cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
+- [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs), `interp::native_append::original_c84_counted_append_tests::original_c84_error_caller_preserves_reached_seed_and_blocks_later_code_and_result` (linked): C84 error-command refusal preserves its reached seed and blocks later explicit errorCode/result setters. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
+- [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs), `interp::native_append::original_c84_pending_scalar_tests::original_c84_cow_publishes_pending_allocation_and_settles_only_the_same_live_role` (linked): Actual C84 COW publishes a pending allocation with no cell Native hold, and settles the true cell role only for the same live ticket/allocation after old release. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
+- [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs), `interp::native_append::original_c84_pending_scalar_tests::original_c84_missing_cell_adopts_counted_message_before_write_without_working_hold` (linked): The selected missing-cell C84 counted message is adopted before the write callback with no artificial working hold. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 
 A named test is a coverage binding, not a claim that it executed.
 

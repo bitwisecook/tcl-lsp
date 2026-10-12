@@ -64,8 +64,8 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-list-original-value-append-storage-currency-list.rs` (implementation): [runtime/rust/src/list.rs](../../../../runtime/rust/src/list.rs). SHA-256 `58fe5a4d3b3a11b7ffecf2dde82a3737bbb64a6d35410d0db14dd5af2267943c`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-list-original-value-append-storage-currency-value_ops.rs` (implementation): [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs). SHA-256 `e46c5b1b283ffc6d8fb754f6f210bbb2063f89875f21419ecc2ce297476639e7`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-list-original-value-append-storage-currency-list.rs` (implementation): [runtime/rust/src/list.rs](../../../../runtime/rust/src/list.rs). SHA-256 `9d5f31d716c5b9fa55184d194f3e13137d7bfba0d5ef1bc35b57aefa74b14854`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-list-original-value-append-storage-currency-value_ops.rs` (implementation): [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs). SHA-256 `dbead35bcdc32a6a8cc0e34cfd54da0d5fa258855fcefa7267d9a5f04d5f405b`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-list-original-value-append-storage-currency-var.rs` (implementation): [rust/tcl-cmd-core/src/var.rs](../../../../rust/tcl-cmd-core/src/var.rs). SHA-256 `59eddbc76d5849eebdfe263c8e349798dc3114fbdea163823b3b2485decd8e31`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-list-original-value-append-storage-currency-value.rs` (implementation): [rust/tcl-syntax/src/value.rs](../../../../rust/tcl-syntax/src/value.rs). SHA-256 `d412e3a6736721b78a27c805245568689617faf248811acf8a046c6e556ed037`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 

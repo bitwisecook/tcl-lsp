@@ -26609,7 +26609,7 @@
           "id": "naming-command-native-command-entry-currency-native_body_artifact.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact.rs",
-          "sha256": "b3f1027fbee2b9b60a12fe4b9d94f15b06d20b6ea3a7570da82c9b0b1837228f",
+          "sha256": "214486c743502f12431642b69b1791ebb1ad4df4cff49c1fa0c7898cad234092",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -95177,7 +95177,7 @@
           "id": "naming-ensemble-original-missing-selector-source-usage-runtime-rust-src-interp.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
           "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
         },
         {
@@ -95901,10 +95901,42 @@
           "path": "runtime/rust/tests/data/native_c84_error_code/probe.c",
           "sha256": "b3f3510f1d6b4f5c2dd0d277f85bea17be03d7effc4b092fed4437eae0056b97",
           "description": "Exact retained input/program bytes; purpose is limited to this question."
+        },
+        {
+          "id": "authored-consumer645d-1bfa2199f14a",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "sha256": "d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
       "source_anchors": [],
-      "tests": [],
+      "tests": [
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_counted_worker_checks_getter_and_primary_retirement_before_write",
+          "assertion": "The C84 counted append worker checks original getter and primary-retirement stages before its write, preserving actual observed references and earliest full cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_error_caller_preserves_reached_seed_and_blocks_later_code_and_result",
+          "assertion": "C84 error-command refusal preserves its reached seed and blocks later explicit errorCode/result setters. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_pending_scalar_tests::original_c84_cow_publishes_pending_allocation_and_settles_only_the_same_live_role",
+          "assertion": "Actual C84 COW publishes a pending allocation with no cell Native hold, and settles the true cell role only for the same live ticket/allocation after old release. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_pending_scalar_tests::original_c84_missing_cell_adopts_counted_message_before_write_without_working_hold",
+          "assertion": "The selected missing-cell C84 counted message is adopted before the write callback with no artificial working hold. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        }
+      ],
       "owners": [],
       "replay": {
         "command": [],
@@ -96286,10 +96318,24 @@
           "path": "runtime/rust/tests/data/native_c84_error_code/nonempty/probe.c",
           "sha256": "23c80028c690ec5d2e1520b6ab867d5dd9fe8978c9627d0b04e5ed0a7e6b6379",
           "description": "Exact retained input/program bytes; purpose is limited to this question."
+        },
+        {
+          "id": "authored-consumer645d-1bfa2199f14a",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "sha256": "d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
       "source_anchors": [],
-      "tests": [],
+      "tests": [
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_write_outcome_settles_flags_before_refusing_later_getters",
+          "assertion": "Reached C84 write callbacks settle the selected real error flags before refusing subsequent getters; Host/context cause remains terminal. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        }
+      ],
       "owners": [],
       "replay": {
         "command": [],
@@ -96685,6 +96731,20 @@
           "path": "rust/tcl-registry/tests/data/native_error_headers/observations.tsv",
           "sha256": "8db9e4d50d705dc72c4b4940ef34b7d1619f955c311d693a0db76042031c0c17",
           "description": "Exact 38-row projection agrees byte-for-byte with the prefixed original inline streams."
+        },
+        {
+          "id": "authored-consumer645d-697f7e7187ab",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+          "sha256": "a3b120d6b27b883da79b726a98efbc9af8eb15a38bbc7d69255a8f22061ca3a4",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-2db75cd5b415",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_error_headers.rs",
+          "sha256": "c01cfdeda1429b2c50f791e44b6f8191132118d48d4676ff6550db208c961627",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
       "source_anchors": [],
@@ -96693,6 +96753,18 @@
           "path": "rust/tcl-registry/src/native_error_objects.rs",
           "selector": "native_error_objects::tests::original_private_header_fields_match_five_native_constructor_and_save_windows",
           "assertion": "Compares all 38 original availability/primary/count/identity projection rows against the release-selected private header recipe; no native launch is implied.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_error::original_return_boundary_tests::original_return_stack_string_refuses_before_list_backing_and_private_stack_adoption",
+          "assertion": "Actual private-stack header/episode and original frame survive selected String and checked duplicate/List adoption, with first refusal retained before unused owner cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_error_headers.rs",
+          "selector": "interp::native_error_headers::original_prepared_stack_tests::original_prepared_stack_unavailable_releases_do_not_issue_or_retire_private_headers",
+          "assertion": "Actual C84/C85 unsupported stack recipes issue no prepared private owner and perform no Native private-header retirement. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
           "status": "linked"
         }
       ],
@@ -139507,14 +139579,14 @@
           "id": "naming-interpreter-original-child-host-refusal-transport-native_children.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_children.rs",
-          "sha256": "beee813608bc7e8c260cc72e026184cac32f22e43500286f63fb3411a53d7cd2",
+          "sha256": "031e15ade1cc46697b47b7705d5526ada7c5e933e192ae14cde670fe4dc1b4d5",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
           "id": "naming-interpreter-original-child-host-refusal-transport-native_compilation.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_compilation.rs",
-          "sha256": "5fe6c0f1d3597b83c47f8e79105cb0c726971b97f317c33fb3d7c30cf3521961",
+          "sha256": "a6a2863425472d72361cf1f806b8e5e53df338701acc9f77fa9b3fbd53db6d64",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         }
       ],
@@ -157417,14 +157489,14 @@
           "id": "naming-list-original-value-append-storage-currency-list.rs",
           "role": "implementation",
           "path": "runtime/rust/src/list.rs",
-          "sha256": "58fe5a4d3b3a11b7ffecf2dde82a3737bbb64a6d35410d0db14dd5af2267943c",
+          "sha256": "9d5f31d716c5b9fa55184d194f3e13137d7bfba0d5ef1bc35b57aefa74b14854",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
           "id": "naming-list-original-value-append-storage-currency-value_ops.rs",
           "role": "implementation",
           "path": "runtime/rust/src/value_ops.rs",
-          "sha256": "e46c5b1b283ffc6d8fb754f6f210bbb2063f89875f21419ecc2ce297476639e7",
+          "sha256": "dbead35bcdc32a6a8cc0e34cfd54da0d5fa258855fcefa7267d9a5f04d5f405b",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -204230,6 +204302,13 @@
           "path": "rust/tcl-syntax/tests/data/native_procedure_headers/9.1.0.txt",
           "sha256": "cf998ec4c933fbcf67d01f7ccfe5a2331011819d0d572b7d05ec38da587cf6d6",
           "description": "Original full output, relevant cases [0, 3, 4, 5, 6, 7]. Each line reports case, definition code and compiler pointer presence."
+        },
+        {
+          "id": "authored-consumer645d-b27b84bbc39b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "sha256": "9eca604ba2650fe4b0c41e93fd6a8289c2bb36bb7f2d669185dd9a545b9c2e27",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
       "source_anchors": [],
@@ -204244,6 +204323,24 @@
           "path": "rust/tcl-vm/src/command.rs",
           "selector": "tests::physical_procedure_capture_and_header_remain_separate_from_authored_names",
           "assertion": "Checks raw-zero body header absence under actual C9 despite an authored C8.4 name policy, retained/copy body ownership separately, and missing native provider refusal.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_body_capture_observes_actual_reference_role_before_working_copy",
+          "assertion": "VM body capture observes the true original reference role before selected working copying. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_shared_body_string_worker_keeps_exact_native_reference_count",
+          "assertion": "The shared original body String formatter observes the genuine borrowed reference count before working-copy selection. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_formal_list_capture_order_is_selected_before_body_reference_acquisition",
+          "assertion": "Selected C capture skips formal parsing here, while Jim reaches its original formal List first; genuine body acquisition order stays independent. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
           "status": "linked"
         }
       ],
@@ -208095,7 +208192,7 @@
           "id": "naming-procedure-original-usage-called-name-and-formatter-runtime-rust-src-interp.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
           "description": "Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome."
         },
         {
@@ -322159,7 +322256,7 @@
         {
           "id": "sourceperf-current633-20c349e17092",
           "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
-          "sha256": "42b83446958639d429396157a4cf81b7033051b23104b1da8ada47fe474972b2",
+          "sha256": "2bf637e23dc0567a22b6c012113784ba84956f790b4936a6991b9173fc28d659",
           "role": "implementation",
           "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
         },
@@ -322456,6 +322553,195 @@
           "path": "runtime/rust/src/interp/native_body_artifact/native_switch/original_stages_tests.rs",
           "sha256": "930e9de25f7df9a39d35f504d667adaee77c342c6fb3e83bc2f86fb41f5366f0",
           "description": "Current original compiled switch and scalar source/software stages. Genuine body/frame/header checks and first-cause transport precede later work; definitions provide no execution or Native chronology."
+        },
+        {
+          "id": "authored-consumer645d-3c252731c331",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_array/original_list_conversion_tests.rs",
+          "sha256": "95f3133a821124316e8a6281dad6f583bf1e789a9cbe0a77918d033639030384",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-fcf8cc5536af",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_control/original_list_conversion_tests.rs",
+          "sha256": "40cd36209715bb2a96e9681fb9fd594d3d536d7eb5d871492910b63e94f06e4f",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-1bfa2199f14a",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "sha256": "d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-88b10a532b5d",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "sha256": "1eb0cdedb732ecc9a78bce17cbac5d4a913c5c06bdf7d1bc460031666da74493",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-67cdd355c23a",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact.rs",
+          "sha256": "214486c743502f12431642b69b1791ebb1ad4df4cff49c1fa0c7898cad234092",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-adc967e620d4",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_control/original_cat_boundary_tests.rs",
+          "sha256": "cc208d556d5175fbf84325768852d3d08a95f3b54d8dcda2533095213b377f76",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-da52c24a89c1",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary.rs",
+          "sha256": "ddd6d5fa35ce2ecc93ae5d427f976e99da1c91d47273f150149363768c10e003",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-7beb531988b8",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation/original_boundary_tests.rs",
+          "sha256": "5bbb3d33805f10c6e2e7fe342f488faa4b824d03341c4898c4f8dc4bc9dad66d",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-29775b822428",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation/original_increment_tests.rs",
+          "sha256": "7db0237cdcab3bd1365e9bc439685260b55676d75eac949b7335ecad61cc8c45",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-f293ac052c23",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+          "sha256": "c8dfb11ba72c404ac75fe98044a80ef68724051d78fa560bace38da9add8a3fd",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-89b94c8324be",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_each/original_counter_tests.rs",
+          "sha256": "6324411f5688eefc38bcef7c6f0b714466527ae433c15ddbf54e743b5497fc64",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-697f7e7187ab",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+          "sha256": "a3b120d6b27b883da79b726a98efbc9af8eb15a38bbc7d69255a8f22061ca3a4",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-a0cee0bcdfe0",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_boundary_tests.rs",
+          "sha256": "e126d04df202925121ac580b3387be94fb38b28b9f6ddf35b5b2e4298348b779",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-f91e1ed9512c",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_string_boundary_tests.rs",
+          "sha256": "90d485b63dce705b160dc424b8be25ce8c7be32c53fbc011cac8a5db10519e7f",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-ea630b35f494",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "sha256": "0919b45bab2e43408c82a56fdf5ab26ffc5e38c84796b910699645019b12b818",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-756d3feb949c",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
+          "sha256": "6e1199d63a54944e1bf773b2d9d6cab617bba358c952f395c2e3b83306cb47e6",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-32b6dafe12f8",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_substitution/original_cat_boundary_tests.rs",
+          "sha256": "c52fd6c9357fe7f87a2227f786fd6012a58c6d03088bf18e85b71d464217b9f8",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-09c3074006b8",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+          "sha256": "2cd3884bb2660cc1d94c4978561042486866a9f9ff86572d4245e87c7be2587d",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-5051fdee40ed",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+          "sha256": "6a34cef9581f934b778fa736327191399eb7bd156ac6853e24dc7549ceb2ad74",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-890c90d84e46",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs",
+          "sha256": "a61eb00fdb9b781433223066ef691c9b1680ccb4c9ee046420a375bcf3515977",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-ad9fd875f87b",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "sha256": "b88f9365ef348a9a4eeaaf939ee7253c435bb4f95594f53a0b6ff85e5f6f5400",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-76471b993701",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_return_instruction.rs",
+          "sha256": "3aab09c9979c03c311f35f525cad95f4828ca296772612cc55443b4bd3c85e73",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-7448ff3f614e",
+          "role": "implementation",
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "sha256": "e4c0cef1b4e018004e57fbe7f29b4ad6ab76e3f75b67f05a56807618112b0940",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-2373c8906e13",
+          "role": "implementation",
+          "path": "runtime/rust/src/value_ops/native_concat/original_conversion_tests.rs",
+          "sha256": "21fd226422c80ef8fe4778d7a10e35d4449a8a2b8df5326a317436bda68311cf",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-cdbefd348388",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/cmd_dict.rs",
+          "sha256": "79eb38886631959599f5441d6e5ab0546a3d44c5831ebf94de890710a5b02842",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-0ca43c85c798",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "sha256": "f90e24804f8d3d93f9a7b0e74a2c085651fc911f39548a4ae0679f77c8ee0c07",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "authored-consumer645d-b27b84bbc39b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "sha256": "9eca604ba2650fe4b0c41e93fd6a8289c2bb36bb7f2d669185dd9a545b9c2e27",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
       "source_anchors": [],
@@ -326955,6 +327241,630 @@
           "selector": "interp::native_body_artifact::native_switch::original_stages_tests::original_switch_selected_bodies_keep_exact_integer_and_empty_regexp_results",
           "status": "linked",
           "assertion": "Actual selected Exact, integer and empty-regexp body paths preserve their ordinary public results under genuine Native command ingress; this software definition provides no new external observation."
+        },
+        {
+          "path": "runtime/rust/src/cmd_array/original_list_conversion_tests.rs",
+          "selector": "cmd_array::original_list_conversion_tests::original_array_for_length_retirement_refuses_before_array_and_script_getters",
+          "assertion": "ArrayFor's real first Length converter refusal precedes array-name and script getters and leaves the original input role unchanged. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/cmd_control/original_list_conversion_tests.rs",
+          "selector": "cmd_control::original_list_conversion_tests::original_each_variable_copy_retirement_refuses_before_value_and_body_getters",
+          "assertion": "Each's selected variable ListCopy refusal precedes later value and body getters. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/cmd_control/original_list_conversion_tests.rs",
+          "selector": "cmd_control::original_list_conversion_tests::original_each_value_copy_retirement_keeps_prepared_variable_owner_and_first_cause",
+          "assertion": "Each's value ListCopy refusal preserves the already prepared variable owner and first full cause without reaching the body getter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_seed_getter_refuses_before_any_global_setter",
+          "assertion": "The actual selected C84 seed getter refusal precedes every global setter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_counted_worker_checks_getter_and_primary_retirement_before_write",
+          "assertion": "The C84 counted append worker checks original getter and primary-retirement stages before its write, preserving actual observed references and earliest full cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_changed_same_cell_cannot_combine_old_append_bytes_with_new_value",
+          "assertion": "A legal same-cell replacement refuses combining old append bytes with a new value. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_error_caller_preserves_reached_seed_and_blocks_later_code_and_result",
+          "assertion": "C84 error-command refusal preserves its reached seed and blocks later explicit errorCode/result setters. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_counted_append_tests::original_c84_write_outcome_settles_flags_before_refusing_later_getters",
+          "assertion": "Reached C84 write callbacks settle the selected real error flags before refusing subsequent getters; Host/context cause remains terminal. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append.rs",
+          "selector": "interp::native_append::original_c84_pending_scalar_tests::original_c84_cow_publishes_pending_allocation_and_settles_only_the_same_live_role",
+          "assertion": "Actual C84 COW publishes a pending allocation with no cell Native hold, and settles the true cell role only for the same live ticket/allocation after old release. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact.rs",
+          "selector": "interp::native_body_artifact::tests::original_compiled_generic_expansion_stops_before_real_target_dispatch",
+          "assertion": "Generic compiled expansion refusal stops the genuine target dispatcher and preserves the original full cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary.rs",
+          "selector": "interp::native_body_artifact::native_dictionary::original_lookup_boundary_tests::original_compiled_dictionary_lookup_refusal_precedes_missing_and_default_results",
+          "assertion": "The same actual compiled frame and dictionary ancestor stay current inside Get/Exists/GetDefault conversion and key callbacks, with terminal full cause before missing/default result publication. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary.rs",
+          "selector": "interp::native_body_artifact::native_dictionary::original_lookup_boundary_tests::original_compiled_dictionary_lookup_keeps_current_leaf_and_guest_default_schedule",
+          "assertion": "Current dictionary lookup preserves original leaf identity, missing-key Guest behavior, Exists false and untouched default-value getter schedule. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_mutation::original_boundary_tests::original_compiled_append_and_lappend_check_member_cow_before_working_cleanup_and_getters",
+          "assertion": "Real member COW callback refusal precedes later Append/Lappend getter/cache stages, retains original frame/header and first full cause before working-copy release. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_mutation::original_boundary_tests::original_compiled_append_and_lappend_keep_current_reference_and_deferred_member_schedule",
+          "assertion": "Current compiled Append/Lappend keeps the selected sharing/member/working references and deferred getter schedule under the same original frame. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_mutation::original_boundary_tests::original_compiled_mutation_refuses_pending_write_role_and_preserves_live_trace_replacement",
+          "assertion": "Successful write trace may replace a genuine live value; actual pending or withdrawn stored role is terminal before output/working cleanup under the original frame. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation/original_increment_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_mutation::original_increment_tests::original_compiled_increment_checks_cow_number_string_and_retirement_before_later_stages",
+          "assertion": "Original frame and primary birth are checked inside the same COW/Number/scalar/String/cache worker before later stages and before prepared working cleanup can alter the first cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation/original_increment_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_mutation::original_increment_tests::original_compiled_increment_keeps_actual_number_recipe_and_working_reference_schedule",
+          "assertion": "Current compiled Increment preserves actual selected Number recipe/ABI cell and real original/working reference and getter schedule. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_scope::original_boundary_tests::original_compiled_dictionary_writeback_restores_saved_fields_before_frame_refusal",
+          "assertion": "Compiled dictionary writeback completes mandatory saved-field restoration before returning the original frame refusal. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_error::original_return_boundary_tests::original_return_options_key_stops_on_frame_host_context_and_carried_record_change",
+          "assertion": "Actual return option key getter rejects Host/frame/contextABA/carried-record withdrawal before later private publication or result continuation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_error::original_return_boundary_tests::original_return_info_string_keeps_frame_and_private_role_before_second_getter",
+          "assertion": "Original errorInfo String and actual private role/frame remain joined through the second selected getter without protective Native reference. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_error::original_return_boundary_tests::original_return_info_retirement_keeps_reached_field_and_blocks_later_getter",
+          "assertion": "Reached generic private-info publication remains observable while actual old free withdraws the original frame and blocks the later getter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_try.rs",
+          "selector": "interp::native_body_artifact::native_try::tests::original_compiled_try_trap_checks_frame_before_options_backing_adoption",
+          "assertion": "Compiled try-trap preparation rejects real frame withdrawal before original options backing adoption and still completes true owned cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_control/original_cat_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_control::original_cat_boundary_tests::original_dynamic_expression_cat_refuses_before_later_getter_and_backend",
+          "assertion": "Actual dynamic expression Cat captures the original compiled frame before operands and checks its first reached String callback before later updater/backend/result work, retaining true source roles and first cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
+          "selector": "interp::native_body_artifact::native_scalar::tests::original_compiled_scalar_list_length_stops_at_real_primary_retirement",
+          "assertion": "The compiled scalar ListLength worker stops at a real primary callback refusal and preserves the actual frame/header roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_substitution/original_cat_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_substitution::original_cat_boundary_tests::original_substitution_chunk_cat_checks_before_later_chunk_and_retains_first_cleanup_cause",
+          "assertion": "Actual 255-component substitution chunk Cat checks its original frame/currency before the later chunk updater and retains the first cause through mandatory unused-owner retirement and reached activation cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_each/original_counter_tests.rs",
+          "selector": "interp::native_body_artifact::native_each::original_counter_tests::original_compiled_counter_retirement_checks_same_header_temporary_and_frame_before_adoption",
+          "assertion": "Compiled counter cache adoption uses the captured same header, temporary and frame after actual retirement. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_each/original_counter_tests.rs",
+          "selector": "interp::native_body_artifact::native_each::original_counter_tests::original_compiled_fresh_counter_keeps_its_single_temporary_native_role",
+          "assertion": "A genuinely fresh compiled counter preserves its one actual temporary reference role. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_list_length_retirement_checks_actual_frame_birth_before_adoption",
+          "assertion": "Original compiled Length checks real frame birth after primary retirement and rejects pop/push ABA before backing adoption. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_list_current_length_has_one_native_input_role_and_no_frame_hold",
+          "assertion": "Current compiled Length has its genuine single input reference and adds no Native frame/header guard hold. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_list_temporary_projection_refuses_replaced_slot_without_new_lookup",
+          "assertion": "The captured compiled temporary rejects actual slot replacement without re-resolving another receiver. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_group_retirement_keeps_frame_check_after_header_is_released",
+          "assertion": "Original compiled group cleanup still checks frame birth after the real header release without manufacturing a protective reference. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_expansion_members_keep_same_frame_and_first_cause_before_adoption",
+          "assertion": "Original expansion member conversion preserves same-frame/first-cause checks at actual primary retirement and member adoption. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_dictionary_prepare_retains_frame_and_first_cause_before_adoption",
+          "assertion": "Compiled dictionary preparation preserves original frame and first cause inside actual conversion/duplicate retirement before backing adoption. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_string_child_retirement_blocks_later_updater_and_parent_adoption",
+          "assertion": "A real compound String child callback withdraws original parent/children, stops later updaters and parent cache adoption, and preserves reached changes with no guard Native hold. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_prepared_dictionary_key_updater_checks_parent_before_member_callback",
+          "assertion": "A real prepared-dictionary key updater withdraws the actual parent backing and is rejected before the member callback. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion/tests.rs",
+          "selector": "interp::native_body_artifact::native_list_conversion::tests::original_compiled_return_integer_cache_checks_frame_during_real_primary_retirement",
+          "assertion": "Compiled return integer cache retirement checks original frame birth inside the actual scalar worker before cache adoption. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_lappend::original_boundary_tests::original_compiled_lappend_checks_same_receiver_and_frame_before_list_adoption",
+          "assertion": "Actual compiled Lappend checks the same captured receiver/frame and selected source header through reached conversion and adoption, refusing before any later mutation or output. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_lappend::original_boundary_tests::original_compiled_lappend_keeps_current_conversion_and_real_native_roles",
+          "assertion": "Current genuine compiled Lappend uses the same List converter and actual selected receiver/source/native reference roles without an added protective hold. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_lappend::original_boundary_tests::original_argument_list_concat_checks_source_free_before_target_mutation_and_full_range",
+          "assertion": "Same original Arguments/backing check at source primary retirement stops argument List concat before target mutation and full-range publication, preserving the first full typed cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_lappend::original_boundary_tests::original_neutral_list_helpers_keep_actual_alias_copy_and_reference_roles",
+          "assertion": "Neutral List append/concat/full-range workers retain the existing alias-versus-copy behaviour and genuine references independently of physical Native entry. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_string_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_lappend::original_string_boundary_tests::original_compiled_string_append_checks_actual_cow_retirement_before_cache_adoption",
+          "assertion": "Actual compiled String Append checks its original receiver/frame/source at genuine COW primary retirement before cache adoption, preserving the reached change and complete first cause through working cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_string_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_lappend::original_string_boundary_tests::original_compiled_string_append_checks_source_getter_before_mutation_and_publication",
+          "assertion": "Actual compiled String Append checks the original source/header/frame inside its reached String getter before working mutation, variable/result publication or later operand. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_lappend/original_string_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_lappend::original_string_boundary_tests::original_neutral_append_keeps_authored_worker_without_native_entry_or_extra_hold",
+          "assertion": "The actual Authored Append port retains its original portable worker/reference roles without requiring or issuing a physical Native operation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+          "selector": "interp::native_body_artifact::original_return_parent_tests::original_parent_return_and_both_syntax_ports_keep_the_entered_frame_before_keys",
+          "assertion": "Actual cached Return and both Syntax parent ports capture the original frame before option callbacks and retain full cause through operand/merged cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+          "selector": "interp::native_body_artifact::original_return_parent_tests::original_parent_result_retirement_checks_frame_before_later_error_metadata",
+          "assertion": "Actual prior-result last-owner free preserves reached incoming result but original Host/frame/context refusal blocks later error metadata/context/done continuation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs",
+          "selector": "interp::native_body_artifact::original_word_input_tests::original_compiled_word_cat_keeps_entered_frame_inside_first_string_before_later_component",
+          "assertion": "Actual compiled Cat checks its original frame/header inside the first String worker before any later component updater, adoption or result publication. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs",
+          "selector": "interp::native_body_artifact::original_word_input_tests::original_compiled_word_cat_checks_after_genuine_component_retirement_before_returning_result",
+          "assertion": "The actual last component Native-role retirement occurs under the original frame/currency, retaining the first full cause before returning a successful Cat result. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs",
+          "selector": "interp::native_body_artifact::original_word_input_tests::original_compiled_command_component_restores_saved_metadata_before_refusal_settlement",
+          "assertion": "A reached Command component restores original saved line/command metadata even on refusal, retires displaced or unused saved headers outside cmd_frames borrow, then settles the first original cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_usage_projection_keeps_actual_rewrite_counts_and_leaves_operands_unread",
+          "assertion": "Usage projection consumes actual rewrite words with their existing counts and leaves unneeded operands without String getters. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_usage_first_getter_refusal_stops_later_header_and_guest_publication",
+          "assertion": "A real usage getter refusal blocks later headers and Guest publication while retaining the prior result and entered-scope cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_procedure_argv_zero_refusal_precedes_real_body_getter_and_activation",
+          "assertion": "Procedure argv0 refusal occurs before its genuine body getter or new activation and preserves declaration/frame/namespace cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_usage_rewrite_birth_refuses_nested_and_clear_recreate_aba",
+          "assertion": "The original rewrite birth rejects nested replacement and clear/recreate ABA instead of adopting a later same-spelled record. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_rewrite_retirement_reenters_extracted_owner_and_keeps_first_cause",
+          "assertion": "Actual rewrite retirement callbacks can reenter the extracted owner outside its borrow and keep the first full cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_handler_prefix_retirement_reenters_after_extraction_before_success",
+          "assertion": "Actual handler-prefix retirement reenters after extraction and must settle its original cause before reporting success. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_ensemble_arity_and_selector_refusals_precede_target_publication",
+          "assertion": "Real ensemble arity and selector getter refusals precede target dispatch/result publication. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_procedure_body_getter_refusal_keeps_real_declaration_and_frame_cleanup",
+          "assertion": "Body getter refusal keeps the authentic procedure declaration and completes actual activation cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_usage_actual_receiver_refuses_foreign_interpreter_before_getter",
+          "assertion": "The captured usage receiver rejects a foreign actual interpreter before any original getter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_unknown_current_guest_results_keep_true_prefix_and_reparse_contracts",
+          "assertion": "Current ensemble-unknown handling keeps genuine prefix/result roles and the selected Guest reparse contract. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_unknown_member_refusal_stops_later_getter_and_real_dispatch",
+          "assertion": "An actual unknown-prefix member getter refusal prevents later members and real target dispatch. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_unknown_result_primary_retirement_refuses_before_list_adoption",
+          "assertion": "Unknown's actual returned primary retirement refusal blocks List adoption and preserves the first cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_argument_usage/tests.rs",
+          "selector": "interp::native_argument_usage::tests::original_unknown_returned_string_refusal_stops_result_list_and_guest_context",
+          "assertion": "Returned String refusal stops result List conversion and subsequent Guest context formatting. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_return_instruction.rs",
+          "selector": "interp::native_return_instruction::original_syntax_transport_tests::original_syntax_copy_primary_aba_precedes_actual_unused_copy_host_retirement",
+          "assertion": "Actual selected Syntax errorInfo copying detects primary change-and-restore before the unused fresh copy retirement can retain a later Host cause; complete first cause and reached original source remain observable. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_child_usage_getter_keeps_first_host_and_restored_context",
+          "assertion": "Child usage getters retain actual first Host/restored-context refusal and child identity across cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_child_option_getter_refuses_recreated_allocation_before_query",
+          "assertion": "A child option getter that recreates the real allocation is refused before a later query can adopt it. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_child_invokehidden_usage_refuses_before_later_hidden_name",
+          "assertion": "Child invokehidden usage refusal precedes the later hidden-name getter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_result_append_keeps_actual_inplace_and_shared_header_roles",
+          "assertion": "Original result append preserves the actual in-place and shared-header Native roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_result_append_getter_refuses_before_suffix_or_replacement_adoption",
+          "assertion": "Reached result getter refusal blocks suffix work and replacement adoption. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_c_api_result_append_retirement_observes_reached_publication_and_first_cause",
+          "assertion": "The real C-API result append retirement observes reached publication and retains the first full cause before continuation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_word_expression_result_consumes_true_owned_role_after_getter_and_retirement",
+          "assertion": "Word-expression result handling consumes its genuine Owned result role after the reached getter/retirement stages. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_result_boundaries_tests.rs",
+          "selector": "interp::native_result_boundaries_tests::original_word_expression_missing_engine_refuses_before_result_worker",
+          "assertion": "A missing authentic engine refuses word-expression processing before its result worker. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_list_current_retirement_adopts_once_without_an_extra_header_role",
+          "assertion": "Current original List conversion retires the primary once, adopts its actual members and preserves the observed input/member reference roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_list_reentrant_primary_and_restore_refuse_before_backing_adoption",
+          "assertion": "Actual primary callbacks change or restore the slot, and Host or primary-incarnation refusal stops List backing adoption while retaining reached changes and original reference counts. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_list_failed_adoption_retires_the_actual_prepared_member_before_settlement",
+          "assertion": "Failed adoption mandatorily retires the actual prepared member before settling the retained original cause, without leaking or lending a native hold. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_list_primary_guard_precedes_the_unused_member_host_retirement",
+          "assertion": "The earlier typed primary-slot refusal wins over a later unused-member Host retirement callback. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_dictionary_current_and_reentrant_primary_keep_the_same_stage_cause",
+          "assertion": "Current and reentrant Dictionary conversion preserve the same selected adoption stages and earliest retained cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_operational_conversion_retains_slot_failure_before_unused_member_host",
+          "assertion": "The production operational List/Dict/return-options adapters latch primary-slot failure before callback-bearing unused backing cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_ordinary_list_projection_keeps_fresh_series_members_and_captured_header_roles",
+          "assertion": "Ordinary projection materializes genuine fresh arithmetic-series members while preserving the captured original header roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_ordinary_list_projection_retirement_refuses_before_new_backing",
+          "assertion": "A reached original primary retirement refusal stops ordinary List backing installation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_list_copy_projection_keeps_shared_members_and_lazy_abstract_length",
+          "assertion": "Checked ListCopy keeps actual shared-member roles and the independent lazy abstract-series Length worker. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/list/original_adoption_tests.rs",
+          "selector": "list::original_adoption_tests::original_list_copy_projection_refuses_reached_retirement_before_fresh_header",
+          "assertion": "Actual conversion retirement refusal stops fresh copied-header publication and preserves the original cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_concat/original_conversion_tests.rs",
+          "selector": "value_ops::native_concat::original_conversion_tests::original_concat_first_getter_refusal_stops_later_getters_and_result_publication",
+          "assertion": "The first actual concat getter's Host or restored-context refusal stops later getters and preserves the prior result and real header roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_concat/original_conversion_tests.rs",
+          "selector": "value_ops::native_concat::original_conversion_tests::original_concat_checked_source_conversion_retains_first_cause_before_working_cleanup",
+          "assertion": "Checked concat source conversion preserves its first cause before working List cleanup and leaves the genuine target backing unchanged. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_concat/original_conversion_tests.rs",
+          "selector": "value_ops::native_concat::original_conversion_tests::original_concat_authored_route_keeps_selected_portable_algorithm_without_native_entry",
+          "assertion": "The actual Authored route performs the selected portable concat algorithm without issuing or requiring a Native operation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_dict.rs",
+          "selector": "cmd_dict::tests::host_dictionary_surface_without_actual_object_owner_refuses_construction",
+          "assertion": "A selected source profile without an actual physical dictionary object owner is rejected; it cannot borrow the independent host surface's issuer. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_jim_namespace_eval_uses_its_actual_holder_without_c_tree_registration",
+          "assertion": "Jim namespace eval uses its genuine live namespace holder/world rather than C namespace-tree registration. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_jim_namespace_holder_withdrawal_refuses_invalid_and_retired_births",
+          "assertion": "Actual Jim namespace holder withdrawal rejects invalid or retired births. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_jim_namespace_consumer_rejects_foreign_world_with_same_numeric_slot",
+          "assertion": "Retained NameScope world identity rejects a foreign world even with the same numeric namespace slot. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_variable_name_array_worker_retains_formatter_cause_before_later_operands",
+          "assertion": "The real array Name formatter refusal precedes later operands and retains its first full cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_variable_name_dictionary_worker_refuses_retired_header_before_publication",
+          "assertion": "The real dictionary Name worker rejects a retired original header before publication. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_variable_name_array_worker_keeps_current_counted_header_and_cell_roles",
+          "assertion": "Current array Name conversion preserves counted bytes and true header/cell roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_name_consumer_rejects_foreign_world_before_same_spelled_namespace_getter",
+          "assertion": "Foreign NameScope world is rejected before a same-spelled namespace getter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_variable_cache_stage_refuses_restored_context_before_member_adoption",
+          "assertion": "Variable cache retirement rejects restored-context ABA before member adoption. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_variable_cache_stage_keeps_current_real_retirement_and_adoption_roles",
+          "assertion": "The current variable cache performs its real retirement/adoption stages with unchanged original reference roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_variable_trace_registration_retains_prefix_failure_before_cell_creation",
+          "assertion": "Real trace-prefix getter failure prevents cell creation and keeps the original typed cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_named_variable_read_retains_first_getter_failure_before_receiver_lookup",
+          "assertion": "Named-variable getter failure precedes receiver lookup and remains the first cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_name_selected_compiled_slot_refuses_replacement_before_the_next_getter",
+          "assertion": "Captured compiled-slot replacement is refused before the next Name getter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_name_explicit_namespace_refuses_reborn_target_before_the_next_getter",
+          "assertion": "An explicit namespace target rebirth is refused before the next getter can use it. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_name_consumers/tests.rs",
+          "selector": "interp::native_name_consumers::tests::original_jim_dictionary_tuple_checks_real_retirement_before_adopting_children",
+          "assertion": "The selected Jim dictionary-substitution tuple checks actual retirement before child adoption. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_shared_body_string_worker_keeps_exact_native_reference_count",
+          "assertion": "The shared original body String formatter observes the genuine borrowed reference count before working-copy selection. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_body_formatter_retirement_precedes_copy_and_public_error_boundary",
+          "assertion": "A real body formatter retires authentic owners; the full header refusal precedes copying and public error presentation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_jim_static_duplicate_cleanup_retires_only_fresh_unbound_cells",
+          "assertion": "Failed Jim static installation retires only genuine fresh unbound cells and their copied member roles. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_legacy_string_role_retains_exact_header_refusal_at_real_boundary",
+          "assertion": "Legacy String transport retains the exact actual header refusal through the genuine outer VM boundary. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_alias_source_header_refusal_precedes_publication_and_keeps_prior_cause",
+          "assertion": "A withdrawn original alias source header prevents publication and preserves a prior entered cause. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_alias_retained_payload_cannot_revive_a_deleted_target_interpreter",
+          "assertion": "A retained real alias payload cannot revive a deleted target interpreter; the same original host boundary retains the dead-target refusal. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
         }
       ],
       "replay": {
@@ -499572,6 +500482,24 @@
           "selector": "interp::native_command_names::original_key_construction_tests::original_jim_missing_rename_source_stops_before_destination_lookup",
           "status": "linked",
           "assertion": "Finite source-defined control: original jim missing rename source stops before destination lookup. The destination length getter was reached once before qualification. A missing exact source cannot publish or borrow a fallback binding. The source hash lookup is exact in the current Jim namespace. A. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_c_alias_query_keeps_target_global_late_binding_and_loop_cleanup",
+          "assertion": "C alias queries use the real target GLOBAL context, late binding and loop cleanup without issuing command execution or prefix authority. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_jim_alias_creation_reaches_no_c_loop_string_worker",
+          "assertion": "Jim alias creation reaches no C loop String worker; this finite control exercises no actual cyclic invocation. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "selector": "interp::original_name_residual_tests::original_alias_retained_payload_cannot_revive_a_deleted_target_interpreter",
+          "assertion": "A retained real alias payload cannot revive a deleted target interpreter; the same original host boundary retains the dead-target refusal. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
         }
       ],
       "replay": {
@@ -511898,6 +512826,13 @@
           "sha256": "6e16971fe60392026ad18d2b20f9dca81ea8cdd6af0c3ee2280cc383b02187ba",
           "role": "provider",
           "description": "Whole original input/output path/hash/size/mode joins and explicit replay limits; reused canonical payloads remain byte-identical."
+        },
+        {
+          "id": "authored-consumer645d-b27b84bbc39b",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+          "sha256": "9eca604ba2650fe4b0c41e93fd6a8289c2bb36bb7f2d669185dd9a545b9c2e27",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
       "source_anchors": [
@@ -553588,14 +554523,14 @@
           "id": "implementation-source-2",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
           "description": "Exact current explicit C API header setter, selected error-code storage/getter owner or finite software definition. Only this bounded source/API purpose is pinned; the file hash supplies no matching owned assertion, provider callback chronology or whole-program execution."
         },
         {
           "id": "implementation-source-3",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_error_variables.rs",
-          "sha256": "b5133e85d38dcee4721d8e25e82c7ac2f84ae7553564eb936a82e113b4203e1b",
+          "sha256": "47c46ca5b7696a2abaae665bc95fe7f9ef73ca5c939e470c3d31a1e246852606",
           "description": "Exact current explicit C API header setter, selected error-code storage/getter owner or finite software definition. Only this bounded source/API purpose is pinned; the file hash supplies no matching owned assertion, provider callback chronology or whole-program execution."
         },
         {
@@ -568836,6 +569771,13 @@
           "path": "runtime/rust/tests/data/native_explicit_error_code_header_setter_original/614c/receiver-crossreview/interpretation.json",
           "sha256": "c1078bb9f228b3cab60dd72c6e33305ca66479e1641ceb3a7db7634263becf68",
           "description": "Exact independent bounded actual614c cross-review rejoins its existing16 saved process associations and20 finite cases. Compiler ephemeral objects remain unretained. No new setter or reset execution, observer mode or Rust assertion."
+        },
+        {
+          "id": "authored-consumer645d-5051fdee40ed",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+          "sha256": "6a34cef9581f934b778fa736327191399eb7bd156ac6853e24dc7549ceb2ad74",
+          "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
       "source_anchors": [
@@ -568933,6 +569875,18 @@
           "selector": "interp::original_error_code_setter_tests::original_error_code_decrement_keeps_the_selected_raw_header_role_without_a_native_hold",
           "status": "linked",
           "assertion": "Error code decrement keeps the selected raw header role without a native hold. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+          "selector": "interp::native_body_artifact::original_return_parent_tests::original_compiled_errorcode_uses_selected_old_role_before_incoming_hold_without_capi_counter",
+          "assertion": "Compiled original -errorcode delegates the same selected setter: genuine modern old-free observes old raw role and pre-incoming count, original frame/currency checked before incoming hold, no String getter/public CAPI counter. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs",
+          "selector": "interp::native_body_artifact::original_return_parent_tests::original_generic_field_publication_remains_distinct_from_selected_setter_retirement",
+          "assertion": "Actual generic451c publication exposes its incoming role at the old free independently of selected setter old-role order; no Native614c semantic getter or broad role timing is inferred. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
+          "status": "linked"
         }
       ],
       "owners": [
