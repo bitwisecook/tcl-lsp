@@ -159,6 +159,7 @@ pub(crate) fn switch_is_flattened(
 mod cfg_lower;
 mod execution_regions;
 pub mod global_write_info;
+mod summary_candidates;
 pub mod upvar_info;
 
 /// Mutable block used during construction, frozen into [`Block`] at the end.
@@ -3135,46 +3136,42 @@ impl<'a> CfgBuilder<'a> {
 
 // Public API
 
-/// Every spelling a call site may use for the procedure named `qname`.
-///
-/// A qualified definition is reachable by its absolute name, by its bare
-/// tail, **and** by any `::`-boundary suffix in between: written from
-/// `::other`, the word `demo::setdef` resolves relative to the current
-/// namespace first and then falls back to `::demo::setdef`, so that
-/// spelling has to key the same summary — otherwise the relative-qualified
-/// spelling silently misses the caller-frame defs the bare and absolute
-/// spellings pick up.
-///
-/// Registering a suffix is the same over-approximation the bare tail
-/// already was: a same-named proc in a different namespace can claim the
-/// key. The consequence is a *widened* `defs` list at a call site, which
-/// only ever silences a warning.
+/// Possible summary labels from an already constructed procedure key.
+/// Colliding labels retain every candidate; they cannot select a callable or
+/// repair missing original source/namespace ownership. Written lookup remains
+/// the command binding owner's independent query.
 #[must_use]
 pub fn qualified_lookup_keys(qname: &str) -> Vec<String> {
-    let mut keys = vec![qname.to_owned()];
-    let mut push = |key: &str| {
-        if !key.is_empty() && !keys.iter().any(|k| k == key) {
-            keys.push(key.to_owned());
-        }
-    };
-    // `::demo::setdef` → `demo::setdef` → `setdef`: drop one leading
-    // namespace segment at a time, so every relative spelling of the same
-    // definition keys the same summary.
-    let mut rest = qname.trim_start_matches("::");
-    push(rest);
-    while let Some((_, tail)) = rest.split_once("::") {
-        let tail = tail.trim_start_matches("::");
-        push(tail);
-        rest = tail;
+    tcl_syntax::naming::key_suffixes(qname)
+}
+
+fn opaque_frame_summary() -> UpvarInfo {
+    UpvarInfo {
+        has_unresolvable_caller_target: true,
+        caller_frame_opaque_writes: true,
+        caller_frame_opaque_reads: true,
+        frame_reach: FrameReach::PastTheCaller,
+        ..UpvarInfo::default()
     }
-    keys
+}
+
+fn agreed_frame_summary<'p, 's>(
+    candidates: &summary_candidates::ProcedureSummaryCandidates<'p>,
+    key: &str,
+    summaries: &'s HashMap<&str, UpvarInfo>,
+) -> Option<(&'p crate::ir::Procedure, &'s UpvarInfo)> {
+    let procedure = candidates.agreed_signature(key)?;
+    let summary = summaries.get(procedure.qualified_name.as_str())?;
+    candidates.original(key)?.iter().all(|candidate| {
+        summaries.get(candidate.qualified_name.as_str()) == Some(summary)
+    }).then_some((procedure, summary))
 }
 
 /// Scan a module for procedures with a caller-frame effect
 /// (`upvar` / `uplevel`), returning a map from command name to its
-/// [frame-effect summary][UpvarInfo].  Every spelling a call site may use
-/// ([`qualified_lookup_keys`]) is registered so the lookup does not depend
-/// on how the caller happened to write the name.
+/// [frame-effect summary][UpvarInfo]. Possible constructed suffix labels
+/// ([`qualified_lookup_keys`]) share a summary only when every original
+/// candidate agrees; unknown or conflicting candidates become opaque.
 #[must_use]
 pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
     let registry = module.resolved_registry();
@@ -3200,13 +3197,8 @@ fn detect_upvar_procs_with_bindings(
     command_bindings: &ModuleCommandBindings,
 ) -> HashMap<String, UpvarInfo> {
     let mut result: HashMap<String, UpvarInfo> = HashMap::new();
-    // Deterministic (qualified-name) iteration order, for the same reason
-    // [`prepare_cfg_context`] does it for `proc_params`: the *short* key below is
-    // written by every procedure sharing that short name, so last-write-wins must
-    // not be decided by the `HashMap`'s random per-process seed — this map is part
-    // of the `CfgContext` folded into every procedure's `function_lattice` memo
-    // key, and a nondeterministic winner makes the per-procedure cache hit or miss
-    // by luck of the process start.
+    let candidates = summary_candidates::ProcedureSummaryCandidates::for_module(module, registry);
+    // Stable original-body order; each shared key retains every candidate.
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     let rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(module.dialect.as_deref());
@@ -3214,17 +3206,21 @@ fn detect_upvar_procs_with_bindings(
     for (qname, proc) in entries {
         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
         let namespace = if holder.is_empty() { "::" } else { holder };
-        let mut info = upvar_info::collect_upvar_targets_with_bindings(
-            &proc.body,
-            &proc.params,
-            registry,
-            command_bindings,
-            namespace,
-            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
-                .and_then(
-                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
-                ),
-        );
+        let mut info = if candidates.original(qname).is_some() {
+            upvar_info::collect_upvar_targets_with_bindings(
+                &proc.body,
+                &proc.params,
+                registry,
+                command_bindings,
+                namespace,
+                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                    .and_then(
+                        crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                    ),
+            )
+        } else {
+            opaque_frame_summary()
+        };
         info.param_defaults = upvar_info::name_param_defaults(&info, &proc.params_raw, rules);
         own.push((qname, proc, info));
     }
@@ -3236,26 +3232,23 @@ fn detect_upvar_procs_with_bindings(
     // a recursive or mutually-recursive forward cannot diverge. A two-hop
     // chain is left to the opaque-widening path, which is the safe
     // direction.
-    // `own` is already qualified-name-sorted, so a short key shared by two
-    // procedures resolves to the same one every run.
-    let mut by_name: HashMap<String, (&UpvarInfo, &[String])> = HashMap::new();
-    for (qname, proc, info) in &own {
-        for key in qualified_lookup_keys(qname) {
-            by_name.insert(key, (info, proc.params.as_slice()));
-        }
-    }
-    let mut composed: Vec<(&String, UpvarInfo)> = Vec::new();
+    let own_summaries: HashMap<&str, UpvarInfo> = own
+        .iter()
+        .map(|(qname, _, info)| (qname.as_str(), info.clone()))
+        .collect();
+    let mut composed: HashMap<&str, UpvarInfo> = HashMap::new();
     for (qname, _, own_info) in &own {
         let mut info = own_info.clone();
         for (callee, constructed) in &own_info.uplevel_forwarded_calls {
-            if let Some((callee_info, callee_params)) = by_name.get(callee.as_str()) {
-                upvar_info::compose_forwarded(callee_info, callee_params, constructed, &mut info);
+            if let Some((callee_proc, callee_info)) =
+                agreed_frame_summary(&candidates, callee, &own_summaries)
+            {
+                upvar_info::compose_forwarded(
+                    callee_info, &callee_proc.params, constructed, &mut info,
+                );
             } else {
-                // The forwarded command is not a procedure this unit can
-                // see (a cross-file helper, a runtime-installed command).
-                // It still runs in the caller's frame, so widen.
-                info.caller_frame_opaque_writes = true;
-                info.caller_frame_opaque_reads = true;
+                // Missing or disagreeing candidates supply no definite alias.
+                info = opaque_frame_summary();
             }
         }
         // The second one-hop composition: an **ordinary** call to a proc that
@@ -3274,45 +3267,34 @@ fn detect_upvar_procs_with_bindings(
         // by construction on any call graph, recursive or not.  A `uplevel 3`
         // two plain calls out is left to the opaque-widening path.
         for callee in &own_info.plain_calls {
-            if by_name
-                .get(callee.as_str())
-                .is_some_and(|(callee_info, _)| {
-                    callee_info.frame_reach == FrameReach::PastTheCaller
+            let reaches_past = candidates.original(callee).is_none_or(|procedures| {
+                procedures.iter().any(|procedure| {
+                    own_summaries.get(procedure.qualified_name.as_str()).is_none_or(|summary| {
+                        summary.frame_reach == FrameReach::PastTheCaller
+                    })
                 })
-            {
-                info.caller_frame_opaque_writes = true;
-                info.caller_frame_opaque_reads = true;
+            });
+            if reaches_past {
+                info = opaque_frame_summary();
             }
         }
         // Composition input, not a caller-side effect — dropped so the
         // published summaries (which are folded into every procedure's
         // `function_lattice` memo key) carry only what a call site reads.
         info.plain_calls.clear();
-        composed.push((qname, info));
+        composed.insert(qname.as_str(), info);
     }
 
-    for (qname, info) in composed {
-        if info.is_empty() {
-            continue;
+    for key in candidates.keys() {
+        let info = agreed_frame_summary(&candidates, key, &composed)
+            .map_or_else(opaque_frame_summary, |(_, summary)| summary.clone());
+        if !info.is_empty() {
+            result.insert(key.to_owned(), info);
         }
-        for key in qualified_lookup_keys(qname) {
-            if key == *qname {
-                continue;
-            }
-            result.insert(key, info.clone());
-        }
-        result.insert(qname.clone(), info);
     }
     for qname in &module.redefined_procedures {
-        let opaque = UpvarInfo {
-            has_unresolvable_caller_target: true,
-            caller_frame_opaque_writes: true,
-            caller_frame_opaque_reads: true,
-            frame_reach: FrameReach::PastTheCaller,
-            ..UpvarInfo::default()
-        };
         for key in qualified_lookup_keys(qname) {
-            result.insert(key, opaque.clone());
+            result.insert(key, opaque_frame_summary());
         }
     }
     result
@@ -3392,21 +3374,8 @@ pub(crate) fn prepare_cfg_context_bundle(
         registry,
         &command_bindings,
     );
-    let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
-    // Iterate procedures in a deterministic (qualified-name) order: a *short*
-    // name shared by two procedures (`::a::x` and `::b::x`) is inserted by both,
-    // so last-write-wins must be order-independent — otherwise `proc_params`
-    // (and the `CfgContext` it feeds into the `function_lattice` memo key) would
-    // depend on `HashMap` iteration order and the per-procedure lattice cache
-    // would hit or miss by random seed.  Qualified names are unique, so their
-    // entries are unaffected.
-    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
-    entries.sort_by(|a, b| a.0.cmp(b.0));
-    for (qname, proc) in entries {
-        for key in qualified_lookup_keys(qname) {
-            proc_params.insert(key, proc.params.clone());
-        }
-    }
+    let proc_params = summary_candidates::ProcedureSummaryCandidates::for_module(module, registry)
+        .agreed_parameters();
     PreparedCfgContext {
         context: (
             upvar_procs,
@@ -7561,4 +7530,74 @@ mod tests {
             handler.terminator,
         );
     }
+
+    #[test]
+    fn colliding_summary_keys_decline_conflicting_caller_alias_targets() {
+        // naming.analysis.procedure-summary-candidate-keys
+        // docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md
+        // Actual whole-module source and existing frame-summary producer.
+        let module = lower_module(
+            "namespace eval a {proc bind {} {upvar 1 left local; set local 1}}\n\
+             namespace eval b {proc bind {} {upvar 1 right local; set local 2}}\n\
+             proc forward {} {uplevel 1 [list bind]}",
+        );
+        let summaries = detect_upvar_procs(&module);
+        assert_eq!(summaries["::a::bind"].literal_targets.get("local").map(String::as_str), Some("left"));
+        assert_eq!(summaries["::b::bind"].literal_targets.get("local").map(String::as_str), Some("right"));
+        let possible = &summaries["bind"];
+        assert!(possible.literal_targets.is_empty());
+        assert!(possible.param_targets.is_empty());
+        assert!(possible.has_unresolvable_caller_target);
+        assert!(possible.caller_frame_opaque_writes && possible.caller_frame_opaque_reads);
+        let forwarded = &summaries["::forward"];
+        assert!(forwarded.literal_targets.is_empty());
+        assert!(forwarded.caller_frame_opaque_writes && forwarded.caller_frame_opaque_reads);
+    }
+
+    #[test]
+    fn summary_parameter_keys_require_complete_unanimous_original_signatures() {
+        // naming.analysis.procedure-summary-candidate-keys
+        // docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md
+        // Defaults, order and variadic position belong to the original header.
+        let module = lower_module(
+            "namespace eval a {proc p {{name left} args} {}; proc q {{name shared} args} {}; proc r {a b} {}; proc s {a args} {}}\n\
+             namespace eval b {proc p {{name right} args} {}; proc q {{name shared} args} {}; proc r {b a} {}; proc s {args a} {}}",
+        );
+        let (_, params, _, _) = prepare_cfg_context(&module);
+        assert!(!params.contains_key("p"));
+        assert!(!params.contains_key("r"));
+        assert!(!params.contains_key("s"));
+        assert_eq!(params.get("::a::p"), Some(&vec!["name".into(), "args".into()]));
+        assert_eq!(params.get("::b::p"), Some(&vec!["name".into(), "args".into()]));
+        assert_eq!(params.get("q"), Some(&vec!["name".into(), "args".into()]));
+    }
+
+    #[test]
+    fn summary_keys_decline_one_changed_member_and_foreign_module_source() {
+        // naming.analysis.procedure-summary-candidate-keys
+        // docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md
+        // Removing original correspondence cannot leave a false unique winner.
+        let module = lower_module(
+            "namespace eval a {proc p {name} {upvar 1 $name local}}\n\
+             namespace eval b {proc p {name} {upvar 1 $name local}}",
+        );
+        let mut changed = module.clone();
+        changed.procedures.get_mut("::b::p").unwrap().params_raw.push_str(" extra");
+        let (summaries, params, _, _) = prepare_cfg_context(&changed);
+        assert!(!params.contains_key("p"));
+        assert!(params.contains_key("::a::p"));
+        assert!(!params.contains_key("::b::p"));
+        assert!(summaries["p"].literal_targets.is_empty());
+        assert!(summaries["p"].param_targets.is_empty());
+        assert!(summaries["p"].caller_frame_opaque_reads);
+        let mut foreign = module;
+        foreign.source = tcl_lexer::SourceImage::document("proc replacement {} {}");
+        let (summaries, params, _, _) = prepare_cfg_context(&foreign);
+        assert!(params.is_empty());
+        assert!(summaries.values().all(|summary| summary.literal_targets.is_empty()
+            && summary.param_targets.is_empty()
+            && summary.caller_frame_opaque_writes
+            && summary.caller_frame_opaque_reads));
+    }
+
 }

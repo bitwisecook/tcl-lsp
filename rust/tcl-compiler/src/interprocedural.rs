@@ -312,36 +312,35 @@ pub struct InterproceduralAnalysis {
     pub transfers: TransferSummaries,
 }
 
-/// A command-name → `(params, param_traits, param_defaults)` lookup, keyed
-/// by the bare leaf name (`bump`), the qualified name (`::demo::bump`), and
-/// the leading-colon-stripped name (`demo::bump`) so a bare call resolves to
-/// a proc declared in any namespace.  Input to [`collect_call_by_name_reads`].
-pub type ProcIndex = HashMap<
-    String,
-    (
-        Vec<String>,
-        HashMap<String, HashSet<ProcArgTrait>>,
-        HashMap<String, String>,
-    ),
->;
+/// One possible procedure's parameter read/write metadata. It selects no
+/// target and proves no Native execution or absence of a hidden caller read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcParameterSummary {
+    /// This candidate's ordered parameter names.
+    pub params: Vec<String>,
+    /// Possible uses of those parameters in this candidate.
+    pub param_traits: HashMap<String, HashSet<ProcArgTrait>>,
+    /// This candidate's omitted-argument defaults.
+    pub param_defaults: HashMap<String, String>,
+}
 
-/// Build a [`ProcIndex`] from interprocedural summaries.
+/// A conservative constructed-key index of every possible summary sharing a
+/// suffix label. [`collect_call_by_name_reads`] unions protective MAY reads;
+/// source binding, opaque effects and store-removal proof remain independent.
+pub type ProcIndex = HashMap<String, Vec<ProcParameterSummary>>;
+
+/// Build a protective MAY index without choosing one colliding procedure.
 #[must_use]
 pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcIndex {
     let mut index = ProcIndex::new();
     for (qname, summary) in &ia.procedures {
-        let entry = (
-            summary.params.clone(),
-            summary.param_traits.clone(),
-            summary.param_defaults.clone(),
-        );
-        // Leaf name (`::demo::bump` → `bump`): a `proc` declared inside a
-        // namespaced body is registered under its qualified name, but a
-        // same-namespace bare call (`bump x`) must still resolve to it.
-        let leaf = qname.rsplit("::").next().unwrap_or(qname.as_str());
-        let lstripped = qname.trim_start_matches(':');
-        for key in [qname.as_str(), lstripped, leaf] {
-            index.entry(key.to_owned()).or_insert_with(|| entry.clone());
+        let entry = ProcParameterSummary {
+            params: summary.params.clone(),
+            param_traits: summary.param_traits.clone(),
+            param_defaults: summary.param_defaults.clone(),
+        };
+        for key in tcl_syntax::naming::key_suffixes(qname) {
+            index.entry(key).or_default().push(entry.clone());
         }
     }
     index
@@ -412,28 +411,26 @@ pub(crate) fn collect_positioned_call_by_name_reads(
 /// carries `VarRead` / `VarWrite` (a call-by-name read/write), and the
 /// default such a param binds where the call omits it.
 fn add_call_by_name(cmd: &str, args: &[String], index: &ProcIndex, out: &mut HashSet<String>) {
-    if cmd.is_empty() || cmd.contains(['$', '[']) {
-        return;
-    }
-    let Some((params, traits_map, defaults)) = index
-        .get(cmd)
-        .or_else(|| index.get(&format!("::{cmd}")))
-        .or_else(|| index.get(cmd.trim_start_matches(':')))
-    else {
+    let candidates = (!cmd.is_empty() && !cmd.contains(['$', '[']))
+        .then(|| index.get(cmd)).flatten();
+    let Some(candidates) = candidates.filter(|candidates| !candidates.is_empty()) else {
+        // A missing key supplies no effect-free callee. These literal passed
+        // names may be observed; opaque hidden reads remain the CFG owner's
+        // separate barrier, not an absence conclusion from this projection.
+        out.extend(args.iter().filter(|arg| is_literal_var_name(arg)).cloned());
         return;
     };
-    for (i, pname) in params.iter().enumerate() {
-        let is_var = traits_map.get(pname).is_some_and(|t| {
-            t.contains(&ProcArgTrait::VarRead) || t.contains(&ProcArgTrait::VarWrite)
-        });
-        let Some(arg) = args.get(i).or_else(|| defaults.get(pname)) else {
-            break;
-        };
-        // A substituted (`$x`) / array / non-name arg names a runtime
-        // variable we can't identify — skip (preserve genuine FPs where
-        // the caller passed a literal string, not a name).
-        if is_var && is_literal_var_name(arg) {
-            out.insert(arg.clone());
+    for candidate in candidates {
+        for (i, pname) in candidate.params.iter().enumerate() {
+            let is_var = candidate.param_traits.get(pname).is_some_and(|traits| {
+                traits.contains(&ProcArgTrait::VarRead) || traits.contains(&ProcArgTrait::VarWrite)
+            });
+            let Some(arg) = args.get(i).or_else(|| candidate.param_defaults.get(pname)) else {
+                break;
+            };
+            if is_var && is_literal_var_name(arg) {
+                out.insert(arg.clone());
+            }
         }
     }
 }

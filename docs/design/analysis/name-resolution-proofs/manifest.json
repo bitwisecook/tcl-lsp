@@ -592431,6 +592431,293 @@
         "command": [],
         "limitations": "Four exact source/control definitions and retained producer bindings support later software reconfirmation. No assertion or C/Jim/BIG-IP process is attached. Physical TMM/static-event/worker observations must be reconfirmed through their independent existing Native proofs."
       }
+    },
+    {
+      "id": "naming.analysis.procedure-summary-candidate-keys",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md",
+      "problem_statement": "Procedure summary maps can overwrite a same-named namespace candidate or select an arbitrary first parameter summary. This can lose possible caller reads and report one conflicting caller alias/default/signature as definite. Trimming constructed leading colon segments also changes metadata identity.",
+      "question": "How do constructed procedure summary keys share one pure geometry owner, retain all original same-source candidates, refuse conflicting complete signatures/frame aliases, and union protective by-name reads without turning a label or missing candidate into Native lookup or effect-absence authority?",
+      "conclusion": "key_suffixes delegates the existing constructed key_segments split and retains complete keys, lone-colon segments and nonempty unique suffix labels. CFG frame and parameter indexes preserve all members under the original retained Module/header/body owner; one unavailable, changed or redefined member leaves the shared key unavailable. Parameter publication requires equal ordered names and raw declarations, preserving defaults and variadic position. Frame composition/publication also requires unanimous own or composed frame summaries; conflicts and unknown callees widen to opaque caller reads/writes without definite alias maps. ProcIndex retains every parameter-summary candidate and unions possible literal by-name arguments/defaults. A missing/dynamic key protects literal passed names; it grants no effect-free callee. The sole production elimination consumer uses this as extra MAY protection and independently retains binding/opaque CFG, positioned source-read and RHS/raise/store proof owners. Six genuine fixed source-defined controls cover constructed colon/Unicode/NUL geometry, conflicting caller aliases, default/order/variadic disagreement, changed member/foreign source refusal, every colliding read/default and missing-key literal protection. All255 previous true test bodies remain exact. No assertion/provider execution is attached.",
+      "scope": "Finite Syntax constructed-key query and Compiler frame/parameter/protective-index consumers. The global-write and deferred-write index adapters share the same query through qualified_lookup_keys without changing their existing independent effect/source guards. Possible keys and ProcIndex candidates are MAY metadata, never selected Native command, namespace incarnation, frame, alias/cell contents, observer history, successful completion or store-removal authority. Empty neutral indexes preserve their compatibility short circuit; unknown hidden frame effects remain the existing binding/CFG owner. This is not a claim of all Compiler naming, whole optimisation soundness or external Tcl/Jim/BIG-IP behavior.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "No external provider execution is attached to this constructed summary-index implementation question.",
+          "build": "Fixed pure geometry and actual whole-source software producer/control definitions only.",
+          "input_channel": "Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "External tcl8.4 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "No external provider execution is attached to this constructed summary-index implementation question.",
+          "build": "Fixed pure geometry and actual whole-source software producer/control definitions only.",
+          "input_channel": "Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "External tcl8.5 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "No external provider execution is attached to this constructed summary-index implementation question.",
+          "build": "Fixed pure geometry and actual whole-source software producer/control definitions only.",
+          "input_channel": "Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "External tcl8.6 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "No external provider execution is attached to this constructed summary-index implementation question.",
+          "build": "Fixed pure geometry and actual whole-source software producer/control definitions only.",
+          "input_channel": "Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "External tcl9.0 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "No external provider execution is attached to this constructed summary-index implementation question.",
+          "build": "Fixed pure geometry and actual whole-source software producer/control definitions only.",
+          "input_channel": "Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "External tcl9.1 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "No external provider execution is attached to this constructed summary-index implementation question.",
+          "build": "Fixed pure geometry and actual whole-source software producer/control definitions only.",
+          "input_channel": "Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "External jim execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "No external provider execution is attached to this constructed summary-index implementation question.",
+          "build": "Fixed pure geometry and actual whole-source software producer/control definitions only.",
+          "input_channel": "Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "External bigip execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "procedure-candidate-source-0",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-1",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+          "sha256": "c6b8c308542e8c132213d169ad7279c274e0bed2ef02db70324b9f9307173879",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-2",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/cfg_builder/summary_candidates.rs",
+          "sha256": "3e634c0cd8ffcfac36055fc4b9601290e7a79a0ba5053854b9041b7f7d8e59f5",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-3",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/interprocedural.rs",
+          "sha256": "d6ff4d9794342575e98837deaa39fe29ccf93b6f56e43a64b5a10f139b844139",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-4",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/tests/inlining_interproc_residual.rs",
+          "sha256": "eb98e2920d8690e8da5d3b32d3e5364065a49ec1743a3dffc957fa9eeea38651",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-5",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/ir.rs",
+          "sha256": "141881e65e31d98be82d0b384d67a4e6a75da110503351d8c53d53df506c8b5b",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-6",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "sha256": "914ceb69a4e2ab42af4b0ac99ede3a8c3374fc7743090488fe29b7cf0126e181",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-7",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "sha256": "924e7447dc103d9a4b71a5a32a106228835dabaed48675b71fdf8e6b1aff49e2",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-8",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/cfg_builder/upvar_info.rs",
+          "sha256": "89f7fa436df00343d9a7654c2b8d54a293e4c83a34bfee8065fbc1396822b0db",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-9",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+          "sha256": "3b785d37161557605eed119feb43019951a61e30ff19c2d75c7447084c335367",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-10",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/deferred_writes.rs",
+          "sha256": "1a0af959696eab75bcfe528abaaa3fa92d73d8c3489b9c73d9f514368dcd3099",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-11",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+          "sha256": "1b0614f575a343275692126420b585ec4bc48b01c5c26355b2bc143266a99513",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-12",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs",
+          "sha256": "c12544bf58a1db8794763844ca3f1d18ae37597e2448cb2bfbc44d190a87755e",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-13",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/cfg.rs",
+          "sha256": "415526f876b3dc030502286c64a1cfc914a3d1d640a98eeb063de9b929bbc977",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-14",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+          "sha256": "d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-15",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/lib.rs",
+          "sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "procedure-candidate-source-16",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/lib.rs",
+          "sha256": "eba20677b3652b80fb4273e1e89aec569d5740cc4d3760fa8d42426988dcab45",
+          "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "naming::shared_boundary_tests::key_suffixes_preserve_constructed_colon_segments_without_lookup_authority",
+          "status": "linked",
+          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+          "selector": "cfg_builder::tests::colliding_summary_keys_decline_conflicting_caller_alias_targets",
+          "status": "linked",
+          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+          "selector": "cfg_builder::tests::summary_parameter_keys_require_complete_unanimous_original_signatures",
+          "status": "linked",
+          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+          "selector": "cfg_builder::tests::summary_keys_decline_one_changed_member_and_foreign_module_source",
+          "status": "linked",
+          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/tests/inlining_interproc_residual.rs",
+          "selector": "protective_proc_index_unions_every_colliding_parameter_and_default_read",
+          "status": "linked",
+          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/tests/inlining_interproc_residual.rs",
+          "selector": "protective_proc_index_missing_key_retains_literal_possible_name_arguments",
+          "status": "linked",
+          "assertion": "Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "symbol": "key_suffixes",
+          "purpose": "One pure possible-summary-key projection over existing constructed key_segments; no written/native inverse or lookup selection."
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/summary_candidates.rs",
+          "symbol": "ProcedureSummaryCandidates",
+          "purpose": "Retain all possible procedures under exact original Module/header/body membership; invalid members refuse key availability and complete raw signatures must agree."
+        },
+        {
+          "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+          "symbol": "agreed_frame_summary",
+          "purpose": "Compose/publish a frame summary only when all original candidates share a complete signature and identical frame effects; otherwise opaque without definite caller alias maps."
+        },
+        {
+          "path": "rust/tcl-compiler/src/interprocedural.rs",
+          "symbol": "ProcParameterSummary",
+          "purpose": "Pure per-candidate parameter traits/defaults; no selected callee or absence evidence."
+        },
+        {
+          "path": "rust/tcl-compiler/src/interprocedural.rs",
+          "symbol": "build_proc_index_from_summaries",
+          "purpose": "Retain every colliding candidate and no first-winner HashMap policy."
+        },
+        {
+          "path": "rust/tcl-compiler/src/interprocedural.rs",
+          "symbol": "collect_call_by_name_reads",
+          "purpose": "Protective MAY name union only; exact neutral input keys or literal missing-target arguments, with actual binding/CFG/Native read owners remaining separate."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "symbol": "matches_original_procedure",
+          "purpose": "Existing full same-source procedure header/body correspondence; display keys cannot replace original retained declaration membership."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+          "symbol": "dead_store_observation_unbounded",
+          "purpose": "Existing opaque Native access/CFG observer refusal remains before store advice; this projection never proves Native read absence."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Six source-defined fixed software controls permit later owned-executable reconfirmation. No assertion outcome or external C/Jim/BIG-IP process is attached; metadata geometry cannot certify Native namespace/command lookup."
+      }
     }
   ]
 }

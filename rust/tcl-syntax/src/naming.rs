@@ -530,6 +530,26 @@ pub fn key_segments(key: &str) -> Vec<String> {
     out
 }
 
+/// Possible suffix labels of a constructed analytical key, retaining the
+/// complete input first. Each suffix follows the existing [`key_segments`]
+/// projection; lone colon segments and a trailing empty segment survive.
+/// Empty suffixes are omitted and repeated labels appear once.
+///
+/// These labels are a conservative metadata index, not written Tcl spellings,
+/// namespace paths, command lookup candidates or proof of a selected binding.
+#[must_use]
+pub fn key_suffixes(key: &str) -> Vec<String> {
+    let mut suffixes = vec![key.to_owned()];
+    let segments = key_segments(key);
+    for start in 0..segments.len() {
+        let suffix = segments[start..].join("::");
+        if !suffix.is_empty() && !suffixes.contains(&suffix) {
+            suffixes.push(suffix);
+        }
+    }
+    suffixes
+}
+
 /// Whether a definition written as `simple_name` inside the namespace whose
 /// **written segments** are `ns_segments` can be reached by *any* absolute
 /// (fully-qualified) written form.
@@ -2577,4 +2597,20 @@ mod shared_boundary_tests {
             assert_eq!(written_command_tail(written), tail);
         }
     }
+
+    #[test]
+    fn key_suffixes_preserve_constructed_colon_segments_without_lookup_authority() {
+        // naming.analysis.procedure-summary-candidate-keys
+        // docs/design/analysis/name-resolution-proofs/procedure-summary-candidate-keys.md
+        // Pure constructed labels only, never Native namespace interpretation.
+        assert_eq!(key_suffixes("::a::b::p"), ["::a::b::p", "a::b::p", "b::p", "p"]);
+        assert_eq!(key_suffixes(":::::p"), [":::::p", ":::p", "p"]);
+        assert_eq!(key_suffixes("::a:::::p"), ["::a:::::p", "a:::::p", ":::p", "p"]);
+        assert_eq!(key_suffixes("::::::"), ["::::::", "::::", ":"]);
+        assert_eq!(key_suffixes("::a::"), ["::a::", "a::"]);
+        assert_eq!(key_suffixes("::"), ["::"]);
+        assert_eq!(key_suffixes(""), [""]);
+        assert_eq!(key_suffixes("::é::雪\0p"), ["::é::雪\0p", "é::雪\0p", "雪\0p"]);
+    }
+
 }
