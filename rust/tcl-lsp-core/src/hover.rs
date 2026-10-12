@@ -1106,6 +1106,7 @@ fn builtin_command_hover_text(
 }
 
 fn append_command_event_metadata(out: &mut String, spec: &tcl_registry::CommandSpec) {
+    use std::fmt::Write;
     if let Some(requires) = spec.event_requires.as_ref() {
         append_valid_events(out, &effective_event_requires(spec, requires));
     } else {
