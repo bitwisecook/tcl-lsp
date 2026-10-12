@@ -435,20 +435,59 @@ impl Interp {
         current: NsId,
         original: *mut TclObj,
     ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
+        self.resolve_original_command_at_using(current, original, None)
+    }
+
+    fn original_command_stage_refusal(&self, error: ValueError) -> ValueError {
+        let typed = tcl_cmd_core::CmdError::from(error.clone());
+        if let Some(first) = typed.native_execution_refusal() {
+            self.clone().refuse_native_execution(first.clone());
+        }
+        error
+    }
+
+    fn original_command_lookup_bytes_using(
+        &self,
+        original: *mut TclObj,
+        extra: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
+    ) -> Result<std::rc::Rc<[u8]>, ValueError> {
+        let Some(extra) = extra else { return self.native_string_bytes(&original); };
+        let reached = self.native_object_string_bytes_using(
+            original, &|| extra(self).map_err(|error| self.original_command_stage_refusal(error)),
+            &|error| self.original_command_stage_refusal(error),
+        );
+        extra(self)?;
+        reached
+    }
+
+    pub(crate) fn resolve_original_command_at_using(
+        &mut self,
+        current: NsId,
+        original: *mut TclObj,
+        extra: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
+    ) -> Result<Option<(Command, Option<u64>)>, ValueError> {
         let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
             |first| {
                 self.refuse_native_execution(first);
                 ValueError::CommandProtocolUnavailable("original command lookup entry")
             },
         )?;
+        if let Some(check) = extra { check(self)?; }
         obj::check_native_liveness(original)?;
         let _allocation = obj::NativeObjectLifetime::retain(original);
         let dialect = self.native_invocation_dialect();
         let Some(protocol) = dialect.native_command_name_protocol() else {
             if dialect.native_jim_lookup_protocol().is_some() {
+                // This supplied caller stage belongs to selected C NextTo;
+                // Jim's independent lookup worker has no such checked door.
+                if extra.is_some() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original additional Jim command lookup stage",
+                    ));
+                }
                 return self.resolve_original_jim_command(current, original);
             }
-            let bytes = self.native_string_bytes(&original)?;
+            let bytes = self.original_command_lookup_bytes_using(original, extra)?;
             return Ok(self.resolve_dispatchable_with_generation(current, &bytes));
         };
         if protocol.version() >= tcl_dialect::TclVersion::V8_5 {
@@ -467,7 +506,7 @@ impl Interp {
                 }
             }
         }
-        let bytes = self.native_string_bytes(&original)?;
+        let bytes = self.original_command_lookup_bytes_using(original, extra)?;
         let world = self.namespaces.borrow();
         let path =
             world
@@ -510,14 +549,24 @@ impl Interp {
         }
         let binding = self.native_command_name_from_binding(origin, &bytes)?;
         if let Some(cache) = binding {
-            let check =
-                || self.original_command_cache_current(scope.currency(), original, &cache, origin);
+            let check = || {
+                if let Some(check) = extra { check(self)?; }
+                self.original_command_cache_current(scope.currency(), original, &cache, origin)
+                    .map_err(|error| if extra.is_some() {
+                        self.original_command_stage_refusal(error)
+                    } else { error })
+            };
             let reached = obj::install_native_command_name_cache_with_stage_check(
                 original,
                 cache.clone(),
                 dialect,
                 Some(&check),
             );
+            if extra.is_some() {
+                if let Err(error) = &reached {
+                    self.original_command_stage_refusal(error.clone());
+                }
+            }
             check()?;
             reached?;
             // Cache preparation observes a token; actual worker ownership starts
@@ -531,10 +580,13 @@ impl Interp {
         } else {
             let reference = self.namespaces.borrow().native_command_reference(origin);
             let check = || {
+                if let Some(check) = extra { check(self)?; }
                 scope.currency().ensure_current_or_refuse().map_err(|_| {
                     ValueError::CommandProtocolUnavailable("original unresolved command currency")
                 })?;
-                obj::check_native_liveness(original)?;
+                obj::check_native_liveness(original).map_err(|error| if extra.is_some() {
+                    self.original_command_stage_refusal(error)
+                } else { error })?;
                 if self.namespaces.borrow().native_command_reference(origin) != reference {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "original unresolved command reference",
@@ -547,6 +599,11 @@ impl Interp {
                 dialect,
                 Some(&check),
             );
+            if extra.is_some() {
+                if let Err(error) = &reached {
+                    self.original_command_stage_refusal(error.clone());
+                }
+            }
             check()?;
             reached?;
         }

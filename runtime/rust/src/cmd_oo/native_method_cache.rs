@@ -310,6 +310,9 @@ pub(super) struct ReachedMethodChain {
     terminal_report: Option<CallStep>,
 }
 impl ReachedMethodChain {
+    pub(super) fn observed_steps(&self) -> std::rc::Weak<Vec<CallStep>> {
+        Rc::downgrade(&self.steps)
+    }
     pub(super) fn with_terminal_report(mut self, terminal: CallStep) -> Self {
         self.terminal_report = Some(terminal);
         self

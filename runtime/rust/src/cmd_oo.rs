@@ -4131,86 +4131,175 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// *ahead* of the current step (no jumping backwards).
 fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     native_context::with_original_arguments(interp, argv, |interp, originals| {
-        let ctx = interp
-            .oo
-            .borrow()
-            .call_stack
-            .iter()
-            .rev()
-            .find(|frame| frame.activation == Some(interp.frames.borrow().current_activation()))
-            .map(|frame| {
-                (
-                    frame.object,
-                    frame.chain.clone(),
-                    frame.index,
-                    frame.target.clone(),
-                    frame.external,
-                )
-            });
-        let Some((object, chain, index, target, external)) = ctx else {
-            return err(interp, b"nextto may only be called from inside a method");
+        let dialect = interp.native_invocation_dialect();
+        if dialect.native_tcloo_method_cache_protocol().is_none() {
+            return nextto_cmd_with_original(interp, argv, originals, None);
+        }
+        let Some(version) = dialect.tcl_version else {
+            return interp.report_cmd_error(originals.retain_refusal(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "selected original C NextTo version",
+                ).into(),
+            ));
         };
-        if argv.len() < 2 {
-            return wrong_args(interp, b"nextto class ?arg...?");
-        }
-        // The class argument resolves like a command: current namespace then the
-        // global fallback (C's Tcl_GetObjectFromObj), not relative to the object's
-        // instance namespace that the method runs in.
-        let class = oo_original_object!(interp, originals, 1);
-        if !interp.oo.borrow().objects.contains_key(&class) {
-            let name = oo_original_bytes!(interp, originals, 1);
-            return not_object(interp, &name);
-        }
-        if !interp.oo.borrow().classes.contains_key(&class) {
-            let raw = oo_original_bytes!(interp, originals, 1);
-            let mut m = b"\"".to_vec();
-            m.extend_from_slice(&raw);
-            m.extend_from_slice(b"\" is not a class");
-            return err(interp, &m);
-        }
-        // The actual producer flag distinguishes filters from target steps.
-        let is_target = |s: &CallStep| !s.is_filter;
-        // Search forward (past the current step) for the class's implementation.
-        for i in index + 1..chain.len() {
-            if chain[i].provider == class && is_target(&chain[i]) {
-                return interp.oo_run(
-                    object,
-                    chain,
-                    i,
-                    &target,
-                    &argv[2..],
-                    MethodInvocation {
-                        external,
-                        level_words: None,
-                        original_argv: Some(argv.to_vec()),
-                    },
-                );
+        // Ordinary C9.1 reads its head before context selection. C8.6/C9.0
+        // select first and read the head only for an absent-context diagnostic.
+        let head = if version == tcl_dialect::TclVersion::V9_1 {
+            Some(oo_original_bytes!(interp, originals, 0))
+        } else { None };
+        let selected = match native_context::OriginalOoNextContext::capture(interp) {
+            Ok(Some(selected)) => selected,
+            Ok(None) => {
+                let head = match head {
+                    Some(head) => head,
+                    None => oo_original_bytes!(interp, originals, 0),
+                };
+                return interp.native_oo_context_required(tcl_core_types::c_string_extent(&head));
             }
-        }
-        // Not reachable ahead: distinguish "behind us" from "not in the chain".
-        let method_type: &[u8] = if chain.report_role() == NativeTclooMethodReportRole::Constructor
-        {
-            b"constructor"
-        } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
-            b"destructor"
-        } else {
-            b"method"
+            Err(first) => return interp.report_cmd_error(first),
         };
-        let reachable_behind =
-            (0..=index).any(|i| chain[i].provider == class && is_target(&chain[i]));
-        let raw = oo_original_bytes!(interp, originals, 1);
-        let mut m = method_type.to_vec();
-        if reachable_behind {
-            m.extend_from_slice(b" implementation by \"");
-            m.extend_from_slice(&raw);
-            m.extend_from_slice(b"\" not reachable from here");
-        } else {
-            m.extend_from_slice(b" has no non-filter implementation by \"");
-            m.extend_from_slice(&raw);
-            m.push(b'"');
-        }
-        err(interp, &m)
+        let current = |actual: &Interp| {
+            originals.check_for(actual)?;
+            selected.check(actual)
+        };
+        nextto_cmd_with_original(interp, argv, originals, Some(&current))
     })
+}
+
+fn nextto_cmd_using(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
+) -> Code {
+    native_context::with_original_arguments(interp, argv, |interp, originals| {
+        nextto_cmd_with_original(interp, argv, originals, extra)
+    })
+}
+
+fn nextto_cmd_with_original(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    originals: &crate::interp::native_arguments::OriginalArguments,
+    extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
+) -> Code {
+    if let Some(check) = extra {
+        if let Err(first) = check(interp) { return interp.report_cmd_error(first); }
+    }
+    let ctx = extra.is_none().then(|| interp
+        .oo
+        .borrow()
+        .call_stack
+        .iter()
+        .rev()
+        .find(|frame| frame.activation == Some(interp.frames.borrow().current_activation()))
+        .map(|frame| {
+            (
+                frame.object,
+                frame.chain.clone(),
+                frame.index,
+                frame.target.clone(),
+                frame.external,
+            )
+        })).flatten();
+    let selected_present = ctx.is_some() || (extra.is_some() && interp.oo.borrow().call_stack
+        .iter().any(|frame| frame.activation == Some(interp.frames.borrow().current_activation())));
+    if !selected_present {
+        return err(interp, b"nextto may only be called from inside a method");
+    };
+    if argv.len() < 2 {
+        return wrong_args(interp, b"nextto class ?arg...?");
+    }
+    // The class argument resolves like a command: current namespace then the
+    // global fallback (C's Tcl_GetObjectFromObj), not relative to the object's
+    // instance namespace that the method runs in.
+    let original = match originals.original(1) {
+        Ok(original) => original,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let reached = interp.oo_resolve_original_object_using(original, extra);
+    if let Err(first) = originals.check().and_then(|()| extra.map_or(Ok(()), |check| check(interp))) {
+        return interp.report_cmd_error(first);
+    }
+    let class = match reached {
+        Ok(class) => class,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    if !interp.oo.borrow().objects.contains_key(&class) {
+        let name = match native_context::next_original_bytes_using(interp, originals, 1, extra) {
+            Ok(bytes) => bytes,
+            Err(first) => return interp.report_cmd_error(first),
+        };
+        return not_object(interp, &name);
+    }
+    if !interp.oo.borrow().classes.contains_key(&class) {
+        let raw = match native_context::next_original_bytes_using(interp, originals, 1, extra) {
+            Ok(bytes) => bytes,
+            Err(first) => return interp.report_cmd_error(first),
+        };
+        let mut m = b"\"".to_vec();
+        m.extend_from_slice(&raw);
+        m.extend_from_slice(b"\" is not a class");
+        return err(interp, &m);
+    }
+    // Re-read the selected context's mutable payload at the actual post-
+    // lookup stage. The caller checks the original weak frame/chain first.
+    let ctx = ctx.or_else(|| interp.oo.borrow().call_stack.iter().rev()
+        .find(|frame| frame.activation == Some(interp.frames.borrow().current_activation()))
+        .map(|frame| (frame.object, frame.chain.clone(), frame.index,
+            frame.target.clone(), frame.external)));
+    let Some((object, chain, index, target, external)) = ctx else {
+        return interp.report_cmd_error(originals.retain_refusal(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original selected NextTo context",
+            ).into(),
+        ));
+    };
+    // The actual producer flag distinguishes filters from target steps.
+    let is_target = |s: &CallStep| !s.is_filter;
+    // Search forward (past the current step) for the class's implementation.
+    for i in index + 1..chain.len() {
+        if chain[i].provider == class && is_target(&chain[i]) {
+            return interp.oo_run(
+                object,
+                chain,
+                i,
+                &target,
+                &argv[2..],
+                MethodInvocation {
+                    external,
+                    level_words: None,
+                    original_argv: Some(argv.to_vec()),
+                },
+            );
+        }
+    }
+    // Not reachable ahead: distinguish "behind us" from "not in the chain".
+    let method_type: &[u8] = if chain.report_role() == NativeTclooMethodReportRole::Constructor
+    {
+        b"constructor"
+    } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
+        b"destructor"
+    } else {
+        b"method"
+    };
+    let reachable_behind =
+        (0..=index).any(|i| chain[i].provider == class && is_target(&chain[i]));
+    let raw = match native_context::next_original_bytes_using(interp, originals, 1, extra) {
+            Ok(bytes) => bytes,
+            Err(first) => return interp.report_cmd_error(first),
+        };
+    let mut m = method_type.to_vec();
+    if reachable_behind {
+        m.extend_from_slice(b" implementation by \"");
+        m.extend_from_slice(&raw);
+        m.extend_from_slice(b"\" not reachable from here");
+    } else {
+        m.extend_from_slice(b" has no non-filter implementation by \"");
+        m.extend_from_slice(&raw);
+        m.push(b'"');
+    }
+    err(interp, &m)
+
 }
 
 /// `classvariable name ...` — the method-context command that links each `name`

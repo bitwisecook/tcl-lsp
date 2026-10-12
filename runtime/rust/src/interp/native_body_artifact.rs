@@ -50,6 +50,8 @@ use native_mathop::MathopOperation;
 use native_scalar::ScalarOperation;
 mod native_each;
 mod native_list_conversion;
+#[path = "native_body_artifact/native_oo_next.rs"]
+mod native_oo_next;
 #[path = "native_body_artifact/native_lappend.rs"]
 mod native_lappend;
 use native_list_conversion::{BodyListArguments, BodyListFrame};
@@ -3202,77 +3204,10 @@ impl Interp {
                         )?;
                         self.execute_native_oo_object_info(*operation, original.as_ptr())
                     }
-                    Helper::Next { class, words, list } => {
-                        let mut stack = Vec::<obj::Owned>::new();
-                        if let Some(steps) = list {
-                            for step in steps {
-                                match *step {
-                                    NativeArgumentListStep::Word(index) => {
-                                        stack.push(self.body_helper_operand(
-                                            artifact,
-                                            command,
-                                            words,
-                                            literal_slots,
-                                            index,
-                                            execution,
-                                        )?)
-                                    }
-                                    NativeArgumentListStep::List(count) => {
-                                        let operands = stack.split_off(stack.len() - count);
-                                        let members = operands
-                                            .iter()
-                                            .map(obj::Owned::as_ptr)
-                                            .collect::<Vec<_>>();
-                                        stack.push(obj::Owned::fresh(
-                                            crate::list::new_list_obj_native(
-                                                &members,
-                                                artifact.stamp.source_protocol,
-                                            ),
-                                        ));
-                                    }
-                                    NativeArgumentListStep::Concat => {
-                                        let source = stack.pop().expect("helper List source");
-                                        let target = stack.pop().expect("helper List target");
-                                        stack.push(
-                                            crate::list::concatenate_native_lists(
-                                                target.as_ptr(),
-                                                source.as_ptr(),
-                                                artifact.stamp.source_protocol,
-                                            )
-                                            .map_err(|error| self.report_cmd_error(error.into()))?,
-                                        );
-                                    }
-                                }
-                            }
-                        } else {
-                            for index in 0..words.len() {
-                                stack.push(self.body_helper_operand(
-                                    artifact,
-                                    command,
-                                    words,
-                                    literal_slots,
-                                    index,
-                                    execution,
-                                )?);
-                            }
-                        }
-                        let arguments = if list.is_some() {
-                            // Keep the genuine parent List alive through the reached call.
-                            crate::list::list_elements_native_checked(
-                                stack[0].as_ptr(),
-                                artifact.stamp.source_protocol,
-                            )
-                            .map_err(|error| self.report_cmd_error(error.into()))?
-                        } else {
-                            stack.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>()
-                        };
-                        if arguments.len() < if *class { 2 } else { 1 } {
-                            return Err(self.report_cmd_error(
-                                unavailable("native TclOO invocation List has insufficient words")
-                                    .into(),
-                            ));
-                        }
-                        self.execute_native_oo_next(&arguments, *class, artifact.stamp.physical)
+                    Helper::Next { .. } => {
+                        return self.execute_body_next(
+                            artifact, command, recipe, literal_slots, execution,
+                        );
                     }
                 };
                 Ok(code)
