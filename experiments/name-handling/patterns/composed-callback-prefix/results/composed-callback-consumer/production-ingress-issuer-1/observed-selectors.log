@@ -1,0 +1,2 @@
+registry_invocation::source_scoped_body::script_purpose_tests::original_callable_member_script_keeps_shifted_row_and_original_context: test
+registry_invocation::source_scoped_body::script_purpose_tests::original_member_row_ingress_keeps_unknown_and_counted_values: test

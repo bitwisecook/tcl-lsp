@@ -1,0 +1,33 @@
+{
+  "completed_utc": "2026-10-12T23:07:33.181168+00:00",
+  "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+  "binary_sha256": "08c2a8fb3cf84215be04874367902ea2413d67d164a8359a9f9d9b453f072ea3",
+  "positive": {
+    "exit_code": 0,
+    "matched": 1,
+    "passed": 1,
+    "failed": 0,
+    "filtered_out": 9560,
+    "assertions": "Existing original instance/self shifted real MemberRow Callable receiver, definition-parent absence, current Document/config/context matching, Native channel and foreign release context withdrawal all executed."
+  },
+  "negative": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+      "registry_invocation::source_scoped_body::script_purpose_tests::original_member_row_ingress_keeps_unknown_and_counted_values",
+      "--exact",
+      "--nocapture"
+    ],
+    "execution": "Direct same freshly compiled test binary, exact selector observed from --list",
+    "exit_code": 101,
+    "matched": 1,
+    "passed": 0,
+    "failed": 1,
+    "filtered_out": 9560,
+    "first_failure": "source_scoped_body.rs:1761 region.script_bodies(command).unwrap() returned None while collecting original negative statements; current failure does not identify which statement or earlier source-body guard.",
+    "unreached": "All row/name/arity/current Document assertions after collected-body vector."
+  },
+  "observed_selectors": "observed-selectors.log",
+  "changed_scoped_source_inputs": [],
+  "source_or_assertions_changed_during_run": false,
+  "source_scope": "Checked original Document ASCII row ingress only; current actual compiler25 graph includes VMcmd_oo SHA c4c0..., standalone Runtime package absent; not a HEAD/all-workspace currency claim."
+}

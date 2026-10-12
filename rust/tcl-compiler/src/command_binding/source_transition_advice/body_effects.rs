@@ -112,6 +112,80 @@ impl AdviceInvocationContext<'_> {
         false
     }
 
+    pub(super) fn retain_definition_member_prefix_inventory(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        if schema.authored_source_definition_body_grammar().is_none() {
+            return;
+        }
+        let Some(advice) = self.schema_advice(invocation, graph, schema) else {
+            return;
+        };
+        let Ok(source) = self.origin.source_image().try_text() else {
+            return;
+        };
+        let Some(words) =
+            crate::registry_invocation::source_structure::source_transition_words_from_advice(
+                source,
+                self.config,
+                self.context,
+                advice,
+            )
+        else {
+            return;
+        };
+        let mut remaining = MAX_COMMANDS;
+        for parent in words.source_script_bodies(self.context) {
+            let Some(region) = parent.definition_member_region(self.context, parent.content_span())
+            else {
+                continue;
+            };
+            for original in region.original_commands() {
+                let Some(next) = remaining.checked_sub(1) else {
+                    return;
+                };
+                remaining = next;
+                let Some(bodies) = region.script_bodies(original) else {
+                    continue;
+                };
+                for body in bodies {
+                    if !matches!(
+                        body.member_row().map(|row| row.effect),
+                        Some(tcl_registry::definer::MemberEffect::Callable { .. })
+                    ) || !body.matches_source(self.origin.source_image(), self.config)
+                        || !body.matches_context(self.context)
+                    {
+                        continue;
+                    }
+                    let body = Arc::new(body);
+                    let mut branch = graph.clone();
+                    branch.record_uncertainty(body.original_words());
+                    let mut walk = BodyWalk {
+                        context: self,
+                        visited: 0,
+                        unavailable_lifecycle_effects: false,
+                        inventory: None,
+                        authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+                        source_body: None,
+                    };
+                    if walk.script(&mut branch, body.content_span(), 0).is_none() {
+                        continue;
+                    }
+                    for prefix in walk.authored_prefixes.authored_prefixes.values_mut() {
+                        *prefix = prefix.take().and_then(|prefix| {
+                            prefix.retain_definition_member_body(Arc::clone(&body), self.context)
+                        });
+                    }
+                    tape.extend_inventory(walk.authored_prefixes);
+                }
+            }
+        }
+    }
+
     /// Reuse the original executable arena before selecting source head advice.
     /// Known child transitions are processed; unresolved variable/observer
     /// effects stay separate from the post-operand execution lookup.

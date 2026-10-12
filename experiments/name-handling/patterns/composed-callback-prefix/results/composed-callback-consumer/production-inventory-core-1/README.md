@@ -1,0 +1,5 @@
+The unchanged four composed callback controls compiled against the source-only callable-member inventory change. Exactly one adverse test passed and three positive tests failed; the first public positive builder has its genuine source schema but no authored-prefix receipt. This unchanged consumer run does not distinguish a missing producer entry from a retained target refusal. No assertion or source was changed to obtain a pass.
+
+The independent Logical type-hint control ran once directly from the same unchanged binary and failed its first positive assertion with `[]`. Its later assertions were unreached.
+
+`command.json` records the Cargo command, `before.json` hashes the target-scoped conservative local source roots, `result.json` records four controls, and `logical-result.json` records the exact binary command. Both raw streams are retained. The standalone runtime is outside the normal core graph; its changing implementation files are explicitly excluded. All captured scoped source hashes remained unchanged.

@@ -1,0 +1,25 @@
+{
+  "completed_utc": "2026-10-12T22:55:25.438132+00:00",
+  "cargo_exit_code": 0,
+  "cargo_matched": 0,
+  "cargo_filtered_out": 9560,
+  "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+  "binary_sha256": "0f88c5546ef62653b7d628918b30da4d71447b2ca01b9159382ffee32046e011",
+  "observed_exact_selector": "registry_invocation::source_scoped_body::script_purpose_tests::original_callable_member_script_keeps_shifted_row_and_original_context",
+  "exact_owner_argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "registry_invocation::source_scoped_body::script_purpose_tests::original_callable_member_script_keeps_shifted_row_and_original_context",
+    "--exact",
+    "--nocapture"
+  ],
+  "exact_execution": "Direct same freshly compiled binary; no further Cargo compilation.",
+  "exact_owner_exit_code": 101,
+  "matched": 1,
+  "passed": 0,
+  "failed": 1,
+  "filtered_out": 9559,
+  "raw_exact_owner": "exact-owner-stdout-stderr.log",
+  "changed_scoped_source_inputs": [],
+  "first_observed_failure": "source_scoped_body.rs:1696: member_row().unwrap() returns None for original instance method script; later receiver/currentness assertions unreached.",
+  "source_or_assertions_changed": false
+}

@@ -1,0 +1,21 @@
+{
+  "completed_utc": "2026-10-12T23:02:48.448306+00:00",
+  "exit_code": 101,
+  "tests": {
+    "matched": 4,
+    "passed": 1,
+    "failed": 3,
+    "ignored": 0,
+    "filtered_out": 2999
+  },
+  "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "binary_sha256": "6203dca82cab6104deed2f2669de04896fbd70ff17bff78831982ea75272e1d5",
+  "changed_scoped_source_inputs": [],
+  "source_or_assertions_changed_during_run": false,
+  "positive_advice_progress": "Tcl8.6 original positive and unknown-writer completed all builder traits/arity, prefix receipt, actual alias lineage, Written(2)/(3) origins, target TCLOO_SELF_DISPATCH source schema and original Document/config/current context checks; Native channel mismatch was rejected.",
+  "first_advice_failure": "Tcl8.6 private-positive source_registry_words original builder schema missing at references.rs:6124. Later release loop iterations unreached.",
+  "first_reference_failure": "Tcl8.6 public positive only tick declaration range line2 char11..15 returned; original stored selector absent at references.rs:6219. Private and later-release reference assertions unreached.",
+  "currentness_progress": "Original public authored-prefix Some baseline now passed; next selector-reference baseline fails at references.rs:6269; later stale-source/configuration checks unreached.",
+  "adverse": "Original unknown writer, opaque and nested fixed variants passed absent selector/declaration assertions for Tcl8.6/9.0/9.1. Still no valid positive sink reference baseline, so cannot claim writer-caused reference withdrawal.",
+  "scope": "Checked original Document ASCII row ingress only, not NativeValue row/frame admission. Normal core dependency snapshot excludes mutable VM and standalone Runtime implementation."
+}

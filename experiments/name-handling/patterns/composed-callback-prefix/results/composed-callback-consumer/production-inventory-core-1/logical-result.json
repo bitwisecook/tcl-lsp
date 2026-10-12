@@ -1,0 +1,20 @@
+{
+  "completed_utc": "2026-10-12T22:50:40.754768+00:00",
+  "cwd": "/workspace/tcl-lsp",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+    "inlay_hints::retained_hint_context_tests::logical_type_hints_keep_constructed_colon_scopes_and_original_source",
+    "--exact",
+    "--nocapture"
+  ],
+  "execution": "Direct invocation of unchanged freshly built core test binary; no Cargo recompile. No extra environment prelude.",
+  "stdout_stderr": "logical-stdout-stderr.log",
+  "exit_code": 101,
+  "matched": 1,
+  "passed": 0,
+  "failed": 1,
+  "filtered_out": 3002,
+  "binary_sha256": "1a03365e8ac241af8371948c2bb0aef6e3c297393b833879b7c510c5920e2066",
+  "changed_scoped_source_inputs": [],
+  "first_observed_failure": "Original positive type hint assertion at inlay_hints.rs:3095 receives []; later scope/currentness assertions unreached."
+}

@@ -512,6 +512,7 @@ pub struct OriginalSourceDefinitionMemberScriptBody {
     content: Span,
     retains_definition_grammar: bool,
     presentation: tcl_registry::definer::SourceDefinitionMemberBodyPresentation,
+    member_row: Option<tcl_registry::definer::MemberRow>,
 }
 impl OriginalSourceDefinitionMemberScriptBody {
     /// Complete original member argv, including its genuine source keyword.
@@ -523,6 +524,28 @@ impl OriginalSourceDefinitionMemberScriptBody {
     #[must_use]
     pub const fn original_container(&self) -> &NativeWord {
         &self.container
+    }
+    /// Actual member effect/receiver and body operand under the retained grammar.
+    /// This is source applicability, not member installation or frame entry.
+    #[must_use]
+    pub fn member_row(&self) -> Option<&tcl_registry::definer::MemberRow> {
+        self.member_row.as_ref()
+    }
+    /// Whole original member/body source and parser configuration agree.
+    #[must_use]
+    pub fn matches_source(&self, image: &SourceImage, config: LexerConfig) -> bool {
+        self.parent.matches_source(image, config)
+            && self.container.image() == image
+            && self.container.config() == config
+            && self
+                .original
+                .iter()
+                .all(|word| word.image() == image && word.config() == config)
+    }
+    /// The member issuer retains its actual full context and Registry generation.
+    #[must_use]
+    pub fn matches_context(&self, context: &ContextRegistry) -> bool {
+        self.parent.matches_context(context)
     }
     /// Original post-keyword body ordinal, preserving wrapper/option offsets.
     #[must_use]
@@ -760,6 +783,37 @@ impl OriginalSourceDefinitionMemberRegion {
             tcl_registry::InvocationArguments::structured(&arguments),
             Some(self.context.authoring_query()),
         )?;
+        // Row selectors require an independent original Document literal,
+        // not a text projection of the retained counted value alone.
+        let source_literals = original
+            .iter()
+            .map(tcl_syntax::word_rules::original_static_word_ascii_presentation)
+            .collect::<Vec<_>>();
+        let member_words = original
+            .iter()
+            .zip(&values)
+            .zip(&source_literals)
+            .map(|((word, value), literal)| {
+                if word.group().expand {
+                    return tcl_registry::InvocationWord::Expanded;
+                }
+                let counted = value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::KnownBytes,
+                );
+                match (value.as_deref(), literal.as_deref()) {
+                    (Some(value), Some(literal)) if value == literal && !literal.contains(&0) => {
+                        super::source_structure::source_schema_word(counted)
+                    }
+                    _ => counted,
+                }
+            })
+            .collect::<Vec<_>>();
+        let member_row = self.grammar.member_row(
+            0,
+            tcl_registry::InvocationArguments::structured(&member_words),
+            Some(self.context.authoring_query()),
+        );
         Some(
             selected
                 .into_iter()
@@ -774,6 +828,11 @@ impl OriginalSourceDefinitionMemberRegion {
                         content: geometry.content,
                         retains_definition_grammar: selected.retains_definition_grammar(),
                         presentation: selected.presentation(),
+                        member_row: member_row.clone().filter(|row| {
+                            selected.argument().checked_add(1).is_some_and(|ordinal| {
+                                row.body.is_some_and(|body| body.0 == ordinal)
+                            })
+                        }),
                     })
                 })
                 .collect(),
@@ -1643,6 +1702,80 @@ mod script_purpose_tests {
                 .definition_parent_for(&context, Some(&parent))
                 .is_none()
         );
+    }
+
+    #[test]
+    fn original_callable_member_script_keeps_shifted_row_and_original_context() {
+        use tcl_registry::definer::{CallableRole, MemberEffect, MemberReceiver};
+        let source = "oo::class create C {method wire {value} {set x $value}; self method build {} {set x 1}}";
+        let (analysis, parent) = original_definition_parent(source, "tcl8.6");
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let region = parent
+            .definition_member_region(&context, parent.content_span())
+            .unwrap();
+        let commands = region.original_commands().collect::<Vec<_>>();
+        let instance = region.script_bodies(commands[0]).unwrap().remove(0);
+        let class = region.script_bodies(commands[1]).unwrap().remove(0);
+        assert_eq!(
+            instance.member_row().unwrap().receiver,
+            MemberReceiver::Instance
+        );
+        assert_eq!(
+            class.member_row().unwrap().receiver,
+            MemberReceiver::TypeObject
+        );
+        for body in [instance, class] {
+            assert!(matches!(
+                body.member_row().unwrap().effect,
+                MemberEffect::Callable {
+                    role: CallableRole::Method,
+                    ..
+                }
+            ));
+            assert!(body.definition_parent().is_none());
+            assert!(body.matches_context(&context));
+            assert!(body.matches_source(
+                &tcl_lexer::SourceImage::document(source),
+                analysis.body_lexer_config.unwrap()
+            ));
+            assert!(!body.matches_source(
+                &tcl_lexer::SourceImage::native(source.as_bytes()),
+                analysis.body_lexer_config.unwrap()
+            ));
+            let different = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                .default_context_registry();
+            assert!(!body.matches_context(&different));
+        }
+    }
+
+    #[test]
+    fn original_member_row_ingress_keeps_unknown_and_counted_values() {
+        let source = r"oo::class create C {method $name {} {}; method \uD800 {} {}; method Ω {} {}; method \x00 {} {}; method literal $params {}}";
+        let (analysis, parent) = original_definition_parent(source, "tcl8.6");
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let region = parent
+            .definition_member_region(&context, parent.content_span())
+            .unwrap();
+        let bodies = region
+            .original_commands()
+            .map(|command| region.script_bodies(command).unwrap().remove(0))
+            .collect::<Vec<_>>();
+        assert_eq!(bodies.len(), 5);
+        for body in &bodies[..4] {
+            let row = body.member_row().unwrap();
+            assert!(row.name.is_none());
+            assert!(matches!(
+                row.effect,
+                tcl_registry::definer::MemberEffect::Callable { .. }
+            ));
+            assert!(body.matches_source(
+                &tcl_lexer::SourceImage::document(source),
+                analysis.body_lexer_config.unwrap()
+            ));
+        }
+        let row = bodies[4].member_row().unwrap();
+        assert_eq!(row.name.as_deref(), Some("literal"));
+        assert!(row.arity.is_none());
     }
 
     #[test]

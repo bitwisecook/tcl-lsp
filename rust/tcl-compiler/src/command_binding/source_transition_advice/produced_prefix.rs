@@ -20,6 +20,7 @@ use tcl_registry::{ArgRole, InvocationWord, InvocationWords, Traits};
 pub struct OriginalSourceAuthoredCommandPrefix {
     producer: Arc<OriginalSourceCommandTransitionAdvice>,
     target: SelectedSourcePrefixTarget,
+    member_body: Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SelectedSourcePrefixTarget {
@@ -35,6 +36,44 @@ impl OriginalSourceAuthoredCommandPrefix {
     #[must_use]
     pub fn producer(&self) -> &OriginalSourceCommandTransitionAdvice {
         &self.producer
+    }
+    /// Genuine original member script, when this builder is source-only body data.
+    #[must_use]
+    pub fn definition_member_body(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody> {
+        self.member_body.as_deref()
+    }
+    pub(super) fn retain_definition_member_body(
+        mut self,
+        body: Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> Option<Self> {
+        let first = self.producer.original_words().first()?;
+        let last = self.producer.original_words().last()?;
+        let region = body.content_span();
+        if !body.matches_source(first.image(), first.config())
+            || !body.matches_context(context)
+            || first.span().start() < region.start()
+            || last.span().end() > region.end()
+            || !matches!(
+                body.member_row()?.effect,
+                tcl_registry::definer::MemberEffect::Callable { .. }
+            )
+        {
+            return None;
+        }
+        self.member_body = Some(body);
+        if !self
+            .target
+            .obligations
+            .contains(&SourceCommandTransitionObligation::ConditionalDeclarationApplicability)
+        {
+            self.target
+                .obligations
+                .push(SourceCommandTransitionObligation::ConditionalDeclarationApplicability);
+        }
+        Some(self)
     }
     /// Conditional target's original source operand; no future lookup or argv.
     #[must_use]
@@ -79,6 +118,9 @@ impl OriginalSourceAuthoredCommandPrefix {
     ) -> bool {
         self.producer.matches_source(image, config)
             && self.producer.matches_context(context)
+            && self.member_body.as_ref().is_none_or(|body| {
+                body.matches_source(image, config) && body.matches_context(context)
+            })
             && self
                 .target
                 .head
@@ -316,7 +358,11 @@ impl AdviceInvocationContext<'_> {
                 selected,
                 SourceCommandTransitionObligation::AuthoredCommandPrefixApplicability,
             )?;
-            Some(OriginalSourceAuthoredCommandPrefix { producer, target })
+            Some(OriginalSourceAuthoredCommandPrefix {
+                producer,
+                target,
+                member_body: None,
+            })
         })();
         tape.merge_authored_prefix(offset, prefix);
     }

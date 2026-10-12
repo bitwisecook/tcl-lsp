@@ -1,0 +1,15 @@
+
+running 1 test
+
+thread 'registry_invocation::source_scoped_body::script_purpose_tests::original_callable_member_script_keeps_shifted_row_and_original_context' (231886) panicked at rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:1696:35:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test registry_invocation::source_scoped_body::script_purpose_tests::original_callable_member_script_keeps_shifted_row_and_original_context ... FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_scoped_body::script_purpose_tests::original_callable_member_script_keeps_shifted_row_and_original_context
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9559 filtered out; finished in 0.50s
+

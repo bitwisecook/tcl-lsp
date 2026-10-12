@@ -1,0 +1,15 @@
+
+running 1 test
+
+thread 'registry_invocation::source_scoped_body::script_purpose_tests::original_member_row_ingress_keeps_unknown_and_counted_values' (233483) panicked at rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:1761:58:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test registry_invocation::source_scoped_body::script_purpose_tests::original_member_row_ingress_keeps_unknown_and_counted_values ... FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_scoped_body::script_purpose_tests::original_member_row_ingress_keeps_unknown_and_counted_values
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9560 filtered out; finished in 0.37s
+

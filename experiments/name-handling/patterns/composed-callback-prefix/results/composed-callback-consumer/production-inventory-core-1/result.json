@@ -1,0 +1,20 @@
+{
+  "completed_utc": "2026-10-12T22:50:17.200546+00:00",
+  "exit_code": 101,
+  "tests": {
+    "matched": 4,
+    "passed": 1,
+    "failed": 3,
+    "ignored": 0,
+    "filtered_out": 2999
+  },
+  "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "binary_sha256": "1a03365e8ac241af8371948c2bb0aef6e3c297393b833879b7c510c5920e2066",
+  "changed_scoped_source_inputs": [],
+  "assertions_changed": false,
+  "first_observed_barrier": "tcl8.6/positive original builder schema checks pass; source_authored_command_prefix returns None at references.rs:6146. Entry absence versus retained refusal versus target schema is not distinguished by this unchanged consumer test.",
+  "positive_references": "Only tick declaration range line 2 character 11..15; original stored selector absent.",
+  "currentness": "Fails positive receipt baseline; later stale-source/configuration assertions not reached.",
+  "adverse": "All original adverse and opaque/nested fixed variants passed absence assertions for Tcl8.6/9.0/9.1; this cannot establish writer-caused withdrawal until the unchanged positive baseline passes.",
+  "production_change_scope": "Four compiler source files, source-only member body inventory; no new native frame/vocabulary; normal core dependency source snapshot only."
+}

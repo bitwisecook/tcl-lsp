@@ -1614,6 +1614,7 @@ impl AdviceInvocationContext<'_> {
         self.retain_schema_advice(tape, invocation, graph, schema)?;
         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
         self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
+        self.retain_definition_member_prefix_inventory(tape, graph, invocation, schema);
         self.retain_source_callback_targets(tape, invocation, graph, schema);
         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
         self.retain_logical_procedure_body(tape, invocation, graph, schema);
