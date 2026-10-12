@@ -1,0 +1,1804 @@
+{
+  "question_id": "naming.embedding.original-active-object-command-deletion",
+  "source_sha256": "3572cff663d103e59a8e814a7b15002acd5c8320cbf8c415c8fabf04f48a9a05",
+  "processes": 6,
+  "fresh_active_case_blocks": 12,
+  "event_result_rows": 138,
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "version_rows": [
+        "VERSION\t0\t382e342e323020382e34",
+        "BUILD\tHEADER=8.4.20\tGetVersion=8.4.20/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ],
+      "linked_version": "8.4.20 8.4",
+      "cases": [
+        {
+          "mode": 0,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=4\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "4",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=5\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "5",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=6\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "0",
+              "sequence": "6",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=7\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "7",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=8\tstage=second-public-invocation-returned\tstatus=1\thex=696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "case": "0",
+              "sequence": "8",
+              "stage": "second-public-invocation-returned",
+              "status": "1",
+              "hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_utf8": "invalid command name \"active_retiring\""
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=9\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "9",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=10\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "10",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            }
+          ]
+        },
+        {
+          "mode": 1,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=4\tlabel=RECREATE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "4",
+              "label": "RECREATE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=5\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "5",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=6\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "6",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=7\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "1",
+              "sequence": "7",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=8\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "8",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=9\tlabel=REPLACEMENT_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "9",
+              "label": "REPLACEMENT_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=10\tstage=second-public-invocation-returned\tstatus=0\thex=5245504c4143454d454e54",
+              "case": "1",
+              "sequence": "10",
+              "stage": "second-public-invocation-returned",
+              "status": "0",
+              "hex": "5245504c4143454d454e54",
+              "result_hex": "5245504c4143454d454e54",
+              "result_utf8": "REPLACEMENT"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=11\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "11",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=12\tlabel=DELETE_REPLACEMENT\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "12",
+              "label": "DELETE_REPLACEMENT",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=13\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "13",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            }
+          ]
+        }
+      ],
+      "original_probe_stdout_sha256": "279a0ab59956abeca88f48fe7fb6a10682ebfde379e71f6044434a144b876221",
+      "receipt_sha256": "fd5fd85ad69b21f31fecfb23884a112538aa54be5a8a59e3a443068b3f64a8c8",
+      "probe_elf_sha256": "43acfd89fa1a5a9cfe5533b237347d80269fe4a33094e694218ea599c8530c56",
+      "cli_query_exit": 0,
+      "cli_query_stdout_hex": "",
+      "cli_query_stderr_hex": ""
+    },
+    {
+      "provider": "8.5.19",
+      "version_rows": [
+        "VERSION\t0\t382e352e313920382e35",
+        "BUILD\tHEADER=8.5.19\tGetVersion=8.5.19/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ],
+      "linked_version": "8.5.19 8.5",
+      "cases": [
+        {
+          "mode": 0,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=4\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "4",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=5\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "5",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=6\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "0",
+              "sequence": "6",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=7\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "7",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=8\tstage=second-public-invocation-returned\tstatus=1\thex=696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "case": "0",
+              "sequence": "8",
+              "stage": "second-public-invocation-returned",
+              "status": "1",
+              "hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_utf8": "invalid command name \"active_retiring\""
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=9\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "9",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=10\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "10",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            }
+          ]
+        },
+        {
+          "mode": 1,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=4\tlabel=RECREATE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "4",
+              "label": "RECREATE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=5\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "5",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=6\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "6",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=7\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "1",
+              "sequence": "7",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=8\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "8",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=9\tlabel=REPLACEMENT_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "9",
+              "label": "REPLACEMENT_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=10\tstage=second-public-invocation-returned\tstatus=0\thex=5245504c4143454d454e54",
+              "case": "1",
+              "sequence": "10",
+              "stage": "second-public-invocation-returned",
+              "status": "0",
+              "hex": "5245504c4143454d454e54",
+              "result_hex": "5245504c4143454d454e54",
+              "result_utf8": "REPLACEMENT"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=11\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "11",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=12\tlabel=DELETE_REPLACEMENT\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "12",
+              "label": "DELETE_REPLACEMENT",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=13\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "13",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            }
+          ]
+        }
+      ],
+      "original_probe_stdout_sha256": "ac4b5b9effdc27e1cd3b30348a6df7f82a79ce8e4d5327c74f0d4178a6c50006",
+      "receipt_sha256": "040e2af26ae63c7ee37d2771bb6f4853c35a0f227c51f1d9808aa80f276e4257",
+      "probe_elf_sha256": "6d3b1a303f6b7af7d71fb188b7410a43f4f2a50ee58139f74555a4e31dcb2fce",
+      "cli_query_exit": 0,
+      "cli_query_stdout_hex": "",
+      "cli_query_stderr_hex": ""
+    },
+    {
+      "provider": "8.6.18",
+      "version_rows": [
+        "VERSION\t0\t382e362e313820382e36",
+        "BUILD\tHEADER=8.6.18\tGetVersion=8.6.18/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ],
+      "linked_version": "8.6.18 8.6",
+      "cases": [
+        {
+          "mode": 0,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=4\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "4",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=5\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "5",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=6\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "0",
+              "sequence": "6",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=7\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "7",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=8\tstage=second-public-invocation-returned\tstatus=1\thex=696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "case": "0",
+              "sequence": "8",
+              "stage": "second-public-invocation-returned",
+              "status": "1",
+              "hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_utf8": "invalid command name \"active_retiring\""
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=9\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "9",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=10\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "10",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            }
+          ]
+        },
+        {
+          "mode": 1,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=4\tlabel=RECREATE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "4",
+              "label": "RECREATE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=5\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "5",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=6\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "6",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=7\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "1",
+              "sequence": "7",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=8\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "8",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=9\tlabel=REPLACEMENT_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "9",
+              "label": "REPLACEMENT_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=10\tstage=second-public-invocation-returned\tstatus=0\thex=5245504c4143454d454e54",
+              "case": "1",
+              "sequence": "10",
+              "stage": "second-public-invocation-returned",
+              "status": "0",
+              "hex": "5245504c4143454d454e54",
+              "result_hex": "5245504c4143454d454e54",
+              "result_utf8": "REPLACEMENT"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=11\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "11",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=12\tlabel=DELETE_REPLACEMENT\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "12",
+              "label": "DELETE_REPLACEMENT",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=13\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "13",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            }
+          ]
+        }
+      ],
+      "original_probe_stdout_sha256": "3134ba085979de36998aeae8e59a99cbe4d3f3aec2d8b5dcf36fd698e5978c32",
+      "receipt_sha256": "e993f1a4d7a6465fbd3729cab7f891039cd4937bcc3200656a83d677e2236e28",
+      "probe_elf_sha256": "2be2675e3c60f77dc16c648f3bc14134ac69eeaa9dd3c901ce63b07153a99316",
+      "cli_query_exit": 0,
+      "cli_query_stdout_hex": "",
+      "cli_query_stderr_hex": ""
+    },
+    {
+      "provider": "9.0.4",
+      "version_rows": [
+        "VERSION\t0\t392e302e3420392e30",
+        "BUILD\tHEADER=9.0.4\tGetVersion=9.0.4/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ],
+      "linked_version": "9.0.4 9.0",
+      "cases": [
+        {
+          "mode": 0,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=4\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "4",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=5\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "5",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=6\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "0",
+              "sequence": "6",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=7\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "7",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=8\tstage=second-public-invocation-returned\tstatus=1\thex=696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "case": "0",
+              "sequence": "8",
+              "stage": "second-public-invocation-returned",
+              "status": "1",
+              "hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_utf8": "invalid command name \"active_retiring\""
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=9\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "9",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=10\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "10",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            }
+          ]
+        },
+        {
+          "mode": 1,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=4\tlabel=RECREATE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "4",
+              "label": "RECREATE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=5\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "5",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=6\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "6",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=7\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "1",
+              "sequence": "7",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=8\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "8",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=9\tlabel=REPLACEMENT_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "9",
+              "label": "REPLACEMENT_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=10\tstage=second-public-invocation-returned\tstatus=0\thex=5245504c4143454d454e54",
+              "case": "1",
+              "sequence": "10",
+              "stage": "second-public-invocation-returned",
+              "status": "0",
+              "hex": "5245504c4143454d454e54",
+              "result_hex": "5245504c4143454d454e54",
+              "result_utf8": "REPLACEMENT"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=11\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "11",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=12\tlabel=DELETE_REPLACEMENT\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "12",
+              "label": "DELETE_REPLACEMENT",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=13\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "13",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            }
+          ]
+        }
+      ],
+      "original_probe_stdout_sha256": "4b977632f4c7591470acca074907b896f800124b1672b353a9eee5fae73e949b",
+      "receipt_sha256": "8b0203d847f47dad887835a7453248a0b22d88b61d1d6a8b06a863f423e9195d",
+      "probe_elf_sha256": "c9de9302a293fe72275df01c01bcf42ece429c8d56d9382ddff4c9c5ce904574",
+      "cli_query_exit": 0,
+      "cli_query_stdout_hex": "",
+      "cli_query_stderr_hex": ""
+    },
+    {
+      "provider": "9.1.0",
+      "version_rows": [
+        "VERSION\t0\t392e312e3020392e31",
+        "BUILD\tHEADER=9.1.0\tGetVersion=9.1.0/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ],
+      "linked_version": "9.1.0 9.1",
+      "cases": [
+        {
+          "mode": 0,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=4\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "4",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=5\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "5",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=6\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "0",
+              "sequence": "6",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=7\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "7",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=8\tstage=second-public-invocation-returned\tstatus=1\thex=696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "case": "0",
+              "sequence": "8",
+              "stage": "second-public-invocation-returned",
+              "status": "1",
+              "hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_utf8": "invalid command name \"active_retiring\""
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=9\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "9",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=10\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "10",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            }
+          ]
+        },
+        {
+          "mode": 1,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=3\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "3",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=4\tlabel=RECREATE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "4",
+              "label": "RECREATE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=5\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "5",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=6\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "6",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=7\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "1",
+              "sequence": "7",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=8\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "8",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=9\tlabel=REPLACEMENT_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "9",
+              "label": "REPLACEMENT_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=10\tstage=second-public-invocation-returned\tstatus=0\thex=5245504c4143454d454e54",
+              "case": "1",
+              "sequence": "10",
+              "stage": "second-public-invocation-returned",
+              "status": "0",
+              "hex": "5245504c4143454d454e54",
+              "result_hex": "5245504c4143454d454e54",
+              "result_utf8": "REPLACEMENT"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=11\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "11",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=12\tlabel=DELETE_REPLACEMENT\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "12",
+              "label": "DELETE_REPLACEMENT",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=13\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "13",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            }
+          ]
+        }
+      ],
+      "original_probe_stdout_sha256": "c17d7430e15eb362d3d10778d91778665711d1fe678f248f28af5be7eeb8ad5c",
+      "receipt_sha256": "2a5c049dc35ebcc2dbcfc82d86b5dbcaa0e8ec7976c804ef9a2e965204d09ea0",
+      "probe_elf_sha256": "ab4a5f20aa19ecdafabb90b3af0b5a3397642b9fb583419abd06d2d225545f05",
+      "cli_query_exit": 0,
+      "cli_query_stdout_hex": "",
+      "cli_query_stderr_hex": ""
+    },
+    {
+      "provider": "jim",
+      "version_rows": [
+        "VERSION\t0\t302e38342d392d673562616337633920302e3834",
+        "BUILD\tJIM_GITVERSION=0.84-9-g5bac7c9\tJIM_VERSION=84\tJIM_ABI_VERSION=102\tJIM_UTF8=1",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ],
+      "linked_version": "0.84-9-g5bac7c9 0.84",
+      "cases": [
+        {
+          "mode": 0,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=3\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "3",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=4\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "4",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=5\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "5",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=6\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "0",
+              "sequence": "6",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=7\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "7",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=0\tsequence=8\tstage=second-public-invocation-returned\tstatus=1\thex=696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "case": "0",
+              "sequence": "8",
+              "stage": "second-public-invocation-returned",
+              "status": "1",
+              "hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_hex": "696e76616c696420636f6d6d616e64206e616d6520226163746976655f7265746972696e6722",
+              "result_utf8": "invalid command name \"active_retiring\""
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=9\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "9",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=0\tsequence=10\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "0",
+              "sequence": "10",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            }
+          ]
+        },
+        {
+          "mode": 1,
+          "sequence_rows": [
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=1\tlabel=CREATE_ORIGINAL_RETURN\tstatus=0\toriginal_calls=0\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "1",
+              "label": "CREATE_ORIGINAL_RETURN",
+              "status": "0",
+              "original_calls": "0",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=2\tlabel=INVOKE_ENTER\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "2",
+              "label": "INVOKE_ENTER",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=3\tlabel=DELETE_API_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "3",
+              "label": "DELETE_API_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=4\tlabel=INVOKE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=0\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "4",
+              "label": "INVOKE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "0",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=5\tlabel=DELETE_ORIGINAL\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "5",
+              "label": "DELETE_ORIGINAL",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=6\tlabel=RECREATE_RETURN\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "6",
+              "label": "RECREATE_RETURN",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=7\tstage=first-public-invocation-returned\tstatus=0\thex=4f524947494e414c5f52455455524e",
+              "case": "1",
+              "sequence": "7",
+              "stage": "first-public-invocation-returned",
+              "status": "0",
+              "hex": "4f524947494e414c5f52455455524e",
+              "result_hex": "4f524947494e414c5f52455455524e",
+              "result_utf8": "ORIGINAL_RETURN"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=8\tlabel=BEFORE_SECOND_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=0\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "8",
+              "label": "BEFORE_SECOND_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "0",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=9\tlabel=REPLACEMENT_INVOKE\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "9",
+              "label": "REPLACEMENT_INVOKE",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "RESULT",
+              "raw": "RESULT\tcase=1\tsequence=10\tstage=second-public-invocation-returned\tstatus=0\thex=5245504c4143454d454e54",
+              "case": "1",
+              "sequence": "10",
+              "stage": "second-public-invocation-returned",
+              "status": "0",
+              "hex": "5245504c4143454d454e54",
+              "result_hex": "5245504c4143454d454e54",
+              "result_utf8": "REPLACEMENT"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=11\tlabel=CALLER_WORD_RELEASED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=0",
+              "case": "1",
+              "sequence": "11",
+              "label": "CALLER_WORD_RELEASED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "0"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=12\tlabel=DELETE_REPLACEMENT\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "12",
+              "label": "DELETE_REPLACEMENT",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            },
+            {
+              "kind": "EVENT",
+              "raw": "EVENT\tcase=1\tsequence=13\tlabel=INTERPRETER_DESTROYED\tstatus=0\toriginal_calls=1\treplacement_calls=1\toriginal_deletes=1\treplacement_deletes=1",
+              "case": "1",
+              "sequence": "13",
+              "label": "INTERPRETER_DESTROYED",
+              "status": "0",
+              "original_calls": "1",
+              "replacement_calls": "1",
+              "original_deletes": "1",
+              "replacement_deletes": "1"
+            }
+          ]
+        }
+      ],
+      "original_probe_stdout_sha256": "c1608cccab519410e8c307547744ecfd31b4686625e81c7c956f3fd94c8ec2dc",
+      "receipt_sha256": "0055e99f2be407638c5597fddb828fd8e3cb7bd71d7d8d3bc27aaa92b0d6cafd",
+      "probe_elf_sha256": "32feb36adbbd51460b7f1c4193555b81e93f0ce13d577d6dc7909069685e95f1",
+      "cli_query_exit": 0,
+      "cli_query_stdout_hex": "",
+      "cli_query_stderr_hex": ""
+    }
+  ],
+  "limits": "No client-data free, command/object refcount, generation, Procedure/OO/import/recursive/rename/hide, Rust or BIG-IP outcome."
+}

@@ -92716,6 +92716,1020 @@
       "candidate": false
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/cli-version.json",
+      "sha256": "01004ba214241afd0f9d993c061829b09ef4832db7c74b0e0fedf8423c20f5a4",
+      "bytes": 745,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compiler or separate CLI environment query receipt. The CLI stdout is empty and supplies no separate version text; linked-probe attribution remains independent."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/compile.json",
+      "sha256": "4a49ac22b479903f205bf0cde35015a55306ac5b3cf521f0763b360fbc53a61e",
+      "bytes": 1035,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/compile.stdout",
+      "sha256": "fccf1c327ba9d5468dfc72b67cf49a0c0dbb4779b76763383a7575df156d0066",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/headers.json",
+      "sha256": "16761c5a3490d1f90ed5a23154f0a52b4defa0baef4134e208c7a4b2be66b53a",
+      "bytes": 854,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/headers.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/headers.stdout",
+      "sha256": "61b244959d89ec5d8677f2212dacdefd564927d94bfa2093514e6940870dbd0f",
+      "bytes": 1565,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/inputs-after.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/inputs-before.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/probe.elf.gz",
+      "sha256": "0030435de1cedbd1381bac871cc4a68df4664a55c482e4d22740dfa03ebd6cf0",
+      "bytes": 386935,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/probe.json",
+      "sha256": "727603b8809485975a077bee1cf796070d5ff79c9a8f72bec3f0bf683ca4ecd7",
+      "bytes": 686,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/probe.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/probe.stdout",
+      "sha256": "279a0ab59956abeca88f48fe7fb6a10682ebfde379e71f6044434a144b876221",
+      "bytes": 3155,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.4.20/receipt.json",
+      "sha256": "fd5fd85ad69b21f31fecfb23884a112538aa54be5a8a59e3a443068b3f64a8c8",
+      "bytes": 10105,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/cli-version.json",
+      "sha256": "0f0e541c87b9859054a58d4ed546cf41f64796ac29a4f9a5e921433f5a3c81fa",
+      "bytes": 746,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compiler or separate CLI environment query receipt. The CLI stdout is empty and supplies no separate version text; linked-probe attribution remains independent."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/compile.json",
+      "sha256": "94adee9eb66449f7acf051c71c547c99b8e94bf1837dc1a9e3aedcc200426176",
+      "bytes": 1035,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/compile.stdout",
+      "sha256": "83ece261abdc97dbf74d39031e0d3e8358ef805aaa371be01958187840107bd6",
+      "bytes": 1306,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/headers.json",
+      "sha256": "28fbb36f59ffd5f502833adf3d9964018d2202f667e6d8575ddc203919ce51f1",
+      "bytes": 854,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/headers.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/headers.stdout",
+      "sha256": "8d14d6eb868f37ce8faa9d46ce7dd2f3d92fc3146626a26bbddf3234836fbe9e",
+      "bytes": 1565,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/inputs-after.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/inputs-before.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/probe.elf.gz",
+      "sha256": "6b4630b8faa6d8b91f19222a55cefbe1a8c4669b727a3cbfc7fc2e0cd7937ca2",
+      "bytes": 567213,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/probe.json",
+      "sha256": "f1f16e0c34ea3cf20dadba169ee95eb83ce5590ac33c61c249eab97027dcceae",
+      "bytes": 685,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/probe.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/probe.stdout",
+      "sha256": "ac4b5b9effdc27e1cd3b30348a6df7f82a79ce8e4d5327c74f0d4178a6c50006",
+      "bytes": 3155,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.5.19/receipt.json",
+      "sha256": "040e2af26ae63c7ee37d2771bb6f4853c35a0f227c51f1d9808aa80f276e4257",
+      "bytes": 10106,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/cli-version.json",
+      "sha256": "d7732ed6f126086ac9ecc97d2984beae479928a720094ec24c83381f65579769",
+      "bytes": 746,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compiler or separate CLI environment query receipt. The CLI stdout is empty and supplies no separate version text; linked-probe attribution remains independent."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/compile.json",
+      "sha256": "aa02d884df366f719b222c2ffea5966e47378da85e9c563896ca502e55d4de99",
+      "bytes": 1046,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/compile.stdout",
+      "sha256": "103f4a76e736260fb795ea12bee85d5db1c3dbf839b9d9014c3292a6c847ee0d",
+      "bytes": 1373,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/headers.json",
+      "sha256": "d16c20d1bc4cdb579ca2bb6a294fa21a21fc75ffb7d8d737a89c8e0913c24eb0",
+      "bytes": 854,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/headers.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/headers.stdout",
+      "sha256": "7e1809670cdeacff502f73a33edffad41e316885fdae57448cd7295d73715663",
+      "bytes": 1565,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/inputs-after.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/inputs-before.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/probe.elf.gz",
+      "sha256": "ea84bb346141f42729c6a36d210ea9869f83b212df6aa489b68c70df77bc51cc",
+      "bytes": 809046,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/probe.json",
+      "sha256": "531a9ef5196bb576338dde5ac9439745a40ea89f4438865f865af2e469618947",
+      "bytes": 685,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/probe.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/probe.stdout",
+      "sha256": "3134ba085979de36998aeae8e59a99cbe4d3f3aec2d8b5dcf36fd698e5978c32",
+      "bytes": 3155,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/8.6.18/receipt.json",
+      "sha256": "e993f1a4d7a6465fbd3729cab7f891039cd4937bcc3200656a83d677e2236e28",
+      "bytes": 10261,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/cli-version.json",
+      "sha256": "0c07bae4f21b3e7efe17ba4bead7c046dd8a3c3cc78ae6a2fef9576d82aaab68",
+      "bytes": 741,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compiler or separate CLI environment query receipt. The CLI stdout is empty and supplies no separate version text; linked-probe attribution remains independent."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/compile.json",
+      "sha256": "f4fd66356769389bea5332a9720ac85e3c3ed8924691934fab3b6c0c886a1023",
+      "bytes": 1038,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/compile.stdout",
+      "sha256": "b31c8cbdbcb06965e3e72d66fbb4ae7d8df1641bb626b7d87a2da8da113f17e8",
+      "bytes": 1372,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/headers.json",
+      "sha256": "3cf07357f506e099a3ee77bf258b2d9ee8ce7997b31fd8661c6b3d3826502c59",
+      "bytes": 849,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/headers.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/headers.stdout",
+      "sha256": "81110220f7a52810d47cb5f1c4cb272c22403b437f38a6a81da3e50bddc20c66",
+      "bytes": 1562,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/inputs-after.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/inputs-before.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/probe.elf.gz",
+      "sha256": "9b4acf551f83018e238b6196d642004753770ed1bfd1f16f2e4012b3908eb435",
+      "bytes": 959479,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/probe.json",
+      "sha256": "5884cd05a1326b87993fdea805e91f7d9d4a5190c3c076aa501411c07f5eed1c",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/probe.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/probe.stdout",
+      "sha256": "4b977632f4c7591470acca074907b896f800124b1672b353a9eee5fae73e949b",
+      "bytes": 3151,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.0.4/receipt.json",
+      "sha256": "8b0203d847f47dad887835a7453248a0b22d88b61d1d6a8b06a863f423e9195d",
+      "bytes": 10236,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/cli-version.json",
+      "sha256": "d2769cca2790447a626b3af8665e1cfe68344ce33229cc53b9784885064a6c05",
+      "bytes": 740,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compiler or separate CLI environment query receipt. The CLI stdout is empty and supplies no separate version text; linked-probe attribution remains independent."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/compile.json",
+      "sha256": "94023ddb5cd5055cd826c4c4fcd892eac0a9f9c4dc3a6cc3781a9f86db740318",
+      "bytes": 1050,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/compile.stdout",
+      "sha256": "abe9fbbbaef0279c8c477062e80ce94de0dc55011356ac5b217466cf094af227",
+      "bytes": 1439,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/headers.json",
+      "sha256": "1591a9940cdb7be4a871a716ded934cc6304c09ba1803bdea981c4e44b1458c8",
+      "bytes": 848,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/headers.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/headers.stdout",
+      "sha256": "45ace7134343c6d349a1134f730e2acad83c98bcc05bfc3ad38e549699791db0",
+      "bytes": 1562,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/inputs-after.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/inputs-before.json",
+      "sha256": "71aa36714635130f73b71f9c153f9c8680ccd89c160994f84f8c6fcc344b7cd0",
+      "bytes": 60005,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/probe.elf.gz",
+      "sha256": "0400423a1df1e0d7e84aaabd3893ed908c8ef3d20bcff64de1456ac5daf60467",
+      "bytes": 1027687,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/probe.json",
+      "sha256": "de07f2e56c4061c17bf3bcf61fb159020ae0dab76a5e07b6c4ec4aa94e9445a4",
+      "bytes": 680,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/probe.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/probe.stdout",
+      "sha256": "c17d7430e15eb362d3d10778d91778665711d1fe678f248f28af5be7eeb8ad5c",
+      "bytes": 3151,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/9.1.0/receipt.json",
+      "sha256": "2a5c049dc35ebcc2dbcfc82d86b5dbcaa0e8ec7976c804ef9a2e965204d09ea0",
+      "bytes": 10389,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/ELF-RETENTION.json",
+      "sha256": "9c8e467b52fc52eeaf7b19d5574770d0f8b6560c70b4a86679a8b5ac3445843f",
+      "bytes": 3408,
+      "candidate": true,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual lossless executable retention checks; no new provider execution or assertion outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/EXACT-OBSERVATIONS.json",
+      "sha256": "9ebbd1e5465058a7fbb41ea934fb3bdd301ca160fdbffe6be742f1e31a59cba0",
+      "bytes": 77352,
+      "candidate": true,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Derived lossless observation/source/retention join linked to original raw proof; no independent Native process or additional observation count."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/INPUT-RETENTION-JOINS.json",
+      "sha256": "d49da3cf0d08dc9030b8c39add28eda61bbca4b7df05ec60a7fcee93e170c3bc",
+      "bytes": 233519,
+      "candidate": true,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Derived lossless observation/source/retention join linked to original raw proof; no independent Native process or additional observation count."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/SOURCE-JOINS.json",
+      "sha256": "555d7069955ae0bbb235488b56c0339a59c31629a13586f6628d48190ffdea52",
+      "bytes": 5232,
+      "candidate": true,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Derived lossless observation/source/retention join linked to original raw proof; no independent Native process or additional observation count."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/c-version.tcl",
+      "sha256": "48ea443887443eb394745e58dc0921e1488421a1f781fb468f80cbc4da147cdd",
+      "bytes": 41,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/compiler-version.json",
+      "sha256": "bbf0539d98f9c797dba37631004de266fea7cf82b94279d129e0e29fe2d89273",
+      "bytes": 615,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compiler or separate CLI environment query receipt. The CLI stdout is empty and supplies no separate version text; linked-probe attribution remains independent."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/compiler-version.stdout",
+      "sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/design-BASE-HARNESS-REFERENCE.json",
+      "sha256": "6d037d59fa1c97fc04b777eca2dba1024f864e048e8852cb458137175f7f17f4",
+      "bytes": 1036,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/design-REQUEST.json",
+      "sha256": "ecc32a827ba486268852577355e821e16b4030d5751ea70734bf537e5c010a21",
+      "bytes": 3855,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/design-SOURCE-WINDOWS.json",
+      "sha256": "9ddeb2afe46e8e06c3d76d9490277813f6fe9f02fe96caf86ca3c7691ccc361d",
+      "bytes": 10563,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/design-probe.c",
+      "sha256": "ea5cd968ccea5352cabd92407a0239e29ff6392a23fcaddbec9ebe76159f05bc",
+      "bytes": 5674,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/inputs-after.json",
+      "sha256": "a92c6578dad968dbdfdc332f6ea81a73dd3cc6983d679e2e686b3b2378176aea",
+      "bytes": 56623,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/inputs-before.json",
+      "sha256": "a92c6578dad968dbdfdc332f6ea81a73dd3cc6983d679e2e686b3b2378176aea",
+      "bytes": 56623,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim-version.tcl",
+      "sha256": "46f8390c69828657c3232ee571f00988b5dad2f520f441d40028de69cfa38770",
+      "bytes": 38,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/cli-version.json",
+      "sha256": "b3ec73aa6453ec97b3ff8bb3a19d9efab9f9b8c33c2c60d789006076dae6499c",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compiler or separate CLI environment query receipt. The CLI stdout is empty and supplies no separate version text; linked-probe attribution remains independent."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/cli-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/cli-version.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/compile.json",
+      "sha256": "82873a7d95278ac2f5e846a76095dcef5942e2d4769999f11fed076f1e584535",
+      "bytes": 958,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/compile.stdout",
+      "sha256": "ad25e25faef8a0437d52aad15907e62ca422e85f830267c21384b4c93be2dfef",
+      "bytes": 1444,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/headers.json",
+      "sha256": "97dc59d81d55a8cf32cf669bdbf1d873940edf5da84530a757acac99e8e036c1",
+      "bytes": 757,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual compile/header dependency process scaffolding; no callback observation or passing test outcome."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/headers.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/headers.stdout",
+      "sha256": "f31a2303a53c3611d6b7eb4443ec54d83978ba68bdd825ddcac1e038fb16efb6",
+      "bytes": 1879,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/inputs-after.json",
+      "sha256": "b21ef98881dabc82fd7b681ec60c5684d4a391aec9c08350fee1f839fdf41ade",
+      "bytes": 60938,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/inputs-before.json",
+      "sha256": "b21ef98881dabc82fd7b681ec60c5684d4a391aec9c08350fee1f839fdf41ade",
+      "bytes": 60938,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/probe.elf.gz",
+      "sha256": "5863dff022e24dda10223fa648fc797187370056e24048aa92e567e1f2e0555d",
+      "bytes": 187564,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/probe.json",
+      "sha256": "5a921b29d9aaa7aa649d09257d32ef33bf87adcf317375d1b5d6221c81c3119a",
+      "bytes": 611,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/probe.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/probe.stdout",
+      "sha256": "c1608cccab519410e8c307547744ecfd31b4686625e81c7c956f3fd94c8ec2dc",
+      "bytes": 3218,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/jim/receipt.json",
+      "sha256": "0055e99f2be407638c5597fddb828fd8e3cb7bd71d7d8d3bc27aaa92b0d6cafd",
+      "bytes": 10070,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/probe.c",
+      "sha256": "3572cff663d103e59a8e814a7b15002acd5c8320cbf8c415c8fabf04f48a9a05",
+      "bytes": 6847,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/request.json",
+      "sha256": "0bbcc3c527ee19eadb73f9b00556f3fe6440d5a2769233cc496eb81228602aff",
+      "bytes": 1310,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Original request/design/input inventory or baseline-source fixture; no Native result or passing assertion inferred from these input records."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/runner.py",
+      "sha256": "67952b55113c6e3b80300c6f73935b08ea7076334bc22eb09032e497394a6e89",
+      "bytes": 9790,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/jim-JimDecrCmdRefCount-3887-3922.txt",
+      "sha256": "b4469d6dbcfcb67df151f4cd74b18204e183f9d58f8c7de0dcc708fd1320bbd0",
+      "bytes": 1388,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/jim-JimIncrCmdRefCount-3881-3884.txt",
+      "sha256": "84004aa829ae81eb24e6c27f33f7122d423135f7cf9df520840daf904a28f331",
+      "bytes": 73,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/jim-JimInvokeCommand-11101-11215.txt",
+      "sha256": "4700e8a5500db11ee1288c0000dca1240c5ecd8da248a1f1a186b7dad28702fe",
+      "bytes": 3707,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/jim-Jim_DeleteCommand-4447-4460.txt",
+      "sha256": "2e1cb096fe5693cc82d34496f1626c2211372fe716777bf88c71c3127ce973e8",
+      "bytes": 386,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/tcl8.4-Tcl_DeleteCommandFromToken-2550-2696.txt",
+      "sha256": "476e1f08a2b8f5dce752e771dd84bf25463be35b7c797f5c5fc48c15628ca9b0",
+      "bytes": 5106,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/tcl8.5-Tcl_DeleteCommandFromToken-2774-2939.txt",
+      "sha256": "90cae98331d5db4913ab7b71bdd42bbcba8cef11c576bdd305f405955de3a368",
+      "bytes": 5610,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/tcl8.6-Tcl_DeleteCommandFromToken-3147-3320.txt",
+      "sha256": "b639cfb45d73ae19e8369a59b15e52062b016b531bbbb98a93afe34258a32e06",
+      "bytes": 5667,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/tcl9.0-Tcl_DeleteCommandFromToken-3727-3902.txt",
+      "sha256": "41a0ff277f6b4a974f3799fd974eea75fe9184520fbca9378f82ca289541b382",
+      "bytes": 5724,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/source-windows/tcl9.1-Tcl_DeleteCommandFromToken-3697-3872.txt",
+      "sha256": "e1c5f7b00f1d8399aca5eca6bd84fa489448d10320f4827e1c58bd330b97da1a",
+      "bytes": 5725,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/summary.json",
+      "sha256": "c63b474c5c165847870924f04c98ddba62486af8ac9a6b663fdc493bc2c0a794",
+      "bytes": 3726,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.embedding.original-active-object-command-deletion"
+      ],
+      "reason": "Actual closed probe process or consolidated original observational receipt, linked to complete raw event/result streams for the finite active-deletion cases."
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_active_read_unset_original/8.4.20/receipt.json",
       "sha256": "afa74a257e34732f64846404143cd74792482d074d9f26910e9f25f976768f42",
       "bytes": 1872,

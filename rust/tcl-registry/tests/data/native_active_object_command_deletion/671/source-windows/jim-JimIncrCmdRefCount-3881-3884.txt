@@ -1,0 +1,4 @@
+static void JimIncrCmdRefCount(Jim_Cmd *cmdPtr)
+{
+    cmdPtr->inUse++;
+}

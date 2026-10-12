@@ -1,0 +1,176 @@
+Tcl_DeleteCommandFromToken(
+    Tcl_Interp *interp,		/* Token for command interpreter returned by a
+				 * previous call to Tcl_CreateInterp. */
+    Tcl_Command cmd)		/* Token for command to delete. */
+{
+    Interp *iPtr = (Interp *) interp;
+    Command *cmdPtr = (Command *) cmd;
+    ImportRef *refPtr, *nextRefPtr;
+    Tcl_Command importCmd;
+
+    /*
+     * The code here is tricky. We can't delete the hash table entry before
+     * invoking the deletion callback because there are cases where the
+     * deletion callback needs to invoke the command (e.g. object systems such
+     * as OTcl). However, this means that the callback could try to delete or
+     * rename the command. The deleted flag allows us to detect these cases
+     * and skip nested deletes.
+     */
+
+    if (cmdPtr->flags & CMD_DYING) {
+	/*
+	 * Another deletion is already in progress. Remove the hash table
+	 * entry now, but don't invoke a callback or free the command
+	 * structure. Take care to only remove the hash entry if it has not
+	 * already been removed; otherwise if we manage to hit this function
+	 * three times, everything goes up in smoke. [Bug 1220058]
+	 */
+
+	if (cmdPtr->hPtr != NULL) {
+	    Tcl_DeleteHashEntry(cmdPtr->hPtr);
+	    cmdPtr->hPtr = NULL;
+	}
+
+	/*
+	 * Bump the command epoch counter. This will invalidate all cached
+	 * references that point to this command.
+	 */
+
+	cmdPtr->cmdEpoch++;
+
+	return 0;
+    }
+
+    /*
+     * We must delete this command, even though both traces and delete procs
+     * may try to avoid this (renaming the command etc). Also traces and
+     * delete procs may try to delete the command themselves. This flag
+     * declares that a delete is in progress and that recursive deletes should
+     * be ignored.
+     */
+
+    cmdPtr->flags |= CMD_DYING;
+
+    /*
+     * Call each functions and then delete the trace.
+     */
+
+    cmdPtr->nsPtr->refCount++;
+
+    if (cmdPtr->tracePtr != NULL) {
+	CommandTrace *tracePtr;
+	/* CallCommandTraces() does not cmdPtr, that's
+	 * done just before Tcl_DeleteCommandFromToken() returns */
+	CallCommandTraces(iPtr,cmdPtr,NULL,NULL,TCL_TRACE_DELETE);
+
+	/*
+	 * Now delete these traces.
+	 */
+
+	tracePtr = cmdPtr->tracePtr;
+	while (tracePtr != NULL) {
+	    CommandTrace *nextPtr = tracePtr->nextPtr;
+
+	    if (tracePtr->refCount-- <= 1) {
+		Tcl_Free(tracePtr);
+	    }
+	    tracePtr = nextPtr;
+	}
+	cmdPtr->tracePtr = NULL;
+    }
+
+    /*
+     * The list of commands exported from the namespace might have changed.
+     * However, we do not need to recompute this just yet; next time we need
+     * the info will be soon enough.
+     */
+
+    TclInvalidateNsCmdLookup(cmdPtr->nsPtr);
+    TclNsDecrRefCount(cmdPtr->nsPtr);
+
+    /*
+     * If the command being deleted has a compile function, increment the
+     * interpreter's compileEpoch to invalidate its compiled code. This makes
+     * sure that we don't later try to execute old code compiled with
+     * command-specific (i.e., inline) bytecodes for the now-deleted command.
+     * This field is checked in Tcl_EvalObj and ObjInterpProc, and code whose
+     * compilation epoch doesn't match is recompiled.
+     */
+
+    if (cmdPtr->compileProc != NULL) {
+	iPtr->compileEpoch++;
+    }
+
+    if (!(cmdPtr->flags & CMD_REDEF_IN_PROGRESS)) {
+	/*
+	 * Delete any imports of this routine before deleting this routine itself.
+	 * See issue 688fcc7082fa.
+	 */
+	for (refPtr = cmdPtr->importRefPtr; refPtr != NULL;
+		refPtr = nextRefPtr) {
+	    nextRefPtr = refPtr->nextPtr;
+	    importCmd = (Tcl_Command) refPtr->importedCmdPtr;
+	    Tcl_DeleteCommandFromToken(interp, importCmd);
+	}
+    }
+
+    if (cmdPtr->deleteProc != NULL) {
+	/*
+	 * Delete the command's client data. If this was an imported command
+	 * created when a command was imported into a namespace, this client
+	 * data will be a pointer to a ImportedCmdData structure describing
+	 * the "real" command that this imported command refers to.
+	 *
+	 * If you are getting a crash during the call to deleteProc and
+	 * cmdPtr->deleteProc is a pointer to the function free(), the most
+	 * likely cause is that your extension allocated memory for the
+	 * clientData argument to Tcl_CreateObjCommand with the Tcl_Alloc()
+	 * macro and you are now trying to deallocate this memory with free()
+	 * instead of Tcl_Free(). You should pass a pointer to your own method
+	 * that calls Tcl_Free().
+	 */
+
+	cmdPtr->deleteProc(cmdPtr->deleteData);
+    }
+
+    /*
+     * Don't use hPtr to delete the hash entry here, because it's possible
+     * that the deletion callback renamed the command. Instead, use
+     * cmdPtr->hptr, and make sure that no-one else has already deleted the
+     * hash entry.
+     */
+
+    if (cmdPtr->hPtr != NULL) {
+	Tcl_DeleteHashEntry(cmdPtr->hPtr);
+	cmdPtr->hPtr = NULL;
+
+	/*
+	 * Bump the command epoch counter. This will invalidate all cached
+	 * references that point to this command.
+	 */
+
+	cmdPtr->cmdEpoch++;
+    }
+
+    /*
+     * A number of tests for particular kinds of commands are done by checking
+     * whether the objProc field holds a known value. Set the field to NULL so
+     * that such tests won't have false positives when applied to deleted
+     * commands.
+     */
+
+    cmdPtr->objProc2 = NULL;
+
+    /*
+     * Now free the Command structure, unless there is another reference to it
+     * from a CmdName Tcl object in some ByteCode code sequence. In that case,
+     * delay the cleanup until all references are either discarded (when a
+     * ByteCode is freed) or replaced by a new reference (when a cached
+     * CmdName Command reference is found to be invalid and
+     * TclNRExecuteByteCode looks up the command in the command hashtable).
+     */
+
+    cmdPtr->flags |= CMD_DEAD;
+    TclCleanupCommandMacro(cmdPtr);
+    return 0;
+}

@@ -1,0 +1,89 @@
+{
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "receipt": "/tmp/native-active-command-retirement671/8.4.20/receipt.json",
+      "receipt_sha256": "fd5fd85ad69b21f31fecfb23884a112538aa54be5a8a59e3a443068b3f64a8c8",
+      "exit": 0,
+      "case_blocks": 2,
+      "image_sha256": "43acfd89fa1a5a9cfe5533b237347d80269fe4a33094e694218ea599c8530c56",
+      "version_rows": [
+        "VERSION\t0\t382e342e323020382e34",
+        "BUILD\tHEADER=8.4.20\tGetVersion=8.4.20/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "receipt": "/tmp/native-active-command-retirement671/8.5.19/receipt.json",
+      "receipt_sha256": "040e2af26ae63c7ee37d2771bb6f4853c35a0f227c51f1d9808aa80f276e4257",
+      "exit": 0,
+      "case_blocks": 2,
+      "image_sha256": "6d3b1a303f6b7af7d71fb188b7410a43f4f2a50ee58139f74555a4e31dcb2fce",
+      "version_rows": [
+        "VERSION\t0\t382e352e313920382e35",
+        "BUILD\tHEADER=8.5.19\tGetVersion=8.5.19/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "receipt": "/tmp/native-active-command-retirement671/8.6.18/receipt.json",
+      "receipt_sha256": "e993f1a4d7a6465fbd3729cab7f891039cd4937bcc3200656a83d677e2236e28",
+      "exit": 0,
+      "case_blocks": 2,
+      "image_sha256": "2be2675e3c60f77dc16c648f3bc14134ac69eeaa9dd3c901ce63b07153a99316",
+      "version_rows": [
+        "VERSION\t0\t382e362e313820382e36",
+        "BUILD\tHEADER=8.6.18\tGetVersion=8.6.18/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "receipt": "/tmp/native-active-command-retirement671/9.0.4/receipt.json",
+      "receipt_sha256": "8b0203d847f47dad887835a7453248a0b22d88b61d1d6a8b06a863f423e9195d",
+      "exit": 0,
+      "case_blocks": 2,
+      "image_sha256": "c9de9302a293fe72275df01c01bcf42ece429c8d56d9382ddff4c9c5ce904574",
+      "version_rows": [
+        "VERSION\t0\t392e302e3420392e30",
+        "BUILD\tHEADER=9.0.4\tGetVersion=9.0.4/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "receipt": "/tmp/native-active-command-retirement671/9.1.0/receipt.json",
+      "receipt_sha256": "2a5c049dc35ebcc2dbcfc82d86b5dbcaa0e8ec7976c804ef9a2e965204d09ea0",
+      "exit": 0,
+      "case_blocks": 2,
+      "image_sha256": "ab4a5f20aa19ecdafabb90b3af0b5a3397642b9fb583419abd06d2d225545f05",
+      "version_rows": [
+        "VERSION\t0\t392e312e3020392e31",
+        "BUILD\tHEADER=9.1.0\tGetVersion=9.1.0/2",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ]
+    },
+    {
+      "provider": "jim",
+      "receipt": "/tmp/native-active-command-retirement671/jim/receipt.json",
+      "receipt_sha256": "0055e99f2be407638c5597fddb828fd8e3cb7bd71d7d8d3bc27aaa92b0d6cafd",
+      "exit": 0,
+      "case_blocks": 2,
+      "image_sha256": "32feb36adbbd51460b7f1c4193555b81e93f0ce13d577d6dc7909069685e95f1",
+      "version_rows": [
+        "VERSION\t0\t302e38342d392d673562616337633920302e3834",
+        "BUILD\tJIM_GITVERSION=0.84-9-g5bac7c9\tJIM_VERSION=84\tJIM_ABI_VERSION=102\tJIM_UTF8=1",
+        "ABI\tint=4\tlong=8\tptr=8\tCHAR_BIT=8"
+      ]
+    }
+  ],
+  "processes": 6,
+  "case_blocks": 12,
+  "complete_native_inputs_unchanged": true,
+  "request_sha256": "0bbcc3c527ee19eadb73f9b00556f3fe6440d5a2769233cc496eb81228602aff",
+  "probe_sha256": "3572cff663d103e59a8e814a7b15002acd5c8320cbf8c415c8fabf04f48a9a05",
+  "compiler_version_receipt_sha256": "bbf0539d98f9c797dba37631004de266fea7cf82b94279d129e0e29fe2d89273",
+  "scope": "Fresh public callback observations only. No Rust assertion, general active command lifetime or client-data free/reference-count parity is claimed."
+}

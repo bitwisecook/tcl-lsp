@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/tmp/native-active-command-retirement671/jim-version.tcl"
+  ],
+  "cwd": "/tmp/native-active-command-retirement671/jim",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "TZ": "UTC"
+  },
+  "exit": 0,
+  "seconds": 0.005081047012936324,
+  "stdout": "/tmp/native-active-command-retirement671/jim/cli-version.stdout",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr": "/tmp/native-active-command-retirement671/jim/cli-version.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
