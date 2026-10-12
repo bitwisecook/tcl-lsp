@@ -1,0 +1,120 @@
+   Compiling libc v0.2.190
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling getrandom v0.4.3
+   Compiling getrandom v0.2.17
+   Compiling crypto-common v0.2.2
+   Compiling crypto-bigint v0.7.5
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling primefield v0.14.0
+   Compiling elliptic-curve v0.14.1
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling crypto-primes v0.7.2
+   Compiling ring v0.17.14
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p384 v0.14.0
+   Compiling p256 v0.14.0
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+error[E0425]: cannot find function `whole_document_range` in this scope
+    --> rust/tcl-lsp-core/src/inlay_hints.rs:3081:13
+     |
+3081 |             whole_document_range(source),
+     |             ^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+note: these functions exist but are inaccessible
+    --> rust/tcl-lsp-core/src/code_actions.rs:2702:5
+     |
+2702 |     fn whole_document_range(source: &str) -> LspRange {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `crate::code_actions::tests::whole_document_range`: not accessible
+     |
+    ::: rust/tcl-lsp-core/src/inlay_hints.rs:1280:5
+     |
+1280 |     fn whole_document_range(source: &str) -> LspRange {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `crate::inlay_hints::tests::whole_document_range`: not accessible
+
+error[E0425]: cannot find function `whole_document_range` in this scope
+    --> rust/tcl-lsp-core/src/inlay_hints.rs:3103:17
+     |
+3103 |                 whole_document_range(&changed),
+     |                 ^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+note: these functions exist but are inaccessible
+    --> rust/tcl-lsp-core/src/code_actions.rs:2702:5
+     |
+2702 |     fn whole_document_range(source: &str) -> LspRange {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `crate::code_actions::tests::whole_document_range`: not accessible
+     |
+    ::: rust/tcl-lsp-core/src/inlay_hints.rs:1280:5
+     |
+1280 |     fn whole_document_range(source: &str) -> LspRange {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `crate::inlay_hints::tests::whole_document_range`: not accessible
+
+error[E0425]: cannot find function `whole_document_range` in this scope
+    --> rust/tcl-lsp-core/src/inlay_hints.rs:3115:17
+     |
+3115 |                 whole_document_range(source),
+     |                 ^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+note: these functions exist but are inaccessible
+    --> rust/tcl-lsp-core/src/code_actions.rs:2702:5
+     |
+2702 |     fn whole_document_range(source: &str) -> LspRange {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `crate::code_actions::tests::whole_document_range`: not accessible
+     |
+    ::: rust/tcl-lsp-core/src/inlay_hints.rs:1280:5
+     |
+1280 |     fn whole_document_range(source: &str) -> LspRange {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `crate::inlay_hints::tests::whole_document_range`: not accessible
+
+error[E0433]: cannot find type `Span` in this scope
+    --> rust/tcl-lsp-core/src/references.rs:8635:24
+     |
+8635 |             let span = Span::new(0, u32::try_from(written.len()).unwrap());
+     |                        ^^^^ use of undeclared type `Span`
+
+error[E0433]: cannot find type `Span` in this scope
+    --> rust/tcl-lsp-core/src/references.rs:8654:13
+     |
+8654 |             Span::new(0, u32::try_from(source.len()).unwrap()),
+     |             ^^^^ use of undeclared type `Span`
+
+error[E0308]: mismatched types
+    --> rust/tcl-lsp-core/src/references.rs:8700:26
+     |
+8700 |                 Arc::new(context),
+     |                 -------- ^^^^^^^ expected `ContextRegistry`, found `&ContextRegistry`
+     |                 |
+     |                 arguments to this function are incorrect
+     |
+note: associated function defined here
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/sync.rs:437:11
+
+error[E0308]: mismatched types
+    --> rust/tcl-lsp-core/src/rename_safety.rs:2205:26
+     |
+2205 |                 Arc::new(context),
+     |                 -------- ^^^^^^^ expected `ContextRegistry`, found `&ContextRegistry`
+     |                 |
+     |                 arguments to this function are incorrect
+     |
+note: associated function defined here
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/sync.rs:437:11
+
+Some errors have detailed explanations: E0308, E0425, E0433.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `tcl-lsp-core` (lib test) due to 7 previous errors

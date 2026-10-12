@@ -1,0 +1,47 @@
+{
+  "status": "compiled-controls-failed-first-assertions",
+  "completed_at_utc": "2026-10-12T21:41:27.148894+00:00",
+  "channels": [
+    {
+      "channel": "composed",
+      "expected_count": 4,
+      "executed_test_count": 4,
+      "process_exit_code": 101,
+      "summary": "FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 2999 filtered out; finished in 1.16s",
+      "test_binary": "tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+      "test_binary_sha256": "25ba7f899c5961e789439ff18f882c735e4bbed422c85ae95fe7e91c81a5d3c5",
+      "raw_combined_stream": "composed.stdout-stderr.log",
+      "raw_combined_stream_sha256": "d8f4c0f62613f70f449052ae398b7bc3e3c4e7468066544fc82aed8bb46ff518",
+      "assertion_stage": "common fixture native-script fatal-tail guard before source producer/consumer selection"
+    },
+    {
+      "channel": "logical",
+      "expected_count": 1,
+      "executed_test_count": 1,
+      "process_exit_code": 101,
+      "summary": "FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3002 filtered out; finished in 0.48s",
+      "test_binary": "tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+      "test_binary_sha256": "25ba7f899c5961e789439ff18f882c735e4bbed422c85ae95fe7e91c81a5d3c5",
+      "raw_combined_stream": "logical.stdout-stderr.log",
+      "raw_combined_stream_sha256": "2eba6b76db217d606d371d01af3a329bece59a88ef81324ea115230eed3f85a5",
+      "assertion_stage": "first positive int-hint label assertion; empty output []"
+    }
+  ],
+  "listed_source_hashes_unchanged": {
+    "rust/tcl-lsp-core/src/references.rs": true,
+    "rust/tcl-lsp-core/src/inlay_hints.rs": true,
+    "rust/tcl-lsp-core/src/rename_safety.rs": true,
+    "rust/tcl-compiler/src/command_binding.rs": true,
+    "rust/tcl-compiler/src/provider_fixtures.rs": true,
+    "rust/tcl-compiler/src/script_binds.rs": true,
+    "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs": true,
+    "rust/tcl-lsp-core/Cargo.toml": true,
+    "rust/tcl-compiler/Cargo.toml": true,
+    "Cargo.lock": true
+  },
+  "source_scope": "exact listed owner/source bytes; actual compiler sources retain coordinated temporary diagnostics, not normal production state; VM test diagnostics noted as frozen snapshot context only, not core-linked-source claim",
+  "conformance_scope": "exact intended-consumer assertions failed; source helper failure precedes callback-owner assertions; existing logical typehint positive output empty; no Native/original future dispatch/edit authority",
+  "source_changes_after_failure": "none",
+  "cache": "released to coordinator",
+  "prior_failed_compile_receipt": "../frozen-build-1/result.json"
+}

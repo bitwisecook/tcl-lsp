@@ -1,0 +1,43 @@
+{
+  "records": [
+    {
+      "engine": "c",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-03/fixed-label-traces.tcl"
+      ],
+      "exit_code": 0
+    },
+    {
+      "engine": "native",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-03/fixed-label-traces.tcl"
+      ],
+      "exit_code": 2
+    }
+  ],
+  "sha256": {
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/probe.py": "9e9523267835cc41fe3a9ec34d91f2e20aec6dd2103e462d515d7d21f49a3db4",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-03/fixed-label-traces.tcl": "4e827e9b50a0279d1f9ab3085bbc3cbef5583b4ded734726da45333cf51aa26a"
+  },
+  "trace_labels": {
+    "0": "::tcl::clock::format",
+    "1": "::tcl::clock::GetSystemTimeZone",
+    "2": "::tcl::clock::ReadZoneinfoFile",
+    "3": "::tcl::clock::SetupTimeZone",
+    "4": "binary",
+    "5": "string",
+    "6": "read"
+  },
+  "environment": "Same named benign overrides/removals as getter capture; inherited host values are neither enumerated nor logged."
+}

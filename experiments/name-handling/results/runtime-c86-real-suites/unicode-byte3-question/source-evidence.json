@@ -1,0 +1,17 @@
+{
+  "sha256": {
+    "rust/tcl-cmd-core/src/list.rs": "aa38e487d96d4179d94c408a2be84eb001ff2f4a18c10128ef633d04070eef60",
+    "runtime/rust/src/value_ops.rs": "2441b1e3513df815c2a527ea8313196e62f909adde821fcf93c82cf74134a41c",
+    "rust/tcl-syntax/src/raw_string.rs": "a418cbf62ff85fd3c171a4d19decefce71fbb97ccd65dde28c4747d77c0321c8",
+    "tmp/tcl8.6.18/generic/tclCmdMZ.c": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+    "tmp/tcl8.6.18/generic/tclUtf.c": "95d8a272d4c96a4462c5e406d4fef3073b3bd7489691d839615bfaef394ac7f5",
+    "experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture.py": "26115d6fe85a1ecfca7cc55f44d513eee958bf1b1006d852ae4a46e77f733f4a",
+    "experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9"
+  },
+  "runner_sha256": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+  "runner_matches_retained_getter_capture": true,
+  "C86_split_source_extent": "generic/tclCmdMZ.c:1035\u20131155; TclGetStringFromObj and TclUtfToUniChar/TclUtfToUCS4, including counted output slices",
+  "original_caller": "library/clock.tcl:3493\u20133495",
+  "production_boundary_owners": "shared split core, runtime ValueOps adapter, shared RawString checked Unicode projection",
+  "original_retained_capture": "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/provenance.json"
+}

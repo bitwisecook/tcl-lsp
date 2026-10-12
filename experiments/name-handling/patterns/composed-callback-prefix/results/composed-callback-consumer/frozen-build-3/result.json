@@ -1,0 +1,63 @@
+{
+  "status": "compiled-four-controls-one-passed-three-failed",
+  "completed_at_utc": "2026-10-12T21:56:35.752164+00:00",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "composed_callback_prefix_tests",
+    "--",
+    "--nocapture"
+  ],
+  "process_exit_code": 101,
+  "expected_count": 4,
+  "executed_test_count": 4,
+  "passed_count": 1,
+  "failed_count": 3,
+  "summary": "FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 2999 filtered out; finished in 10.11s",
+  "test_binary": "tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "test_binary_sha256": "44f24b672b2397911500ea35791b06d1c9b9353e4b18d9bfef284c496c790eb3",
+  "raw_combined_stream": "composed.stdout-stderr.log",
+  "raw_combined_stream_sha256": "02dcd306d133b1e7317eebdff42f3aec4bfbd1b9cee5595d2821a7073d991d44",
+  "listed_source_hashes_unchanged": {
+    "rust/tcl-lsp-core/src/references.rs": true,
+    "rust/tcl-lsp-core/src/inlay_hints.rs": true,
+    "rust/tcl-lsp-core/src/rename_safety.rs": true,
+    "rust/tcl-compiler/src/command_binding.rs": true,
+    "rust/tcl-compiler/src/provider_fixtures.rs": true,
+    "rust/tcl-compiler/src/script_binds.rs": true,
+    "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs": true,
+    "rust/tcl-lsp-core/Cargo.toml": true,
+    "rust/tcl-compiler/Cargo.toml": true,
+    "Cargo.lock": true
+  },
+  "first_actual_barrier": {
+    "case": "tcl8.6/positive",
+    "earlier_stage": "original full-image body helper and aliased-builder source_registry_words/schema traits/native_result/arity checks passed",
+    "failure": "source_authored_command_prefix returned None before target/head/lineage/currentness assertions",
+    "source_line": 6146
+  },
+  "reference_failure": {
+    "case": "tcl8.6/public-positive",
+    "actual": "only tick declaration range at zero-based line2 chars11..15; original stored tick selector absent",
+    "source_line": 6219
+  },
+  "currentness_failure": {
+    "actual": "positive baseline authored receipt None; stale-source/configuration guards not yet reached",
+    "source_line": 6268
+  },
+  "adverse_control": {
+    "actual": "unknown/opaque/nested source-reference absence assertions passed in all selected release iterations",
+    "scope_limit": "positive authored/reference baseline failed, so this passing absence test does not independently prove writer-caused withdrawal of an eligible prefix"
+  },
+  "source_scope": "exact listed source bytes; coordinated three TEMP compiler diagnostics restored before this attempt; VM test source frozen context only, not core-linked-source claim",
+  "separate_logical_control": "not rerun; frozen-build-2 exact1 empty-hints failure remains separate",
+  "source_changes_after_failure": "none; every concrete positive/adverse/currentness assertion preserved",
+  "cache": "released to coordinator",
+  "authority": "current static-consumer failure/absence receipts only; native/runtime/edit/optimisation claims not issued"
+}

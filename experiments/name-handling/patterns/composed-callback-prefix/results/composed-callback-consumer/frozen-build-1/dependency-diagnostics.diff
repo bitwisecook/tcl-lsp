@@ -1,0 +1,448 @@
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index ef573cd36..88aa94aaa 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -1619,6 +1619,63 @@ impl Hash for SourceLookupSnapshot {
+ }
+ 
+ impl SourceInvocationBinding {
++    #[cfg(test)]
++    pub(crate) fn trace_original_w210_read_request(
++        &self,
++        input: &crate::analyser::ResolvedAnalysisInput,
++    ) {
++        if !crate::provider_fixtures::original_w210_trace_enabled() {
++            return;
++        }
++        eprintln!(
++            "W210_ORIGINAL_HEADER lookup={} compiler={} declaration={} unknown={} absent={} request_addr={:p}",
++            self.lookup_state.is_some(),
++            self.compiler_lookup_state.is_some(),
++            self.declaration_layout_observations.is_some(),
++            self.unknown,
++            self.may_be_absent,
++            input
++        );
++        for (kind, snapshot) in [
++            ("lookup", &self.lookup_state),
++            ("compiler", &self.compiler_lookup_state),
++        ] {
++            if let Some(snapshot) = snapshot {
++                let owner = &snapshot.state.baseline.metadata_context;
++                let supplied = owner.source_analysis_input();
++                let tag = if matches!(
++                    owner,
++                    crate::registry_invocation::OwnedInvocationMetadataContext::Standalone
++                ) {
++                    "Standalone"
++                } else if matches!(
++                    owner,
++                    crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
++                ) {
++                    "Unavailable"
++                } else if supplied.is_some() {
++                    "SuppliedSource"
++                } else {
++                    "OtherNoSource"
++                };
++                let source_hash = snapshot.state.current_source_origin.as_ref().map(|origin| {
++                    crate::provider_fixtures::original_w210_source_hash(
++                        origin.source_image().bytes(),
++                    )
++                });
++                eprintln!(
++                    "W210_ORIGINAL_HEADER kind={kind} owner={tag} snapshot_addr={:p} baseline_addr={:p} source_hash={source_hash:?} input={} input_equal={} native_entry={} realm={:?}",
++                    Arc::as_ptr(snapshot),
++                    Arc::as_ptr(&snapshot.state.baseline),
++                    supplied.is_some(),
++                    supplied == Some(input),
++                    snapshot.state.baseline.native_entry.is_some(),
++                    snapshot.realm
++                );
++            }
++        }
++    }
++
+     /// Explicit absence of bounded runtime dispatch and compiler admission.
+     #[must_use]
+     pub fn unknown() -> Self {
+@@ -6352,6 +6409,20 @@ impl SourceCommandBindings {
+         };
+         let mut state =
+             ModuleCommandBindings::initial_with_options(registry, options, Some(config));
++        #[cfg(test)]
++        if crate::provider_fixtures::original_w210_trace_enabled() {
++            let owner = &state.baseline.metadata_context;
++            eprintln!(
++                "W210_ORIGINAL_SOURCE initial source_hash={:016x} purpose={purpose:?} input={} standalone={} baseline_addr={:p}",
++                crate::provider_fixtures::original_w210_source_hash(image.bytes()),
++                owner.source_analysis_input().is_some(),
++                matches!(
++                    owner,
++                    crate::registry_invocation::OwnedInvocationMetadataContext::Standalone
++                ),
++                Arc::as_ptr(&state.baseline)
++            );
++        }
+         state.current_source_origin = Some(Arc::new(SourceOriginId::authored_image(image.clone())));
+         state.ordinary_literal_pool =
+             literal_object_pool::SourceOrdinaryLiteralPool::at_entry(&state, options);
+@@ -13714,9 +13785,26 @@ impl ModuleCommandBindings {
+         registry: &CommandRegistry,
+         options: SourceAnalysisOptions<'_>,
+     ) -> Option<Self> {
++        #[cfg(test)]
++        if crate::provider_fixtures::original_w210_trace_enabled() {
++            eprintln!(
++                "W210_ORIGINAL_MODULE begin source_hash={:016x} kind={:?} retained={} input={}",
++                crate::provider_fixtures::original_w210_source_hash(module.source.bytes()),
++                module.top_level_kind,
++                module.retained_source_bindings.is_some(),
++                module.source_metadata_input.is_some()
++            );
++        }
+         if let Some(retained) = &module.retained_source_bindings
+             && let Some(observed) = retained.projection(module, registry, options)
+         {
++            #[cfg(test)]
++            if crate::provider_fixtures::original_w210_trace_enabled() {
++                eprintln!(
++                    "W210_ORIGINAL_MODULE path=RetainedProjection source_hash={:016x}",
++                    crate::provider_fixtures::original_w210_source_hash(module.source.bytes())
++                );
++            }
+             return Some(observed);
+         }
+         if !module.source.is_empty() {
+@@ -13731,6 +13819,13 @@ impl ModuleCommandBindings {
+                 namespace,
+                 module.top_level_kind,
+             );
++            #[cfg(test)]
++            if crate::provider_fixtures::original_w210_trace_enabled() {
++                eprintln!(
++                    "W210_ORIGINAL_MODULE path=SourceReinterpretation source_hash={:016x}",
++                    crate::provider_fixtures::original_w210_source_hash(module.source.bytes())
++                );
++            }
+             let interpreted = SourceCommandBindings::analyse_image_in_frame_with_purpose(
+                 &module.source,
+                 &frame,
+@@ -13748,6 +13843,10 @@ impl ModuleCommandBindings {
+             )?;
+             return Some(interpreted.module_projection(module));
+         }
++        #[cfg(test)]
++        if crate::provider_fixtures::original_w210_trace_enabled() {
++            eprintln!("W210_ORIGINAL_MODULE path=NoSource");
++        }
+         None
+     }
+ 
+@@ -16544,6 +16643,22 @@ fn apply_embedded_transitions(
+     namespace: &crate::ir_helpers::ExecutionNamespace,
+     source_order_mode: bool,
+ ) -> bool {
++    #[cfg(test)]
++    if crate::provider_fixtures::original_w210_trace_enabled() {
++        let source_hash = bindings.current_source_origin.as_ref().map(|origin| {
++            crate::provider_fixtures::original_w210_source_hash(origin.source_image().bytes())
++        });
++        eprintln!(
++            "W210_ORIGINAL_REPLAY selection=Standalone source_hash={source_hash:?} span={}..{} retained_input={}",
++            stmt.span().start(),
++            stmt.span().end(),
++            bindings
++                .baseline
++                .metadata_context
++                .source_analysis_input()
++                .is_some()
++        );
++    }
+     apply_embedded_transitions_in(
+         stmt,
+         registry,
+diff --git a/rust/tcl-compiler/src/provider_fixtures.rs b/rust/tcl-compiler/src/provider_fixtures.rs
+index 5d38e06b7..b3f08497f 100644
+--- a/rust/tcl-compiler/src/provider_fixtures.rs
++++ b/rust/tcl-compiler/src/provider_fixtures.rs
+@@ -26,6 +26,78 @@ use tcl_registry::CommandRegistry;
+ mod itcl;
+ mod snit;
+ 
++static ORIGINAL_W210_TRACE_ACTIVE: std::sync::atomic::AtomicBool =
++    std::sync::atomic::AtomicBool::new(false);
++
++pub(crate) fn original_w210_trace_enabled() -> bool {
++    ORIGINAL_W210_TRACE_ACTIVE.load(std::sync::atomic::Ordering::SeqCst)
++}
++
++pub(crate) fn original_w210_source_hash(bytes: &[u8]) -> u64 {
++    use std::hash::{Hash, Hasher};
++    let mut hash = std::collections::hash_map::DefaultHasher::new();
++    bytes.hash(&mut hash);
++    hash.finish()
++}
++
++struct OriginalW210TraceScope(bool);
++impl Drop for OriginalW210TraceScope {
++    fn drop(&mut self) {
++        ORIGINAL_W210_TRACE_ACTIVE.store(self.0, std::sync::atomic::Ordering::SeqCst);
++    }
++}
++
++pub(crate) struct OriginalW210ReadTrace {
++    enabled: bool,
++    source_hash: u64,
++    start: u32,
++    end: u32,
++    stage: std::cell::Cell<&'static str>,
++    accepted: std::cell::Cell<bool>,
++}
++impl OriginalW210ReadTrace {
++    pub(crate) fn new(image: &tcl_lexer::SourceImage, span: tcl_lexer::Span) -> Self {
++        Self {
++            enabled: original_w210_trace_enabled(),
++            source_hash: original_w210_source_hash(image.bytes()),
++            start: span.start(),
++            end: span.end(),
++            stage: std::cell::Cell::new("begin"),
++            accepted: std::cell::Cell::new(false),
++        }
++    }
++    pub(crate) fn at(&self, stage: &'static str) {
++        self.stage.set(stage);
++        if self.enabled {
++            eprintln!(
++                "W210_ORIGINAL_READ attempt={stage} source_hash={:016x} span={}..{}",
++                self.source_hash, self.start, self.end
++            );
++        }
++    }
++    pub(crate) fn accept(&self) {
++        self.accepted.set(true);
++    }
++}
++impl Drop for OriginalW210ReadTrace {
++    fn drop(&mut self) {
++        if self.enabled {
++            eprintln!(
++                "W210_ORIGINAL_READ result={} stage={} source_hash={:016x} span={}..{}",
++                if self.accepted.get() {
++                    "Accepted"
++                } else {
++                    "Refused"
++                },
++                self.stage.get(),
++                self.source_hash,
++                self.start,
++                self.end
++            );
++        }
++    }
++}
++
+ /// Audited package implementations selected by the diagnostic fixture driver.
+ #[derive(Clone, Copy)]
+ pub(crate) enum Provider {
+@@ -155,6 +227,19 @@ pub(crate) fn analyse(
+     dialect: &str,
+     providers: &[Provider],
+ ) -> crate::analyser::types::AnalysisResult {
++    let enabled = std::env::var_os("TCL_LSP_TRACE_W210_ORIGINAL").is_some()
++        && source
++            == include_str!("../../../experiments/name-handling/tcltest-shared-frame/probe.tcl");
++    let _trace_scope = OriginalW210TraceScope(
++        ORIGINAL_W210_TRACE_ACTIVE.swap(enabled, std::sync::atomic::Ordering::SeqCst),
++    );
++    if enabled {
++        eprintln!(
++            "W210_ORIGINAL_FIXTURE begin source_hash={:016x} bytes={}",
++            original_w210_source_hash(source.as_bytes()),
++            source.len()
++        );
++    }
+     let mut analyser = crate::analyser::Analyser::new();
+     let input = analyser
+         .prepare_analysis_input(dialect)
+@@ -163,10 +248,31 @@ pub(crate) fn analyse(
+     let mut selected = (*entry(context.commands(), providers)).clone();
+     selected.metadata_context =
+         crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(&input));
+-    analyser
++    if enabled {
++        eprintln!(
++            "W210_ORIGINAL_FIXTURE ingress owner=SuppliedSource input_addr={:p} native_entry={} config_hash={:016x}",
++            &input,
++            selected.native_entry.is_some(),
++            original_w210_source_hash(format!("{:?}", input.lexer_config()).as_bytes())
++        );
++    }
++    let result = analyser
+         .with_resolved_input(input)
+         .with_source_analysis_entry(Arc::new(selected))
+-        .analyse(source, dialect)
++        .analyse(source, dialect);
++    if enabled {
++        eprintln!(
++            "W210_ORIGINAL_FIXTURE end w210={} input={} realm={}",
++            result
++                .diagnostics
++                .iter()
++                .filter(|d| format!("{:?}", d.code) == "W210")
++                .count(),
++            result.resolved_input.is_some(),
++            result.retained_command_realm().is_some()
++        );
++    }
++    result
+ }
+ 
+ #[cfg(test)]
+@@ -220,13 +326,14 @@ mod tests {
+         };
+         *text = "q".into();
+         tokens.argv_texts[1] = "q".into();
+-        assert!(realm
+-            .source_bindings_ref()
+-            .original_procedure_read_declaration(&tokens, context.commands(), input)
+-            .is_none());
++        assert!(
++            realm
++                .source_bindings_ref()
++                .original_procedure_read_declaration(&tokens, context.commands(), input)
++                .is_none()
++        );
+     }
+ 
+-
+     #[test]
+     fn provider_surface_requires_selection_loading_and_an_unchanged_handler() {
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+diff --git a/rust/tcl-compiler/src/script_binds.rs b/rust/tcl-compiler/src/script_binds.rs
+index 9a953e961..97742e907 100644
+--- a/rust/tcl-compiler/src/script_binds.rs
++++ b/rust/tcl-compiler/src/script_binds.rs
+@@ -396,23 +396,45 @@ pub(crate) fn authored_procedure_read_advice(
+     analysis: &crate::analyser::AnalysisResult,
+     context: &tcl_registry::model::ContextRegistry,
+ ) -> Option<AuthoredProcedureReadAdvice> {
++    #[cfg(test)]
++    let trace = crate::provider_fixtures::OriginalW210ReadTrace::new(image, procedure.span);
++    #[cfg(test)]
++    trace.at("body-config");
+     let config = analysis.body_lexer_config?;
++    #[cfg(test)]
++    trace.at("resolved-input");
+     let input = analysis.resolved_input.as_ref()?;
++    #[cfg(test)]
++    trace.at("retained-realm");
+     let realm = analysis.retained_command_realm()?;
++    #[cfg(test)]
++    trace.at("realm-input-image-config");
+     if !realm.matches_resolved_analysis_input(input)
+         || !realm.matches_original_source_image(image, config)
+         || input.lexer_config() != config
+     {
+         return None;
+     }
++    #[cfg(test)]
++    trace.at("original-header-binding");
+     let binding = realm.invocation_at_source("", procedure.span.start());
++    #[cfg(test)]
++    trace.at("original-recorded-command");
++    #[cfg(test)]
++    binding.trace_original_w210_read_request(input);
+     let (_, mut tokens) = binding.original_recorded_command()?;
+     tokens.source_binding = Some(binding);
++    #[cfg(test)]
++    trace.at("procedure-read-declaration");
+     let recipe = realm
+         .source_bindings_ref()
+         .original_procedure_read_declaration(&tokens, context.commands(), input)?;
+     let source = recipe.source();
++    #[cfg(test)]
++    trace.at("body-source");
+     let body = procedure.body_source.as_ref()?;
++    #[cfg(test)]
++    trace.at("body-formal-correspondence");
+     if source.origin.source_image() != image
+         || source.base() != procedure.body_offset
+         || source.text.try_text().ok()? != body
+@@ -421,10 +443,16 @@ pub(crate) fn authored_procedure_read_advice(
+     {
+         return None;
+     }
++    #[cfg(test)]
++    trace.at("body-base");
+     let base = usize::try_from(source.base()).ok()?;
++    #[cfg(test)]
++    trace.at("body-original-bytes");
+     if image.bytes().get(base..base.checked_add(body.len())?) != Some(body.as_bytes()) {
+         return None;
+     }
++    #[cfg(test)]
++    trace.accept();
+     Some(AuthoredProcedureReadAdvice {
+         body: tcl_lexer::Span::new(
+             source.base(),
+@@ -640,25 +668,31 @@ mod tests {
+         let binding = realm.invocation_at_source("", procedure.span.start());
+         let (_, mut tokens) = binding.original_recorded_command().unwrap();
+         assert!(tokens.source_binding.is_none());
+-        assert!(realm
+-            .source_bindings_ref()
+-            .original_procedure_read_declaration(&tokens, context.commands(), input)
+-            .is_none());
++        assert!(
++            realm
++                .source_bindings_ref()
++                .original_procedure_read_declaration(&tokens, context.commands(), input)
++                .is_none()
++        );
+         tokens.source_binding = Some(binding);
+-        assert!(realm
+-            .source_bindings_ref()
+-            .original_procedure_read_declaration(&tokens, context.commands(), input)
+-            .is_some());
++        assert!(
++            realm
++                .source_bindings_ref()
++                .original_procedure_read_declaration(&tokens, context.commands(), input)
++                .is_some()
++        );
+         let mut changed_tokens = tokens.clone();
+         let crate::ir::WordExpr::Literal { text, .. } = &mut changed_tokens.word_exprs[1] else {
+             panic!("literal procedure name");
+         };
+         *text = "q".into();
+         changed_tokens.argv_texts[1] = "q".into();
+-        assert!(realm
+-            .source_bindings_ref()
+-            .original_procedure_read_declaration(&changed_tokens, context.commands(), input)
+-            .is_none());
++        assert!(
++            realm
++                .source_bindings_ref()
++                .original_procedure_read_declaration(&changed_tokens, context.commands(), input)
++                .is_none()
++        );
+         let advice =
+             super::authored_procedure_read_advice(&image, procedure, &analysis, &context).unwrap();
+         assert!(advice.owns(tcl_lexer::Span::new(
+diff --git a/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs b/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
+index 0045ff56d..3ad94eae1 100644
+--- a/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
++++ b/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
+@@ -27,8 +27,9 @@ fn provided() -> Vm {
+     crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.1"))
+ }
+ fn class(vm: &mut Vm, name: &str) -> OoId {
+-    let completion =
+-        vm.invoke_command("oo::class", &[Value::string("create"), Value::string(name)]);
++    let completion = vm
++        .try_invoke_command("oo::class", &[Value::string("create"), Value::string(name)])
++        .expect("actual C9.1 class construction");
+     assert_eq!(completion.code, Code::Ok);
+     crate::cmd_oo::resolve_object_value(vm, &Value::string(name))
+         .unwrap()

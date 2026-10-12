@@ -1,0 +1,82 @@
+{
+  "records": [
+    {
+      "case": "scan-nul",
+      "engine": "c",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/scan-nul.tcl"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "scan-nul",
+      "engine": "native",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/scan-nul.tcl"
+      ],
+      "exit_code": 2
+    },
+    {
+      "case": "bytearray-nul",
+      "engine": "c",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/bytearray-nul.tcl"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "bytearray-nul",
+      "engine": "native",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/bytearray-nul.tcl"
+      ],
+      "exit_code": 2
+    },
+    {
+      "case": "scan-ascii",
+      "engine": "c",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/scan-ascii.tcl"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "scan-ascii",
+      "engine": "native",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/scan-ascii.tcl"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "sha256": {
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/synthetic.py": "dbf0c206b015313509e7651552190dec5503b2085af33e4bb48b827660af734d",
+    "/workspace/tcl-lsp/rust/tcl-syntax/src/raw_string.rs": "a418cbf62ff85fd3c171a4d19decefce71fbb97ccd65dde28c4747d77c0321c8",
+    "/workspace/tcl-lsp/runtime/rust/src/value_ops.rs": "2441b1e3513df815c2a527ea8313196e62f909adde821fcf93c82cf74134a41c",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/src/list.rs": "aa38e487d96d4179d94c408a2be84eb001ff2f4a18c10128ef633d04070eef60",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/bytearray-nul.tcl": "4052338d0acc6b4bdf9b29c5bab4a868c3190e3980469da299e66db5dd85aec4",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/scan-nul.tcl": "abfc7a74324125100e1507786c2068b4d6082efa6bd86ab26452c0e6a5ee96ee",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-05/scan-ascii.tcl": "082dfbcc7a9b2bfc70a23bc7f8ea5ec0930f9b81b5d7b854a82e3ebd60defcca"
+  },
+  "scope": "Benign exact 61626300/616263 data only; C86 and retained standalone Native C86 runner. No host values queried or printed."
+}

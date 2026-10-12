@@ -1,0 +1,12 @@
+{
+  "status": "test-only-compile-repair-source-ready-unexecuted",
+  "source_sha256": {
+    "rust/tcl-lsp-core/src/references.rs": "f52a7b92b391ffd3133055aa0409f829b0c97ccaf37669d705ea09d2a1c693e6",
+    "rust/tcl-lsp-core/src/inlay_hints.rs": "a667391cf5277ca9817476902514857bb25df13dd543ac6795b9b1485d59e096",
+    "rust/tcl-lsp-core/src/rename_safety.rs": "c9c1d327ff21078116c3185a83f8ddb9f95ed92593ca5594095da0316bde3265"
+  },
+  "repair_scope": "cfg(test) imports/helper visibility/owned context transport only; all old and four new assertions retained",
+  "context_identity": "ContextRegistry is not Clone; resolve_environment(tcl9.1).default_context_registry returns the genuine cached Arc. static_context_for uses the same Arc allocation (ingress.rs static promotion code); both affected helper fixtures assert ptr::eq before passing the owned Arc directly",
+  "document_geometry": "existing tests::whole_document_range helper promoted pub(super) and reused from sibling retained_hint_context_tests; no geometry implementation added",
+  "validation": "own three files rustfmt --edition2024 --config skip_children=true passed; no Cargo retry yet; first failed receipt unchanged"
+}

@@ -2192,18 +2192,19 @@ mod original_hazard_context_tests {
 #[cfg(test)]
 mod configured_dispatch_receiver_tests {
     use super::*;
-    use std::sync::Arc;
     use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
 
     fn analyse(source: &str, config: tcl_lexer::LexerConfig) -> AnalysisResult {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        assert!(std::ptr::eq(
+            context.as_ref(),
+            tcl_registry::model::ingress::static_context_for("tcl9.1"),
+        ));
         Analyser::new()
             .with_resolved_input(ResolvedAnalysisInput::new(
-                profile,
-                profile,
-                Arc::new(context),
-                config,
+                profile, profile, context, config,
             ))
             .analyse(source, profile.name)
     }

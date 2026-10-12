@@ -1,0 +1,45 @@
+{
+  "status": "proposed-test-source-uncompiled-unexecuted",
+  "owner_file": "rust/tcl-lsp-core/src/references.rs",
+  "owner_before_sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
+  "proposed_source": "proposed-tests.rs",
+  "proposed_source_sha256": "4300a5a6b86c29b895041b6d53ed23d193655667df51b9ca4d122749a9a44488",
+  "production_changes": "none",
+  "Cargo": "not run; coordinator owns build window/cache",
+  "test_filter": "composed_callback_prefix_tests",
+  "test_selectors": [
+    "references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand",
+    "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+    "references::tests::composed_callback_prefix_tests::composed_callback_prefix_stored_sink_withdraws_unknown_and_opaque_writers",
+    "references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration"
+  ],
+  "dependency_boundary": {
+    "core_direct": [
+      "tcl-compiler",
+      "tcl-registry",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-regex (dev)"
+    ],
+    "reverse_dev_paths": [
+      "tcl-compiler [dev] -> tcl-spectcl [normal] -> tcl-lsp-core",
+      "tcl-registry [dev] -> tcl-spectcl [normal] -> tcl-lsp-core"
+    ],
+    "vm_test_path": "tcl-vm [dev] -> tcl-compiler; compiler tests additionally reach spectcl/core",
+    "excluded_runtime": "runtime/rust has no tcl-lsp-core dependency"
+  },
+  "native_sources": [
+    {
+      "path": "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl",
+      "sha256": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa"
+    },
+    {
+      "path": "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl",
+      "sha256": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca"
+    }
+  ],
+  "formatting": {
+    "command": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt --edition 2024 --config skip_children=true proposed-tests.rs",
+    "result": "passed; no Cargo or Rust owner edit"
+  }
+}

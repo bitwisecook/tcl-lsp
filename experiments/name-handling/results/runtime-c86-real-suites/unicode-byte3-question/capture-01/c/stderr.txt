@@ -1,0 +1,4 @@
+unknown command "::tcl::clock::GetSystemTimeZone"
+    while executing
+"trace add execution ::tcl::clock::GetSystemTimeZone enter {apply {{args} {puts stderr Q1_enter}}}"
+    (file "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/unicode-byte3-question/capture-01/fixed-label-traces.tcl" line 4)

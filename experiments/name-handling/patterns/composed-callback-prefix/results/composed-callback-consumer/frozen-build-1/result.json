@@ -1,0 +1,76 @@
+{
+  "status": "test-target-compilation-failed-no-assertions-executed",
+  "completed_at_utc": "2026-10-12T21:36:41.357043+00:00",
+  "composed_command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "composed_callback_prefix_tests",
+    "--",
+    "--nocapture"
+  ],
+  "process_exit_code": 101,
+  "expected_composed_count": 4,
+  "actual_executed_composed_count": 0,
+  "logical_type_hint_control": {
+    "selector": "inlay_hints::retained_hint_context_tests::logical_type_hints_keep_constructed_colon_scopes_and_original_source",
+    "status": "not-attempted; same lib test target failed compilation",
+    "expected_count": 1,
+    "actual_executed_count": 0
+  },
+  "compile_errors": [
+    {
+      "file": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "lines": [
+        3081,
+        3103,
+        3115
+      ],
+      "message": "whole_document_range exists only in inaccessible sibling test module"
+    },
+    {
+      "file": "rust/tcl-lsp-core/src/references.rs",
+      "lines": [
+        8635,
+        8654
+      ],
+      "message": "Span not imported in separate existing test module"
+    },
+    {
+      "file": "rust/tcl-lsp-core/src/references.rs",
+      "lines": [
+        8700
+      ],
+      "message": "Arc::new receives &ContextRegistry rather than owned ContextRegistry"
+    },
+    {
+      "file": "rust/tcl-lsp-core/src/rename_safety.rs",
+      "lines": [
+        2205
+      ],
+      "message": "Arc::new receives &ContextRegistry rather than owned ContextRegistry"
+    }
+  ],
+  "raw_combined_stream": "composed.stdout-stderr.log",
+  "raw_combined_stream_sha256": "fa7c53b60fe19c122e3b53a5694eae17c795a5ccd7198621446e3be418291c48",
+  "listed_source_hashes_unchanged_after_attempt": {
+    "rust/tcl-lsp-core/src/references.rs": true,
+    "rust/tcl-lsp-core/src/inlay_hints.rs": true,
+    "rust/tcl-compiler/src/command_binding.rs": true,
+    "rust/tcl-compiler/src/provider_fixtures.rs": true,
+    "rust/tcl-compiler/src/script_binds.rs": true,
+    "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs": true,
+    "rust/tcl-lsp-core/Cargo.toml": true,
+    "rust/tcl-compiler/Cargo.toml": true,
+    "Cargo.lock": true
+  },
+  "temporary_dependency_snapshot": "compiler source in provenance-before.json/dependency-diagnostics.diff includes coordinated TEMP diagnostics; no normal-production-state assertion",
+  "excluded_context": "independent xtask/shared-utility and excluded runtime/cmd_clock source are outside currency claims",
+  "issues_cache": "released to coordinator; no second Cargo or source edits",
+  "claim_scope": "compile-attempt receipt only; no original-source consumer/native/conformance result and no positive assertion weakened"
+}

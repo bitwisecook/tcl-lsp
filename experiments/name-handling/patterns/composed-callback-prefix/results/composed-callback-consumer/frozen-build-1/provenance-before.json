@@ -1,0 +1,42 @@
+{
+  "status": "starting-frozen-consumer-controls",
+  "started_at_utc": "2026-10-12T21:33:56.601590+00:00",
+  "subject_commit": "b3411a2b1dfd2d02c548516531549e0f8438058e",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "composed_callback_prefix_tests",
+    "--",
+    "--nocapture"
+  ],
+  "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "build_environment_script": "/tmp/name-env.sh",
+  "build_environment_script_sha256": "8f00e30a0cc13e817026ae85ae9b4176235f53fbf1c37f5112b6d067054c1688",
+  "frozen_source_hashes": {
+    "rust/tcl-lsp-core/src/references.rs": "2d3cfee03c59423ddbb4f13dc7ce847953d50f56b144cec9503c3604067c1da6",
+    "rust/tcl-lsp-core/src/inlay_hints.rs": "d222ae6621fedb422939ae791a3b00d0e24cbeb9a76579876c1cb3b07b7747a8",
+    "rust/tcl-compiler/src/command_binding.rs": "cece30d3f625527308d5349169577536f304e632e628199a4c35b567b10d5f0b",
+    "rust/tcl-compiler/src/provider_fixtures.rs": "f95ed1185852665a3ba910df64ff6b380fc0dccc35a078519818fec1ea6e9838",
+    "rust/tcl-compiler/src/script_binds.rs": "bbdb1def5d601e930aca67b5824ceed4f910e338f26259e4c29b91cafa0844e0",
+    "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+    "rust/tcl-lsp-core/Cargo.toml": "d43b2fdd4fde0b21e08f20ecf9683b7f5e5d9f7e90e86b3808405038be838640",
+    "rust/tcl-compiler/Cargo.toml": "4ea9a8c7986c315595ed0c061a0133aaa5ef21abae2eee4f27d63905e3b64cf0",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49"
+  },
+  "source_scope": "exact listed owner/source bytes; compiler includes coordinated temporary diagnostic edits; VM test diagnostic source retained as frozen-snapshot context, not claimed linked into core test binary; no normal-production-snapshot claim",
+  "excluded_currency_scope": [
+    "rust/xtask/src/owner_resolution.rs",
+    "independent shared-utility documentation"
+  ],
+  "expected_control_counts": {
+    "composed_callback_prefix_tests": 4,
+    "logical_type_hints_keep_constructed_colon_scopes_and_original_source": 1
+  },
+  "native_authority": "none; these are static consumer assertions over separately retained original sources"
+}

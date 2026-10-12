@@ -1277,7 +1277,7 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
-    fn whole_document_range(source: &str) -> LspRange {
+    pub(super) fn whole_document_range(source: &str) -> LspRange {
         let line_count = source.lines().count().max(1);
         LspRange {
             start_line: 0,
@@ -2600,6 +2600,7 @@ mod original_procedure_topology_hint_tests {
 
 #[cfg(test)]
 mod retained_hint_context_tests {
+    use super::tests::whole_document_range;
     use super::*;
     use crate::original_invocation::selected_registry_words as selected_original_words;
     use tcl_compiler::analyser::Analyser;

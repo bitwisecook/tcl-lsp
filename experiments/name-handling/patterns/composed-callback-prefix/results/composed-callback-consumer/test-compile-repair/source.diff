@@ -1,0 +1,383 @@
+diff --git a/rust/tcl-lsp-core/src/inlay_hints.rs b/rust/tcl-lsp-core/src/inlay_hints.rs
+index edd54d335..e40ec3564 100644
+--- a/rust/tcl-lsp-core/src/inlay_hints.rs
++++ b/rust/tcl-lsp-core/src/inlay_hints.rs
+@@ -1277,7 +1277,7 @@ mod tests {
+         a.analyse(source, "tcl8.6").clone()
+     }
+ 
+-    fn whole_document_range(source: &str) -> LspRange {
++    pub(super) fn whole_document_range(source: &str) -> LspRange {
+         let line_count = source.lines().count().max(1);
+         LspRange {
+             start_line: 0,
+@@ -2600,6 +2600,7 @@ mod original_procedure_topology_hint_tests {
+ 
+ #[cfg(test)]
+ mod retained_hint_context_tests {
++    use super::tests::whole_document_range;
+     use super::*;
+     use crate::original_invocation::selected_registry_words as selected_original_words;
+     use tcl_compiler::analyser::Analyser;
+diff --git a/rust/tcl-lsp-core/src/references.rs b/rust/tcl-lsp-core/src/references.rs
+index bbd897835..8e04971a4 100644
+--- a/rust/tcl-lsp-core/src/references.rs
++++ b/rust/tcl-lsp-core/src/references.rs
+@@ -6011,6 +6011,293 @@ mod tests {
+         assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
+     }
+ 
++    mod composed_callback_prefix_tests {
++        use super::*;
++        use tcl_compiler::analyser::ResolvedAnalysisInput;
++        use tcl_compiler::registry_invocation::source_structure::{
++            original_single_source_command_substitution, source_authored_command_prefix,
++            source_registry_words,
++        };
++
++        const POSITIVE: &str = include_str!(concat!(
++            env!("CARGO_MANIFEST_DIR"),
++            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
++        ));
++        const UNKNOWN_WRITER: &str = include_str!(concat!(
++            env!("CARGO_MANIFEST_DIR"),
++            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl"
++        ));
++        const PRIVATE_POSITIVE: &str = include_str!(concat!(
++            env!("CARGO_MANIFEST_DIR"),
++            "/../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl"
++        ));
++
++        fn analyse_source(source: &str, release: &str) -> AnalysisResult {
++            let environment = tcl_registry::model::ingress::resolve_environment(release);
++            let profile = environment.analyser_profile();
++            let input = ResolvedAnalysisInput::new(
++                profile,
++                profile,
++                environment.default_context_registry(),
++                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++            );
++            Analyser::new()
++                .with_resolved_input(input)
++                .analyse(source, profile.name)
++        }
++
++        fn original_builder(
++            source: &str,
++            analysis: &AnalysisResult,
++        ) -> (
++            tcl_compiler::segmenter::SegmentedCommand,
++            tcl_lexer::NativeWord,
++            tcl_lexer::NativeWord,
++        ) {
++            let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
++            let body = analysis.all_classes["::C"].methods["setup"].body_span;
++            let plan = tcl_lexer::native_script_words_in(
++                tcl_lexer::SourceImage::document(source),
++                body,
++                config,
++            )
++            .unwrap();
++            assert!(plan.fatal_tail.is_none());
++            let setter = &plan.commands[0];
++            assert_eq!(setter.words[0].bytes(), b"set");
++            assert_eq!(setter.words[1].bytes(), b"cb");
++            let wrapper = original_single_source_command_substitution(&setter.words[2]).unwrap();
++            assert_eq!(wrapper.command().words[0].bytes(), b"namespace");
++            assert_eq!(wrapper.command().words[1].bytes(), b"code");
++            let child =
++                original_single_source_command_substitution(&wrapper.command().words[2]).unwrap();
++            assert_eq!(child.command().words.len(), 4);
++            assert_eq!(child.command().words[0].bytes(), b"::makePrefix");
++            let selector = child.command().words[2].clone();
++            let fixed = child.command().words[3].clone();
++            let span = child.command().span;
++            let mut commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
++                &source[span.as_range()],
++                span.start(),
++                config,
++            );
++            assert_eq!(commands.len(), 1);
++            (commands.remove(0), selector, fixed)
++        }
++
++        fn reference_ranges(
++            source: &str,
++            analysis: &AnalysisResult,
++            include_declaration: bool,
++        ) -> Vec<LspRange> {
++            let profile = analysis.resolved_input.as_ref().unwrap().unit_profile();
++            let declaration = analysis.all_classes["::C"].methods["tick"].name_span;
++            let index = LineIndex::new(source);
++            let at = index.position_at_utf16(declaration.start(), source);
++            references(
++                source,
++                profile,
++                at.line,
++                at.character.get(),
++                analysis,
++                include_declaration,
++            )
++        }
++
++        #[test]
++        fn composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand() {
++            for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
++                for (case, source) in [
++                    ("positive", POSITIVE),
++                    ("unknown-writer", UNKNOWN_WRITER),
++                    ("private-positive", PRIVATE_POSITIVE),
++                ] {
++                    let analysis = analyse_source(source, release);
++                    let (producer, selector, fixed) = original_builder(source, &analysis);
++                    let input = analysis.resolved_input.as_ref().unwrap();
++                    let context = input.context_registry();
++                    let words =
++                        source_registry_words(source, &analysis, &producer).unwrap_or_else(|| {
++                            panic!("{release}/{case}: missing original builder schema")
++                        });
++                    assert_eq!(
++                        words.with_source_schema(&context, |schema| {
++                            schema
++                                .semantics
++                                .traits
++                                .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
++                                && schema.semantics.native_result
++                                    == Some(
++                                        tcl_registry::native_result::NativeResultContract::ListArguments {
++                                            from: 0,
++                                        },
++                                    )
++                                && schema.semantics.argument_offset == 0
++                                && schema.facts().arity_accepts_frozen_arguments() == Some(true)
++                        }),
++                        Some(true),
++                        "{release}/{case}"
++                    );
++                    let prefix = source_authored_command_prefix(source, &analysis, &producer)
++                        .unwrap_or_else(|| {
++                            panic!("{release}/{case}: missing authored prefix receipt")
++                        });
++                    assert_eq!(
++                        prefix.producer().site().offset,
++                        producer.argv[0].span.start()
++                    );
++                    assert_eq!(prefix.producer().original_words().len(), 4);
++                    assert_eq!(
++                        prefix.producer().original_words()[0].bytes(),
++                        b"::makePrefix"
++                    );
++                    assert!(!prefix.producer().lineage().is_empty());
++                    assert!(prefix.obligations().contains(
++                        &tcl_compiler::command_binding::SourceCommandTransitionObligation::AuthoredCommandPrefixApplicability
++                    ));
++                    assert!(!prefix.obligations().contains(
++                        &tcl_compiler::command_binding::SourceCommandTransitionObligation::ProducedCommandPrefixApplicability
++                    ));
++                    assert_eq!(
++                        prefix.original_head().original_word().unwrap().bytes(),
++                        b"my"
++                    );
++                    assert_eq!(prefix.original_argument(0).unwrap(), &selector);
++                    assert_eq!(prefix.original_argument(1).unwrap(), &fixed);
++                    assert_eq!(selector.bytes(), b"tick");
++                    assert_eq!(fixed.bytes(), b"{a b}");
++                    assert_eq!(
++                        prefix.argument_origin(0),
++                        Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(2))
++                    );
++                    assert_eq!(
++                        prefix.argument_origin(1),
++                        Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(3))
++                    );
++                    assert_eq!(
++                        prefix.with_source_schema(&context, |schema| {
++                            schema
++                                .semantics
++                                .traits
++                                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
++                        }),
++                        Some(true),
++                        "{release}/{case}"
++                    );
++                    assert!(prefix.matches_source_context(
++                        &tcl_lexer::SourceImage::document(source),
++                        input.lexer_config(),
++                        &context,
++                    ));
++                    assert!(!prefix.matches_source_context(
++                        &tcl_lexer::SourceImage::native(source.as_bytes()),
++                        input.lexer_config(),
++                        &context,
++                    ));
++                }
++            }
++        }
++
++        #[test]
++        fn composed_callback_prefix_references_keep_public_and_private_original_selectors() {
++            for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
++                for source in [POSITIVE, PRIVATE_POSITIVE] {
++                    let analysis = analyse_source(source, release);
++                    let (_, selector, _) = original_builder(source, &analysis);
++                    let declaration = analysis.all_classes["::C"].methods["tick"].name_span;
++                    let index = LineIndex::new(source);
++                    let declaration_range = span_to_range(source, &index, declaration);
++                    let selector_range = span_to_range(source, &index, selector.span());
++                    if source == PRIVATE_POSITIVE {
++                        assert!(analysis.all_classes["::C"].unexports.contains("tick"));
++                    }
++                    let refs = reference_ranges(source, &analysis, true);
++                    assert!(refs.contains(&declaration_range), "{release}: {refs:?}");
++                    assert!(
++                        refs.contains(&selector_range),
++                        "{release}: original stored selector missing: {refs:?}"
++                    );
++                    let refs = reference_ranges(source, &analysis, false);
++                    assert!(!refs.contains(&declaration_range), "{release}: {refs:?}");
++                    assert!(refs.contains(&selector_range), "{release}: {refs:?}");
++                }
++            }
++        }
++
++        #[test]
++        fn composed_callback_prefix_stored_sink_withdraws_unknown_and_opaque_writers() {
++            let opaque = POSITIVE.replacen("after idle $cb", "opaque $cb; after idle $cb", 1);
++            let nested = POSITIVE.replacen(
++                "after idle $cb",
++                "if 1 {set cb {my unrelated}}; after idle $cb",
++                1,
++            );
++            for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
++                for (case, source) in [
++                    ("unknown-writer", UNKNOWN_WRITER),
++                    ("opaque-writer", opaque.as_str()),
++                    ("nested-reassignment", nested.as_str()),
++                ] {
++                    let analysis = analyse_source(source, release);
++                    let (_, selector, _) = original_builder(source, &analysis);
++                    let declaration = analysis.all_classes["::C"].methods["tick"].name_span;
++                    let index = LineIndex::new(source);
++                    let refs = reference_ranges(source, &analysis, true);
++                    assert!(
++                        refs.contains(&span_to_range(source, &index, declaration)),
++                        "{release}/{case}: declaration missing: {refs:?}"
++                    );
++                    assert!(
++                        !refs.contains(&span_to_range(source, &index, selector.span())),
++                        "{release}/{case}: stale stored selector survived: {refs:?}"
++                    );
++                }
++            }
++        }
++
++        #[test]
++        fn composed_callback_prefix_original_context_withdraws_stale_source_and_configuration() {
++            let source = POSITIVE;
++            let analysis = analyse_source(source, "tcl8.6");
++            let (producer, selector, _) = original_builder(source, &analysis);
++            let index = LineIndex::new(source);
++            let selector_range = span_to_range(source, &index, selector.span());
++            assert!(source_authored_command_prefix(source, &analysis, &producer).is_some());
++            assert!(reference_ranges(source, &analysis, true).contains(&selector_range));
++
++            let changed = format!("{source}# different complete source\n");
++            assert!(source_authored_command_prefix(&changed, &analysis, &producer).is_none());
++            assert!(!reference_ranges(&changed, &analysis, true).contains(&selector_range));
++
++            let mut different_config = analysis.clone();
++            different_config
++                .body_lexer_config
++                .as_mut()
++                .unwrap()
++                .expand_syntax ^= true;
++            assert!(source_authored_command_prefix(source, &different_config, &producer).is_none());
++            assert!(!reference_ranges(source, &different_config, true).contains(&selector_range));
++
++            let mut missing_input = analysis.clone();
++            missing_input.resolved_input = None;
++            assert!(source_authored_command_prefix(source, &missing_input, &producer).is_none());
++            let declaration = analysis.all_classes["::C"].methods["tick"].name_span;
++            let at = index.position_at_utf16(declaration.start(), source);
++            let profile = analysis.resolved_input.as_ref().unwrap().unit_profile();
++            assert!(
++                !references(
++                    source,
++                    profile,
++                    at.line,
++                    at.character.get(),
++                    &missing_input,
++                    true,
++                )
++                .contains(&selector_range)
++            );
++        }
++    }
++
+     #[test]
+     fn references_for_method_includes_one_hop_stored_callback_prefixes() {
+         let src = "package require Tk\noo::class create C {\n    method tick {} {}\n    method setup {} {\n        set external [list [self] tick]\n        bind .w <Button-1> $external\n        set internal [namespace code [list my tick]]\n        after 0 $internal\n    }\n}\n";
+@@ -8331,6 +8618,7 @@ mod logical_class_selector_tests {
+ #[cfg(test)]
+ mod constructed_compatibility_tests {
+     use super::*;
++    use tcl_lexer::Span;
+ 
+     #[test]
+     fn constructed_reference_projection_keeps_colon_components_and_known_refusal() {
+@@ -8400,18 +8688,19 @@ mod constructed_compatibility_tests {
+ #[cfg(test)]
+ mod configured_callback_variable_tests {
+     use super::*;
+-    use std::sync::Arc;
+     use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+ 
+     fn analyse(source: &str, config: tcl_lexer::LexerConfig) -> AnalysisResult {
+         let profile = tcl_dialect::DialectProfile::plain_tcl();
+-        let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
++        let context =
++            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
++        assert!(std::ptr::eq(
++            context.as_ref(),
++            tcl_registry::model::ingress::static_context_for("tcl9.1"),
++        ));
+         Analyser::new()
+             .with_resolved_input(ResolvedAnalysisInput::new(
+-                profile,
+-                profile,
+-                Arc::new(context),
+-                config,
++                profile, profile, context, config,
+             ))
+             .analyse(source, profile.name)
+     }
+diff --git a/rust/tcl-lsp-core/src/rename_safety.rs b/rust/tcl-lsp-core/src/rename_safety.rs
+index 0c7e464a5..a1b8d02d3 100644
+--- a/rust/tcl-lsp-core/src/rename_safety.rs
++++ b/rust/tcl-lsp-core/src/rename_safety.rs
+@@ -2192,18 +2192,19 @@ mod original_hazard_context_tests {
+ #[cfg(test)]
+ mod configured_dispatch_receiver_tests {
+     use super::*;
+-    use std::sync::Arc;
+     use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+ 
+     fn analyse(source: &str, config: tcl_lexer::LexerConfig) -> AnalysisResult {
+         let profile = tcl_dialect::DialectProfile::plain_tcl();
+-        let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
++        let context =
++            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
++        assert!(std::ptr::eq(
++            context.as_ref(),
++            tcl_registry::model::ingress::static_context_for("tcl9.1"),
++        ));
+         Analyser::new()
+             .with_resolved_input(ResolvedAnalysisInput::new(
+-                profile,
+-                profile,
+-                Arc::new(context),
+-                config,
++                profile, profile, context, config,
+             ))
+             .analyse(source, profile.name)
+     }

@@ -54,12 +54,14 @@ Exact raw results and limits:
 Compiler source and binary have been restored exactly; final nine diagnostic
 controls measure8pass/1fail. The VM lib-test binary compiles after26 recorded
 API diagnostic repairs, with4,943 source/manifest/toolchain hashes unchanged;
-29 existing controls finished18pass/11fail. Four callback consumer tests are added but
-unexecuted. The owner-gate eight controls passed; independent review requires
-conditional-code rejection before publication. Byte-host getter and that gate
-repair have an active edit window; temporary original-program diagnostics are
-being prepared. The ordered-state registry control passes; explicit crate-scope owner
-validation remains pending. The byte-host getter proposal is unimplemented.
+29 existing controls finished18pass/11fail. Four callback consumer tests now compile: one adverse control passes, three
+positive receipt/reference/currentness controls fail at the scoped prefix owner.
+The existing Logical type-hint control also fails with empty output. The owner-gate initial eight controls and corrected three conditional/actual
+route controls pass separately. Getter runtime7/host1/registry1 pass; its fresh
+all.tcl refuses Unicode conversion before suites and env sync still differs.
+Original-program diagnostics show all four matching SuppliedSource requests
+reach an inner declaration-factory refusal. Temporary sources are restored. The ordered-state registry control passes; explicit crate-scope owner
+validation remains pending. The byte-host getter is published; the new split byte/character question is open.
 
 ## Discovery, appliance answers and cleanup
 

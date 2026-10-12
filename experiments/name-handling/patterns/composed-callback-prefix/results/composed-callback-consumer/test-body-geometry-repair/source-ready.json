@@ -1,0 +1,11 @@
+{
+  "status": "cfg-test-body-region-repair-source-ready-unexecuted",
+  "source": "rust/tcl-lsp-core/src/references.rs",
+  "source_sha256": "7d559f79e57e94b3ce4823765ac4d060c5c7b4863abda6bb47c75a8239d55f7c",
+  "change": "original_builder now reuses existing strip_outer_braces(source, setup.body_span), converts the returned original full-image offsets to Span and keeps original full SourceImage/config",
+  "assertions": "all four concrete original-advice/public-private-reference/adversarial/currentness assertions unchanged, including fatal-tail guard",
+  "production_changes": "none",
+  "Cargo": "not run; coordinator owns new freeze",
+  "validation": "own-file rustfmt --edition2024 --config skip_children=true passed",
+  "prior_failures": "frozen-build-1 and frozen-build-2 records untouched"
+}

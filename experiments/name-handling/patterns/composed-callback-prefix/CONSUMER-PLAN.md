@@ -1,10 +1,16 @@
 # Can the original source-reference consumer accept this pair?
 
-Status: current API and test definitions inspected. The proposed assertions
-below have **not** been compiled or executed. No Rust, Cargo, canonical proof,
-or native capture files were changed. The existing native question remains
-“What setup completion, scheduled callback error and final observed-variable
-lookup does this exact source produce?” Static source selection is independent.
+Status: four concrete consumer tests are applied inside `references.rs`.
+The [body-helper corrected run](results/composed-callback-consumer/frozen-build-3/result.json)
+executed exactly four: one adverse absence control passed; three positive and
+owner-currentness controls failed. The first actual barrier is a missing
+`source_authored_command_prefix` receipt after original builder/schema checks
+passed. Positive references retain only the declaration. Adverse absence cannot
+prove writer-caused withdrawal without an eligible positive baseline.
+The [prior helper failure and separate Logical hint failure](results/composed-callback-consumer/frozen-build-2/result.json)
+and [prior compilation failure](results/composed-callback-consumer/frozen-build-1/result.json)
+remain retained. No assertion was weakened, no production heuristic changed,
+and native oracle observations remain independent.
 
 ## Which current entry points own this source?
 
@@ -90,8 +96,12 @@ fn composed_builder(source: &str, analysis: &AnalysisResult)
     let input = analysis.resolved_input.as_ref().unwrap();
     let config = input.lexer_config();
     let body = analysis.all_classes["::C"].methods["setup"].body_span;
+    let (start, end) = strip_outer_braces(source, body);
+    let region = tcl_lexer::Span::new(
+        u32::try_from(start).unwrap(), u32::try_from(end).unwrap(),
+    );
     let plan = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(source), body, config,
+        tcl_lexer::SourceImage::document(source), region, config,
     ).unwrap();
     assert!(plan.fatal_tail.is_none());
     let setter = &plan.commands[0];
