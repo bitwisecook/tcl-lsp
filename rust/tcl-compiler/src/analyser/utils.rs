@@ -1054,13 +1054,13 @@ pub fn recovery_known_commands(
         let sig = crate::signature_scan::extract_signatures_with_config(source, config, registry);
         for declaration in &sig.procedure_declarations {
             if let Some(spelling) = declaration.source_spelling() {
-                names.insert(spelling);
+                insert_qualified_and_tail(&mut names, &spelling);
                 names.insert(declaration.name.clone());
             }
         }
         for declaration in &sig.class_declarations {
             if let Some(spelling) = declaration.source_spelling() {
-                names.insert(spelling);
+                insert_qualified_and_tail(&mut names, &spelling);
                 names.insert(declaration.name.clone());
             }
         }
@@ -3484,6 +3484,51 @@ proc foo {} {}
             known.contains("helper"),
             "expected the unqualified tail: {known:?}"
         );
+    }
+
+    #[test]
+    fn original_recovery_procedure_declarations_keep_all_written_name_forms() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Genuine scanner metadata only; no command-cell or execution receipt.
+        let source = "namespace eval source_names {proc SourceOnlyHelper {} {}}\nset unfinished {";
+        let registry = registry();
+        let config = tcl_lexer::LexerConfig::default();
+        let scan = crate::signature_scan::extract_signatures_with_config(source, config, &registry);
+        let declaration = scan.procedure_declarations.iter()
+            .find(|declaration| declaration.name == "SourceOnlyHelper").unwrap();
+        assert_eq!(declaration.source_spelling().as_deref(), Some("::source_names::SourceOnlyHelper"));
+        assert!(declaration.source_name.is_none());
+        let known = recovery_known_commands(source, &registry, &std::sync::Arc::default(), config);
+        for spelling in ["::source_names::SourceOnlyHelper", "source_names::SourceOnlyHelper", "SourceOnlyHelper"] {
+            assert!(known.contains(spelling), "{spelling}");
+        }
+        assert!(!known.contains("foreign::SourceOnlyHelper"));
+        assert!(!known.contains("invented_source_command"));
+    }
+
+    #[test]
+    fn original_recovery_class_spellings_remain_metadata_under_the_complete_file_gate() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original symbolic declarations and recovery candidates grant no namespace fact.
+        let complete = "namespace eval source_classes {oo::class create SourceOnlyClass {}}";
+        let source = format!("{complete}\nset unfinished {{");
+        let registry = registry();
+        let config = tcl_lexer::LexerConfig::default();
+        let scan = crate::signature_scan::extract_signatures_with_config(&source, config, &registry);
+        let declaration = scan.class_declarations.iter()
+            .find(|declaration| declaration.name == "SourceOnlyClass").unwrap();
+        assert_eq!(declaration.source_spelling().as_deref(), Some("::source_classes::SourceOnlyClass"));
+        assert!(declaration.source_name.is_none());
+        let known = recovery_known_commands(&source, &registry, &std::sync::Arc::default(), config);
+        for spelling in ["::source_classes::SourceOnlyClass", "source_classes::SourceOnlyClass", "SourceOnlyClass"] {
+            assert!(known.contains(spelling), "{spelling}");
+        }
+        let closed = recovery_known_commands(complete, &registry, &std::sync::Arc::default(), config);
+        assert!(!closed.contains("SourceOnlyClass"));
+        let dynamic = recovery_known_commands("proc $unknown_name {} {}\nset unfinished {", &registry, &std::sync::Arc::default(), config);
+        assert!(!dynamic.contains("$unknown_name"));
     }
 
     #[test]
