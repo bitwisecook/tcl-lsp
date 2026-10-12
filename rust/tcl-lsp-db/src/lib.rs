@@ -162,10 +162,8 @@
 //!
 //! 1. **[`SourceFile`], [`AnalyserConfig`], [`Project`], and
 //!    [`EvaluatorEpoch`] stay at `Durability::LOW`** — salsa's default,
-//!    which this workspace never overrides.  Marking the document text or
-//!    the analyser config `HIGH` "because it rarely changes" would stamp
-//!    every key in the table above non-`LOW`, and none would ever be
-//!    collected again.
+//!    for production inputs. Query durability is the minimum of its input
+//!    reads; collection becomes unavailable when no `LOW` read remains.
 //! 2. **The per-body keys are interned from inside a tracked query.**  That is
 //!    why `memoised_compilation_unit` is crate-private and documented as
 //!    tracked-query-only: reached from [`compilation_unit`] its interning
@@ -180,17 +178,18 @@
 //! [`CfgContext`] is content-keyed but signature-level, so a body edit leaves
 //! it alone; it is collected by the same mechanism when a signature does move.
 //!
-//! Neither rule is expressible in the type system, so both are pinned
-//! behaviourally by `tests/interned_gc.rs`.  It drives a typing session through
-//! the production queries and counts salsa's `DidReuseInternedValue` events per
-//! ingredient (see [`TclDatabase::with_interned_reuse_logger`]) — the event the
-//! collector fires when it recycles a slot, and one that a non-`LOW` or
-//! untracked slot can never produce.  A control session repeats the run with
-//! both inputs at `Durability::HIGH` and asserts the collector goes silent,
-//! which is what keeps the first test from going vacuous.  A third test fails
-//! on any `with_durability` / input-builder `durability` call site in this
-//! crate or in `tcl-lsp-server` (its only dependant), because durability is
-//! chosen at the setter call site where the behavioural tests cannot see it.
+//! `tests/interned_gc.rs` compares live slots after 24 and 96 edits through
+//! the production queries. Each of the six ingredients must have a nonempty
+//! short-session slot set and at most twice as many slots after the longer
+//! session. Reuse counts (see [`TclDatabase::with_interned_reuse_logger`]) are
+//! diagnostics: a bounded working set spread across many shards can have no
+//! reuse events. The control sets [`SourceFile`], [`AnalyserConfig`] and
+//! [`EvaluatorEpoch`] to `Durability::HIGH`, requires the four body-keyed
+//! ingredients to exceed the same growth bound, and requires zero reuse for
+//! all six. This guards against a corpus that cannot detect the leak.
+//! A source-level test rejects production `with_durability` / input-builder
+//! `durability` calls in this crate and `tcl-lsp-server`, because setter calls
+//! outside the database's query graph can escape the behavioural controls.
 //! The full contract is written up in
 //! `docs/design/rust/salsa-interned-gc.md`.
 
