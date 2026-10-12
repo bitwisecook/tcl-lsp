@@ -1,0 +1,280 @@
+{
+  "corpus_receipts": [
+    {
+      "original_manifest_index": 11,
+      "original_site": {
+        "id": "corpus-snit-alias",
+        "repository": "https://github.com/tcltk/tcllib",
+        "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+        "file": "modules/interp/interp.tcl",
+        "start_line": 66,
+        "end_line": 81,
+        "file_sha256": "7a3674edfcdce654c9dc248eedd8670c61084aabde4074ce6c4edcdd4e8e2fea",
+        "selected_range_sha256": "39a9199f577cf90552b63317b0f3df46a662206f8559515072bea2b5a0b5a157",
+        "source_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/interp/interp.tcl#L66",
+        "family": "interpreter-prefix",
+        "eligibility": "eligible",
+        "context": "Caller-frame mymethod resolves prefix; linsert constructs child-interpreter alias and eval executes list; preserve interpreter identity.",
+        "reduction": "list-prefix",
+        "licence_inspected": [
+          {
+            "path": "license.terms",
+            "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c"
+          }
+        ],
+        "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+        "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+      },
+      "local_verification": {
+        "source": "/workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib/modules/interp/interp.tcl",
+        "file_sha256": "7a3674edfcdce654c9dc248eedd8670c61084aabde4074ce6c4edcdd4e8e2fea",
+        "selected_range_sha256": "39a9199f577cf90552b63317b0f3df46a662206f8559515072bea2b5a0b5a157",
+        "licence_sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c",
+        "matches_retained_pin": true
+      }
+    },
+    {
+      "original_manifest_index": 12,
+      "original_site": {
+        "id": "corpus-captured-my",
+        "repository": "https://github.com/tcltk/tcllib",
+        "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+        "file": "modules/httpd/build/server.tcl",
+        "start_line": 361,
+        "end_line": 385,
+        "file_sha256": "228463a3ec5f688f490f64fc017534e658c763c41572108cbf6b41bb9ad8f3d8",
+        "selected_range_sha256": "3550a5cdc420c0b3b8c2ccd7b4410f5636a33ea6b86ed8ad9c89bcaf79619888",
+        "source_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/httpd/build/server.tcl#L361",
+        "family": "oo-callback",
+        "eligibility": "eligible",
+        "context": "socket server callback and cron task capture object namespace for my; plugin and generated amalgamation copies deduplicated.",
+        "reduction": "namespace-captured-prefix",
+        "licence_inspected": [
+          {
+            "path": "license.terms",
+            "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c"
+          }
+        ],
+        "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+        "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+      },
+      "local_verification": {
+        "source": "/workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib/modules/httpd/build/server.tcl",
+        "file_sha256": "228463a3ec5f688f490f64fc017534e658c763c41572108cbf6b41bb9ad8f3d8",
+        "selected_range_sha256": "3550a5cdc420c0b3b8c2ccd7b4410f5636a33ea6b86ed8ad9c89bcaf79619888",
+        "licence_sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c",
+        "matches_retained_pin": true
+      }
+    }
+  ],
+  "wiki_receipts": [
+    {
+      "original_manifest_index": 1,
+      "retained_page_receipt": {
+        "url": "https://wiki.tcl-lang.org/page/command+prefix",
+        "status": "200",
+        "title": "command prefix",
+        "retrieved_date": "2026-10-12",
+        "page_updated": "2014-04-08 20:43:55",
+        "html_sha256": "1810eae0007ba552e87912f1b149e8178d9b65e64f75087a1a20caf8f5be6857",
+        "examples": [
+          {
+            "index": 2,
+            "sha256": "fa61de4e7734240dc02bcb9d50d0719c398baa39965d9c02d1f0e32ae6cf99d8"
+          },
+          {
+            "index": 4,
+            "sha256": "a9d3033d99635d68ab15f760dbde1aeb12115eb4947eb2b09fb042ca9f0aafab"
+          },
+          {
+            "index": 5,
+            "sha256": "d0f700d0147458e1f2302e1239db86d82b5b5d3214107e291cc5c2cdd8b33033"
+          },
+          {
+            "index": 6,
+            "sha256": "284c27b09c5a052d3682385c5ecbee88389a4ef1b637c65d2b7fb11b2b149f43"
+          },
+          {
+            "index": 7,
+            "sha256": "1c9d6a5c25594fb80aa89cf1317bb40956ebd2c3260cdf90c956394cc321a3fb"
+          },
+          {
+            "index": 17,
+            "sha256": "7899d4e0c7b963c55784fab07efeb5e20e8520b339e723719aff831bedd5e375"
+          },
+          {
+            "index": 18,
+            "sha256": "d642e8e9fcf3b4927a6e74dab4c33e901c812f1f68c5a0fbd06a63db210694f5"
+          }
+        ],
+        "status_class": "read"
+      },
+      "pin_scope": "retained retrieval/hash metadata; page_updated is not a verified Wiki revision",
+      "licence_scope": "existing receipts contain no inspected Wiki licence; no page or example text vendored by this experiment"
+    },
+    {
+      "original_manifest_index": 2,
+      "retained_page_receipt": {
+        "url": "https://wiki.tcl-lang.org/page/namespace+code",
+        "status": "200",
+        "title": "namespace code",
+        "retrieved_date": "2026-10-12",
+        "page_updated": "2016-10-11 15:50:32",
+        "html_sha256": "54eaa368dbc4319da183bdeb6e07fbe6ff0ebbfa0cd140379995138a65f2532a",
+        "examples": [
+          {
+            "index": 0,
+            "sha256": "525fb7d0bd079d08352ff48dbd9ecc139fab9e5dc1a3c0102a1a85929e475599"
+          },
+          {
+            "index": 1,
+            "sha256": "7a24c29a9871df58923c07edc6c68acb20ddf464dcd517bab02c14da36b642f6"
+          },
+          {
+            "index": 2,
+            "sha256": "1b904d4464cfd2a6d8dcaae4633144140f2371902584bc1ae6943975bfa8cfe1"
+          },
+          {
+            "index": 3,
+            "sha256": "e483f5e95cf045086cf00e03d5064bc6393dc77f65de90032b912f021a00bb18"
+          },
+          {
+            "index": 4,
+            "sha256": "51815a8f21f2d7840ca8679cf0d098da5e7266f5daca910727087f93a52852de"
+          },
+          {
+            "index": 5,
+            "sha256": "c73f76353a3763f46d2994a051ee7d94997f2c5f812627b6a884fa83a7bdabc9"
+          }
+        ],
+        "status_class": "read"
+      },
+      "pin_scope": "retained retrieval/hash metadata; page_updated is not a verified Wiki revision",
+      "licence_scope": "existing receipts contain no inspected Wiki licence; no page or example text vendored by this experiment"
+    },
+    {
+      "original_manifest_index": 7,
+      "retained_page_receipt": {
+        "url": "https://wiki.tcl-lang.org/page/interp+alias",
+        "status": "200",
+        "title": "interp alias",
+        "retrieved_date": "2026-10-12",
+        "page_updated": "2020-02-05 12:09:18",
+        "html_sha256": "83eabda20023f80a5a1111ebfe1a0d4be6ea6bc6329049694f7c38495f60ed61",
+        "examples": [
+          {
+            "index": 0,
+            "sha256": "e470dea54b5c6f596dea3576efec23a308f37a94344b9c4616ec7ee734081077"
+          }
+        ],
+        "status_class": "read"
+      },
+      "pin_scope": "retained retrieval/hash metadata; page_updated is not a verified Wiki revision",
+      "licence_scope": "existing receipts contain no inspected Wiki licence; no page or example text vendored by this experiment"
+    },
+    {
+      "original_manifest_index": 14,
+      "retained_page_receipt": {
+        "url": "https://wiki.tcl-lang.org/page/TclOO",
+        "status": "200",
+        "title": "TclOO",
+        "retrieved_date": "2026-10-12",
+        "page_updated": "2026-02-17 20:05:27",
+        "html_sha256": "6dd24371ed6fbed44faacd1889ee744e6632a727c82eac1debe06c5fb7efc71a",
+        "examples": [
+          {
+            "index": 1,
+            "sha256": "e3405287a46e9239a0ffd41e034acbab402863ad923259bcaa3bd3e9ea230a04"
+          },
+          {
+            "index": 4,
+            "sha256": "09537b7a8b2d2e0343eef3c20ef85e68c840ac667bf915f89509df76286b6f70"
+          },
+          {
+            "index": 5,
+            "sha256": "3b96946346855ecd968979abb74e239cc5eae47512a4e9f13b5fbccc04e9168d"
+          },
+          {
+            "index": 6,
+            "sha256": "e1d0e028b8ff0e97cf6312b2c40db9c301b4c2bdd958a377d4ab16202bce3762"
+          },
+          {
+            "index": 7,
+            "sha256": "2481c3cdb874a2fe74dfc3bdab33c0338c07fdffccc00332733fbfff1f819268"
+          }
+        ],
+        "status_class": "read"
+      },
+      "pin_scope": "retained retrieval/hash metadata; page_updated is not a verified Wiki revision",
+      "licence_scope": "existing receipts contain no inspected Wiki licence; no page or example text vendored by this experiment"
+    },
+    {
+      "original_manifest_index": 17,
+      "retained_page_receipt": {
+        "url": "https://wiki.tcl-lang.org/page/callback",
+        "status": "200",
+        "title": "callback",
+        "retrieved_date": "2026-10-12",
+        "page_updated": "2017-11-10 13:14:47",
+        "html_sha256": "f04790e9d85b9dcc9d4a80739dd83c6abd5a37dd5de716fbfa2caec324e30ed2",
+        "examples": [],
+        "status_class": "read"
+      },
+      "pin_scope": "retained retrieval/hash metadata; page_updated is not a verified Wiki revision",
+      "licence_scope": "existing receipts contain no inspected Wiki licence; no page or example text vendored by this experiment"
+    }
+  ],
+  "retained_manifest_hashes": {
+    "sites.json": "89a1b51741ed2ea0477bf7fd203e2144cb60482edc8fd3708fe1dea97c033ed6",
+    "wiki-sources.json": "f6c766dbd61743fbb47bd1b5a13e221f273a850b5257cd6ce57dfd550c05df81",
+    "scripts/perf/MANIFEST.toml": "956a8a562484da5356bfe340ec82531f699a18c65a7ea4a9e4efbdd9540b1f58"
+  },
+  "authored_inputs": [
+    {
+      "case_id": "positive",
+      "file": "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl",
+      "sha256": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+      "licence": "authored experiment fixture; repository AGPL-3.0-or-later; no upstream excerpt"
+    },
+    {
+      "case_id": "unknown-writer",
+      "file": "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl",
+      "sha256": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca",
+      "licence": "authored experiment fixture; repository AGPL-3.0-or-later; no upstream excerpt"
+    }
+  ],
+  "consumer_inspection": [
+    {
+      "file": "rust/tcl-lsp-core/src/references.rs",
+      "file_sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
+      "inspected_definitions": [
+        {
+          "name": "references_for_method_includes_one_hop_stored_callback_prefixes",
+          "line": 6015
+        },
+        {
+          "name": "callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes",
+          "line": 7520
+        },
+        {
+          "name": "stored_callback_prefixes_count_nested_same_frame_reassignment",
+          "line": 6059
+        }
+      ],
+      "execution": "not run; no Rust edits or Cargo calls"
+    },
+    {
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs",
+      "file_sha256": "81903657c7b10bfe9e1633cf7e6ba308d913650149f4d89603a767e3c5532c0d",
+      "inspected_definitions": [
+        {
+          "name": "original_produced_prefix_keeps_logical_context_capture_and_terminal_refusals",
+          "line": 849
+        }
+      ],
+      "execution": "not run; no Rust edits or Cargo calls"
+    }
+  ],
+  "subject_commit": "2c2fc124add2dde207f211a0a464577332fc2195",
+  "source_scope": "composition authored from selected existing contexts; no new source sites, prevalence, Wiki revision or whole framework execution claimed"
+}

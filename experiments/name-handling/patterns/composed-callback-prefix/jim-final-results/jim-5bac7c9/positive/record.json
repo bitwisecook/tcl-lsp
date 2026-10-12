@@ -1,0 +1,34 @@
+{
+  "provider": "jim-5bac7c9",
+  "case_id": "positive",
+  "question": "What setup completion, scheduled callback error and final observed-variable lookup does this exact source produce?",
+  "source": "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl",
+  "source_sha256": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+  "input_sha256": "50ac85913d4f2c32b5ebcaf17c9de79f864f337a7117916e5ce430c0dc5a8746",
+  "stdout_sha256": "0981b7b00b475f4b15d50c33a823e77b21d6db40f4a3daf096515e48a0285ab8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit_code": 0,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/jim-final-results/jim-5bac7c9/positive/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/composed-callback-prefix/jim-final-results/jim-5bac7c9/positive",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "setup_code": "1",
+  "setup_result": "wrong # args: should be \"interp\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} {} 1 {interp alias {} ::makePrefix {} ::list}} -errorcode NONE",
+  "setup_error_code": "NONE",
+  "setup_error_info": "",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "background_errors": "",
+  "observed_exists": "0",
+  "observed": "",
+  "status": "setup-failed-question-and-callback-unreached"
+}

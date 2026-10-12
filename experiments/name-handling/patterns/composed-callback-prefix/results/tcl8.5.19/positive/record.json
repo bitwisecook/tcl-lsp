@@ -1,0 +1,35 @@
+{
+  "provider": "tcl8.5.19",
+  "case_id": "positive",
+  "question": "What setup completion, scheduled callback error and final observed-variable lookup does this exact source produce?",
+  "source": "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl",
+  "source_sha256": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+  "input_sha256": "595ceff63d0c0ef88854bb464aacd50bce6b9bfdbeb8eaddeeb4c16f3781b2af",
+  "stdout_sha256": "0137ede3c5739098e34f3d03665a6b3c39e1f7d595ec97d8c1ed03710f054733",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit_code": 0,
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/results/tcl8.5.19/positive/input.tcl"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/composed-callback-prefix/results/tcl8.5.19/positive",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "setup_code": "1",
+  "setup_result": "invalid command name \"oo::class\"",
+  "setup_options": "-code 1 -level 0 -errorcode NONE -errorinfo invalid\\ command\\ name\\ \\\"oo::class\\\"\\n\\ \\ \\ \\ while\\ executing\\n\\\"oo::class\\ create\\ C\\ \\{\\n\\ \\ \\ \\ method\\ tick\\ \\{fixed\\}\\ \\{set\\ ::observed\\ \\[list\\ tick\\ \\$fixed\\]\\}\\n\\ \\ \\ \\ method\\ setup\\ \\{\\}\\ \\{\\n\\ \\ \\ \\ \\ \\ \\ \\ set\\ cb\\ \\[namespace\\ code\\ \\[::makePrefix\\ my...\\\" -errorline 2",
+  "setup_error_code": "NONE",
+  "setup_error_info": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create C {\n    method tick {fixed} {set ::observed [list tick $fixed]}\n    method setup {} {\n        set cb [namespace code [::makePrefix my...\"",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "background_errors": "",
+  "observed_exists": "0",
+  "observed": "",
+  "status": "setup-failed-question-and-callback-unreached"
+}

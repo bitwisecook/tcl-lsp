@@ -14,6 +14,11 @@ captures; it does not issue proofs or grant execution, edit or optimisation
 authority. The [consumer integration map](../../../docs/design/analysis/name-resolution-proofs/consumer-integrations.md)
 records implementation coverage independently of native semantics.
 
+The supplemental [composed callback-prefix pair](composed-callback-prefix/README.md)
+retains original aliased-builder/captured-`my`/stored-callback inputs, C5 and pinned
+Jim outcomes, failed driver attempts, a separate consumer plan and unanswered F5
+contexts; it changes no existing canonical question or answer.
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all

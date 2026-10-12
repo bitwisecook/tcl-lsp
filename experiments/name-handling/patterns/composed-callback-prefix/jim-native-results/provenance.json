@@ -1,0 +1,32 @@
+{
+  "captured_at_utc": "2026-10-12T20:47:46.700897+00:00",
+  "subject_commit": "2c2fc124add2dde207f211a0a464577332fc2195",
+  "runner_sha256": "14d72aae56cea46ecebe1740dc2a52b5ef09ef41924769904e40d5d1d96479ab",
+  "references": [
+    {
+      "provider": "jim-5bac7c9",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "selectors": {
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 0.84-9-g5bac7c9\n",
+      "startup_stderr": "",
+      "startup_sha256": "5082ccb3814797ae482d692d2e0171ec0e0f2c4072abf663c4d718358ea20005",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "describe": "0.84-9-g5bac7c9",
+      "upstream_head_check_scope": "reuses prior retained check; no new remote HEAD assertion",
+      "initjimsh.tcl_sha256": "8e0cf2dee783435d849882f6f0cfa1917d4ceeee3b60e1d53d9eb361017a601a",
+      "_initjimsh.c_sha256": "23644c8ddef5f094a163ff8a6eeed5590dbe513564424cab1887f5e86c4fd359",
+      "tests/testing.tcl_sha256": "67f42fd0f5447622b03eecefa445e5c878faa827b960e1ea1ed48bf81beb2bc3",
+      "tcltest.tcl_sha256": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+      "jim-config.h_sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "jimautoconf.h_sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+      "Makefile_sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    }
+  ],
+  "case_count": 2,
+  "F5": "unanswered; no device access; see F5-REQUEST.md",
+  "semantic_scope": "authored composed reductions in fresh native processes; final question and asynchronous callback failures retained separately; no static-consumer execution or canonical proof registration; driver selects native catch-options capability by provider rather than C package vcompare"
+}

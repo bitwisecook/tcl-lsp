@@ -1,0 +1,35 @@
+{
+  "provider": "tcl9.1.0",
+  "case_id": "unknown-writer",
+  "question": "What setup completion, scheduled callback error and final observed-variable lookup does this exact source produce?",
+  "source": "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl",
+  "source_sha256": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca",
+  "input_sha256": "b30725114d45b39e6d37401f0c9236b580642b94b427c0119fa2216c0e644580",
+  "stdout_sha256": "fd6e4355e1feee0962047a8283e56d7720f9e914727efc58496beb62043b4580",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit_code": 0,
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/results/tcl9.1.0/unknown-writer/input.tcl"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/composed-callback-prefix/results/tcl9.1.0/unknown-writer",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "setup_code": "0",
+  "setup_result": "::C",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "question_code": "1",
+  "question_result": "can't read \"::observed\": no such variable",
+  "question_options": "-code 1 -level 0 -errorstack {INNER loadStk} -errorcode {TCL LOOKUP VARNAME ::observed} -errorinfo {can't read \"::observed\": no such variable\n    while executing\n\"set ::observed\"} -errorline 1",
+  "question_error_code": "TCL LOOKUP VARNAME ::observed",
+  "question_error_info": "can't read \"::observed\": no such variable\n    while executing\n\"set ::observed\"",
+  "background_errors": "{{invalid command name \"my\"} {TCL LOOKUP COMMAND my} {invalid command name \"my\"\n    while executing\n\"my unrelated\"\n    (\"after\" script)}}",
+  "observed_exists": "0",
+  "observed": "",
+  "status": "callback-failed"
+}

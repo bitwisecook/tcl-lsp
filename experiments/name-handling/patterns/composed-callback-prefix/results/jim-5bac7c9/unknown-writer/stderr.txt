@@ -1,0 +1,4 @@
+/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/results/jim-5bac7c9/unknown-writer/input.tcl:9: Error: package, unknown command "vcompare": should be forget, names, provide, require
+Traceback (most recent call last):
+  File "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/results/jim-5bac7c9/unknown-writer/input.tcl", line 9
+    package vcompare 0.84-9-g5bac7c9 8.5

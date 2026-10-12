@@ -1,0 +1,35 @@
+{
+  "provider": "tcl8.4.20",
+  "case_id": "unknown-writer",
+  "question": "What setup completion, scheduled callback error and final observed-variable lookup does this exact source produce?",
+  "source": "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl",
+  "source_sha256": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca",
+  "input_sha256": "b30725114d45b39e6d37401f0c9236b580642b94b427c0119fa2216c0e644580",
+  "stdout_sha256": "83e7a86161c6e5a6901e573efbb56f6b739ddb7999adfc49dac2d026f5dda8ce",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit_code": 0,
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/results/tcl8.4.20/unknown-writer/input.tcl"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/composed-callback-prefix/results/tcl8.4.20/unknown-writer",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "setup_code": "1",
+  "setup_result": "invalid command name \"oo::class\"",
+  "setup_options": "",
+  "setup_error_code": "NONE",
+  "setup_error_info": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create C {\n    method tick {fixed} {set ::observed [list tick $fixed]}\n    method setup {destination} {\n        set cb [namespace code [::ma...\"",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "background_errors": "",
+  "observed_exists": "0",
+  "observed": "",
+  "status": "setup-failed-question-and-callback-unreached"
+}

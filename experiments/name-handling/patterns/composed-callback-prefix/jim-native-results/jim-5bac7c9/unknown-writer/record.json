@@ -1,0 +1,21 @@
+{
+  "provider": "jim-5bac7c9",
+  "case_id": "unknown-writer",
+  "question": "What setup completion, scheduled callback error and final observed-variable lookup does this exact source produce?",
+  "source": "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl",
+  "source_sha256": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca",
+  "input_sha256": "83eceb53413b231e7f54667a460f21dba833e583efa48ca786e34e2106127b6f",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "8e3b920894584839e48d6aee65a0f103cf1b3bd5bf73f95c57cd8eabe613234b",
+  "process_exit_code": 1,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/jim-native-results/jim-5bac7c9/unknown-writer/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/composed-callback-prefix/jim-native-results/jim-5bac7c9/unknown-writer",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "status": "driver-failed"
+}
