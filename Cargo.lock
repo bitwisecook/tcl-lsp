@@ -4797,6 +4797,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-compiler",

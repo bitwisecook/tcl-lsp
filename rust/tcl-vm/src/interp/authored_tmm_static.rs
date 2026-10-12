@@ -1216,4 +1216,297 @@ mod tests {
         });
         assert_eq!(outside.outward_observers, Presence::Unknown);
     }
+
+    fn static_event(vm: &mut Vm, worker: InterpId, source: &str) -> String {
+        vm.in_interp(worker, |vm| {
+            assert!(eval(vm, "::tmm::_timer_context_enter HTTP_REQUEST {}").is_ok());
+            let reached = eval(vm, source);
+            assert!(reached.is_ok(), "{source}: {:?}", reached.result);
+            let bytes = reached.result.to_str().to_string();
+            assert!(eval(vm, "::tmm::_timer_context_leave").is_ok());
+            bytes
+        })
+    }
+
+    fn recorded_static_group_reads(raw: &str) -> [String; 4] {
+        let mut expected: [Option<String>; 4] = std::array::from_fn(|_| None);
+        let mut responses = 0;
+        for line in raw.lines() {
+            let record: serde_json::Value = serde_json::from_str(line).unwrap();
+            assert_eq!(record["status"].as_str(), Some("HTTP/1.0 200 OK"));
+            let response = tcl_cmd_core::binary::base64_decode(
+                record["response_base64"].as_str().unwrap().as_bytes(),
+                true,
+            )
+            .unwrap();
+            let response = std::str::from_utf8(&response).unwrap();
+            let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+            let fields = tcl_syntax::list::split_list(body.trim_end()).unwrap();
+            assert_eq!(fields.len(), 11);
+            assert_eq!(fields[0].as_ref(), "R2286");
+            assert_eq!(fields[1].as_ref(), "r2286_20261006c");
+            assert_eq!(fields[2].as_ref(), "static_group");
+            assert_eq!(fields[4], "read");
+            assert_eq!(fields[7], "0");
+            assert_eq!(fields[8], "NONE");
+            assert_eq!(fields[5], fields[9]);
+            assert_eq!(fields[6], fields[10]);
+            let unit = fields[3]
+                .strip_prefix("0:")
+                .unwrap()
+                .parse::<usize>()
+                .unwrap();
+            assert!(unit < 4);
+            assert_eq!(record["reported_units"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                record["reported_units"][0].as_str(),
+                Some(fields[3].as_ref())
+            );
+            assert!(headers.contains(&format!("X-R2286-TMM: 0:{unit}\r\n")));
+            let actual = format!("{} {}", fields[9], fields[10]);
+            if let Some(previous) = &expected[unit] {
+                assert_eq!(&actual, previous);
+            } else {
+                expected[unit] = Some(actual);
+            }
+            responses += 1;
+        }
+        assert_eq!(responses, 128);
+        expected.map(Option::unwrap)
+    }
+
+    #[test]
+    fn authored_static_policy_matches_recorded_four_unit_seed_and_target_mutation_states() {
+        // naming.bigip.static-state-tmm-locality
+        // docs/design/analysis/name-resolution-proofs/bigip-static-state-tmm-locality.md
+        // Authored policy regression over retained observations, no appliance execution.
+        let phases = [
+            include_str!("../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-initial.jsonl"),
+            include_str!("../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-write.jsonl"),
+            include_str!("../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-unset.jsonl"),
+            include_str!("../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-recreate.jsonl"),
+        ].map(recorded_static_group_reads);
+        let original_rule = include_str!(
+            "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/r2286_20261006c-fixtures/static_group.conf"
+        );
+        let report =
+            include_str!("../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md");
+        assert!(original_rule.contains(
+            "set static::__tcl_lsp_probe_2286_r2286_20261006c_cell INIT_r2286_20261006c"
+        ));
+        assert!(report.contains("`static_group` new initialization | delete/recreate exact rule | Four new `RULE_INIT` logs and four fresh `INIT_…` reads"));
+        let mut vm = vm();
+        let workers = ["zero", "one", "two", "three"].map(|name| worker(&mut vm, name));
+        assert_eq!(
+            vm.authored_tmm_static.policy,
+            Some(AuthoredTmmStaticPolicy::RuleInitPublication)
+        );
+        let name = "::static::__tcl_lsp_probe_2286_r2286_20261006c_cell";
+        let initialise = format!("set {name} INIT_r2286_20261006c");
+        assert!(init(&mut vm, workers[0], &initialise).is_ok());
+        for (phase, expected) in phases.into_iter().enumerate() {
+            match phase {
+                1 => {
+                    assert_eq!(
+                        static_event(&mut vm, workers[2], &format!("set {name} EVENT_0:2")),
+                        "EVENT_0:2"
+                    );
+                }
+                2 => {
+                    assert_eq!(
+                        static_event(
+                            &mut vm,
+                            workers[2],
+                            &format!("unset {name}; info exists {name}")
+                        ),
+                        "0"
+                    );
+                }
+                3 => {
+                    assert_eq!(
+                        static_event(&mut vm, workers[2], &format!("set {name} RECREATED_0:2")),
+                        "RECREATED_0:2"
+                    );
+                }
+                _ => {}
+            }
+            for (unit, selected) in workers.into_iter().enumerate() {
+                let script = format!(
+                    "if {{[info exists {name}]}} {{list 1 [set {name}]}} else {{list 0 MISSING}}"
+                );
+                assert_eq!(
+                    query(&mut vm, selected, &script),
+                    expected[unit],
+                    "recorded phase {phase}/0:{unit}"
+                );
+            }
+        }
+        // This is the explicit policy's reinitialisation, not a native rule loader.
+        assert!(init(&mut vm, workers[0], &initialise).is_ok());
+        for selected in workers {
+            assert_eq!(
+                query(&mut vm, selected, &format!("set {name}")),
+                "INIT_r2286_20261006c"
+            );
+        }
+    }
+
+    fn check_recorded_vl_static(vm: &mut Vm, workers: [InterpId; 4], raw: &[&str; 4]) {
+        let mut reached = [false; 4];
+        for (tuple, body) in raw.iter().enumerate() {
+            let row = tcl_syntax::list::split_list(body).unwrap();
+            assert_eq!(row.len(), 11);
+            assert_eq!(row[0], "vl1");
+            assert_eq!(row[1], "0");
+            assert_eq!(row[3], "192.168.9.80");
+            let expected_port = (42100 + tuple).to_string();
+            assert_eq!(row[4].as_ref(), expected_port.as_str());
+            assert_eq!(row[5], "before");
+            assert_eq!(row[7], "action");
+            assert_eq!(row[8], "read");
+            assert_eq!(row[9], "after");
+            assert_eq!(row[6], row[10]);
+            let unit = row[2].parse::<usize>().unwrap();
+            assert!(unit < 4 && !reached[unit]);
+            reached[unit] = true;
+            assert_eq!(
+                query(vm, workers[unit], "set ::static::__tcl_lsp_2286_vl1_cell"),
+                row[10],
+                "recorded mapped unit 0:{unit}"
+            );
+        }
+        assert_eq!(reached, [true; 4]);
+    }
+
+    #[test]
+    fn authored_static_policy_matches_mapped_unit_missing_read_before_recreation() {
+        // naming.bigip.variable-static-event-currency
+        // docs/design/analysis/name-resolution-proofs/bigip-variable-static-event-currency.md
+        // Only recorded static-cell states; active scalar trace chronology is separate.
+        let original_rule = include_str!(
+            "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/sources/static.conf"
+        );
+        assert!(original_rule.contains("set static::__tcl_lsp_2286_vl1_cell SEED"));
+        assert!(
+            original_rule.contains(
+                "set missing [catch {set static::__tcl_lsp_2286_vl1_cell} missing_result]"
+            )
+        );
+        assert!(original_rule.contains("set static::__tcl_lsp_2286_vl1_cell RECREATED"));
+        let mut vm = vm();
+        let workers = ["zero", "one", "two", "three"].map(|name| worker(&mut vm, name));
+        assert!(
+            init(
+                &mut vm,
+                workers[0],
+                "set ::static::__tcl_lsp_2286_vl1_cell SEED"
+            )
+            .is_ok()
+        );
+        check_recorded_vl_static(
+            &mut vm,
+            workers,
+            &[
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42100.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42101.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42102.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42103.body"
+                ),
+            ],
+        );
+        assert_eq!(
+            static_event(
+                &mut vm,
+                workers[2],
+                "set ::static::__tcl_lsp_2286_vl1_cell MARK_UNIT"
+            ),
+            "MARK_UNIT"
+        );
+        check_recorded_vl_static(
+            &mut vm,
+            workers,
+            &[
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42100.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42101.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42102.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42103.body"
+                ),
+            ],
+        );
+
+        let missing = include_str!(
+            "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-unset-42101.body"
+        );
+        let row = tcl_syntax::list::split_list(missing).unwrap();
+        assert_eq!(row.len(), 11);
+        assert_eq!(row[0], "vl1");
+        assert_eq!(row[1], "0");
+        assert_eq!(row[2], "2");
+        assert_eq!(row[3], "192.168.9.80");
+        assert_eq!(row[4], "42101");
+        assert_eq!(row[5], "before");
+        assert_eq!(row[7], "action");
+        assert_eq!(row[9], "after");
+        assert_eq!(row[6], "MARK_UNIT");
+        assert_eq!(row[10], "RECREATED");
+        let action = tcl_syntax::list::split_list(&row[8]).unwrap();
+        assert_eq!(action.len(), 5);
+        assert_eq!(action[0], "unset");
+        assert_eq!(action[1], "missing");
+        assert_eq!(action[2], "1");
+        assert_eq!(action[3], "missing_result");
+        let actual = static_event(
+            &mut vm,
+            workers[2],
+            "unset ::static::__tcl_lsp_2286_vl1_cell; set missing [catch {set static::__tcl_lsp_2286_vl1_cell} missing_result]; list $missing $missing_result [info exists ::static::__tcl_lsp_2286_vl1_cell]",
+        );
+        let actual = tcl_syntax::list::split_list(&actual).unwrap();
+        assert_eq!(actual[0], action[2]);
+        assert_eq!(actual[1], action[4]);
+        assert_eq!(actual[2], "0");
+        assert_eq!(
+            query(&mut vm, workers[0], "set ::static::__tcl_lsp_2286_vl1_cell"),
+            "SEED"
+        );
+        assert_eq!(
+            static_event(
+                &mut vm,
+                workers[2],
+                "set ::static::__tcl_lsp_2286_vl1_cell RECREATED"
+            ),
+            "RECREATED"
+        );
+        check_recorded_vl_static(
+            &mut vm,
+            workers,
+            &[
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42100.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42101.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42102.body"
+                ),
+                include_str!(
+                    "../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42103.body"
+                ),
+            ],
+        );
+    }
 }
