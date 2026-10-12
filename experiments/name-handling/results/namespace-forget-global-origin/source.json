@@ -1,0 +1,23 @@
+{
+  "scope": "Read-only targeted source slices and API-route metadata in Runtime, VM and shared core/syntax; immediate Runtime namespace storage/importer extension requested by coordinator. Hashes identify inspected files only, not a build or current execution proof. No compiled Rust inputs were mutated.",
+  "files": {
+    "runtime/rust/src/cmd_namespace.rs": "f876c747287ff7f2b493fae9df66c182d8961e79465d8127278191c1ec2444d9",
+    "runtime/rust/src/namespace.rs": "782727b73ef81684ca51710f98ca57c0195b9551ce650c9aa7fd99d02ff94ab2",
+    "runtime/rust/src/interp.rs": "178a2aaa1faa8a6c2ac853ef1b13d04f9541d8bb2d4d2941d24a9ccca4f31995",
+    "rust/tcl-vm/src/cmd_namespace.rs": "2f42b7110eb4d478383356bc44ef74d83443a5953a2ba78ee01215729eb58987",
+    "rust/tcl-vm/src/interp.rs": "6cb00b707fb7bf9e1db2c75b612e379669b19932b3dba814e657323214dccda4",
+    "rust/tcl-cmd-core/src/namespace.rs": "b1a6e856649f9134ab5212425efb510a60094c74086ebf45c2fc8faa1d5aa9c1",
+    "rust/tcl-syntax/src/naming/native.rs": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+    "rust/tcl-syntax/src/naming.rs": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4"
+  },
+  "issue": {
+    "url": "https://github.com/bitwisecook/tcl-lsp/issues/2300",
+    "title": "runtime/rust: `namespace forget` of a command imported from the global namespace removes nothing",
+    "read_only_connector_fetch": true,
+    "issue_witness": "issue-witness.tcl"
+  },
+  "native_provider_receipts": [
+    "experiments/name-handling/patterns/results/provenance.json",
+    "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json"
+  ]
+}

@@ -1,0 +1,15 @@
+FIELD setup_code 30
+FIELD setup_result 
+FIELD positive_code 30
+FIELD positive_result 
+FIELD adverse_setup_code 30
+FIELD adverse_setup_result 
+FIELD adverse_code 31
+FIELD adverse_result 756e6b6e6f776e206e616d65737061636520696e206e616d65737061636520666f72676574207061747465726e20223a3a6d697373696e673a3a6722
+FIELD adverse_error_code 4e4f4e45
+FIELD imported_other_present 31
+FIELD local_forget_code 30
+FIELD local_forget_result 
+FIELD local_present 31
+FIELD imported_other_after_local_forget 31
+FIELD global_source_present 31

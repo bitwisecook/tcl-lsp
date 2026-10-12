@@ -1,0 +1,35 @@
+{
+  "provider": "jim-5bac7c9",
+  "outcome": "original-operation-refusal",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-global-origin/probe.tcl"
+  ],
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "input_sha256": "399bf41f982eeab39a204778f77332cfb46f2ab1493cd7918ad668dee73f2727",
+  "started_utc": "2026-10-12T23:32:43.326675+00:00",
+  "completed_utc": "2026-10-12T23:32:43.334818+00:00",
+  "elapsed_seconds": 0.008141213002090808,
+  "timeout_seconds": 30,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "0",
+    "setup_result": "",
+    "positive_code": "1",
+    "positive_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+    "adverse_setup_code": "0",
+    "adverse_setup_result": "local",
+    "adverse_code": "1",
+    "adverse_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+    "adverse_error_code": "NONE",
+    "imported_other_present": "1",
+    "local_forget_code": "1",
+    "local_forget_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+    "local_present": "1",
+    "imported_other_after_local_forget": "1",
+    "global_source_present": "1"
+  },
+  "stdout_sha256": "3e1e874d5e2a3ac13bc022eae065a9b74320d037bb796309c9ec50d662acf892",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

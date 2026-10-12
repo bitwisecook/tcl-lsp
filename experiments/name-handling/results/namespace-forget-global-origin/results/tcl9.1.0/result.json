@@ -1,0 +1,35 @@
+{
+  "provider": "tcl9.1.0",
+  "outcome": "captured-original-native-control",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-global-origin/probe.tcl"
+  ],
+  "binary_sha256": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+  "input_sha256": "399bf41f982eeab39a204778f77332cfb46f2ab1493cd7918ad668dee73f2727",
+  "started_utc": "2026-10-12T23:32:43.333615+00:00",
+  "completed_utc": "2026-10-12T23:32:43.347411+00:00",
+  "elapsed_seconds": 0.013796749000903219,
+  "timeout_seconds": 30,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "0",
+    "setup_result": "",
+    "positive_code": "0",
+    "positive_result": "",
+    "adverse_setup_code": "0",
+    "adverse_setup_result": "",
+    "adverse_code": "1",
+    "adverse_result": "unknown namespace in namespace forget pattern \"::missing::g\"",
+    "adverse_error_code": "TCL LOOKUP NAMESPACE ::missing::g",
+    "imported_other_present": "1",
+    "local_forget_code": "0",
+    "local_forget_result": "",
+    "local_present": "1",
+    "imported_other_after_local_forget": "1",
+    "global_source_present": "1"
+  },
+  "stdout_sha256": "7a4b6ba9ab1b0f276c9e0a5131901e615fb62f98832ea8ac3f047f9cd5fc28fb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
