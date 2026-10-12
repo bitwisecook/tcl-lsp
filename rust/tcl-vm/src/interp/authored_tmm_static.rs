@@ -594,12 +594,22 @@ pub(super) fn register_provider(vm: &mut Vm) {
 }
 
 fn cmd_domain(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    super::original_authored_operands::with_original_authored_operands(vm, |vm, operands| {
+        Ok(cmd_domain_in_original(vm, args, operands))
+    })
+}
+
+fn cmd_domain_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    operands: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Completion<Value> {
     let [mode] = args else {
         return err("static domain requires root or children");
     };
-    let mode = match vm.native_name_operand_bytes(mode) {
+    let mode = match operands.string(vm, mode) {
         Ok(mode) => mode,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     vm.authored_tmm_static.topology = match mode.as_ref() {
         b"root" => AuthoredTmmWorkerTopology::RootInterpreter,
@@ -620,12 +630,22 @@ fn cmd_enroll(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn cmd_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    super::original_authored_operands::with_original_authored_operands(vm, |vm, operands| {
+        Ok(cmd_configure_in_original(vm, args, operands))
+    })
+}
+
+fn cmd_configure_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    operands: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Completion<Value> {
     let [name, value] = args else {
         return err("static configuration requires a name and value");
     };
-    let original = match vm.native_name_operand_bytes(name) {
+    let original = match operands.string(vm, name) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let Some(namespace) = vm.namespace_id_from_written(ROOT_NS, "::static") else {
         return vm.refuse_host_command("static configuration namespace is unavailable".into());
@@ -742,6 +762,39 @@ mod tests {
             assert!(result.is_ok(), "{source}: {:?}", result.result);
             result.result.to_str().to_string()
         })
+    }
+
+    #[test]
+    fn original_authored_static_fronts_preserve_domain_configuration_and_refused_header() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = vm();
+        vm.declare_namespace("::static");
+        assert_eq!(cmd_domain(&mut vm, &[Value::string("root")]).code, Code::Ok);
+        assert_eq!(cmd_enroll(&mut vm, &[]).code, Code::Ok);
+        let value = Value::string("CONFIGURED");
+        let result = cmd_configure(
+            &mut vm,
+            &[Value::string("::static::source_operand"), value.clone()],
+        );
+        assert_eq!(result.code, Code::Ok);
+        assert!(result.result.is_same_object(&value));
+        assert_eq!(
+            vm.get_var("::static::source_operand")
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"CONFIGURED"
+        );
+        let original = Value::string("root");
+        let loan = original.native_lifetime_lease();
+        drop(original);
+        assert_eq!(
+            cmd_domain(&mut vm, std::slice::from_ref(loan.value())).code,
+            Code::Error
+        );
+        assert!(vm.execution_refusal.is_some());
+        assert!(!vm.native_operation_context.has_entered_operation());
     }
 
     #[test]

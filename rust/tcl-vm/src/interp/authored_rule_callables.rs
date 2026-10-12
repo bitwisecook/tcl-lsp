@@ -167,18 +167,31 @@ fn target(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn string_member(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    super::original_authored_operands::with_original_authored_operands(vm, |vm, operands| {
+        Ok(string_member_in_original(vm, args, operands))
+    })
+}
+
+fn string_member_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    operands: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Completion<Value> {
     if !vm.authored_rule_providers.counted_strings {
         return vm.refuse_host_command("authored counted string provider is unavailable".into());
     }
     let [member] = args else {
         return err("string member requires an original selector");
     };
+    if let Err(error) = operands.current_for_value(vm, member) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
     if vm.active_native_profile.is_some() {
         return ok(member.clone());
     }
-    let bytes = match vm.native_name_operand_bytes(member) {
+    let bytes = match operands.string(vm, member) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let profile = crate::environment::profile_for_dialect("tcl8.4");
     let Some(spec) = crate::environment::store_for_profile(profile).get("string") else {
@@ -196,6 +209,16 @@ fn string_member(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn counted_length(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    super::original_authored_operands::with_original_authored_operands(vm, |vm, operands| {
+        Ok(counted_length_in_original(vm, args, operands))
+    })
+}
+
+fn counted_length_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    operands: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Completion<Value> {
     if !vm.authored_rule_providers.counted_strings {
         return vm.refuse_host_command("authored counted string provider is unavailable".into());
     }
@@ -205,14 +228,17 @@ fn counted_length(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [original] = args else {
         return err("wrong # args: should be \"string length string\"");
     };
+    if let Err(error) = operands.current_for_value(vm, original) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
     let bytes = if original.is_pure_byte_array() {
         original
             .byte_array_representation()
             .expect("pure byte array")
     } else {
-        match vm.native_name_operand_bytes(original) {
+        match operands.string(vm, original) {
             Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }
     };
     match i64::try_from(bytes.len()) {
@@ -224,6 +250,35 @@ fn counted_length(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_authored_string_selector_and_counted_length_keep_actual_provider_and_roles() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
+        ));
+        assert!(vm.install_irules_counted_string_simulation());
+        let selected = string_member(&mut vm, &[Value::string("len")]);
+        assert_eq!(selected.code, crate::Code::Ok);
+        assert_eq!(selected.result.string_bytes().as_ref(), b"length");
+        let counted = Value::new_native_string_bytes(b"A\0\xc3\xa9".as_slice());
+        let before = counted.native_object_reference_count();
+        let result = counted_length(&mut vm, std::slice::from_ref(&counted));
+        assert_eq!(result.code, crate::Code::Ok);
+        assert_eq!(result.result.to_str().as_ref(), "4");
+        assert_eq!(counted.native_object_reference_count(), before);
+        let loan = counted.native_lifetime_lease();
+        drop(counted);
+        assert_eq!(
+            counted_length(&mut vm, std::slice::from_ref(loan.value())).code,
+            crate::Code::Error
+        );
+        assert!(vm.execution_refusal.is_some());
+        assert!(!vm.native_operation_context.has_entered_operation());
+    }
 
     #[test]
     fn authored_rule_capabilities_require_an_explicit_host_and_logical_name_provider() {

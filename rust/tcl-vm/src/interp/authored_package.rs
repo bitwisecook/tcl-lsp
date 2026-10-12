@@ -18,14 +18,14 @@
 
 //! Isolated authored package tables and their scoped dispatch purpose.
 
-use super::{InterpId, PackagePrefer, PackageState, Vm, err, ok};
 use super::native_operation_currency::NativeOperationScope;
+use super::{InterpId, PackagePrefer, PackageState, Vm, err, ok};
+use crate::Value;
 use std::rc::Rc;
 use tcl_cmd_core::CmdError;
-use tcl_syntax::raw_string::NativeValueAccessRefusal;
-use crate::Value;
 use tcl_core_types::{Completion, NameBytes};
 use tcl_registry::native_package::{AuthoredPackageProvider, NativePackageProtocol};
+use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(super) enum PackageTablePurpose {
@@ -53,18 +53,25 @@ impl PackageTableReceipt {
     }
 
     fn owns_table(&self, vm: &Vm) -> bool {
-        self.selected(vm).is_some_and(|table| Rc::ptr_eq(&table.identity, &self.identity))
+        self.selected(vm)
+            .is_some_and(|table| Rc::ptr_eq(&table.identity, &self.identity))
     }
 
-    pub(crate) fn check(&self, vm: &mut Vm, original: &NativeOperationScope) -> Result<(), CmdError> {
+    pub(crate) fn check(
+        &self,
+        vm: &mut Vm,
+        original: &NativeOperationScope,
+    ) -> Result<(), CmdError> {
         original.check(vm)?;
         if !vm.interp_is_current(self.interpreter)
             || vm.package_table_purpose != self.purpose
             || !self.owns_table(vm)
         {
-            return Err(vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
-                NativeValueAccessRefusal::CommandProtocolUnavailable("original package table"),
-            )).into());
+            return Err(vm
+                .retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable("original package table"),
+                ))
+                .into());
         }
         Ok(())
     }
@@ -87,9 +94,11 @@ impl PackageTableReceipt {
         callback: impl FnOnce(&mut Vm) -> R,
     ) -> Result<R, CmdError> {
         if !self.owns_table(vm) {
-            return Err(vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
-                NativeValueAccessRefusal::CommandProtocolUnavailable("saved package table"),
-            )).into());
+            return Err(vm
+                .retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable("saved package table"),
+                ))
+                .into());
         }
         vm.in_interp(self.interpreter, |vm| {
             let cleanup = NativeOperationScope::cleanup_saved(vm, original.currency())
@@ -232,7 +241,10 @@ impl Vm {
 
     fn enter_package_table(&mut self, authored: bool) -> PackageTableReceipt {
         if authored {
-            self.authored_packages.as_mut().expect("selected authored table").active_depth += 1;
+            self.authored_packages
+                .as_mut()
+                .expect("selected authored table")
+                .active_depth += 1;
         }
         let previous = self.package_table_purpose;
         self.package_table_purpose = if authored {
@@ -245,14 +257,19 @@ impl Vm {
             identity: Rc::clone(&self.selected_package_state().identity),
             purpose: self.package_table_purpose,
             previous,
-            tracks_files: self.selected_package_protocol().is_some_and(NativePackageProtocol::tracks_files),
+            tracks_files: self
+                .selected_package_protocol()
+                .is_some_and(NativePackageProtocol::tracks_files),
         }
     }
 
     fn restore_package_table(&mut self, entered: &PackageTableReceipt) {
         self.package_table_purpose = entered.previous;
         if entered.purpose == PackageTablePurpose::Authored {
-            self.authored_packages.as_mut().expect("entered authored table retained").active_depth -= 1;
+            self.authored_packages
+                .as_mut()
+                .expect("entered authored table retained")
+                .active_depth -= 1;
         }
     }
 
@@ -277,7 +294,9 @@ impl Vm {
         original.check(self)?;
         let entered = self.enter_package_table(authored);
         let result = callback(self, &entered);
-        entered.with_saved(self, original, false, |vm| vm.restore_package_table(&entered))?;
+        entered.with_saved(self, original, false, |vm| {
+            vm.restore_package_table(&entered)
+        })?;
         original.check(self)?;
         Ok(result)
     }
@@ -292,27 +311,37 @@ pub(super) fn register_provider(vm: &mut Vm) {
 }
 
 fn namespace_member(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    super::original_authored_operands::with_original_authored_operands(vm, |vm, operands| {
+        Ok(namespace_member_in_original(vm, args, operands))
+    })
+}
+
+fn namespace_member_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    operands: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Completion<Value> {
     if vm.authored_package_provider().is_none() {
         return vm.refuse_host_command("authored core keyword provider is unavailable".into());
     }
     let [original, table] = args else {
         return err("namespace member requires original word and table");
     };
-    let original = match vm.native_name_operand_bytes(original) {
+    let original = match operands.string(vm, original) {
         Ok(bytes) => bytes,
-        Err(error) => return vm.refuse_host_command(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
-    let members = match tcl_syntax::value::ValueOps::list_elements(vm, table) {
+    let members = match operands.list(vm, table) {
         Ok(members) => members,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
     };
     let names = members
         .iter()
-        .map(Value::try_to_str)
+        .map(|member| operands.unicode(vm, member))
         .collect::<Result<Vec<_>, _>>();
     let names = match names {
         Ok(names) => names,
-        Err(error) => return err(error.to_string()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let words = names.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
     match tcl_registry::native_package::select_authored_keyword(&original, &words) {
@@ -368,6 +397,27 @@ mod tests {
             .try_to_str()
             .expect("ASCII package control")
             .to_string()
+    }
+
+    #[test]
+    fn original_authored_namespace_selector_keeps_table_members_and_strict_utf8_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = host();
+        let original = Value::string("ex");
+        let table = Value::list(vec![Value::string("exists"), Value::string("eval")]);
+        let reached = namespace_member(&mut vm, &[original, table]);
+        assert_eq!(reached.code, Code::Ok);
+        assert_eq!(reached.result.string_bytes().as_ref(), b"exists");
+        assert!(!vm.native_operation_context.has_entered_operation());
+        let raw = Value::new_native_string_bytes(b"\xff".as_slice());
+        let table = Value::list(vec![raw]);
+        assert_eq!(
+            namespace_member(&mut vm, &[Value::string("x"), table]).code,
+            Code::Error
+        );
+        assert!(vm.execution_refusal.is_some());
+        assert!(!vm.native_operation_context.has_entered_operation());
     }
 
     #[test]

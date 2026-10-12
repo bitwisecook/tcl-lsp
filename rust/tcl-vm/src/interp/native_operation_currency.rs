@@ -54,6 +54,24 @@ pub(crate) struct NativeOperationCurrency {
     engine: Option<&'static tcl_dialect::DialectProfile>,
     host: Rc<dyn tcl_platform::Host>,
 }
+/// Opaque readonly currentness; it exposes no entered or saved currency door.
+/// Original authored operations may retain this even when entry is absent.
+pub(crate) struct OriginalOperationObservation {
+    original: NativeOperationCurrency,
+}
+impl OriginalOperationObservation {
+    pub(crate) fn capture(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
+        let original = match NativeOperationScope::current_entered(vm)? {
+            Some(entered) => entered.currency().clone(),
+            None => NativeOperationCurrency::capture_fields(vm)?,
+        };
+        Ok(Self { original })
+    }
+    pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        self.original.check(vm)
+    }
+}
+
 struct EnteredOperation {
     currency: NativeOperationCurrency,
 }
@@ -104,7 +122,12 @@ impl SavedExecutionTarget {
         let context = Rc::downgrade(&vm.native_operation_context);
         let currency = NativeOperationScope::current_entered(vm)
             .map(|original| original.map(|scope| scope.currency().clone()));
-        Self { owner, interpreter, context, currency }
+        Self {
+            owner,
+            interpreter,
+            context,
+            currency,
+        }
     }
 
     /// Describe only the physical target already issued by this authentic currency.
@@ -113,7 +136,8 @@ impl SavedExecutionTarget {
         original: &NativeOperationCurrency,
     ) -> Result<Self, NativeExecutionError> {
         let interpreter = usize::try_from(original.interpreter.interpreter)
-            .map(InterpId).map_err(|_| unavailable())?;
+            .map(InterpId)
+            .map_err(|_| unavailable())?;
         Ok(Self {
             owner: original.interpreter.owner,
             interpreter,
@@ -130,11 +154,14 @@ impl SavedExecutionTarget {
     pub(super) fn owns_target(&self, vm: &Vm) -> bool {
         self.owner == vm.owner_nonce
             && self.context.upgrade().is_some_and(|context| {
-                vm.st_of(self.interpreter).is_some_and(|state| {
-                    Rc::ptr_eq(&context, &state.native_operation_context)
-                })
+                vm.st_of(self.interpreter)
+                    .is_some_and(|state| Rc::ptr_eq(&context, &state.native_operation_context))
             })
-            && self.currency.as_ref().ok().and_then(Option::as_ref)
+            && self
+                .currency
+                .as_ref()
+                .ok()
+                .and_then(Option::as_ref)
                 .is_none_or(|currency| currency.owns_saved_target(vm, self.interpreter))
     }
 
@@ -165,7 +192,10 @@ impl SavedExecutionTarget {
         work: impl FnOnce(&mut Vm) -> T,
     ) -> Result<T, NativeExecutionError> {
         let reached = self.settle_in_original(
-            vm, CleanupRestoration::RestoreCaller, CleanupPublication::OrdinaryResult, work,
+            vm,
+            CleanupRestoration::RestoreCaller,
+            CleanupPublication::OrdinaryResult,
+            work,
         )?;
         match reached.first_cause {
             Some(first) => {
@@ -184,11 +214,12 @@ impl SavedExecutionTarget {
         policy: CleanupRestoration,
         work: impl FnOnce(&mut Vm) -> T,
     ) -> Result<ReachedCleanup<T>, NativeExecutionError> {
-        let reached = self.settle_in_original(
-            vm, policy, CleanupPublication::MandatoryContinuation, work,
-        )?;
+        let reached =
+            self.settle_in_original(vm, policy, CleanupPublication::MandatoryContinuation, work)?;
         Ok(ReachedCleanup {
-            metadata: reached.metadata.expect("mandatory reached metadata is retained"),
+            metadata: reached
+                .metadata
+                .expect("mandatory reached metadata is retained"),
             first_cause: reached.first_cause,
         })
     }
@@ -208,9 +239,11 @@ impl SavedExecutionTarget {
         }
         let reached = vm.in_interp_for_cleanup(self.interpreter, restoration, |vm| {
             let cleanup = match &self.currency {
-                Ok(Some(currency)) => {
-                    Some(NativeOperationScope::enter_saved_cleanup(vm, currency, self.interpreter)?)
-                }
+                Ok(Some(currency)) => Some(NativeOperationScope::enter_saved_cleanup(
+                    vm,
+                    currency,
+                    self.interpreter,
+                )?),
                 Ok(None) => None,
                 Err(first) => {
                     retain_first(vm, first.clone());
@@ -238,9 +271,11 @@ impl SavedExecutionTarget {
         })?;
         // Actual restoration/finalization can retain a later teardown cause.
         // Its intentional current selection must not be checked against self.
-        Ok(ReachedCleanup { metadata: reached, first_cause: vm.execution_refusal.clone() })
+        Ok(ReachedCleanup {
+            metadata: reached,
+            first_cause: vm.execution_refusal.clone(),
+        })
     }
-
 }
 
 fn unavailable() -> NativeExecutionError {
@@ -252,6 +287,26 @@ fn retain_first(vm: &mut Vm, cause: NativeExecutionError) -> NativeExecutionErro
     vm.execution_refusal.get_or_insert(cause).clone()
 }
 impl NativeOperationCurrency {
+    fn capture_fields(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
+        if let Some(first) = vm.execution_refusal.clone() {
+            return Err(first);
+        }
+        let owner = Rc::clone(&vm.native_operation_context);
+        let generation = owner
+            .generation
+            .get()
+            .ok_or_else(|| retain_first(vm, unavailable()))?;
+        Ok(Self {
+            owner,
+            generation,
+            interpreter: vm.native_interpreter_identity(),
+            context: vm.runtime_context().clone(),
+            profile: vm.dialect_profile(),
+            engine: vm.actual_engine_profile,
+            host: vm.host_rc(),
+        })
+    }
+
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
         self.check_native(vm)
             .map_err(CmdError::from_execution_refusal)
@@ -325,19 +380,7 @@ impl NativeOperationScope {
         let currency = if let Some(original) = inherited {
             original.currency().clone()
         } else {
-            let generation = owner
-                .generation
-                .get()
-                .ok_or_else(|| retain_first(vm, unavailable()))?;
-            NativeOperationCurrency {
-                owner: Rc::clone(&owner),
-                generation,
-                interpreter: vm.native_interpreter_identity(),
-                context: vm.runtime_context().clone(),
-                profile: vm.dialect_profile(),
-                engine: vm.actual_engine_profile,
-                host: vm.host_rc(),
-            }
+            NativeOperationCurrency::capture_fields(vm)?
         };
         let entered = Rc::new(EnteredOperation { currency });
         owner.entered.borrow_mut().push(Rc::downgrade(&entered));
@@ -711,21 +754,37 @@ mod tests {
         // Readonly software target/currency state; no Native execution or reference grant.
         let mut vm = native();
         let independent = SavedExecutionTarget::capture(&mut vm);
-        assert!(NativeOperationScope::current_entered(&mut vm).unwrap().is_none());
-        independent.in_original(&mut vm, |vm| {
-            assert!(NativeOperationScope::current_entered(vm).unwrap().is_none());
-        }).unwrap();
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
+        independent
+            .in_original(&mut vm, |vm| {
+                assert!(NativeOperationScope::current_entered(vm).unwrap().is_none());
+            })
+            .unwrap();
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
         let captured = SavedExecutionTarget::capture(&mut vm);
         let original = scope.currency().clone();
         drop(scope);
-        assert!(NativeOperationScope::current_entered(&mut vm).unwrap().is_none());
-        captured.in_original(&mut vm, |vm| {
-            let cleanup = NativeOperationScope::current_entered(vm).unwrap().unwrap();
-            assert!(Rc::ptr_eq(&cleanup.currency().owner, &original.owner));
-            assert_eq!(cleanup.currency().generation, original.generation);
-        }).unwrap();
-        assert!(NativeOperationScope::current_entered(&mut vm).unwrap().is_none());
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
+        captured
+            .in_original(&mut vm, |vm| {
+                let cleanup = NativeOperationScope::current_entered(vm).unwrap().unwrap();
+                assert!(Rc::ptr_eq(&cleanup.currency().owner, &original.owner));
+                assert_eq!(cleanup.currency().generation, original.generation);
+            })
+            .unwrap();
+        assert!(
+            NativeOperationScope::current_entered(&mut vm)
+                .unwrap()
+                .is_none()
+        );
         assert!(vm.execution_refusal.is_none());
     }
 
@@ -746,7 +805,10 @@ mod tests {
         let mut returned = None;
         let reached = target.in_original(&mut vm, |vm| {
             assert!(vm.interp_is_current(parent));
-            assert_eq!(NativeOperationScope::enter_native(vm).err(), Some(first.clone()));
+            assert_eq!(
+                NativeOperationScope::enter_native(vm).err(),
+                Some(first.clone())
+            );
             vm.activation_depth = 41;
             let owned = Value::string("REFUSED_OWNED_RESULT");
             returned = Some(owned.native_lifetime_lease());
@@ -775,11 +837,19 @@ mod tests {
         let target = SavedExecutionTarget::capture(&mut vm);
         let mut reached = 0;
         assert_eq!(target.check_current(&mut vm).err(), Some(first.clone()));
-        assert_eq!(target.in_original(&mut vm, |vm| {
-            reached += 1;
-            assert!(!vm.native_operation_context.has_entered_operation());
-            assert_eq!(NativeOperationScope::enter_native(vm).err(), Some(first.clone()));
-        }).err(), Some(first.clone()));
+        assert_eq!(
+            target
+                .in_original(&mut vm, |vm| {
+                    reached += 1;
+                    assert!(!vm.native_operation_context.has_entered_operation());
+                    assert_eq!(
+                        NativeOperationScope::enter_native(vm).err(),
+                        Some(first.clone())
+                    );
+                })
+                .err(),
+            Some(first.clone())
+        );
         assert_eq!(reached, 1);
         assert_eq!(vm.execution_refusal, Some(first));
     }
@@ -798,7 +868,14 @@ mod tests {
         let first = foreign.execution_refusal.clone().unwrap();
         let selected = foreign.cur_interp();
         let mut reached = 0;
-        assert_eq!(target.in_original(&mut foreign, |_| { reached += 1; }).err(), Some(first.clone()));
+        assert_eq!(
+            target
+                .in_original(&mut foreign, |_| {
+                    reached += 1;
+                })
+                .err(),
+            Some(first.clone())
+        );
         assert_eq!(reached, 0);
         assert!(foreign.interp_is_current(selected));
         assert_eq!(foreign.activation_depth, 53);
@@ -810,9 +887,8 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual dying-slot in_interp/finalize/Jim teardown path, not Native callback chronology.
-        let mut vm = crate::native_fixture::interpreter(
-            crate::environment::profile_for_dialect("jim"),
-        );
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
         let parent = vm.cur_interp();
         let child_name = vm.create_child(Some("saved_execution_teardown".into()), false);
         let child = vm.child_id(&child_name).unwrap();
@@ -858,18 +934,26 @@ mod tests {
         let target = SavedExecutionTarget::capture(&mut vm);
         let value = Value::string("EXTRACTED_OLD_OWNER");
         let lease = value.native_lifetime_lease();
-        let reached = target.retire_in_original(
-            &mut vm, CleanupRestoration::PreserveCallbackSelection, |vm| {
-                assert!(!vm.native_operation_context.has_entered_operation());
-                assert_eq!(vm.interps[vm.cur_interp().0].active, 0);
-                vec![value].into_iter()
-            },
-        ).unwrap();
+        let reached = target
+            .retire_in_original(
+                &mut vm,
+                CleanupRestoration::PreserveCallbackSelection,
+                |vm| {
+                    assert!(!vm.native_operation_context.has_entered_operation());
+                    assert_eq!(vm.interps[vm.cur_interp().0].active, 0);
+                    vec![value].into_iter()
+                },
+            )
+            .unwrap();
         assert_eq!(reached.first_cause, Some(first.clone()));
         assert!(lease.value().native_object_is_live());
-        let cleanup = target.retire_in_original(
-            &mut vm, CleanupRestoration::PreserveCallbackSelection, |_| drop(reached.metadata),
-        ).unwrap();
+        let cleanup = target
+            .retire_in_original(
+                &mut vm,
+                CleanupRestoration::PreserveCallbackSelection,
+                |_| drop(reached.metadata),
+            )
+            .unwrap();
         assert_eq!(cleanup.first_cause, Some(first.clone()));
         assert!(!lease.value().native_object_is_live());
         assert_eq!(vm.execution_refusal, Some(first));
@@ -881,23 +965,38 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual current/parked arenas; no native callback or preservation chronology claim.
-        for policy in [CleanupRestoration::RestoreCaller, CleanupRestoration::PreserveCallbackSelection] {
+        for policy in [
+            CleanupRestoration::RestoreCaller,
+            CleanupRestoration::PreserveCallbackSelection,
+        ] {
             let mut vm = native();
             let parent = vm.cur_interp();
             let name = vm.create_child(Some("direct_retirement_child".into()), false);
             let child = vm.child_id(&name).unwrap();
             let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
             let target = SavedExecutionTarget::capture(&mut vm);
-            let reached = target.retire_in_original(&mut vm, policy, |vm| {
-                assert_eq!(vm.interps[parent.0].active, u32::from(policy == CleanupRestoration::RestoreCaller));
-                vm.activation_depth = 19;
-                crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, child);
-                23
-            }).unwrap();
+            let reached = target
+                .retire_in_original(&mut vm, policy, |vm| {
+                    assert_eq!(
+                        vm.interps[parent.0].active,
+                        u32::from(policy == CleanupRestoration::RestoreCaller)
+                    );
+                    vm.activation_depth = 19;
+                    crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, child);
+                    23
+                })
+                .unwrap();
             assert_eq!(reached.metadata, 23);
             assert_eq!(reached.first_cause, vm.execution_refusal);
             assert!(reached.first_cause.is_some());
-            assert_eq!(vm.cur_interp(), if policy == CleanupRestoration::RestoreCaller { parent } else { child });
+            assert_eq!(
+                vm.cur_interp(),
+                if policy == CleanupRestoration::RestoreCaller {
+                    parent
+                } else {
+                    child
+                }
+            );
             assert_eq!(vm.interps[parent.0].active, 0);
             vm.in_interp(parent, |vm| assert_eq!(vm.activation_depth, 19));
             assert!(scope.check_native(&mut vm).is_err());
@@ -916,18 +1015,30 @@ mod tests {
         let latest = vm.child_id(&latest_name).unwrap();
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
         let target = SavedExecutionTarget::capture(&mut vm);
-        for policy in [CleanupRestoration::RestoreCaller, CleanupRestoration::PreserveCallbackSelection] {
+        for policy in [
+            CleanupRestoration::RestoreCaller,
+            CleanupRestoration::PreserveCallbackSelection,
+        ] {
             crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(&mut vm, caller);
-            let reached = target.retire_in_original(&mut vm, policy, |vm| {
-                assert_eq!(vm.cur_interp(), parent);
-                assert_eq!(vm.interps[parent.0].active, 1);
-                crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, latest);
-                31
-            }).unwrap();
+            let reached = target
+                .retire_in_original(&mut vm, policy, |vm| {
+                    assert_eq!(vm.cur_interp(), parent);
+                    assert_eq!(vm.interps[parent.0].active, 1);
+                    crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, latest);
+                    31
+                })
+                .unwrap();
             assert_eq!(reached.metadata, 31);
             assert_eq!(reached.first_cause, vm.execution_refusal);
             assert!(reached.first_cause.is_some());
-            assert_eq!(vm.cur_interp(), if policy == CleanupRestoration::RestoreCaller { caller } else { latest });
+            assert_eq!(
+                vm.cur_interp(),
+                if policy == CleanupRestoration::RestoreCaller {
+                    caller
+                } else {
+                    latest
+                }
+            );
             assert_eq!(vm.interps[parent.0].active, 0);
         }
         assert!(scope.check_native(&mut vm).is_err());
@@ -944,7 +1055,8 @@ mod tests {
         }
         impl Drop for Observed {
             fn drop(&mut self) {
-                self.attached.set(self.context.upgrade().unwrap().has_entered_operation());
+                self.attached
+                    .set(self.context.upgrade().unwrap().has_entered_operation());
                 assert!(self.value.native_object_is_live());
             }
         }
@@ -958,7 +1070,11 @@ mod tests {
         let lease = value.native_lifetime_lease();
         let reached = target.in_original(&mut vm, |vm| {
             drop(vm.refuse_host_command("owned settlement first Host".into()));
-            Observed { context: Rc::downgrade(&vm.native_operation_context), attached: Rc::clone(&attached), value }
+            Observed {
+                context: Rc::downgrade(&vm.native_operation_context),
+                attached: Rc::clone(&attached),
+                value,
+            }
         });
         assert!(reached.is_err());
         assert!(attached.get());
@@ -972,7 +1088,8 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Real dying-slot teardown and retained output role; no native callback chronology.
-        let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
         let parent = vm.cur_interp();
         let name = vm.create_child(Some("mandatory_retirement_teardown".into()), false);
         let child = vm.child_id(&name).unwrap();
@@ -982,13 +1099,15 @@ mod tests {
         let target = SavedExecutionTarget::capture(&mut vm);
         let value = Value::string("REACHED_MANDATORY_OWNER");
         let lease = value.native_lifetime_lease();
-        let reached = target.retire_in_original(&mut vm, CleanupRestoration::RestoreCaller, |vm| {
-            assert!(vm.delete_interp(child));
-            assert_eq!(vm.interps[child.0].active, 1);
-            context.retire();
-            target.check_current(vm).unwrap();
-            value
-        }).unwrap();
+        let reached = target
+            .retire_in_original(&mut vm, CleanupRestoration::RestoreCaller, |vm| {
+                assert!(vm.delete_interp(child));
+                assert_eq!(vm.interps[child.0].active, 1);
+                context.retire();
+                target.check_current(vm).unwrap();
+                value
+            })
+            .unwrap();
         let first = NativeExecutionError::ValueAccessRefusal(
             NativeValueAccessRefusal::CommandProtocolUnavailable("retired Jim interpreter"),
         );
@@ -1012,10 +1131,14 @@ mod tests {
         let mut foreign = native();
         let selected = foreign.cur_interp();
         let mut calls = 0;
-        let reached = target.retire_in_original(&mut foreign, CleanupRestoration::PreserveCallbackSelection, |_| {
-            calls += 1;
-            41
-        });
+        let reached = target.retire_in_original(
+            &mut foreign,
+            CleanupRestoration::PreserveCallbackSelection,
+            |_| {
+                calls += 1;
+                41
+            },
+        );
         assert!(reached.is_err());
         assert_eq!(calls, 0);
         assert_eq!(foreign.cur_interp(), selected);
@@ -1023,12 +1146,16 @@ mod tests {
         scope.check_native(&mut original).unwrap();
     }
     #[test]
-    fn original_retirement_finalizer_follows_later_callback_child_and_retires_only_original_world() {
+    fn original_retirement_finalizer_follows_later_callback_child_and_retires_only_original_world()
+    {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Supplied software retirement callback at the shared finalization frontier;
         // this asserts physical return policy, not Native/Jim defer chronology.
-        for policy in [CleanupRestoration::RestoreCaller, CleanupRestoration::PreserveCallbackSelection] {
+        for policy in [
+            CleanupRestoration::RestoreCaller,
+            CleanupRestoration::PreserveCallbackSelection,
+        ] {
             let mut vm = native();
             let caller = vm.cur_interp();
             let original_name = vm.create_child(Some("finalized_original_target".into()), false);
@@ -1044,27 +1171,39 @@ mod tests {
             let later_frame = vm.in_interp(later, |vm| Rc::downgrade(&vm.frames[0].activation));
             let callbacks = Cell::new(0);
             let expected_first = RefCell::new(None);
-            let reached = vm.in_interp_using(original, policy, |vm| {
-                assert_eq!(vm.interps[original.0].active, 1);
-                assert!(vm.delete_interp(original));
-                drop(vm.refuse_host_command("original physical retirement first Host".into()));
-                *expected_first.borrow_mut() = vm.execution_refusal.clone();
-                crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, earlier);
-                83
-            }, |vm, id, actual_policy| {
-                assert_eq!(id, original);
-                assert_eq!(vm.interps[id.0].active, 0);
-                assert!(original_world.upgrade().unwrap().borrow().is_live());
-                vm.finalize_slot_using(id, actual_policy, |vm| {
-                    assert_eq!(vm.cur_interp(), original);
-                    callbacks.set(callbacks.get() + 1);
-                    drop(vm.refuse_host_command("later finalizer Host".into()));
-                    crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, later);
-                });
-            });
+            let reached = vm.in_interp_using(
+                original,
+                policy,
+                |vm| {
+                    assert_eq!(vm.interps[original.0].active, 1);
+                    assert!(vm.delete_interp(original));
+                    drop(vm.refuse_host_command("original physical retirement first Host".into()));
+                    *expected_first.borrow_mut() = vm.execution_refusal.clone();
+                    crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, earlier);
+                    83
+                },
+                |vm, id, actual_policy| {
+                    assert_eq!(id, original);
+                    assert_eq!(vm.interps[id.0].active, 0);
+                    assert!(original_world.upgrade().unwrap().borrow().is_live());
+                    vm.finalize_slot_using(id, actual_policy, |vm| {
+                        assert_eq!(vm.cur_interp(), original);
+                        callbacks.set(callbacks.get() + 1);
+                        drop(vm.refuse_host_command("later finalizer Host".into()));
+                        crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(vm, later);
+                    });
+                },
+            );
             assert_eq!(reached, 83);
             assert_eq!(callbacks.get(), 1);
-            assert_eq!(vm.cur_interp(), if policy == CleanupRestoration::RestoreCaller { caller } else { later });
+            assert_eq!(
+                vm.cur_interp(),
+                if policy == CleanupRestoration::RestoreCaller {
+                    caller
+                } else {
+                    later
+                }
+            );
             assert!(vm.interps[original.0].parked.is_none());
             assert_eq!(vm.interps[original.0].active, 0);
             assert!(original_world.upgrade().is_none());
@@ -1073,12 +1212,20 @@ mod tests {
             vm.in_interp(earlier, |vm| {
                 assert_eq!(vm.activation_depth, 47);
                 assert!(vm.name_world.borrow().is_live());
-                assert!(earlier_frame.upgrade().is_some_and(|frame| Rc::ptr_eq(&frame, &vm.frames[0].activation)));
+                assert!(
+                    earlier_frame
+                        .upgrade()
+                        .is_some_and(|frame| Rc::ptr_eq(&frame, &vm.frames[0].activation))
+                );
             });
             vm.in_interp(later, |vm| {
                 assert_eq!(vm.activation_depth, 79);
                 assert!(vm.name_world.borrow().is_live());
-                assert!(later_frame.upgrade().is_some_and(|frame| Rc::ptr_eq(&frame, &vm.frames[0].activation)));
+                assert!(
+                    later_frame
+                        .upgrade()
+                        .is_some_and(|frame| Rc::ptr_eq(&frame, &vm.frames[0].activation))
+                );
             });
             assert_eq!(vm.execution_refusal, Some(first));
         }

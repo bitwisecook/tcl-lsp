@@ -4213,3 +4213,19 @@ purpose; an unavailable selected branch remains unbounded. Explicit unprofiled
 Standalone dispatch compatibility stays separately tagged and cannot repair a
 supplied missing or Native entry. Source geometry and metadata do not confer a
 splice, erasure, cell, observer, dispatch or completion proof.
+
+### Original authored operand projections
+
+`OriginalOperationObservation` captures the actual operation context, physical interpreter, Host and selected profiles through the existing currency owner. Its private fields expose only capture and currentness checks. An absent entered operation remains absent; the observation grants no Native invocation, saved cleanup, recipe or source/compiler authority.
+
+`OriginalAuthoredOperandScope` combines that observation with the existing original Name world, namespace and frame checker. It captures these owners before the first operand getter. Genuine entered callers retain their existing operation; independent authored callers keep an exact descriptive frame observation, including the absence of a frame. Allocation leases preserve original header access without acquiring Tcl references.
+
+| Projection | Existing worker and purpose |
+| --- | --- |
+| `string` | Existing resident-first operand getter; stringless values require the actual captured String recipe and Host formatter. A profile label cannot supply that recipe. |
+| `raw_bytes` | The legacy `Value` raw String worker with formatter None and checks inside each reached compound child. Retained Native compounds keep their actual recipe; independent scalar rendering keeps its original behavior. |
+| `unicode` | The same raw worker followed by strict Rust UTF-8 access. Counted native Unicode decoding remains a separate explicit callback purpose. |
+| `list` | The existing object materialization purpose and List kernel, with the same String provider and original checks; owned member extraction preserves the existing reference schedule. |
+| `finish` | Retire the original allocation-only lease and settle the same captured owner after mandatory caller cleanup. |
+
+The actual authored binary selectors, namespace keyword table, string selector/counting helpers and static-domain/configuration fronts consume this shared owner. Intrinsic errors are retained inside the String worker before compound backing or unused child ownership retires. Original currentness and header refusals use the same unconditional full-cause latch. A later failed check cannot replace that first cause or publish a refused result. The independent neutral `Value` getters continue through the same renderer with checks absent, preserving its ordering, depth cap, quoting, cache and formatter behavior.

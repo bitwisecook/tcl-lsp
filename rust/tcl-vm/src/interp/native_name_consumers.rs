@@ -24,7 +24,7 @@ pub(crate) struct OriginalNameConsumerScope {
     operation: NativeOperationScope,
 }
 
-struct OriginalNameConsumerState {
+pub(super) struct OriginalNameConsumerState {
     jim_namespace: Option<NativeObjectLifetimeLease>,
     frame: Option<(Rc<ActivationIdentity>, usize)>,
     namespace: NsId,
@@ -37,6 +37,86 @@ struct OriginalNameConsumerState {
 pub(crate) struct ParkedOriginalNameConsumerScope {
     state: OriginalNameConsumerState,
     currency: NativeOperationCurrency,
+}
+
+impl OriginalNameConsumerState {
+    pub(super) fn capture(
+        vm: &mut Vm,
+        selected: Option<NsId>,
+        retain_jim_namespace: bool,
+    ) -> Result<Self, CmdError> {
+        let frame = vm
+            .frames
+            .len()
+            .checked_sub(1)
+            .map(|level| (vm.retained_frame_identity(false), level));
+        let namespace = vm.current_ns_id();
+        let namespace_owner = QueryNamespace::capture(vm, namespace)?;
+        let selected_namespace = selected
+            .map(|id| QueryNamespace::capture(vm, id))
+            .transpose()?;
+        let world = Rc::clone(&vm.name_world);
+        let jim_namespace = if retain_jim_namespace
+            && vm.uses_native_jim_lookup()
+            && frame.is_some()
+        {
+            Some(vm.with_jim_current_namespace(|original| Ok(original.native_lifetime_lease()))?)
+        } else {
+            None
+        };
+        Ok(Self {
+            jim_namespace,
+            frame,
+            namespace,
+            namespace_owner,
+            selected_namespace,
+            world,
+        })
+    }
+    pub(super) fn retire_header_lease(&mut self) {
+        drop(self.jim_namespace.take());
+    }
+    pub(super) fn check_using(
+        &self,
+        vm: &mut Vm,
+        require_absent_frame: bool,
+        require: impl Fn(&mut Vm, bool, &'static str) -> Result<(), CmdError>,
+    ) -> Result<(), CmdError> {
+        let world_current = Rc::ptr_eq(&self.world, &vm.name_world)
+            && self.world.borrow().is_live()
+            && self.namespace_owner.current(vm)
+            && self
+                .selected_namespace
+                .as_ref()
+                .is_none_or(|selected| selected.current(vm));
+        require(
+            vm,
+            world_current,
+            "original Name consumer namespace and world",
+        )?;
+        let frame_current = self.frame.as_ref().map_or_else(
+            || !require_absent_frame || vm.frames.is_empty(),
+            |(identity, level)| {
+                vm.retained_frame_level(identity) == Some(*level)
+                    && vm.frames.len().checked_sub(1) == Some(*level)
+            },
+        );
+        require(vm, frame_current, "original Name consumer frame activation")?;
+        let namespace_current = vm.current_ns_id() == self.namespace
+            && vm.native_namespace_token_has_owner(self.namespace);
+        require(
+            vm,
+            namespace_current,
+            "original Name consumer namespace incarnation",
+        )?;
+        if let Some(original) = &self.jim_namespace {
+            let same = vm.with_jim_current_namespace(|current| {
+                Ok(current.is_same_object(original.value()))
+            })?;
+            require(vm, same, "original Jim consumer namespace header")?;
+        }
+        Ok(())
+    }
 }
 
 impl OriginalNameConsumerScope {
@@ -67,31 +147,8 @@ impl OriginalNameConsumerScope {
         operation: NativeOperationScope,
         selected: Option<NsId>,
     ) -> Result<Self, CmdError> {
-        let frame = vm
-            .frames
-            .len()
-            .checked_sub(1)
-            .map(|level| (vm.retained_frame_identity(false), level));
-        let namespace = vm.current_ns_id();
-        let namespace_owner = QueryNamespace::capture(vm, namespace)?;
-        let selected_namespace = selected
-            .map(|id| QueryNamespace::capture(vm, id))
-            .transpose()?;
-        let world = Rc::clone(&vm.name_world);
-        let jim_namespace = if vm.uses_native_jim_lookup() && frame.is_some() {
-            Some(vm.with_jim_current_namespace(|original| Ok(original.native_lifetime_lease()))?)
-        } else {
-            None
-        };
         let scope = Self {
-            state: OriginalNameConsumerState {
-                jim_namespace,
-                frame,
-                namespace,
-                namespace_owner,
-                selected_namespace,
-                world,
-            },
+            state: OriginalNameConsumerState::capture(vm, selected, true)?,
             operation,
         };
         scope.check(vm)?;
@@ -100,38 +157,9 @@ impl OriginalNameConsumerScope {
 
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
         self.operation.check(vm)?;
-        let world_current = Rc::ptr_eq(&self.state.world, &vm.name_world)
-            && self.state.world.borrow().is_live()
-            && self.state.namespace_owner.current(vm)
-            && self
-                .state
-                .selected_namespace
-                .as_ref()
-                .is_none_or(|selected| selected.current(vm));
-        self.require(
-            vm,
-            world_current,
-            "original Name consumer namespace and world",
-        )?;
-        let frame_current = self.state.frame.as_ref().is_none_or(|(identity, level)| {
-            vm.retained_frame_level(identity) == Some(*level)
-                && vm.frames.len().checked_sub(1) == Some(*level)
-        });
-        self.require(vm, frame_current, "original Name consumer frame activation")?;
-        let namespace_current = vm.current_ns_id() == self.state.namespace
-            && vm.native_namespace_token_has_owner(self.state.namespace);
-        self.require(
-            vm,
-            namespace_current,
-            "original Name consumer namespace incarnation",
-        )?;
-        if let Some(original) = &self.state.jim_namespace {
-            let same = vm.with_jim_current_namespace(|current| {
-                Ok(current.is_same_object(original.value()))
-            })?;
-            self.require(vm, same, "original Jim consumer namespace header")?;
-        }
-        Ok(())
+        self.state.check_using(vm, false, |vm, current, purpose| {
+            self.require(vm, current, purpose)
+        })
     }
 
     pub(crate) fn require(
@@ -229,7 +257,10 @@ impl OriginalNameConsumerScope {
         self.check(vm)?;
         let lifetime = original.native_lifetime_lease();
         let reached: Result<Rc<[u8]>, CmdError> = (|| {
-            let ops = super::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &self.operation)?;
+            let ops = super::native_numeric_ops::OriginalNumericOps::in_original_scope(
+                vm,
+                &self.operation,
+            )?;
             ops.current_for_value(lifetime.value())?;
             let reached = if let Some(bytes) = lifetime.value().resident_string_bytes() {
                 Ok(bytes)
@@ -260,7 +291,7 @@ impl OriginalNameConsumerScope {
     /// Retire the allocation lease while its original operation is entered.
     pub(crate) fn finish(mut self, vm: &mut Vm) -> Result<(), CmdError> {
         let before = self.check(vm);
-        drop(self.state.jim_namespace.take());
+        self.state.retire_header_lease();
         self.check(vm)?;
         before
     }

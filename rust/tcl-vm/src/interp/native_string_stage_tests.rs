@@ -18,7 +18,8 @@ struct Formatter {
     calls: RefCell<Vec<Call>>,
     fail: Cell<bool>,
     format_other_vm: Cell<bool>,
-    retire_name_world: RefCell<Option<Rc<RefCell<super::super::native_name_world::NativeNameWorld>>>>,
+    retire_name_world:
+        RefCell<Option<Rc<RefCell<super::super::native_name_world::NativeNameWorld>>>>,
     original: RefCell<Option<crate::value::NativeObjectLifetimeLease>>,
     references: RefCell<Vec<usize>>,
     retire_at: Cell<Option<&'static str>>,
@@ -1349,7 +1350,10 @@ fn original_io_and_debug_resident_arguments_keep_cursor_flag_and_no_formatter_qu
     let (mut vm, formatter, acquisitions) = provided();
     let channel = original_read_channel(&mut vm);
     let result = vm
-        .try_invoke_command("read", &[Value::string(channel.as_str()), Value::string("2")])
+        .try_invoke_command(
+            "read",
+            &[Value::string(channel.as_str()), Value::string("2")],
+        )
         .unwrap();
     assert_eq!(result.code, Code::Ok);
     assert_eq!(
@@ -1550,7 +1554,10 @@ fn original_numeric_command_prior_host_cause_remains_typed_before_guest_defaults
     let first = vm.execution_refusal.clone().unwrap();
     for name in ["read", "seek"] {
         let error = vm
-            .try_invoke_command(name, &[Value::string(channel.as_str()), Value::string("bad")])
+            .try_invoke_command(
+                name,
+                &[Value::string(channel.as_str()), Value::string("bad")],
+            )
             .unwrap_err();
         assert_eq!(error, first);
         assert_eq!(original_channel_cursor(&vm, &channel), 0);
@@ -1642,7 +1649,10 @@ fn original_public_read_counts_preserve_selected_errors_and_untouched_cursor() {
         let channel = original_read_channel(&mut vm);
         for (count, expected) in [("bad", bad), ("-1", negative)] {
             let completion = vm
-                .try_invoke_command("read", &[Value::string(channel.as_str()), Value::string(count)])
+                .try_invoke_command(
+                    "read",
+                    &[Value::string(channel.as_str()), Value::string(count)],
+                )
                 .unwrap();
             let (message, code) = original_numeric_public_error(completion);
             assert_eq!(message.as_ref(), expected, "{dialect} {count}");
@@ -1851,3 +1861,6 @@ mod original_static_lookup_tests;
 
 #[path = "native_string_stage_tests/callback_unicode_words_tests.rs"]
 mod callback_unicode_words_tests;
+
+#[path = "native_string_stage_tests/original_authored_operand_tests.rs"]
+mod original_authored_operand_tests;

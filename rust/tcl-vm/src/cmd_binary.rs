@@ -253,10 +253,15 @@ fn binary_name_operand(
     vm: &mut Vm,
     value: &Value,
     original: OriginalNumericCommandContext<'_>,
+    authored: Option<&crate::interp::original_authored_operands::OriginalAuthoredOperandScope>,
 ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
     original.current(vm)?;
     let reached = if original.authored.is_some() {
-        vm.native_name_operand_bytes(value).map_err(Into::into)
+        authored
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original authored binary operand observation",
+            ))?
+            .string(vm, value)
     } else {
         vm.native_name_operand_bytes_checked(value)
     };
@@ -268,6 +273,28 @@ fn cmd_binary_in_original(
     vm: &mut Vm,
     args: &[Value],
     original: OriginalNumericCommandContext<'_>,
+) -> Completion<Value> {
+    if original.authored.is_some() {
+        return crate::interp::original_authored_operands::with_original_authored_operands(
+            vm,
+            |vm, authored| {
+                Ok(cmd_binary_in_original_using(
+                    vm,
+                    args,
+                    original,
+                    Some(authored),
+                ))
+            },
+        );
+    }
+    cmd_binary_in_original_using(vm, args, original, None)
+}
+
+fn cmd_binary_in_original_using(
+    vm: &mut Vm,
+    args: &[Value],
+    original: OriginalNumericCommandContext<'_>,
+    authored: Option<&crate::interp::original_authored_operands::OriginalAuthoredOperandScope>,
 ) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return crate::command::native_wrong_arguments_message(
@@ -290,7 +317,7 @@ fn cmd_binary_in_original(
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }
     } else {
-        let bytes = match binary_name_operand(vm, sub, original) {
+        let bytes = match binary_name_operand(vm, sub, original, authored) {
             Ok(bytes) => bytes,
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
@@ -332,13 +359,37 @@ fn binary_encode_in_original(
     invocation: BinaryInvocation,
     original: OriginalNumericCommandContext<'_>,
 ) -> Completion<Value> {
+    if original.authored.is_some() {
+        return crate::interp::original_authored_operands::with_original_authored_operands(
+            vm,
+            |vm, authored| {
+                Ok(binary_encode_in_original_using(
+                    vm,
+                    rest,
+                    invocation,
+                    original,
+                    Some(authored),
+                ))
+            },
+        );
+    }
+    binary_encode_in_original_using(vm, rest, invocation, original, None)
+}
+
+fn binary_encode_in_original_using(
+    vm: &mut Vm,
+    rest: &[Value],
+    invocation: BinaryInvocation,
+    original: OriginalNumericCommandContext<'_>,
+    authored: Option<&crate::interp::original_authored_operands::OriginalAuthoredOperandScope>,
+) -> Completion<Value> {
     let Some((fmt, args)) = rest.split_first() else {
         return crate::command::native_wrong_arguments_message(
             vm,
             "wrong # args: should be \"binary encode format ?options? data\"",
         );
     };
-    let bytes = match binary_name_operand(vm, fmt, original) {
+    let bytes = match binary_name_operand(vm, fmt, original, authored) {
         Ok(bytes) => bytes,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
@@ -549,6 +600,30 @@ fn binary_decode_in_original(
     invocation: BinaryInvocation,
     original: OriginalNumericCommandContext<'_>,
 ) -> Completion<Value> {
+    if original.authored.is_some() {
+        return crate::interp::original_authored_operands::with_original_authored_operands(
+            vm,
+            |vm, authored| {
+                Ok(binary_decode_in_original_using(
+                    vm,
+                    rest,
+                    invocation,
+                    original,
+                    Some(authored),
+                ))
+            },
+        );
+    }
+    binary_decode_in_original_using(vm, rest, invocation, original, None)
+}
+
+fn binary_decode_in_original_using(
+    vm: &mut Vm,
+    rest: &[Value],
+    invocation: BinaryInvocation,
+    original: OriginalNumericCommandContext<'_>,
+    authored: Option<&crate::interp::original_authored_operands::OriginalAuthoredOperandScope>,
+) -> Completion<Value> {
     use tcl_cmd_core::binary::UuDecodeError;
     let Some((fmt, args)) = rest.split_first() else {
         return crate::command::native_wrong_arguments_message(
@@ -556,7 +631,7 @@ fn binary_decode_in_original(
             "wrong # args: should be \"binary decode format ?options? data\"",
         );
     };
-    let bytes = match binary_name_operand(vm, fmt, original) {
+    let bytes = match binary_name_operand(vm, fmt, original, authored) {
         Ok(bytes) => bytes,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
@@ -900,6 +975,36 @@ mod native_ensemble_tests {
 mod original_decode_owner_tests {
     use super::*;
     use crate::interp::native_operation_currency::NativeOperationScope;
+
+    #[test]
+    fn original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+        ));
+        assert!(vm.authored_numeric_context().is_some());
+        let reached = cmd_binary(&mut vm, &[Value::string("unselected_binary_member")]);
+        assert_eq!(reached.code, crate::Code::Error);
+        assert!(
+            reached
+                .result
+                .try_to_str()
+                .unwrap()
+                .contains("unselected_binary_member")
+        );
+        assert!(vm.execution_refusal.is_none());
+        assert!(!vm.native_operation_context.has_entered_operation());
+        let retired = Value::string("unselected_binary_member");
+        let original = retired.native_lifetime_lease();
+        drop(retired);
+        let reached = cmd_binary(&mut vm, std::slice::from_ref(original.value()));
+        assert_eq!(reached.code, crate::Code::Error);
+        assert!(vm.execution_refusal.is_some());
+        assert!(!vm.native_operation_context.has_entered_operation());
+    }
 
     #[test]
     fn original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal() {
