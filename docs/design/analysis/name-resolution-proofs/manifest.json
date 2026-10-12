@@ -36346,6 +36346,27 @@
           "path": "rust/tcl-registry/src/logical_core_simulation.rs",
           "sha256": "033e8340a111077bce2754711ace435557dceb4912e9bbee9e3b866ef0d169f6",
           "description": "Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows."
+        },
+        {
+          "id": "current-original-source-purpose-e66cef51bd36355e",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "sha256": "4b3f6294f46a89d7fb14d46584a315ebcd9279134ebf04dd1f0c92d807303033",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+        },
+        {
+          "id": "current-original-source-purpose-fb3e7931d5591f1c",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "sha256": "7c6db6339422484816da5ee8d1aae1c55f1fc203b82f2ea086405f4a29bc4184",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+        },
+        {
+          "id": "current-original-source-purpose-1922c3a0223f00b9",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs",
+          "sha256": "20d2e3fae214b9f3df46c879c4b21a3bf885c83d533bcbd7660e13ecface3864",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
         }
       ],
       "source_anchors": [],
@@ -36873,7 +36894,7 @@
         {
           "path": "rust/tcl-compiler/src/command_binding.rs",
           "symbol": "original_site_operand_layout_advice",
-          "purpose": "Keep conditional positive Logical source layout separate from an Unknown physical variable frame; refuse absent or stale original ownership."
+          "purpose": "The same original geometry/source/config/word/registry candidate worker serves independent conditional purpose adapters."
         },
         {
           "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
@@ -36968,7 +36989,7 @@
         {
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
           "symbol": "conditional_body_topology_advice_with_metadata_context",
-          "purpose": "Share conditional original source layout topology under the genuine current store/context without entered-body authority."
+          "purpose": "Join the caller complete Logical source input to the original invocation metadata before all conditional body topology alternatives; sharing the registry cannot donate configuration or availability, and Native routes retain their own owners."
         },
         {
           "path": "rust/tcl-compiler/src/lowering/execution_regions.rs",
@@ -37769,6 +37790,31 @@
           "path": "rust/tcl-compiler/src/signature_scan/ctx.rs",
           "symbol": "ScanCtx::source_name_purpose",
           "purpose": "Select Symbolic hosted headers only from an actual standalone Registry authored F5 descriptor after supplied binding routes returned; complete original word/config and all supplied input barriers stay independent."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "symbol": "SourceInvocationBinding::original_conditional_operand_layout_advice",
+          "purpose": "Select existing declaration/CPP source roles or the separate absent-owner Logical source point through one conditional layout owner; no compiler/Native/Normal carrier is issued."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "symbol": "SourceInvocationBinding::original_logical_source_operand_layout_advice",
+          "purpose": "Validate full original Logical metadata, actual post-operand lookup state, variable context/frame/namespace and raw closed target correspondence before the existing RegistryMetadata layout kernel."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "symbol": "original_declared_structured_invocation",
+          "purpose": "The Logical branch consumes the shared conditional operand layout; the actual Native declaration branch keeps its existing owner and closed-frame requirements."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "symbol": "RegistryInvocationShape::with_source_schema",
+          "purpose": "Conditional original schema consumes the same captured source role selector and complete supplied metadata, with no handler/completion/edit grant."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs",
+          "symbol": "SourceInvocationBinding::conditional_logical_scalar_store",
+          "purpose": "Existing Logical source scalar modelling uses the same captured conditional layout and exact source-variable context; this is not a physical Native store or Normal proof."
         }
       ],
       "tests": [
@@ -40087,6 +40133,42 @@
           "selector": "signature_scan::ctx::original_hosted_source_metadata_tests::original_hosted_standalone_source_cannot_replace_supplied_binding_purposes",
           "status": "linked",
           "assertion": "Actual supplied hosted input, matching original binding inventory, independently held genuine software C Native entry and unknown ownership cannot borrow the standalone hosted Symbolic route. Conflicting Native release/core point remains terminal. The source-only negative supplies no runtime binding, handler, frame or Native naming authority."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "selector": "command_binding::original_logical_source_layout_tests::original_logical_reached_roles_distinguish_literal_and_expression_inventory",
+          "status": "linked",
+          "assertion": "The actual immutable Logical source point with an unknown physical frame and no declaration/CPP observations supplies conditional roles through the existing layout kernel. A literal puts argument has an empty nested-call inventory while the Expr argument retains the exact original dict child; no Native compiler/handler result is issued."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "selector": "command_binding::original_logical_source_layout_tests::original_logical_reached_roles_refuse_unknown_observers_and_rebound_tokens",
+          "status": "linked",
+          "assertion": "Actual prior unknown callbacks, missing renamed slots, replacement procedure tokens and operand-time replacement prevent the current Logical source target from borrowing original registry operand roles."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "selector": "command_binding::original_logical_source_layout_tests::original_logical_reached_roles_require_same_scope_source_targets_and_vector",
+          "status": "linked",
+          "assertion": "Changed original written vector, variable namespace context, lookup namespace, raw targets, source origin and a refused present compiler snapshot each withdraw the same-point Logical source advice."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "selector": "command_binding::original_logical_source_layout_tests::original_logical_reached_roles_keep_full_metadata_and_selected_availability",
+          "status": "linked",
+          "assertion": "Actual full Logical input and registry availability select the original conditional recipe; stale lexer configuration, foreign registry ownership and an absent target cannot use that source-role path."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "selector": "command_binding::original_logical_source_layout_tests::original_native_unknown_frame_cannot_borrow_logical_source_layout",
+          "status": "linked",
+          "assertion": "A genuinely held C9 Native entry with its original supplied input and unknown physical frame cannot borrow the independent Logical source-only route or an entered handler. No Native callback or execution assertion is supplied."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "selector": "registry_invocation::original_logical_body_topology_input_tests::original_logical_body_topology_requires_the_supplied_complete_input_at_same_registry",
+          "status": "linked",
+          "assertion": "Actual original Logical body-topology advice accepts its current complete input and unknown physical frame; changed lexer configuration or selected availability sharing that same registry, and a missing original point, refuse before every topology alternative. Native body/handler/compiler authority remains independent."
         }
       ],
       "replay": {
@@ -117510,7 +117592,36 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "current-original-source-purpose-c44258ad16e1b6be",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/expr/checked.rs",
+          "sha256": "6b0f2286824bb173fad1634c62c6ae3d1e35e2a17007edbe294060c407ed0528",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+        },
+        {
+          "id": "current-original-source-purpose-aea7fd4e8800e02f",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/expr/parser.rs",
+          "sha256": "236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+        },
+        {
+          "id": "current-original-source-purpose-2760f3974abf9410",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/expr/substitution.rs",
+          "sha256": "3da20c56150cb3a5202dd931b49d7fae7bd77caa03e8102d2da756c48eec2a39",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+        },
+        {
+          "id": "current-original-source-purpose-44d7eae1482b2716",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/expr/mod.rs",
+          "sha256": "0a21d59bc27b5b712c575eb4a53e4e99efa9a522104fcda87f5dc268c88c710e",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+        }
+      ],
       "source_anchors": [],
       "tests": [
         {
@@ -117536,6 +117647,18 @@
           "selector": "expr::substitution::original_expression_span_tests::inclusive_expression_extent_keeps_complete_multibyte_source_and_checked_boundaries",
           "status": "linked",
           "assertion": "Finite source-defined control: inclusive expression extent keeps complete multibyte source and checked boundaries. Checked inclusive expression extent -> half-open UTF8 geometry; actual nonzero multibyte matcher retains original guards, invalid boundary/overflow refuses. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/substitution.rs",
+          "selector": "expr::substitution::original_source_topology_tests::original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax",
+          "status": "linked",
+          "assertion": "Unknown Native remains refused while source-only complete BOM/Unicode bracket spans are retained, including both lazy branches. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/substitution.rs",
+          "selector": "expr::substitution::original_source_topology_tests::original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix",
+          "status": "linked",
+          "assertion": "Incomplete lexical delimiters, unsupported/unconsumed suffix, unavailable selected operator and original comment grammar remain conservative refusal; Native helper unchanged. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
         }
       ],
       "owners": [
@@ -117548,6 +117671,16 @@
           "path": "rust/tcl-lexer/src/word_parts.rs",
           "symbol": "index_range_in",
           "purpose": "Project only an actual scanner-owned index into its supplied original byte image."
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/checked.rs",
+          "symbol": "parse_source_expression_checked",
+          "purpose": "Reuse the same lexer/Pratt/operator/complete-consumption worker for original source topology without selecting Native syntax or producing a runtime/preparation/result carrier."
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/substitution.rs",
+          "symbol": "checked_source_expression_substitutions",
+          "purpose": "Expose only original source substitution extents under the retained grammar; Native checked syntax remains independently gated."
         }
       ],
       "replay": {
@@ -227533,6 +227666,20 @@
           "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
           "sha256": "c7eab3b02f24cfa12f8205227123efecbd8f86f55f8e67780ce887e9fc57bd8f",
           "description": "Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome."
+        },
+        {
+          "id": "current-original-source-purpose-35a9d754d36aeb02",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+          "sha256": "82d3ee8e54139df2a616bf335fdd0d33470989b3360c4854d72859e03b885330",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
+        },
+        {
+          "id": "current-original-source-purpose-2760f3974abf9410",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/expr/substitution.rs",
+          "sha256": "3da20c56150cb3a5202dd931b49d7fae7bd77caa03e8102d2da756c48eec2a39",
+          "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
         }
       ],
       "source_anchors": [],
@@ -227602,6 +227749,18 @@
           "selector": "command_binding::source_transition_advice::tests::original_logical_nested_expression_keeps_bom_head_and_parent_configuration",
           "status": "linked",
           "assertion": "A genuine nested Logical expression uses NestedScript source purpose and preserves its BOM as head content while retaining the complete parent image/configuration and original alias input. Changed input/configuration declines; no runtime entry or Native compiler grant follows."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+          "selector": "command_binding::source_transition_advice::body_effects::original_source_expression_topology_tests::original_logical_expression_child_retains_alias_actual_base_and_no_native_recipe",
+          "status": "linked",
+          "assertion": "Actual Logical alias child preserves original input/head/absolute span/whole image/config and refuses changed source, config or shifted child. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+          "selector": "command_binding::source_transition_advice::body_effects::original_expression_purpose_frontier_tests::original_logical_expression_topology_cannot_supply_missing_native_parser_purpose",
+          "status": "linked",
+          "assertion": "Actual Logical BodyWalk visits the child using source topology; selecting a C naming axis without its original Native parser cannot borrow that topology, and visits zero Native child commands. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
         }
       ],
       "owners": [
@@ -227674,6 +227833,11 @@
           "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
           "symbol": "original_words",
           "purpose": "Use the checked Unicode Document facet only for Logical operand values; original Native naming values retain their separately selected protocol and units."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+          "symbol": "BodyWalk::expressions",
+          "purpose": "Positively authenticated Logical source input uses canonical source topology while actual Native purposes retain their existing checked parser; complete original word/image/config/Expr-role owners remain required."
         }
       ],
       "replay": {
@@ -323439,7 +323603,7 @@
           "id": "original-saved-target-activation-source-6841ae549bb1b2bd",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
-          "sha256": "e3efc54848f4b53e1197d3f30d19905820d61d1eb22528bc061ca2d63d2368ec",
+          "sha256": "fcf839bbc69e6f0e1c4d7ccca51d3e94d1ff393ba24fc4829c299f8226209964",
           "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
         },
         {
@@ -323481,7 +323645,7 @@
           "id": "original-package-owner-source-a1442f03dea04e62",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp.rs",
-          "sha256": "7b57a09a9e3baa74f6058bf1fd6b8067e0ffcafcde773756e1a8f727bb532cbc",
+          "sha256": "379933da6ca7792560f7efa2a67ab39a12a7c3c4d1f7c4981047decd3f442e23",
           "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
         },
         {
@@ -324229,7 +324393,7 @@
         {
           "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
           "symbol": "SavedExecutionTarget::in_original",
-          "purpose": "Authenticate original saved physical owner, retain callback-current first cause before mandatory cleanup, attach only original cleanup currency and check after restoration/Jim teardown; independent metadata never issues a Native receipt."
+          "purpose": "Ordinary checked results reuse the same settlement kernel and retire refused unpublished owners at the original attachment and post-restoration boundaries."
         },
         {
           "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
@@ -324300,6 +324464,26 @@
           "path": "rust/tcl-vm/src/interp/selected_frame.rs",
           "symbol": "Vm::restore_execution_frame",
           "purpose": "Restore the unchanged saved frame/namespace/script-tail payload through the shared original physical target and mandatory cleanup, preserving the callback-selected child. It grants no ordinary-procedure abort proof."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "symbol": "SavedExecutionTarget::retire_in_original",
+          "purpose": "The existing shared original physical/currency settlement returns reached mandatory cleanup metadata and its retained first cause separately; extracted owning retirement iterators remain mandatory continuation, never ordinary publication."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "symbol": "CleanupRestoration",
+          "purpose": "Select actual RestoreCaller versus PreserveCallbackSelection cleanup scheduling without changing operation authority or issuing a Native role."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "symbol": "Vm::in_interp_using",
+          "purpose": "The existing physical switch/active/finalization worker restores its selected policy and follows the actual latest finalizer child, independently of the original cleanup attachment."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp.rs",
+          "symbol": "Vm::finalize_slot_using",
+          "purpose": "The actual original dying interpreter retires its world after reached callbacks, preserves latest selected child and transports any retained full cause."
         }
       ],
       "tests": [
@@ -329570,6 +329754,48 @@
           "selector": "interp::selected_frame::tests::original_package_global_selection_restores_hidden_parent_and_preserves_callback_child",
           "status": "linked",
           "assertion": "Fixed C86/C91 software procedure and NativeCommand callback leaves a genuine child current: the immediate selected-frame probe asserts unchanged child frame identities/namespaces and restored parent hidden frames, namespace/script tails, recursion and package loading/file state, with the exact first Host/context cause. Probe restores its caller before separate ordinary-procedure abort; this test does not assert that independent activation boundary."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_retirement_transports_owned_iterator_after_failed_issue_until_mandatory_cleanup",
+          "status": "linked",
+          "assertion": "Failed readonly issue still returns already extracted owned iterator; only subsequent mandatory cleanup retires its original Value role. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_retirement_policies_keep_direct_current_callback_selection_and_hold_schedule",
+          "status": "linked",
+          "assertion": "Direct-current RestoreCaller versus PreserveCallbackSelection preserve actual distinct active-hold schedules and child selection with exact retained cause. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_retirement_parked_target_preserves_latest_work_selection_or_entry_caller",
+          "status": "linked",
+          "assertion": "Parked original reentry returns to its entry caller or latest reached child according to selected policy; no prior child replays. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_retirement_ordinary_refused_owner_drops_inside_original_attachment",
+          "status": "linked",
+          "assertion": "Ordinary refused returned owner drops while the original saved attachment is present, outside representation/state borrows. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_retirement_metadata_survives_real_jim_post_restoration_refusal",
+          "status": "linked",
+          "assertion": "Actual dying Jim slot finalization retains first cause while already reached owning metadata survives until explicit cleanup. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_retirement_foreign_physical_target_refuses_before_reached_metadata",
+          "status": "linked",
+          "assertion": "Independent foreign physical target refuses before work and cannot publish reached metadata or create a Scope. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_retirement_finalizer_follows_later_callback_child_and_retires_only_original_world",
+          "status": "linked",
+          "assertion": "A supplied fixed software finalization callback selects a later actual child through SAME physical worker; only original dying world retires, earlier/later child frames and state survive; no Native/Jim defer chronology is asserted. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
         }
       ],
       "replay": {
