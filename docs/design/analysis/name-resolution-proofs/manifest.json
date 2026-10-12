@@ -590489,6 +590489,254 @@
         "command": [],
         "limitations": "Restore the exact probe/runner, captured SDK/header/static-library/CLI inputs and explicit per-process environment, original ELF hashes and independently supplied hash-only system dependencies. Preserve two separate initialized active-case interpreters, the independent metadata interpreter, legacy C callback or actual Jim vector door and stack-backed observer records through teardown. Every original runner output is immutable; a separate output directory and capture are needed for a new execution. No replay was performed by record preparation, and no client-data free/refcount, Procedure/OO/import/recursive/rename/hide, Rust or BIG-IP equivalence is implied."
       }
+    },
+    {
+      "id": "naming.analysis.constructed-key-consumer-projections",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md",
+      "problem_statement": "Analytical command/class/procedure inventories and diagnostic groups use different name presentations. Local delimiter splits can collapse a constructed lone-colon segment or mistake literal reporting geometry for an original namespace/procedure owner.",
+      "question": "Which shared projection governs literal diagnostic QName grouping versus constructed class/procedure/inventory holders and tails, and what independent producer/source/metadata guards remain necessary before actual lookup, factory or creation reasoning?",
+      "conclusion": "Literal W214 grouping delegates reported_qname_namespace with LiteralPrefix and keeps its existing String/default semantics. Constructed graph and inventory consumers delegate key_holder_and_tail or key_tail, preserving lone-colon segments, root/bare holders and qualified nonempty recovery selection. The query does not recover an arbitrary native component path. Existing original source class lookup, positioned procedure/invocation, original module/source/availability correspondence, hierarchy and manufacturer/layout requirements remain independent; displayed labels cannot replace absent receipts. Four fixed software control definitions exercise the actual reporting, graph, recovery and placeholder helper surfaces. No assertion outcome, external provider execution or general source/factory/type-soundness closure is attached.",
+      "scope": "Current analytical projections for eight local production splitter sites in five Compiler leaves. One is literal reporting; seven are constructed graph/procedure/inventory projections. Four fixed source-defined controls are unexecuted. Colon/Unicode/NUL reporting inputs are metadata examples, not native namespace semantics or addressability observations. Existing original command/namespace/class/procedure receipts and logical compatibility admission are unchanged. C Tcl/Jim/BIG-IP processes are not applicable and not tested; no Native getter, callback chronology, dispatch, class/factory or creation effect is inferred.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not applicable to this analytical metadata projection question",
+          "build": "No provider process applies to constructed-key or literal-reporting projections.",
+          "input_channel": "Fixed analytical Unicode reporting/constructed labels and software helper calls only.",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "External tcl8.4 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not applicable to this analytical metadata projection question",
+          "build": "No provider process applies to constructed-key or literal-reporting projections.",
+          "input_channel": "Fixed analytical Unicode reporting/constructed labels and software helper calls only.",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "External tcl8.5 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not applicable to this analytical metadata projection question",
+          "build": "No provider process applies to constructed-key or literal-reporting projections.",
+          "input_channel": "Fixed analytical Unicode reporting/constructed labels and software helper calls only.",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "External tcl8.6 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not applicable to this analytical metadata projection question",
+          "build": "No provider process applies to constructed-key or literal-reporting projections.",
+          "input_channel": "Fixed analytical Unicode reporting/constructed labels and software helper calls only.",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "External tcl9.0 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not applicable to this analytical metadata projection question",
+          "build": "No provider process applies to constructed-key or literal-reporting projections.",
+          "input_channel": "Fixed analytical Unicode reporting/constructed labels and software helper calls only.",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "External tcl9.1 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not applicable to this analytical metadata projection question",
+          "build": "No provider process applies to constructed-key or literal-reporting projections.",
+          "input_channel": "Fixed analytical Unicode reporting/constructed labels and software helper calls only.",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "External jim execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not applicable to this analytical metadata projection question",
+          "build": "No provider process applies to constructed-key or literal-reporting projections.",
+          "input_channel": "Fixed analytical Unicode reporting/constructed labels and software helper calls only.",
+          "dialect": "f5-bigip",
+          "status": "not-tested",
+          "answer": "External bigip execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "metadata-projection-source-0",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          "sha256": "23a6715e7cde3633a4db0f6f30dfeb131771310f37667cecbc3c62380017e123",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-1",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+          "sha256": "ccb4c42769626584da7abaeeaad264c1543f576af46f45b0d2ded51119b5fa6d",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-2",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+          "sha256": "50bcf2ff935e4a4aae4b16d74382e1ea9c11eaaedd3f4bcac9196327fc0989df",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-3",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/recovery.rs",
+          "sha256": "ac46013c4c545bda0eba6176ea0ea89b2096cf7c3b346610e3f46b6de12ae2ee",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-4",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "sha256": "f5ffb614ae80a0d772844cea5c291e01a6f5416c69af6eb033ea6267983860e1",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-5",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "sha256": "5cc00556c75720e196c08d2309339ee0a8615832f9fe08c146b5be7a2db5ea9c",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-6",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/naming/reporting.rs",
+          "sha256": "de89b38c6df4bfc8d71d364efdbd731f0fb30bdbae55731ca4c920c9644b4d39",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-7",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/types.rs",
+          "sha256": "4637e42630d5087b4dcc65c36aecff7c1659a5abc47d57203b91d34c2f784bec",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-8",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/handlers/retained_static_context_tests.rs",
+          "sha256": "433d6c24a3ea2a424ad8c9a1daea0617198b110e1f8fe33d78bf134c246b9bfa",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-9",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+          "sha256": "d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "metadata-projection-source-10",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/namespace_context.rs",
+          "sha256": "f10f446e0076bac46970a2c63d4c28562a16b6d70a6e064734fad17d5aad4268",
+          "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          "selector": "analyser::diagnostics::dataflow::constructed_projection_tests::w214_namespace_grouping_keeps_literal_reporting_prefix",
+          "status": "linked",
+          "assertion": "Fixed W214 helper calls preserve literal-prefix/root-default/overlapping-pair/trailing-tail/Unicode/NUL reporting Strings only, independently of execution namespace or dispatcher identity. Source definition only; no matched owned executable/assertion result is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+          "selector": "analyser::class_hierarchy::constructed_projection_tests::constructed_class_graph_lookup_preserves_literal_colon_holder",
+          "status": "linked",
+          "assertion": "Fixed actual constructed graph compatibility resolver calls retain the shared holder for colon-named/relative/root/Unicode class labels and refuse unrelated same-tail graph nodes. No original source/Native class or namespace identity is asserted. Source definition only; no matched owned executable/assertion result is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/recovery.rs",
+          "selector": "analyser::recovery::constructed_projection_tests::constructed_recovery_inventory_preserves_literal_colon_tails",
+          "status": "linked",
+          "assertion": "Fixed actual Analyser recovery inventory calls preserve colon-named/Unicode constructed tails and exclude unqualified/empty tails; the inventory supplies syntax recovery hints, no declaration or selected call ownership. Source definition only; no matched owned executable/assertion result is attached."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "selector": "analyser::handlers::constructed_projection_tests::computed_creation_placeholder_preserves_constructed_procedure_holder",
+          "status": "linked",
+          "assertion": "Fixed actual ParameterisedCreation placeholder helper retains constructed procedure holders and dynamic name text for root/colon/Unicode labels; a static word declines a dynamic placeholder. No call execution, factory, body admission or creation result is asserted. Source definition only; no matched owned executable/assertion result is attached."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          "symbol": "namespace_of",
+          "purpose": "Delegate W214 analytical grouping to the LiteralPrefix reporting purpose; no execution namespace or dispatcher proof."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+          "symbol": "resolve_class_name",
+          "purpose": "Explicit constructed class graph compatibility uses the shared holder and shared candidate order; original source class lookup uses separate retained caller/publication receipts."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+          "symbol": "Analyser::compute_factory_object_ranges",
+          "purpose": "Same original module/source/availability guards precede possible object-result advice; constructed procedure inventory tails use key_tail, preserving every candidate under a shared tail."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/recovery.rs",
+          "symbol": "Analyser::user_command_tail_names",
+          "purpose": "Shared constructed holder/tail governs qualified nonempty recovery inventory labels; syntax recovery hints issue no command/namespace/source ownership."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "symbol": "Analyser::next_chain_terminates",
+          "purpose": "Constructed graph anchor qualification uses the shared holder; original hierarchy/source/selected completion requirements remain independent."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "symbol": "Analyser::known_factory_invocation_falls_through",
+          "purpose": "Use the shared caller-label holder without manufacturing original invocation, source, factory or exported manufacturer/layout evidence."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "symbol": "Analyser::resolve_static_proc_name",
+          "purpose": "Explicit allows_lexical_declaration_advice compatibility retains shared constructed holder; original static procedure resolution is an independent positioned branch."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+          "symbol": "Analyser::unresolved_class_name",
+          "purpose": "Construct only the dynamic creation metadata placeholder under the shared procedure-label holder; no actual namespace, factory or creation result is inferred."
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "symbol": "key_holder_and_tail",
+          "purpose": "Canonical constructed-display partition preserves lone-colon segments and root/bare boundaries; it cannot invert an arbitrary original native component path."
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "symbol": "key_tail",
+          "purpose": "Canonical constructed-display tail is presentation metadata, independently of original component and namespace incarnation ownership."
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming/reporting.rs",
+          "symbol": "reported_qname_namespace",
+          "purpose": "Literal-prefix reporting purpose retains overlapping literal colon pairs and defaults; constructed-key and written/native-name axes remain separate."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Four exact fixed software control definitions and current consumer/owner bindings permit later reconfirmation. No test or provider execution is attached. Reconfirmation must keep literal reporting, constructed-key partition and independently retained original source/namespace/target ownership separate."
+      }
     }
   ]
 }

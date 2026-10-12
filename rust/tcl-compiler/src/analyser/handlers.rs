@@ -7788,10 +7788,8 @@ impl Analyser {
             if crate::naming::is_dynamic_word(written) {
                 return None;
             }
-            let namespace = class
-                .qualified_name
-                .rsplit_once("::")
-                .map_or("", |(namespace, _)| namespace);
+            let (namespace, _) =
+                crate::naming::key_holder_and_tail(&class.qualified_name);
             let qualified = crate::naming::qualify(namespace, written);
             let anchor = mro.iter().position(|name| name == &qualified)?;
             (anchor > current).then_some(anchor)?
@@ -8365,9 +8363,7 @@ impl Analyser {
         if crate::naming::is_dynamic_word(seg.name()) {
             return false;
         }
-        let namespace = caller
-            .rsplit_once("::")
-            .map_or("", |(namespace, _)| namespace);
+        let (namespace, _) = crate::naming::key_holder_and_tail(caller);
         let candidates = crate::naming::bareword_resolution_candidates(namespace, seg.name());
         let Some(factory) = self.class_factory_for_candidates(&candidates, seg.arg_tokens()) else {
             return false;
@@ -9701,7 +9697,7 @@ impl Analyser {
         let absolute = if head.starts_with("::") {
             crate::naming::qualify("", head)
         } else {
-            let ns = caller.rsplit_once("::").map_or("", |(ns, _)| ns);
+            let (ns, _) = crate::naming::key_holder_and_tail(caller);
             crate::naming::qualify(ns, head)
         };
         if self.result.all_procs.contains_key(&absolute) {
@@ -9941,10 +9937,7 @@ impl Analyser {
     }
 
     fn unresolved_class_name(candidate: &ParameterisedCreation) -> Option<String> {
-        let owner_ns = candidate
-            .proc_qname
-            .rsplit_once("::")
-            .map_or("", |(head, _)| head);
+        let (owner_ns, _) = crate::naming::key_holder_and_tail(&candidate.proc_qname);
         let unresolved = crate::naming::qualify(owner_ns, &candidate.name_word);
         tcl_syntax::naming::is_dynamic_word(&unresolved).then_some(unresolved)
     }
@@ -19442,3 +19435,33 @@ mod original_parent_purpose_tests {
 
 #[cfg(test)]
 mod retained_static_context_tests;
+
+#[cfg(test)]
+mod constructed_projection_tests {
+    use super::*;
+
+    #[test]
+    fn computed_creation_placeholder_preserves_constructed_procedure_holder() {
+        // Implementation contract: naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Only a metadata placeholder is constructed; no creation is executed.
+        for (procedure, expected) in [
+            ("p", "::${ns}::C"),
+            ("::a::p", "::a::${ns}::C"),
+            ("::a::::p", "::a::${ns}::C"),
+            ("::::::", ":::::${ns}::C"),
+            ("::é::λ", "::é::${ns}::C"),
+        ] {
+            let mut candidate = ParameterisedCreation {
+                proc_qname: procedure.to_owned(),
+                params: Vec::new(),
+                name_word: "${ns}::C".to_owned(),
+                call_off: 0,
+                control_path: Vec::new(),
+            };
+            assert_eq!(Analyser::unresolved_class_name(&candidate).as_deref(), Some(expected));
+            candidate.name_word = "C".to_owned();
+            assert!(Analyser::unresolved_class_name(&candidate).is_none());
+        }
+    }
+}

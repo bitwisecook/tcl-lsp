@@ -665,7 +665,7 @@ impl Analyser {
         // Bare-name → qualified-name index for resolving relative call heads.
         let mut bare_to_qnames: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
         for qname in cu.ir_module.procedures.keys() {
-            let bare = qname.rsplit_once("::").map_or(qname.as_str(), |(_, t)| t);
+            let bare = crate::naming::key_tail(qname);
             bare_to_qnames.entry(bare).or_default().push(qname.as_str());
         }
 

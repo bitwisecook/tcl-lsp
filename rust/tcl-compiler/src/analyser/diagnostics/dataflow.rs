@@ -4523,13 +4523,13 @@ fn use_site_safe_initialises(
         .any(|place| crate::var_resolve::canonical_place_key(place).as_ref() == Some(cell))
 }
 
-/// The namespace of a fully-qualified name: everything up to the last `::`,
-/// or `::` for a top-level name.
+/// Literal reporting prefix for W214's analytical dispatch grouping.
+/// This presentation does not identify an execution namespace or dispatcher.
 fn namespace_of(qualified_name: &str) -> String {
-    match qualified_name.rsplit_once("::") {
-        Some((ns, _)) if !ns.is_empty() => ns.to_string(),
-        _ => "::".to_string(),
-    }
+    tcl_syntax::naming::reported_qname_namespace(
+        qualified_name,
+        tcl_syntax::naming::ReportedQNameNamespacePurpose::LiteralPrefix,
+    )
 }
 
 /// Compute W213's diagnostic span and quick fix for an `unset` of a
@@ -5859,5 +5859,30 @@ mod original_condition_extent_tests {
                 .original_condition_matcher(&expression, Some(u32::MAX))
                 .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod constructed_projection_tests {
+    use super::*;
+
+    #[test]
+    fn w214_namespace_grouping_keeps_literal_reporting_prefix() {
+        // Implementation contract: naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Literal String grouping only; overlapping pairs are not native paths.
+        for (qname, expected) in [
+            ("", "::"),
+            ("p", "::"),
+            ("::p", "::"),
+            ("n::p", "n"),
+            (":::p", ":"),
+            ("::a::::p", "::a::"),
+            ("n::", "n"),
+            ("é::λ", "é"),
+            ("n\0::p", "n\0"),
+        ] {
+            assert_eq!(namespace_of(qname), expected);
+        }
     }
 }

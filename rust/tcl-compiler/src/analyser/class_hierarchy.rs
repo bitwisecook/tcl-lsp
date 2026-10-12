@@ -569,7 +569,7 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
     // is reachable from neither `::a::b` nor global).  Uses the shared command
     // -resolution candidate order so class-name resolution can never diverge
     // from it (a class name *is* a command name).
-    let owner_ns = owner_qname.rsplit_once("::").map_or("", |(head, _)| head);
+    let (owner_ns, _) = crate::naming::key_holder_and_tail(owner_qname);
     for cand in crate::naming::bareword_resolution_candidates(owner_ns, name) {
         if is_known(&cand) {
             return Some(cand);
@@ -1710,5 +1710,36 @@ mod source_naming_tests {
             resolve_written_class_name_in_context("Base", &right, policy, &result.all_classes),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod constructed_projection_tests {
+    use super::*;
+
+    #[test]
+    fn constructed_class_graph_lookup_preserves_literal_colon_holder() {
+        // Implementation contract: naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Explicit constructed graph assistance; no retained source lookup exists here.
+        let tails: HashMap<String, Vec<String>> = HashMap::new();
+        for (owner, expected) in [
+            ("Sub", "::Base"),
+            ("::Sub", "::Base"),
+            ("n::Sub", "::n::Base"),
+            ("::a::::Sub", "::a::Base"),
+            ("::::::", ":::::Base"),
+            ("::é::λ", "::é::Base"),
+        ] {
+            assert_eq!(
+                resolve_class_name("Base", owner, |candidate| candidate == expected, &tails)
+                    .as_deref(),
+                Some(expected),
+            );
+            assert_eq!(
+                resolve_class_name("Base", owner, |candidate| candidate == "::foreign::Base", &tails),
+                None,
+            );
+        }
     }
 }
