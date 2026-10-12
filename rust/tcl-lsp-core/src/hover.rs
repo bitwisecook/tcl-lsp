@@ -1101,45 +1101,44 @@ fn builtin_command_hover_text(
             let _ = write!(out, "\n**Requires**: `package require {pkg}`");
         }
     }
-    // iRules: append the **Valid events** list + event **Requires**.
-    // Only iRules commands carry `event_requires`, so its presence is the
-    // dialect gate.
+    append_command_event_metadata(&mut out, spec);
+    Some(out)
+}
+
+fn append_command_event_metadata(out: &mut String, spec: &tcl_registry::CommandSpec) {
     if let Some(requires) = spec.event_requires.as_ref() {
-        let effective = effective_event_requires(name, requires);
-        append_valid_events(&mut out, &effective);
-    } else if let Some((prefix, _)) = name.split_once("::") {
-        // Namespace-only command (no `event_requires`): if its protocol
-        // namespace declares profiles (e.g. `ACCESS::log` → ACCESS), surface
-        // a `**Requires**` profile line.
-        let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
-        if let Some(ns) = profile_reg.get_namespace(prefix)
-            && !ns.profiles.is_empty()
+        append_valid_events(out, &effective_event_requires(spec, requires));
+    } else {
+        let profiles = tcl_registry::profiles::ProfileRegistry::build();
+        if let Some(namespace) = profiles.namespace_for_command_spec(spec)
+            && !namespace.profiles.is_empty()
         {
-            let _ = write!(out, "\n\n**Requires**: {} profile", ns.profiles.join(", "));
+            let _ = write!(
+                out,
+                "\n\n**Requires**: {} profile",
+                namespace.profiles.join(", ")
+            );
         }
     }
-    Some(out)
 }
 
 /// Augment a command's `EventRequires` with namespace-backed profile
 /// metadata.  For an iRules `NS::cmd` whose own `profiles` are empty, the
 /// profiles declared by the `NS` protocol namespace are substituted, so
 /// the **Valid events** list narrows and a profile **Requires** line is
-/// shown (e.g. `DIAMETER::*`, `MQTT::*`, `LDAP::*`, `IMAP::*`).  The
-/// f5-irules gate is implicit — only iRules specs carry `event_requires`.
+/// shown (e.g. `DIAMETER::*`, `MQTT::*`, `LDAP::*`, `IMAP::*`).
+/// The selected command row retains its declared F5 surface; context and source
+/// applicability stay with the caller.
 fn effective_event_requires(
-    command_name: &str,
+    spec: &tcl_registry::CommandSpec,
     requires: &tcl_registry::events::EventRequires,
 ) -> tcl_registry::events::EventRequires {
     // A command with its own profiles, or no `NS::` qualifier, is unchanged.
     if !requires.profiles.is_empty() {
         return requires.clone();
     }
-    let Some((prefix, _)) = command_name.split_once("::") else {
-        return requires.clone();
-    };
     let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
-    match profile_reg.get_namespace(prefix) {
+    match profile_reg.namespace_for_command_spec(spec) {
         Some(ns) if !ns.profiles.is_empty() => tcl_registry::events::EventRequires {
             profiles: ns.profiles,
             ..*requires
@@ -4203,14 +4202,19 @@ mod tests {
             also_in: &[],
             flow: false,
         };
-        let eff = super::effective_event_requires("DIAMETER::foo", &base);
+        let descriptor = |name| tcl_registry::CommandSpec {
+            name,
+            surface: Some(tcl_dialect::model::SpecSurface::IRULES),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let eff = super::effective_event_requires(&descriptor("DIAMETER::foo"), &base);
         assert_eq!(
             eff.profiles,
             &["DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"]
         );
         // No `::` qualifier → unchanged (still empty).
         assert!(
-            super::effective_event_requires("puts", &base)
+            super::effective_event_requires(&descriptor("puts"), &base)
                 .profiles
                 .is_empty()
         );
@@ -4220,7 +4224,7 @@ mod tests {
             ..base
         };
         assert_eq!(
-            super::effective_event_requires("HTTP::uri", &with).profiles,
+            super::effective_event_requires(&descriptor("HTTP::uri"), &with).profiles,
             &["HTTP"]
         );
     }
@@ -6020,6 +6024,48 @@ mod tests {
             h.value
         );
     }
+
+
+    #[test]
+    fn command_profile_metadata_keeps_foreign_surface_and_own_requirements() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        let descriptor = |surface| tcl_registry::CommandSpec {
+            name: "ACCESS::log",
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let mut text = String::new();
+        super::append_command_event_metadata(
+            &mut text,
+            &descriptor(Some(tcl_dialect::model::SpecSurface::IRULES)),
+        );
+        assert_eq!(text, "\n\n**Requires**: ACCESS profile");
+        for surface in [None, Some(tcl_dialect::model::SpecSurface::TCL86)] {
+            let mut text = String::new();
+            super::append_command_event_metadata(&mut text, &descriptor(surface));
+            assert!(text.is_empty());
+        }
+        let own = tcl_registry::CommandSpec {
+            name: "DIAMETER::fixture",
+            surface: Some(tcl_dialect::model::SpecSurface::IRULES),
+            event_requires: Some(tcl_registry::events::EventRequires {
+                client_side: false,
+                server_side: false,
+                transport: None,
+                profiles: &["HTTP"],
+                also_in: &[],
+                flow: false,
+            }),
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let mut text = String::new();
+        super::append_command_event_metadata(&mut text, &own);
+        assert!(text.contains("**Requires**: profile HTTP"), "{text}");
+        assert!(!text.contains("profile DIAMETER"), "{text}");
+    }
+
+
 }
 
 #[cfg(test)]

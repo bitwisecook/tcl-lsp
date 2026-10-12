@@ -69,6 +69,8 @@
 //! every compiled spec under every catalogue profile.
 
 pub mod assembly;
+mod namespace_ownership;
+pub use namespace_ownership::NamespacePackageOwnership;
 pub mod binding;
 pub mod capability;
 pub mod context;

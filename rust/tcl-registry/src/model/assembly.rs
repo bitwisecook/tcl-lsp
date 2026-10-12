@@ -115,6 +115,19 @@ pub struct ContextRegistry {
 }
 
 impl ContextRegistry {
+    /// Descriptive package ownership of constructed namespaces from the actual
+    /// rows selected by this complete context/store. Conflicting or unowned rows
+    /// decline; this supplies neither package loading nor callable identity.
+    #[must_use]
+    pub fn namespace_package_ownership(&self) -> super::NamespacePackageOwnership {
+        super::NamespacePackageOwnership::from_selected_specs(
+            self.commands
+                .command_names_in_any_dialect()
+                .filter_map(|name| self.context.resolve_spec(&self.commands, name)),
+        )
+    }
+
+
     /// Reassemble this exact availability context over an explicitly supplied
     /// command store. Retains provider, release and package state; it does not
     /// reconstruct a context from the store's profile name or establish native

@@ -2037,3 +2037,25 @@ write to a replacement array. This differs from the generic C `lappend x` handle
 which resolves the name again when its initial read reports a missing value.
 Scalar reads use the same operation references, so unset-and-recreate callbacks
 retain the native variable shell throughout the access.
+
+## Selected namespace metadata queries
+
+`ProfileRegistry::namespace_for_command_spec` projects protocol namespace metadata
+from an already selected F5 command row. It uses that row's constructed holder
+and exact namespace spelling. Selection, current source and argument-form
+applicability stay with the caller; command-owned profile requirements take
+precedence over namespace defaults.
+
+`ContextRegistry::namespace_package_ownership` returns an immutable descriptive
+index from the rows selected by its complete context and command store.
+`package_for_namespace` accepts an already constructed namespace key and removes
+exactly one optional root marker. `package_for_flat_key` asks for the most specific
+declared namespace prefix of a flat command key without constructing a C namespace
+path. An unowned or conflicting most-specific prefix blocks a broader hint.
+
+A namespace has package ownership only when every selected row agrees on the same
+nonempty `required_package` or `tcllib_package`. Disagreeing fields on one row also
+make that namespace unknown. Case, Unicode and literal colon segments stay exact.
+The package name is independent of the namespace spelling. These queries describe
+selected declarations; they establish no package loading, installed command,
+Native namespace identity, source correspondence or edit permission.

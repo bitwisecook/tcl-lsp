@@ -146,12 +146,7 @@ fn command_text(
     if let Some(package) = spec.required_package {
         let _ = write!(out, "\nDeclared provider: `{package}`.\n");
     }
-    if let Some(requires) = &spec.event_requires {
-        super::append_valid_events(
-            &mut out,
-            &super::effective_event_requires(spec.name, requires),
-        );
-    }
+    super::append_command_event_metadata(&mut out, spec);
     Some(out)
 }
 
@@ -561,4 +556,45 @@ mod tests {
             });
         assert!(at(source, &blocked, "top").is_none());
     }
+
+
+    #[test]
+    fn original_registry_profile_hover_uses_selected_descriptor_and_complete_input() {
+        // naming.core.original-registry-source-hover
+        // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
+        for (source, needle, expected) in [
+            (
+                "ACCESS::log TEXT\n",
+                "ACCESS::log",
+                "**Requires**: ACCESS profile",
+            ),
+            (
+                "DIAMETER::retransmission_default\n",
+                "DIAMETER::retransmission_default",
+                "**Requires**: profile DIAMETER or DIAMETERSESSION or DIAMETER_ENDPOINT",
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(source, "f5-irules");
+            let advice =
+                at(source, &analysis, needle).expect("actual selected source command metadata");
+            assert!(advice.value.contains(expected), "{}", advice.value);
+            let changed = source.replace(needle, "OTHER::command");
+            assert!(at(&changed, &analysis, "OTHER::command").is_none());
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let mut foreign = analysis.clone();
+            let profile = crate::profile_for_dialect("tcl8.6");
+            foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                tcl_registry::model::ingress::context_for_profile(profile),
+                input.lexer_config(),
+            ));
+            assert!(at(source, &foreign, needle).is_none());
+        }
+        let source = "puts {ACCESS::log}\n";
+        let analysis = Analyser::new().analyse(source, "f5-irules");
+        assert!(at(source, &analysis, "ACCESS::log").is_none());
+    }
+
+
 }

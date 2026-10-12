@@ -237,6 +237,25 @@ impl ProfileRegistry {
         self.namespaces.get(prefix)
     }
 
+    /// Protocol namespace metadata for an already selected iRules command row.
+    /// The caller retains its actual context/argument-form admission. A reported
+    /// or source name cannot substitute for this row, and this projection grants
+    /// no Native command, namespace or event ownership.
+    #[must_use]
+    pub fn namespace_for_command_spec(
+        &self,
+        spec: &crate::CommandSpec,
+    ) -> Option<&ProtocolNamespaceSpec> {
+        use tcl_dialect::model::{Family, SpecProvider};
+        spec.surface?
+            .iter()
+            .any(|row| row.provider == SpecProvider::Core(Family::F5Irules))
+            .then_some(())?;
+        let (holder, _) = tcl_syntax::naming::key_holder_and_tail(spec.name);
+        let namespace = tcl_syntax::naming::unroot_rooted_key(holder).unwrap_or(holder);
+        self.get_namespace(namespace)
+    }
+
     /// Whether `profile` is connection *infrastructure* — a transport
     /// (`TCP`/`UDP`/`FASTL4`/`SCTP`) or shared-TLS/persistence
     /// (`SSL_PERSISTENCE`/`PERSIST`) profile that the stack implies rather
@@ -2376,4 +2395,63 @@ mod tests {
             }
         }
     }
+
+
+    #[test]
+    fn selected_command_namespace_profiles_keep_surface_case_and_holder_purpose() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        let profiles = ProfileRegistry::build();
+        let context =
+            crate::model::ingress::resolve_environment("f5-irules").default_context_registry();
+        let selected = context
+            .context()
+            .resolve_spec(context.commands(), "DIAMETER::retransmission_default")
+            .expect("actual selected F5 command descriptor");
+        assert_eq!(
+            profiles
+                .namespace_for_command_spec(selected)
+                .unwrap()
+                .prefix,
+            "DIAMETER"
+        );
+        let descriptor = |name, surface| crate::CommandSpec {
+            name,
+            surface,
+            ..crate::CommandSpec::DEFAULT
+        };
+        for name in ["DIAMETER::foo", "::DIAMETER::foo"] {
+            let own = descriptor(name, Some(tcl_dialect::model::SpecSurface::IRULES));
+            assert_eq!(
+                profiles.namespace_for_command_spec(&own).unwrap().profiles,
+                &["DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"]
+            );
+        }
+        for name in [
+            "diameter::foo",
+            "DIAMETER",
+            ":DIAMETER::foo",
+            ":::DIAMETER::foo",
+            "DIAMETER::nested::foo",
+        ] {
+            let own = descriptor(name, Some(tcl_dialect::model::SpecSurface::IRULES));
+            assert!(
+                profiles.namespace_for_command_spec(&own).is_none(),
+                "{name}"
+            );
+        }
+        for surface in [None, Some(tcl_dialect::model::SpecSurface::TCL86)] {
+            let foreign = descriptor("DIAMETER::foo", surface);
+            assert!(profiles.namespace_for_command_spec(&foreign).is_none());
+        }
+        let plain = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        assert!(
+            plain
+                .context()
+                .resolve_spec(plain.commands(), selected.name)
+                .is_none()
+        );
+    }
+
+
 }

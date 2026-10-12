@@ -68,6 +68,31 @@ The original Native namespace and command routes precede lexical assistance.
 Completion's partial-word predicates do not supply namespace lookup or edit
 permission; its retained declaration/candidate selection remains independent.
 
+### Selected command namespace metadata
+
+Hover and event diagnostics ask `ProfileRegistry::namespace_for_command_spec`
+with the command descriptor already selected by the current source context.
+The query checks that row's F5 surface and exact constructed namespace. Explicit
+command profile requirements and matched argument-form requirements take
+precedence. A same-spelled row on a foreign surface supplies no protocol profiles.
+The original whole-source, configuration, Registry and command-role gates remain
+at each consumer.
+
+Package suggestions use `ContextRegistry::namespace_package_ownership` over the
+actual context and command store. Every selected row in a namespace must name the
+same nonempty `required_package` or `tcllib_package`; an unowned row, conflicting
+rows or conflicting fields withhold the hint. Namespace and package names may
+differ, and namespace matching preserves case and literal colon segments.
+Selected C name inputs expose their already projected namespace only for this
+metadata query; Jim inputs retain their flat-key projection. Explicit Logical
+inputs use the shared written-name owner. These views supply neither a package
+loader nor callable identity.
+
+An action still requires the original complete source/configuration, a selected
+literal command-head position, unresolved-command evidence, valid package source
+syntax, and absence of an existing or dynamic package provider. Metadata cannot
+replace those source and edit guards.
+
 ### Runtime feature toggles
 
 Every feature handler is registered unconditionally and checks its enable

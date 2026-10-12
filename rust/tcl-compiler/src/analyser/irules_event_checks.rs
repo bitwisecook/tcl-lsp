@@ -249,9 +249,8 @@ impl Analyser {
                 .collect();
             let hint = (!requirements.matched_form)
                 .then(|| {
-                    cmd_name
-                        .split_once("::")
-                        .and_then(|(prefix, _)| profiles.get_namespace(prefix))
+                    profiles
+                        .namespace_for_command_spec(spec)
                         .and_then(|ns| {
                             profile_info_description(ns.profiles, &file_profiles, profiles)
                         })

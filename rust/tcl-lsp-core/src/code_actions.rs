@@ -884,7 +884,7 @@ fn missing_package_for_head_at(
 ) -> Option<String> {
     resolution.registry?;
     let context = analysis.resolved_input.as_ref()?.context_registry();
-    let catalogue = package_catalogue(&context);
+    let ownership = context.namespace_package_ownership();
     for invocation in &analysis.command_invocations {
         let start = line_index.position_at_utf16(invocation.range.start(), source);
         let end = line_index.position_at_utf16(invocation.range.end(), source);
@@ -930,7 +930,7 @@ fn missing_package_for_head_at(
             {
                 continue;
             }
-            let Some(package) = package_named_by_original_input(input, &catalogue) else {
+            let Some(package) = package_owned_by_original_input(input, &ownership) else {
                 continue;
             };
             let selected = tcl_registry::native_package::NativePackageNameKey::from_native_units(
@@ -961,7 +961,7 @@ fn missing_package_for_head_at(
         if !is_static_command_name(head) {
             continue;
         }
-        let Some(package) = package_named_by_namespace(head, &catalogue) else {
+        let Some(package) = package_owned_by_logical_namespace(head, &ownership) else {
             continue;
         };
         if !head_is_unresolved(source, analysis, resolution, invocation, head)
@@ -975,11 +975,11 @@ fn missing_package_for_head_at(
     None
 }
 
-// Catalogue names are authored metadata. Comparing their bytes supplies a
-// package hint only; it does not establish a package loader or callable head.
-fn package_named_by_original_input(
+// Actual selected descriptor ownership supplies a package hint only. The
+// independently retained input/absence/source/grammar gates remain above.
+fn package_owned_by_original_input(
     input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
-    catalogue: &[String],
+    ownership: &tcl_registry::model::NamespacePackageOwnership,
 ) -> Option<String> {
     use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol};
     match input.policy().recipe() {
@@ -987,29 +987,34 @@ fn package_named_by_original_input(
             let slot = protocol
                 .command_lookup_slot(NativeNameContext::root(), input.bytes())
                 .ok()?;
-            let namespace = slot.namespace.as_segments().first()?.as_bytes();
-            catalogue
-                .iter()
-                .find(|package| package.is_ascii() && package.as_bytes() == namespace)
-                .cloned()
+            // Only an analytical presentation for descriptor ownership. It
+            // cannot recreate the original slot or grant Native namespace use.
+            let namespace =
+                tcl_syntax::naming::native_namespace_full_name_bytes(&slot.namespace);
+            let namespace = std::str::from_utf8(&namespace).ok()?;
+            ownership
+                .package_for_namespace(namespace)
+                .map(str::to_owned)
         }
         protocol @ NativeNameProtocol::Jim084 => {
-            // Jim's flat command key does not become a C namespace path.
+            // Retain Jim's actual flat key; no C namespace path is fabricated.
             let keys = protocol
                 .jim_command_lookup_keys(NativeNameContext::root(), input.bytes())
                 .ok()?;
-            let key = keys.first()?.as_bytes();
-            catalogue
-                .iter()
-                .find(|package| {
-                    package.is_ascii()
-                        && key
-                            .strip_prefix(package.as_bytes())
-                            .is_some_and(|tail| tail.starts_with(b"::"))
-                })
-                .cloned()
+            ownership
+                .package_for_flat_key(keys.first()?.as_bytes())
+                .map(str::to_owned)
         }
     }
+}
+
+fn package_owned_by_logical_namespace(
+    head: &str,
+    ownership: &tcl_registry::model::NamespacePackageOwnership,
+) -> Option<String> {
+    let written = tcl_syntax::naming::canonical_written_command(head);
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(&written);
+    ownership.package_for_namespace(holder).map(str::to_owned)
 }
 
 fn original_package_already_required(
@@ -1099,6 +1104,7 @@ fn is_static_command_name(name: &str) -> bool {
 /// leading `::` is stripped first — the fully-qualified spelling is what
 /// library code writes to be unambiguous, and splitting it on `::` without
 /// stripping yields an empty component.
+#[cfg(test)]
 fn package_named_by_namespace(head: &str, catalogue: &[String]) -> Option<String> {
     let written = tcl_syntax::naming::canonical_written_command(head);
     let qualified = tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written);
@@ -1140,25 +1146,6 @@ fn head_is_unresolved(
     );
     crate::definition::resolve_called_proc(analysis, source, &namespace, head, offset, resolution)
         .is_none()
-}
-
-/// Authored package suggestions from the actual full current context/store.
-fn package_catalogue(context: &tcl_registry::model::ContextRegistry) -> Vec<String> {
-    // naming.core.original-package-source-action-context
-    // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
-    let registry = context.commands();
-    let mut names = std::collections::BTreeSet::new();
-    for name in registry.command_names_in_any_dialect() {
-        if let Some(spec) = context.context().resolve_spec(registry, name) {
-            names.extend(
-                spec.required_package
-                    .into_iter()
-                    .chain(spec.tcllib_package)
-                    .map(str::to_owned),
-            );
-        }
-    }
-    names.into_iter().collect()
 }
 
 // W115 — convert a backslash-continued comment to per-line comments.
@@ -4754,6 +4741,184 @@ mod original_package_suggestion_tests {
             .is_none()
         );
     }
+
+
+    fn selected_namespace_package_input() -> tcl_compiler::analyser::ResolvedAnalysisInput {
+        use std::sync::Arc;
+        let mut store = tcl_registry::CommandRegistry::build_default();
+        store.insert(tcl_registry::CommandSpec {
+            name: "tools::fetch",
+            surface: Some(tcl_dialect::model::SpecSurface::TCL86),
+            required_package: Some("tools-runtime"),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = Arc::new(store);
+        let context = Arc::new(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                .default_context_registry()
+                .with_command_store(Arc::clone(&store)),
+        );
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "logical-selected-package-owner",
+            &[],
+            "Logical package source",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        )
+    }
+
+    #[test]
+    fn original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling() {
+        // naming.core.original-package-source-action-context
+        // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+        use std::sync::Arc;
+        let input = selected_namespace_package_input();
+        let context = input.context_registry();
+        let store = Arc::clone(context.commands());
+        let profile = input.analyser_profile();
+        let config = input.lexer_config();
+        let source = "tools::missing\n";
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let actions = package_require_actions(source, at(0), &store, Some(&analysis), &[]);
+        assert_eq!(actions.len(), 1, "{actions:?}");
+        assert_eq!(actions[0].title, "Add 'package require tools-runtime'");
+        assert_eq!(
+            actions[0].edits[0].new_text,
+            "package require tools-runtime\n"
+        );
+        assert!(
+            package_require_actions("tools::changed\n", at(0), &store, Some(&analysis), &[])
+                .is_empty()
+        );
+        let argument_source = "tools::missing operand\n";
+        let argument_analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(argument_source, profile.name);
+        assert!(
+            package_require_actions(
+                argument_source,
+                at(18),
+                &store,
+                Some(&argument_analysis),
+                &[]
+            )
+            .is_empty()
+        );
+        let mut wrong_config = config;
+        wrong_config.leading_bom = match config.leading_bom {
+            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+        };
+        let mut changed = analysis.clone();
+        changed.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            wrong_config,
+        ));
+        assert!(package_require_actions(source, at(0), &store, Some(&changed), &[]).is_empty());
+    }
+
+    #[test]
+    fn original_package_hint_keeps_literal_position_case_and_existing_require_guards() {
+        // naming.core.original-package-source-action-context
+        // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+        use std::sync::Arc;
+        let input = selected_namespace_package_input();
+        let context = input.context_registry();
+        let store = Arc::clone(context.commands());
+        let profile = input.analyser_profile();
+        for source in [
+            "Tools::missing\n",
+            "puts {tools::missing}\n",
+            "package require tools-runtime\ntools::missing\n",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            let offset = u32::try_from(source.rfind("tools::missing").unwrap_or(0)).unwrap();
+            let position = LineIndex::new(source).position_at_utf16(offset, source);
+            let range = LspRange {
+                start_line: position.line,
+                start_character: position.character.get(),
+                end_line: position.line,
+                end_character: position.character.get(),
+            };
+            assert!(
+                package_require_actions(source, range, &store, Some(&analysis), &[]).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_package_hint_declines_conflicting_unowned_and_foreign_context_rows() {
+        // naming.core.original-package-source-action-context
+        // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
+        use std::sync::Arc;
+        let input = selected_namespace_package_input();
+        let context = input.context_registry();
+        let store = Arc::clone(context.commands());
+        let profile = input.analyser_profile();
+        let config = input.lexer_config();
+        let mut conflicting = tcl_registry::CommandRegistry::build_default();
+        for (name, package) in [
+            ("tools::fetch", Some("tools-runtime")),
+            ("tools::other", Some("foreign-provider")),
+            ("unowned::fetch", Some("own-provider")),
+            ("unowned::other", None),
+        ] {
+            conflicting.insert(tcl_registry::CommandSpec {
+                name,
+                surface: Some(tcl_dialect::model::SpecSurface::TCL86),
+                required_package: package,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+        }
+        let conflicting = Arc::new(conflicting);
+        let conflict_context = Arc::new(context.with_command_store(Arc::clone(&conflicting)));
+        for source in ["tools::missing\n", "unowned::missing\n"] {
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&conflict_context),
+                config,
+            );
+            let analysis = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name);
+            assert!(
+                package_require_actions(source, at(0), &conflicting, Some(&analysis), &[])
+                    .is_empty()
+            );
+        }
+        let foreign = Arc::new(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                .default_context_registry()
+                .with_command_store(Arc::clone(&store)),
+        );
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, foreign, config);
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse("tools::missing\n", profile.name);
+        assert!(
+            package_require_actions("tools::missing\n", at(0), &store, Some(&analysis), &[])
+                .is_empty()
+        );
+    }
+
+
+
 }
 
 #[cfg(test)]
