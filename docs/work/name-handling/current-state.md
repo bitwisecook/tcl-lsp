@@ -22,14 +22,14 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Real C8.4 suites | Native var/proc/rename pass; six original suites retained | Ten namespace assertion failures; upvar/interp refusals; remaining interp failures |
 | Real C8.6 suites | C eight files:1182 pass/85 skip/0 fail; Native proc/rename40/17/0; real init/Tcltest load | Five suite refusals, ooNext2 script error,34 prior assertion failures; fresh all.tcl advances past implemented ParseFormatArgs and stops before suites on missing getenv |
 | Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
-| C8.6 clock/bootstrap | Real original init reaches startup marker after shared 29-name mathfunc constructor roster repair; ten fresh native/C controls pass | ParseFormatArgs now matches eleven C8.6 controls; three focused runtime tests pass. Six other clock support workers; map/worker ordering; VM startup admission; real naming suites measured separately |
+| C8.6 clock/bootstrap | Real init reaches marker; ParseFormatArgs matches eleven C8.6 answers, three runtime object/bootstrap tests and one registry release test pass | Fresh real all.tcl stops before suites at getenv; six other workers and shared-pool lifetime remain unsupported. SelectedC86 object backing parity needs explicit measurement. |
 | VM mathfunc bootstrap | Shared C8.6 roster consumed; genuine Native constructor/header/cached-body regression passes1/1 | Real VM init and legacy9.1 control refuse NativePreflightRequired; 26 lib-test compile-diagnostic clusters repaired;29 existing controls queued behind compiler cache lease, baseline unmeasured |
 | Native compiled foreach | Exact C8.6 crash input now completes; one lifetime regression passes; original stock C/Jim controls retained | C8.5/9.x command-entry refusals; broader iterator conformance |
 | Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Post-offset packaged checks pass2/2; #2287 closed against published `c7b94e8fb`; broader consumer census |
-| Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Retained binding repair passes1/1 but full filter remains6/3. Trace proves factory request has full input while proc point retains Standalone metadata; native header/formals unreached. Genuine provider input producer and two owner controls pass; full filter remains6/3: direct/alias2 warnings (absent plus erroneous prepared cleanup) vs1; original program0vs2. Packaged regression passes2/2; #2286 open |
+| Tcltest diagnostics | Eight diagnostic controls pass; original-program control fails0vs2. Final cleanup-only graph repair keeps20 controls at17pass/3fail. | Establish two loop failures against exact before-source; third refuses procedure lookup. #2286 remains open; original source-input boundary still unresolved. |
 | Compiler residual fixtures | Three constructors now forward their genuine source inputs; build completes; six seeded-parameter controls fail | Shared procedure lookup fails before SCCP/handler assertions; baseline status unknown; no fallback |
 | Backing/generation | 392-command selected-release backing gate,12 backing/21 owner controls, AI drift pass | 165 manifest scope/gate obligations; full required Rust/PR gates |
-| Naming proof bindings | Merged checker: 2,606 records; zero pending/unlinked | Final merged checker:315 implementation-digest errors only; exact902 retained-byte hashes/current sizes corrected without renewing implementation bindings |
+| Naming proof bindings | Last full checker2606 records; zero pending/unlinked;315 stale implementation digests. Eight exact bindings renewed after that capture; Unicode wording corrected. | Sixteen additional reviewed bindings authorised; inverse proofs preserve oracle/status fields. Full checker waits for current source owners to settle. |
 
 Exact raw results and limits:
 
@@ -51,13 +51,14 @@ Exact raw results and limits:
 
 ## Active parallel acceptance
 
-Rust sources are frozen while the compiler cleanup-flow and runtime clock builds
-run in separate caches. VM compilation follows the compiler cache release.
-Seven diagnostic controls have passed; the original-program control still fails
-and one alias control remains unfinished after the bounded build timeout.
-Three exact proof bindings have an independently verified complete inverse;
-these inspections do not replace the full proof checker. Markdown cleanup and
-callback consumer planning continue without changing build inputs.
+Compiler source is temporarily restored to its exact before-snapshot for two
+loop baseline controls; final reviewed source will be restored before further
+acceptance. VM and shared dependency sources stay frozen. Callback consumer
+regression source is prepared but unexecuted; its edit window precedes the next
+VM build. The registry ordered-state integration control passes after the test
+API repair. An explicit crate-scope owner-gate contract is under implementation;
+strict public defaults remain required. Markdown/canonical reviews continue
+without changing these library dependencies.
 
 ## Discovery, appliance answers and cleanup
 
