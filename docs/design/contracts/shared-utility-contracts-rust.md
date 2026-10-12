@@ -4067,3 +4067,10 @@ Conditional structure, schema, expression roles, body topology and Logical
 scalar source modelling use this shared selector. Native compiler preparation,
 inline control, physical frames, completed handlers and Normal results retain
 their independent owners; source layout cannot supply those purposes.
+
+
+The conditional Logical body-topology entry joins the caller's complete
+supplied input to the original invocation metadata before selecting runtime,
+compiler or source layout advice. Sharing a registry does not permit another
+lexer configuration or availability context to donate that source purpose.
+Native body-topology routes retain their existing separate owners.

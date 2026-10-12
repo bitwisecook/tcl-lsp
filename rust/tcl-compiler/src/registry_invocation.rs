@@ -7156,6 +7156,15 @@ pub(crate) fn conditional_body_topology_advice_with_metadata_context(
     if !context.matches_registry(registry) {
         return None;
     }
+    let context = if context.permits_logical_source_names() {
+        tokens.source_binding.as_ref()?.original_invocation_metadata_for_input(
+            tokens,
+            context.source_analysis_input()?,
+            registry,
+        )?
+    } else {
+        context
+    };
     conditional_runtime_body_topology_advice(registry, context, tokens, bindings).or_else(|| {
         original_compilation_body_topology_advice(registry, context, tokens).or_else(|| {
             original_layout_body_topology_advice(
@@ -10190,5 +10199,69 @@ mod original_argument_slice_purpose_tests {
                 );
             }
         }
+    }
+}
+
+
+#[cfg(test)]
+mod original_logical_body_topology_input_tests {
+    use super::*;
+
+    #[test]
+    fn original_logical_body_topology_requires_the_supplied_complete_input_at_same_registry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source topology only; no Native body or compiler admission.
+        let mut analyser = crate::analyser::Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let source = "if {1} {set value VALUE}";
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = input.lexer_config();
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
+            &image,
+            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            config,
+            registry,
+            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        ).unwrap();
+        let segment = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &image, 0, config,
+        ).unwrap().pop().unwrap();
+        let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        bindings.stamp_original_tokens(&mut tokens);
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        assert!(conditional_body_topology_advice_with_metadata_context(
+            registry, metadata, &tokens, &bindings,
+        ).is_some());
+        assert!(tokens.source_binding.as_ref().unwrap().proved_handler_target().is_none());
+        let mut shifted = config;
+        shifted.strict_quoting = !shifted.strict_quoting;
+        let changed = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(), input.unit_profile(), input.context_registry(), shifted,
+        );
+        let changed_metadata = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
+        assert!(changed_metadata.permits_logical_source_names());
+        assert!(conditional_body_topology_advice_with_metadata_context(
+            registry, changed_metadata, &tokens, &bindings,
+        ).is_none());
+        let older = tcl_registry::model::ingress::resolve_known_environment("tcl8.4").unwrap()
+            .default_context_registry();
+        let older = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(), input.unit_profile(),
+            std::sync::Arc::new(older.with_command_store(registry.snapshot().shared_registry())),
+            config,
+        );
+        let older_metadata = InvocationMetadataContext::for_analysis_input(registry, &older).unwrap();
+        assert!(older_metadata.permits_logical_source_names());
+        assert!(older_metadata.matches_registry(registry));
+        assert!(conditional_body_topology_advice_with_metadata_context(
+            registry, older_metadata, &tokens, &bindings,
+        ).is_none());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(conditional_body_topology_advice_with_metadata_context(
+            registry, metadata, &missing, &bindings,
+        ).is_none());
     }
 }
