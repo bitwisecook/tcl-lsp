@@ -600,10 +600,15 @@ impl<'a> OriginalNumericOps<'a> {
         let formatter = self.host.native_integer_formatter();
         current(value)?;
         let reached =
-            value.native_string_bytes_checked_for_value(protocol, formatter, &mut |original| {
-                current(value)?;
-                current(original)
-            });
+            value.native_string_bytes_checked_for_value_retaining(
+                protocol,
+                formatter,
+                &mut |original| {
+                    current(value)?;
+                    current(original)
+                },
+                &|error| self.retain_failure(&error.clone().into()),
+            );
         current(value)?;
         reached
     }
@@ -614,6 +619,23 @@ impl<'a> OriginalNumericOps<'a> {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Rc<[u8]>, CmdError> {
         self.string_using(value, protocol, |original| self.current_for_value(original))
+    }
+
+    /// Compose an original caller/frame check at every reached String stage.
+    pub(crate) fn string_with_original_check(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        check: impl Fn(&mut Vm) -> Result<(), CmdError>,
+    ) -> Result<Rc<[u8]>, CmdError> {
+        self.string_using(value, protocol, |actual| {
+            self.current_for_value(actual)?;
+            let reached = check(&mut self.vm.borrow_mut());
+            if let Err(error) = &reached {
+                self.retain_failure(error);
+            }
+            reached
+        })
     }
 
     pub(crate) fn string_value(

@@ -155,6 +155,68 @@ impl std::fmt::Debug for FunctionHandle {
 }
 
 impl Vm {
+    /// Convert host callback arguments under their already entered operation.
+    ///
+    /// Each original String getter is followed immediately by a counted native
+    /// Unicode projection, before the next argument is read. The original
+    /// frame, namespace, headers and full first cause remain checked throughout.
+    /// This Unicode-required boundary refuses unpaired native units with the
+    /// supplied host diagnostic; absent entered/native providers stay unavailable.
+    ///
+    /// # Errors
+    /// Returns the original typed unwind carrier for missing entered/String
+    /// capability, changed owners or non-text native units.
+    pub fn original_callback_unicode_words(
+        &mut self,
+        values: &[Value],
+        unicode_refusal: &str,
+    ) -> Result<Vec<String>, Completion<Value>> {
+        use crate::interp::{
+            native_name_consumers::OriginalNameConsumerScope,
+            native_numeric_ops::OriginalNumericOps,
+            native_operation_currency::NativeOperationScope,
+        };
+        use tcl_cmd_core::CmdError;
+        use tcl_syntax::value::ValueError;
+
+        let operation = NativeOperationScope::current_entered(self)
+            .map_err(CmdError::from_execution_refusal)
+            .and_then(|entered| {
+                entered.ok_or_else(|| {
+                    ValueError::CommandProtocolUnavailable("entered host callback String batch").into()
+                })
+            })
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let original = OriginalNameConsumerScope::in_original_scope(self, &operation)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| -> Result<Vec<String>, CmdError> {
+            let ops = OriginalNumericOps::in_original_scope(self, &operation)?;
+            let protocol = ops.dialect().native_string_protocol().ok_or(
+                ValueError::CommandProtocolUnavailable("host callback native String provider"),
+            )?;
+            let mut words = Vec::with_capacity(values.len());
+            for value in values {
+                let bytes = ops.string_with_original_check(value, protocol, |vm| original.check(vm))?;
+                let Some(text) = protocol.counted_unicode_text(&bytes) else {
+                    return ops.with_vm_for_value(value, |vm| {
+                        let unwind = vm.refuse_host_command(unicode_refusal.to_owned());
+                        drop(unwind);
+                        Err(CmdError::from_execution_refusal(
+                            vm.execution_refusal.clone().expect("host refusal retained"),
+                        ))
+                    });
+                };
+                words.push(text);
+            }
+            Ok(words)
+        })();
+        // Latch a reached failure before retiring the original namespace lease.
+        let reached = reached.map_err(|error| crate::command::completion_from_cmd_error(self, error));
+        let settled = original.finish(self);
+        settled.map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
+    }
+
     /// Compile `src` to a reusable [`FunctionHandle`], registering any procs it
     /// defines. Needs an injected
     /// [`CompileService`](tcl_runtime_api::CompileService), like every other

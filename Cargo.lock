@@ -4694,6 +4694,7 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-registry",
  "tcl-runtime",
+ "tcl-syntax",
  "tcl-vm",
 ]
 

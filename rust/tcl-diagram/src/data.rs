@@ -501,10 +501,10 @@ fn registry_command(
     tcl_compiler::naming::resolve_command_with::<&str, _>(&namespace, &[], command, |qname| {
         context
             .registry
-            .get(qname.strip_prefix("::").unwrap_or(qname))
+            .get(tcl_syntax::naming::unroot_rooted_key(qname).unwrap_or(qname))
             .is_some()
     })
-    .map(|qname| qname.trim_start_matches("::").to_owned())
+    .map(|qname| tcl_syntax::naming::unroot_rooted_key(&qname).unwrap_or(&qname).to_owned())
 }
 
 /// Whether `command` is a call to a user procedure in `caller_qname`'s

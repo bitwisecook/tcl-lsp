@@ -2529,7 +2529,7 @@ impl Value {
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
     ) -> Result<Rc<[u8]>, tcl_syntax::native_string::NativeStringUnavailable> {
-        self.native_string_bytes_using(protocol, formatter, std::convert::identity, &mut None)
+        self.native_string_bytes_using(protocol, formatter, &std::convert::identity, &mut None)
     }
 
     /// Reach the same String updater with the original caller's currentness check.
@@ -2550,6 +2550,28 @@ impl Value {
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
         check: &mut dyn FnMut(&Value) -> Result<(), E>,
     ) -> Result<Rc<[u8]>, E> {
+        self.native_string_bytes_checked_for_value_using(protocol, formatter, check, None)
+    }
+
+    /// Retain a reached intrinsic failure before the original stage is checked.
+    /// The caller supplies its existing full-cause owner; no new role is acquired.
+    pub(crate) fn native_string_bytes_checked_for_value_retaining<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+        check: &mut dyn FnMut(&Value) -> Result<(), E>,
+        retain: &dyn Fn(&ValueError),
+    ) -> Result<Rc<[u8]>, E> {
+        self.native_string_bytes_checked_for_value_using(protocol, formatter, check, Some(retain))
+    }
+
+    fn native_string_bytes_checked_for_value_using<E: From<ValueError>>(
+        &self,
+        protocol: NativeStringProtocol,
+        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+        check: &mut dyn FnMut(&Value) -> Result<(), E>,
+        retain: Option<&dyn Fn(&ValueError)>,
+    ) -> Result<Rc<[u8]>, E> {
         let mut original = |current: &Value| {
             check(current)?;
             self.check_native_header()?;
@@ -2558,11 +2580,14 @@ impl Value {
         self.native_string_bytes_using(
             protocol,
             formatter,
-            |error| {
-                ValueError::from(
+            &|error| {
+                let error = ValueError::from(
                     tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                )
-                .into()
+                );
+                if let Some(retain) = retain {
+                    retain(&error);
+                }
+                error.into()
             },
             &mut Some(&mut original),
         )
@@ -2584,7 +2609,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
-        failure: fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
+        failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
         check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
     ) -> Result<Rc<[u8]>, E> {
         self.native_string_stage_check(check)?;
@@ -2687,11 +2712,11 @@ impl Value {
                             tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
                         ));
                     }
-                    let reached = formatter.format(kind, value);
-                    self.native_string_stage_check(check)?;
-                    let bytes: Rc<[u8]> = Rc::from(reached.map_err(|_| {
+                    let reached = formatter.format(kind, value).map_err(|_| {
                         failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
-                    })?);
+                    });
+                    self.native_string_stage_check(check)?;
+                    let bytes: Rc<[u8]> = Rc::from(reached?);
                     self.native_string_stage_check(check)?;
                     *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
                     self.0
@@ -2716,9 +2741,9 @@ impl Value {
             return self.materialize_native_compound_using(protocol, formatter, failure, check);
         }
         self.native_string_stage_check(check)?;
-        let reached = self.materialize_native_cache_string(protocol);
+        let reached = self.materialize_native_cache_string(protocol).map_err(failure);
         self.native_string_stage_check(check)?;
-        reached.map_err(failure)
+        reached
     }
 
     fn materialize_native_cache_string(
@@ -2912,7 +2937,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
-        failure: fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
+        failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
         check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
     ) -> Result<Rc<[u8]>, E> {
         enum Backing {

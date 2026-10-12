@@ -91,10 +91,11 @@ impl<'a> OriginalLiteralOperation<'a> {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         registration: &dyn Fn() -> Result<(), crate::literal_pool::NativeLiteralUnavailable>,
     ) -> Result<Vec<u8>, crate::literal_pool::NativeLiteralUnavailable> {
-        let reached = value.native_string_bytes_checked_for_value::<CmdError>(
+        let reached = value.native_string_bytes_checked_for_value_retaining::<CmdError>(
             protocol,
             None,
             &mut |original| {
+                let reached = (|| {
                 if registration().is_err() {
                     self.current_cmd()?;
                     return Err(ValueError::CommandProtocolUnavailable(
@@ -111,7 +112,13 @@ impl<'a> OriginalLiteralOperation<'a> {
                         );
                         CmdError::from_execution_refusal(first)
                     })
+                })();
+                if let Err(error) = &reached {
+                    self.retain(error);
+                }
+                reached
             },
+            &|error| self.retain(&error.clone().into()),
         );
         if let Err(error) = &reached {
             self.retain(error);

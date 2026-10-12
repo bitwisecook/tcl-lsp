@@ -4100,3 +4100,34 @@ declaration-layout issuer records only these child words under the same original
 owner; it creates no RootScript frame, runtime lookup, handler or Native receipt.
 Actual Native entries and rejected current Native owners retain their separate
 protocols.
+
+### Host callback text and outside-core name projections
+
+`Vm::original_callback_unicode_words` converts each host callback operand
+through the existing original String worker and immediately projects its counted
+units with `NativeStringProtocol::counted_unicode_text`. It requires an already
+entered operation and an actual selected native String provider. Supplied-scope
+`OriginalNameConsumerScope` capture retains the original frame, namespace and
+world without creating another entry. Its same-stage checker participates in
+String materialisation and cache publication. Intrinsic String failures are
+retained by the actual entered caller inside the shared Value/compound worker
+before post-stage checks or backing retirement; neutral `None` workers retain
+their existing explicit-independent purpose. Literal registration composes its
+original episode checks and full-cause owner through this same worker.
+
+The Unicode projection is a host text requirement, not a Unicode storage getter
+or a name lookup. It retains counted NUL, combines representable C8 surrogate
+units and requires scalar units for C9 and Jim. Unrepresentable units retain the
+host's supplied refusal; byte consumers remain byte consumers. Pack vocabulary
+callbacks and nested error reporting use this sequential text boundary.
+
+Outside-core constructed descriptor keys remove one root marker with
+`unroot_rooted_key`; they retain literal-colon components. This includes registered
+pack whitelist displays, inferred procedure descriptors, extension reporting
+rows and resolved diagram Registry labels. Written pack vocabulary classification
+and declared binding spelling use `canonical_written_command` for their explicit
+authored source purpose and retain the original spelling separately. Actual
+unknown dispatch attempts command lookup before vocabulary classification. These
+pure projections grant no Native lookup, package, event, source-edit or compiler
+body authority. Rust module paths and restricted stock descriptor labels keep
+their independent owners.

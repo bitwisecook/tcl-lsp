@@ -7,6 +7,7 @@
 
 use std::borrow::Cow;
 
+mod callback_unicode;
 mod name_display;
 pub use name_display::resident_name_label;
 

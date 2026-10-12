@@ -18,6 +18,7 @@ struct Formatter {
     calls: RefCell<Vec<Call>>,
     fail: Cell<bool>,
     format_other_vm: Cell<bool>,
+    retire_name_world: RefCell<Option<Rc<RefCell<super::super::native_name_world::NativeNameWorld>>>>,
     original: RefCell<Option<crate::value::NativeObjectLifetimeLease>>,
     references: RefCell<Vec<usize>>,
     retire_at: Cell<Option<&'static str>>,
@@ -40,6 +41,11 @@ impl Formatter {
         if self.retire_at.get() == Some(stage) {
             let retired = self.retire_owner.borrow_mut().take();
             drop(retired);
+        }
+        if stage == "format" {
+            if let Some(world) = self.retire_name_world.borrow_mut().take() {
+                world.borrow_mut().retire();
+            }
         }
         if stage == "format" && self.format_other_vm.replace(false) {
             let other =
@@ -1842,3 +1848,6 @@ mod original_list_membership_tests;
 
 #[path = "native_string_stage_tests/original_static_lookup_tests.rs"]
 mod original_static_lookup_tests;
+
+#[path = "native_string_stage_tests/callback_unicode_words_tests.rs"]
+mod callback_unicode_words_tests;

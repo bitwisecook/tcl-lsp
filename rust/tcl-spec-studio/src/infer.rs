@@ -423,10 +423,12 @@ fn draft_for_proc(
 
     // The unqualified name is what a caller writes once the namespace is
     // imported; the qualified one is what resolution actually binds.
-    let name = if proc_def.qualified_name.trim_start_matches("::").is_empty() {
+    let qualified = tcl_syntax::naming::unroot_rooted_key(&proc_def.qualified_name)
+        .unwrap_or(&proc_def.qualified_name);
+    let name = if qualified.is_empty() {
         proc_def.name.clone()
     } else {
-        proc_def.qualified_name.trim_start_matches("::").to_owned()
+        qualified.to_owned()
     };
     d.insert("name".into(), json!(name));
     notes.push(format!(
@@ -668,6 +670,17 @@ mod tests {
                     import.commands.iter().map(|c| &c.name).collect::<Vec<_>>()
                 )
             })
+    }
+
+    #[test]
+    fn imported_procedure_descriptor_keeps_colon_named_namespace_holder() {
+        // naming.grammar.shared-written-name-boundaries
+        // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
+        // Real analyser/import consumer; no native dispatch or compiler body authority.
+        let import = import_package(&file("namespace eval : { proc p {} { return OK } }"), "tcl9.0");
+        let procedure = find(&import, ":::p");
+        assert_eq!(procedure.draft["name"], json!(":::p"));
+        assert!(!import.commands.iter().any(|row| row.name == "p"));
     }
 
     #[test]

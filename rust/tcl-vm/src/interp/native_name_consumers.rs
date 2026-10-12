@@ -49,6 +49,24 @@ impl OriginalNameConsumerScope {
         selected: Option<NsId>,
     ) -> Result<Self, CmdError> {
         let operation = NativeOperationScope::enter(vm)?;
+        Self::capture_with_operation(vm, operation, selected)
+    }
+
+    /// Observe the same caller state under an already entered original operation.
+    /// This door neither creates an operation nor promotes descriptive currency.
+    pub(crate) fn in_original_scope(
+        vm: &mut Vm,
+        operation: &NativeOperationScope,
+    ) -> Result<Self, CmdError> {
+        operation.check(vm)?;
+        Self::capture_with_operation(vm, operation.clone(), None)
+    }
+
+    fn capture_with_operation(
+        vm: &mut Vm,
+        operation: NativeOperationScope,
+        selected: Option<NsId>,
+    ) -> Result<Self, CmdError> {
         let frame = vm
             .frames
             .len()
@@ -209,7 +227,32 @@ impl OriginalNameConsumerScope {
 
     pub(crate) fn read(&self, vm: &mut Vm, original: &Value) -> Result<Rc<[u8]>, CmdError> {
         self.check(vm)?;
-        let reached = vm.native_name_operand_bytes_checked(original);
+        let lifetime = original.native_lifetime_lease();
+        let reached: Result<Rc<[u8]>, CmdError> = (|| {
+            let ops = super::native_numeric_ops::OriginalNumericOps::in_original_scope(vm, &self.operation)?;
+            ops.current_for_value(lifetime.value())?;
+            let reached = if let Some(bytes) = lifetime.value().resident_string_bytes() {
+                Ok(bytes)
+            } else {
+                let protocol = ops.dialect().native_string_protocol().ok_or(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(
+                        tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+                    ),
+                )?;
+                ops.string_with_original_check(lifetime.value(), protocol, |vm| self.check(vm))
+            };
+            if let Err(error) = &reached {
+                ops.retain_failure(error);
+            }
+            ops.current_for_value(lifetime.value())?;
+            reached
+        })();
+        if let Err(error) = &reached {
+            if let Some(cause) = error.native_execution_refusal() {
+                vm.retain_tcl_host_failure(TclHostFailure::Execution(cause.clone()));
+            }
+        }
+        drop(lifetime);
         self.check(vm)?;
         reached
     }
