@@ -1,0 +1,9 @@
+# W210 authored read-domain recipe refuses
+
+One exact test executed once and stopped at C8.4 W210 0 versus expected 1. For exercise at offset 61, actual SSA source tokens, binding and declaration report exist; the report owns the original procedure. Dynamic writes are true. Selected/profile RegistrySemanticKey equality is true. Existing original-source report comparison returns an owned report containing absent warnings. Neither SSA carrier absence nor a registry mismatch explains this run.
+
+The authored read-domain factory passes body config, complete input, retained realm, realm/input/image/config currency and recorded original command. The next call original_procedure_read_declaration returns None, so authored advice is None and the dynamic W210 branch cannot invoke its warning consumer. This is the first observed blocking admission boundary. Its internal guard is not yet measured; the API already serves conditional source advice and includes both Logical and Native formal-recipe branches.
+
+Narrow reusable-owner proposal: join the valid original procedure report/header source to the existing authored read-domain factory, retaining exact current input/realm/image/config/registry/body/frame/formal correspondence and every per-read guard. Keep SSA acquisition, as it succeeds. A generic or_else from recipe None is unsafe: absent carrier and invalid retained world are not distinguished. Use a separately sealed conditional original-source projection or preserve a tagged terminal refusal. No display-name object recovery or execution/Normal/physical/edit authority is supplied. No code fix is made or proved.
+
+Both temporary trace owners restored byte-for-byte; all four scoped before/after hashes agree. The post-test recipe owner review is explicitly outside the frozen inventory. Prior experiment records remain unchanged.

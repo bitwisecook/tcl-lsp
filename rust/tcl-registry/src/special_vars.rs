@@ -52,7 +52,7 @@
 use crate::side_effects::SideEffectTarget;
 use crate::taint::TaintColour;
 use tcl_dialect::model::SpecSurface;
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{surface_admits, SurfaceQuery};
 
 /// Native interpreter storage written while presenting an error completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1500,6 +1500,22 @@ impl NativeBootstrapProtocol {
         NativeChildInitialisation { names: self.names }
     }
 
+    /// Audited constructor math-function commands, before library initialisation.
+    /// C8.6's `BuiltinFuncTable` in `tclBasic.c` registers these 29 commands;
+    /// `min` and `max` are procedures supplied by `library/init.tcl`.
+    /// Other constructor inventories are not admitted by this receipt.
+    #[must_use]
+    pub const fn core_mathfunc_roster(self) -> Option<&'static [&'static str]> {
+        match self.names {
+            tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_6) => Some(&[
+                "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double",
+                "entier", "exp", "floor", "fmod", "hypot", "int", "isqrt", "log", "log10", "pow",
+                "rand", "round", "sin", "sinh", "sqrt", "srand", "tan", "tanh", "wide",
+            ]),
+            _ => None,
+        }
+    }
+
     /// Whether the core constructor registers the native binary command.
     /// Jim's binary command is a distribution script over an optional pack
     /// extension, outside `Jim_RegisterCoreCommands`.
@@ -1584,8 +1600,8 @@ impl NativeBootstrapProtocol {
         purpose: NativeBootstrapPurpose,
         default_library: bool,
     ) -> Option<Vec<NativeBootstrapVariable>> {
-        use NativeBootstrapVariable as V;
         use tcl_syntax::naming::NativeNameProtocol as N;
+        use NativeBootstrapVariable as V;
         if purpose == NativeBootstrapPurpose::MainArguments {
             return match self.names {
                 N::C(_) => Some(vec![V::Argv0, V::Argc, V::Argv, V::Interactive]),
@@ -1700,17 +1716,14 @@ mod native_bootstrap_tests {
         )
         .native_bootstrap_protocol()
         .unwrap();
-        assert!(
-            jim.allocations(NativeBootstrapPurpose::MainArguments, false)
-                .is_none()
-        );
-        assert!(
-            crate::InvocationDialect::of_profile(
-                tcl_dialect::DialectProfile::find("f5-irules").unwrap()
-            )
-            .native_bootstrap_protocol()
-            .is_none()
-        );
+        assert!(jim
+            .allocations(NativeBootstrapPurpose::MainArguments, false)
+            .is_none());
+        assert!(crate::InvocationDialect::of_profile(
+            tcl_dialect::DialectProfile::find("f5-irules").unwrap()
+        )
+        .native_bootstrap_protocol()
+        .is_none());
     }
 }
 
@@ -1763,11 +1776,9 @@ mod native_error_variable_tests {
         }
         for name in ["jim", "f5-irules"] {
             let profile = crate::model::resolve_environment(name).unit_profile();
-            assert!(
-                crate::InvocationDialect::of_profile(profile)
-                    .native_error_variable_protocol()
-                    .is_none()
-            );
+            assert!(crate::InvocationDialect::of_profile(profile)
+                .native_error_variable_protocol()
+                .is_none());
         }
     }
 }

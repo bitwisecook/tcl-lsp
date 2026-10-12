@@ -1,0 +1,20 @@
+{
+  "metadata_sha256": "b9b0ebc906dd0d5c40726242762053a8a5af35055fb2e388c9d23cf6eef8c26a",
+  "selection": "runtime root normal/build/dev edges; other packages normal/build edges; local rs/c/h and manifests",
+  "packages": [
+    "tcl-bytecode",
+    "tcl-cmd-core",
+    "tcl-core-types",
+    "tcl-dialect",
+    "tcl-host-c-abi",
+    "tcl-host-native",
+    "tcl-lexer",
+    "tcl-platform",
+    "tcl-regex",
+    "tcl-registry",
+    "tcl-runtime",
+    "tcl-runtime-api",
+    "tcl-syntax",
+    "tcl-test-support"
+  ]
+}

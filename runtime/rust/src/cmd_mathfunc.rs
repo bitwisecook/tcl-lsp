@@ -40,7 +40,12 @@ use crate::obj::{self, TclObj};
 
 /// Register `::tcl::mathfunc::*`.
 pub fn install(interp: &mut Interp) {
-    for name in crate::builtins::mathfunc_names() {
+    let names = interp
+        .native_invocation_dialect()
+        .native_bootstrap_protocol()
+        .and_then(tcl_registry::special_vars::NativeBootstrapProtocol::core_mathfunc_roster)
+        .map_or_else(crate::builtins::mathfunc_names, <[_]>::to_vec);
+    for name in names {
         let mut full = b"::tcl::mathfunc::".to_vec();
         full.extend_from_slice(name.as_bytes());
         interp.register_stock_builtin(&full, mathfunc);
@@ -256,6 +261,63 @@ fn wrong_func_args(interp: &mut Interp, prefix: &[u8], fname: &str) -> Code {
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+
+    #[test]
+    fn c86_mathfunc_birth_shapes_preserve_currency_and_present_replacement_invalidates() {
+        use crate::namespace::{NativeCompilerRecipe, GLOBAL};
+
+        counters::reset();
+        for (source, name, recipe) in [
+            (
+                &b"proc boot {} {proc ::tcl::mathfunc::min args {}; set marker after}; boot"[..],
+                &b"::tcl::mathfunc::min"[..],
+                NativeCompilerRecipe::ProcedureNoOp,
+            ),
+            (
+                &include_bytes!("../../../experiments/name-handling/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl")[..],
+                &b"::tcl::mathfunc::max"[..],
+                NativeCompilerRecipe::Absent,
+            ),
+        ] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("tcl8.6"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            for absent in [b"::tcl::mathfunc::min", b"::tcl::mathfunc::max"] {
+                assert!(interp.resolve_cmd_token(absent).is_none());
+            }
+            let before = interp.native_compiler_cache_epochs(GLOBAL).unwrap();
+            assert_eq!(interp.eval_str(source), Code::Ok);
+            assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
+            let generation = interp.resolve_cmd_token(name).unwrap();
+            assert_eq!(
+                interp.namespaces().native_compiler_recipe(generation).as_ref(),
+                Some(&recipe)
+            );
+            if recipe == NativeCompilerRecipe::ProcedureNoOp {
+                assert_eq!(interp.result_bytes(), b"after");
+                assert_eq!(
+                    interp.eval_str(b"proc ::tcl::mathfunc::min args {return changed}"),
+                    Code::Ok
+                );
+                let replacement = interp.resolve_cmd_token(name).unwrap();
+                assert_ne!(replacement, generation);
+                assert_eq!(
+                    interp.namespaces().native_compiler_recipe(replacement),
+                    Some(NativeCompilerRecipe::Absent)
+                );
+                assert_eq!(
+                    interp.native_compiler_cache_epochs(GLOBAL),
+                    Some((before.0 + 1, before.1))
+                );
+            }
+        }
+        assert_eq!(counters::finalize(), 0);
+        assert_eq!(counters::double_free_count(), 0);
+        assert!(!counters::oom());
+    }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();

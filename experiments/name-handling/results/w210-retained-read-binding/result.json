@@ -1,0 +1,83 @@
+{
+  "question": "Does forwarding the existing original binding repair authored-read factory input and Tcltest W210 diagnostics?",
+  "answer": "It repairs the concrete consumer token carrier and passes the owner regression, but Tcltest remains 6pass/3fail: C8.4 missing-read controls still emit W210 0 rather than1/1/2. No W210 fix is claimed.",
+  "production_owner": "rust/tcl-compiler/src/script_binds.rs",
+  "production_change": "Forward the SAME realm-issued binding onto the complete vector already reconstructed and verified by original_recorded_command. Syntax-only producer unchanged; no new point/frame/identity/fallback/guard bypass.",
+  "regression": "Enhanced existing declaration_read_advice_requires_original_unchanged_body_and_formals: unbound reconstruction refuses, same binding accepts, changed procedure-name vector refuses, existing changed formals/image/missing input/foreign context still refuse.",
+  "checks": [
+    {
+      "name": "owner-regression",
+      "command": "owner-regression-command.sh",
+      "started_utc": "2026-10-12T19:18:24.213196+00:00",
+      "elapsed_seconds": 214.94,
+      "exit_code": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      }
+    },
+    {
+      "name": "tcltest-9",
+      "command": "tcltest-9-command.sh",
+      "started_utc": "2026-10-12T19:21:59.154708+00:00",
+      "elapsed_seconds": 130.484,
+      "exit_code": 101,
+      "counts": {
+        "passed": 6,
+        "failed": 3
+      }
+    }
+  ],
+  "packaged_consumer_check": {
+    "executed": false,
+    "reason": "Conditional on green Tcltest9; that filter remains red."
+  },
+  "remaining_failures": [
+    {
+      "control": "direct",
+      "profile": "tcl8.4",
+      "w210_actual": 0,
+      "w210_expected": 1
+    },
+    {
+      "control": "alias",
+      "profile": "tcl8.4",
+      "w210_actual": 0,
+      "w210_expected": 1
+    },
+    {
+      "control": "original-oracle-program",
+      "profile": "tcl8.4",
+      "w210_actual": 0,
+      "w210_expected": 2
+    }
+  ],
+  "next_boundary": "Native fixture admission beyond the now-forwarded token binding remains unmeasured. First record existing factory metadata availability/source-purpose result; if those succeed, trace native header shape, original_declaration_operand_input native policy/currentness and formal topology. Do not weaken any guard or automatically run another trace.",
+  "source_before": "source-before.json",
+  "source_frozen": "source-frozen.json",
+  "source_after": "source-after.json",
+  "source_status": {
+    "after_equals_frozen": true,
+    "only_script_binds_changed_from_before": true,
+    "owner_before_sha256": "eb42a9c595bb611f7ef1839f659c342d1b73407390537ebaf37781c2a105b1b3",
+    "owner_frozen_after_sha256": "79b67e1d58c31aba77a1e9b643bea6126839d730973ada8f310b572d8d60ed0f",
+    "shared_special_vars_frozen_sha256": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+  },
+  "scope": "One owner regression + one nine-control compiler filter. No packaged post-change test, native oracle/runtime conformance/full-gate/issue closure claim. Independent runtime/security work excluded from scoped inventory.",
+  "artifact_sha256": {
+    "owner-regression.stdout": "d38ae3de82f74cf20734fa295a5a1aabe77dcb651002c117628fd94ad5a3fcde",
+    "owner-regression-command.sh": "428937b89bcff0c3caca825cc36d648f59b1bd4ec0c49a9609dfdcd87c43baf6",
+    "owner-regression.stderr": "a5c3229d796e10522527e3f06f2be0b13b9762f2d7a6621faa6692c0aecb57be",
+    "script_binds-before.rs.gz": "42af13a6601b0c4cf0def4059b74528e6441b05c27509033b2c42df0adc65007",
+    "owner-regression-result.json": "7818525c31bcc445a683ec56f55052fd509a0f6f35e52ab780eeec0120e6a549",
+    "tcltest-9.stderr": "8632fb76cdad12adc34f9ad9bb7042c5d5dad4356da43dcef04bcf111f1a1bf0",
+    "source-frozen.json": "db96eefd15c3ec3aecbec6e8c64d0dc14642598721c3a8d8e122d5ec817f4c2d",
+    "script_binds-frozen.rs.gz": "89138912264704e9175280a3fd98f7517cbb3d2b650d570512f08a6211e22ee6",
+    "question.md": "d1361f5663b0d317e07b477d45a4dfc71224be4737c2abe44c8c1a988718fda4",
+    "source-after.json": "db96eefd15c3ec3aecbec6e8c64d0dc14642598721c3a8d8e122d5ec817f4c2d",
+    "tcltest-9-command.sh": "ac6378b03b8c555b44a9004f56245fa47fe57e8746ac13057f65ec87df4b3d9d",
+    "source-before.json": "fec3779b8d61efc69f0179774bddf6f65e654d77276054949dd451e36fbe7390",
+    "tcltest-9.stdout": "35bd6d39dd4d4d5782d9c27ad013d6ff64db6a9a96ea49403396cba074e16a32",
+    "tcltest-9-result.json": "1b13983b78b68eb7f8fbb79a4849662244d52ad6f671e02ba7e1ecea8393e583"
+  }
+}

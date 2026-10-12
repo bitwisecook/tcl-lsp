@@ -1,0 +1,37 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 03s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+W210_CONSUMER entry ir-procedure=false dynamic-writes=true declared-flow=false definite-absent=false registry-key-equal=true
+W210_CONSUMER ssa-query procedure-offset=61
+W210_CONSUMER ssa-stage index=18446744073709551615 tokens=false
+W210_CONSUMER ssa-stage index=0 tokens=false
+W210_CONSUMER ssa-stage index=18446744073709551615 tokens=false
+W210_CONSUMER ssa-stage index=18446744073709551615 tokens=false
+W210_CONSUMER ssa-stage index=0 tokens=true
+W210_CONSUMER ssa-stage index=0 binding=true
+W210_CONSUMER ssa-stage index=0 report=true original-owner=true
+W210_CONSUMER entry ir-procedure=true dynamic-writes=true declared-flow=true definite-absent=false registry-key-equal=true
+W210_CONSUMER compare original-source-report=true original-owner=true original-warning-absent=true
+W210_CONSUMER authored procedure-offset=61 guard=body-config passed=true
+W210_CONSUMER authored procedure-offset=61 guard=resolved-input passed=true
+W210_CONSUMER authored procedure-offset=61 guard=retained-realm passed=true
+W210_CONSUMER authored procedure-offset=61 guard=realm-input-current passed=true
+W210_CONSUMER authored procedure-offset=61 guard=realm-image-current passed=true
+W210_CONSUMER authored procedure-offset=61 guard=input-config passed=true
+W210_CONSUMER authored procedure-offset=61 guard=recorded-command passed=true
+W210_CONSUMER authored procedure-offset=61 guard=read-declaration-recipe passed=false
+W210_CONSUMER dynamic authored-advice=false declared-flow=true
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (186755) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-compiler --lib`

@@ -1,0 +1,79 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "environment_file": "/tmp/name-env.sh",
+  "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime",
+  "owners": [
+    "rust/tcl-registry/src/special_vars.rs",
+    "runtime/rust/src/cmd_mathfunc.rs"
+  ],
+  "source_before": "source-before.json",
+  "source_frozen": "source-frozen.json",
+  "source_after": "source-after-build.json",
+  "build_source_comparison": "build-source-comparison.json",
+  "attempts": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "cmd_mathfunc::tests::c86_mathfunc_birth_shapes_preserve_currency_and_present_replacement_invalidates",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "test-compile-failure.log",
+      "log_sha256": "2346a7ada48508a2dd0798de07f1bfcae08c73d4430a896e383382703a7dcfa8",
+      "outcome": "new test moved expected recipe; no test executed; exact failed owner cmd_mathfunc-first-attempt.rs.gz plus source-first-attempt.json"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "cmd_mathfunc::tests::c86_mathfunc_birth_shapes_preserve_currency_and_present_replacement_invalidates",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "test-exact.log",
+      "log_sha256": "b714cb4070141913a1239e4f48edc04c64f153216c76c45a18332ded18fd3db7",
+      "matched_tests": 1,
+      "passed_tests": 1
+    },
+    {
+      "argv": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--example",
+        "run_script"
+      ],
+      "exit_code": 0,
+      "log": "runner-build.log",
+      "log_sha256": "d047d359652cb1377d4e3ef2aea9727ddbbf46aa79a7508c6481458b54152ca2",
+      "build_count": 1
+    }
+  ],
+  "runtime_binary": "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+  "runtime_binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+  "c_probe_preserved_path": "/tmp/name-native-c86-mathfunc-bootstrap-captured-c86-probe",
+  "c_probe_sha256": "1c4df0d3b98640e99815305965622b6e444e9c30da8e25823013c7e405022e78",
+  "binary_preservation": "C probe originally executed at captured/c86-probe; relocated unchanged to /tmp to keep repository evidence small. Captured argv retains original executed path.",
+  "runner_attribution": "run_script.rs188 uses Interp::with_native_core with NativeHost and exact8.6 profile;196\u2013221 calls init_library_completion before startup script. interp.rs6830\u20136890 reads TCL_LIBRARY/init.tcl through host filesystem and eval_sourced with native currency checks.",
+  "unexecuted": [
+    "command-backing gate against this new source",
+    "workspace rust-check/prep-pr",
+    "tcltest harness or broader Tcl conformance suite",
+    "other release constructor inventories",
+    "VM consumer repair"
+  ],
+  "observed_inherited_backend_overlay_after_capture": null,
+  "backing_gate_scope": "Read-only command_backing.rs178\u2013239/263\u2013293 selects C9.0/C9.1 reports, whose installers are unchanged. Gate not rerun; it does not measure C8.6 library-owned mathfunc bootstrap absence. No declaration or waiver changed."
+}

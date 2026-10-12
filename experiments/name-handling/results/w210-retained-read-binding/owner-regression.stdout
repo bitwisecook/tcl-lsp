@@ -1,0 +1,6 @@
+
+running 1 test
+test script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9557 filtered out; finished in 0.63s
+

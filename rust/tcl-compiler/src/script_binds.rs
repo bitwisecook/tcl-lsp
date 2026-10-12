@@ -406,7 +406,8 @@ pub(crate) fn authored_procedure_read_advice(
         return None;
     }
     let binding = realm.invocation_at_source("", procedure.span.start());
-    let (_, tokens) = binding.original_recorded_command()?;
+    let (_, mut tokens) = binding.original_recorded_command()?;
+    tokens.source_binding = Some(binding);
     let recipe = realm
         .source_bindings_ref()
         .original_procedure_read_declaration(&tokens, context.commands(), input)?;
@@ -635,6 +636,29 @@ mod tests {
         );
         let procedure = &unit.ir_module.procedures["::p"];
         let image = tcl_lexer::SourceImage::document(source);
+        let realm = analysis.retained_command_realm().unwrap();
+        let binding = realm.invocation_at_source("", procedure.span.start());
+        let (_, mut tokens) = binding.original_recorded_command().unwrap();
+        assert!(tokens.source_binding.is_none());
+        assert!(realm
+            .source_bindings_ref()
+            .original_procedure_read_declaration(&tokens, context.commands(), input)
+            .is_none());
+        tokens.source_binding = Some(binding);
+        assert!(realm
+            .source_bindings_ref()
+            .original_procedure_read_declaration(&tokens, context.commands(), input)
+            .is_some());
+        let mut changed_tokens = tokens.clone();
+        let crate::ir::WordExpr::Literal { text, .. } = &mut changed_tokens.word_exprs[1] else {
+            panic!("literal procedure name");
+        };
+        *text = "q".into();
+        changed_tokens.argv_texts[1] = "q".into();
+        assert!(realm
+            .source_bindings_ref()
+            .original_procedure_read_declaration(&changed_tokens, context.commands(), input)
+            .is_none());
         let advice =
             super::authored_procedure_read_advice(&image, procedure, &analysis, &context).unwrap();
         assert!(advice.owns(tcl_lexer::Span::new(

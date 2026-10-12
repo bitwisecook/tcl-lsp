@@ -1,0 +1,94 @@
+{
+  "question": "Where do successful lifecycle phases lose original child layouts or absent warning eligibility?",
+  "answer": "They do not at the traced boundaries. Phase sources and child layouts are admitted; authored absent reaches warning_reads. The warning consumer getters are not called. The actual pre-consumer refusal is not yet instrumented.",
+  "test": "analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque",
+  "test_executions": 1,
+  "successful_compilations": 1,
+  "compile_only_failures": 0,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  },
+  "first_profile": "tcl8.4",
+  "w210": {
+    "actual": 0,
+    "expected": 1
+  },
+  "test_status": {
+    "command": "command.sh",
+    "started_utc": "2026-10-12T18:27:50.019130+00:00",
+    "elapsed_seconds": 186.89,
+    "exit_code": 101
+  },
+  "trace_observations": {
+    "phase_source_present": true,
+    "phase_jobs_scheduled": 6,
+    "phase_argument_positions": [
+      7,
+      5,
+      3
+    ],
+    "child_command_offsets": [
+      102,
+      125,
+      141,
+      165
+    ],
+    "child_layouts_present": true,
+    "child_original_rows_present": true,
+    "source_frame_kind": "Procedure",
+    "caller_frame_kind": "Procedure",
+    "source_entry_kind": "Body",
+    "caller_entry_kind": "Body",
+    "child_entry_frame_config_words_equal": true,
+    "child_commands_selected": true,
+    "absent_source_offset": 146,
+    "absent_authored": true,
+    "absent_retained_local_read": false,
+    "absent_warning_path_present": true,
+    "absent_warning_path_unknown_writers": false,
+    "absent_in_final_authored_reads": true,
+    "absent_in_final_warning_reads": true,
+    "report_warning_counts": [
+      2,
+      2
+    ],
+    "report_count": 2,
+    "warning_getter_consumption_calls": 0,
+    "warning_prefix_stop_count": 0
+  },
+  "observed_refusal": "retained_local_read=false for absent, but this does not block authored occurrence or warning eligibility; no blocking graph refusal was observed.",
+  "source_review_next_boundary": {
+    "w210_report_acquisition": "dataflow.rs:1575 uses function_declaration_flow, which at4122 searches only SSA source-token bindings.",
+    "separate_source_acquisition": "dataflow.rs:894 conditional store diagnostics acquire head_identities original_procedure_declaration_flow before the SSA route.",
+    "pre_warning_getter_guards": "declaration_potential_read_spans requires authored procedure advice, a report and owns_original_procedure before calling the warning occurrence getter. These guard verdicts were not instrumented.",
+    "limit": "Zero getter calls establishes that warning consumption was not entered, not which earlier acquisition/ownership guard failed."
+  },
+  "manufacturer_proposal": "Do not change child-layout or lifecycle manufacturers: exact source/frame observations and warning candidates already exist. First instrument W210 report acquisition, authored_procedure_read_advice and report.owns_original_procedure. If the SSA carrier alone is absent, feed W210 the same independently sealed original-procedure report used by conditional store diagnostics, preserving source/input/provider correspondence and all existing declaration, alias, suppression, known-defined and guard admission checks. Report has two warning candidates, so direct unfiltered emission is not justified. Supply no Native point/Normal handler/physical read/store/edit authority and do not bypass invalid reached owners.",
+  "production_restoration": {
+    "owner": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+    "instrumented_after_equals_instrumented_before": true,
+    "restored_bytes_equal_original": true,
+    "all_five_scoped_hashes_equal_before": true,
+    "restored_sha256": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf"
+  },
+  "scope": "One compiler negative-control execution; no oracle/runtime/full-suite/Normal/edit authority claim. Independent runtime source excluded; consumer owner reviewed only after execution.",
+  "artifact_sha256": {
+    "dataflow-reviewed.rs.gz": "efce339ee853c1b73c643bb24e9eed5690b729c36a7026454b44c00ba147966e",
+    "declaration_flow-original.rs.gz": "3cb1c62eaaf54cd3d8e9a11c1f5f0f9953e0a927cca30f8193168f0e2207e569",
+    "test-source.rs": "a79d62711fac8db2a06125c428075f38d02e5d7ec055aeb8935d824fdb0cd5e2",
+    "input.tcl": "6e6003645fbfa73941dd80e0d49f2f598eaa168cfcf5684fa9648ca00f565db7",
+    "question.md": "63d5354463d3a1d50aaf745ba3ee8c3cc9ee9453496d4bf727099c461e88145e",
+    "declaration_flow-instrumented.rs.gz": "ef28d7c09ca2f7e0bb0a6063ff77e3344ad468ff5d5cc380e0e73e49a05fdab7",
+    "test-status.json": "3cefc535a9a7f6669dadac90ff7f992d71596b645305a5a07b4d01d2148e228b",
+    "source-after.json": "b2487ca2e485c1a3dad29e4aaabb72a004d7be9717c7f6134506b2c77d11381c",
+    "raw-trace.log": "a0e33f235f0175d093973d2bd1287991e307c4bbfaa15d977c6cca1be7f6b705",
+    "stderr.log": "1792f8e6bf2e61cf70b01002b32f4f7e22cc35685ff26ae884a1febe6343c0c5",
+    "command.sh": "66654f4b175c00dac0071e9f1d4cc5a69987b55585d166318806d9f12970326d",
+    "source-before.json": "b2487ca2e485c1a3dad29e4aaabb72a004d7be9717c7f6134506b2c77d11381c",
+    "stdout.log": "c9f3f0c37e6545c043f2ae504fc4a2ec7d81b93f71c4dcac994d0db4a799e45a",
+    "consumer-review-source.json": "32b6340d1dc6bae75cd7f9781a3df23c71248b1a8c2bf96601a2d50fd6b66b8c",
+    "source-instrumented-after.json": "05509dde81687642dedd510cc2e4fa7c1ed5bff5f0b55880978bb6b8ab9cde52",
+    "source-instrumented.json": "05509dde81687642dedd510cc2e4fa7c1ed5bff5f0b55880978bb6b8ab9cde52"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "question": "Which W210 consumer acquisition/admission guard actually blocks the direct C8.4 control?",
+  "answer": "The dynamic W210 branch rejects authored read advice: original_procedure_read_declaration returns None after all preceding source-currentness guards pass. Actual SSA report acquisition and original procedure ownership succeed; registry semantic keys match.",
+  "test": "analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque",
+  "test_executions": 1,
+  "successful_compilations": 1,
+  "compile_only_failures": 0,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  },
+  "first_profile": "tcl8.4",
+  "w210": {
+    "actual": 0,
+    "expected": 1
+  },
+  "test_status": {
+    "command": "command.sh",
+    "started_utc": "2026-10-12T18:39:40.463361+00:00",
+    "elapsed_seconds": 186.516,
+    "exit_code": 101
+  },
+  "actual_w210_observations": {
+    "ir_procedure_present": true,
+    "procedure_offset": 61,
+    "dynamic_writes": true,
+    "definite_absent_read": false,
+    "ssa_tokens_present": true,
+    "ssa_binding_present": true,
+    "ssa_report_present": true,
+    "ssa_report_owns_original_procedure": true,
+    "declared_flow_present": true,
+    "selected_profile_registry_semantic_keys_equal": true,
+    "source_report_comparison_present": true,
+    "source_report_owns_original_procedure": true,
+    "source_report_warning_absent": true,
+    "authored_preceding_guards_passed": [
+      "body-config",
+      "resolved-input",
+      "retained-realm",
+      "realm-input-current",
+      "realm-image-current",
+      "input-config",
+      "recorded-command"
+    ],
+    "first_failed_api": "SourceCommandBindings::original_procedure_read_declaration",
+    "authored_read_advice_present": false
+  },
+  "exact_uninstrumented_callsite": "script_binds.rs:412; authored_procedure_read_advice returns None at the recipe ? before W210 dataflow.rs:1584 can invoke declaration_potential_read_spans.",
+  "internal_refusal_limit": "No inner guard of original_procedure_read_declaration was traced. Afterward source review at declaration_preview.rs:422 shows full metadata, token binding/invocation site, current image, source-purpose, original row/config/vector/dialect/target/native-formal recipe and unanimity checks. The caller observation does not identify which one refused.",
+  "source_report_comparison_effect": "Existing immutable owner API; only derived inventory/report caches updated, excluded from semantic source identity. No guard fallback or semantic state/execution change.",
+  "small_patch_proposal": "Retain the valid SSA report acquisition. Extend the existing authored read-domain owner to accept the same independently current original-procedure report/header source correspondence for conditional diagnostic advice, using the report original Body image/allocation/body-offset/text/formal frame plus current input/realm/config/registry correspondence and original header/vector/raw-formal checks. Keep all per-read alias/suppression/known-defined/array/existence/owned-span gates. Do not blindly fallback from original_procedure_read_declaration None: it conflates absent source carrier and invalid retained owner; preserve terminal invalid reached/owner refusal through explicit owner classification or a separate sealed conditional source route. Do not reconstruct object/frame from display names or grant Native/Normal/physical read/store/edit authority. Inner recipe manufacturer still needs reviewed reason before a production change.",
+  "production_restoration": {
+    "owners": [
+      "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "rust/tcl-compiler/src/script_binds.rs"
+    ],
+    "instrumented_after_equals_instrumented_before": true,
+    "restored_bytes_equal_original": true,
+    "all_four_scoped_hashes_equal_before": true,
+    "restored_owner_sha256": {
+      "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": "23a6715e7cde3633a4db0f6f30dfeb131771310f37667cecbc3c62380017e123",
+      "rust/tcl-compiler/src/script_binds.rs": "eb42a9c595bb611f7ef1839f659c342d1b73407390537ebaf37781c2a105b1b3"
+    }
+  },
+  "scope": "One compiler negative-control execution only; no oracle/runtime/full-suite/fix claim. Two temporary trace owners restored. Independent runtime source excluded; declaration_preview reviewed afterward.",
+  "artifact_sha256": {
+    "dataflow-original.rs.gz": "efce339ee853c1b73c643bb24e9eed5690b729c36a7026454b44c00ba147966e",
+    "test-source.rs": "a79d62711fac8db2a06125c428075f38d02e5d7ec055aeb8935d824fdb0cd5e2",
+    "script_binds-original.rs.gz": "42af13a6601b0c4cf0def4059b74528e6441b05c27509033b2c42df0adc65007",
+    "input.tcl": "6e6003645fbfa73941dd80e0d49f2f598eaa168cfcf5684fa9648ca00f565db7",
+    "dataflow-instrumented.rs.gz": "d406f22908018e58f17f102bb4af7036638c71672712d04c891bd1e70faaf94d",
+    "script_binds-instrumented.rs.gz": "57c7d88f1d0bc8a5dfe8d2a4b19820362a9bbc3c0a8756781f59d8a8e45669e2",
+    "question.md": "384bce073bf0a37a3b240948135bc41d854fdf52603be0a4fdd356e9995dc1ff",
+    "test-status.json": "aa985d3f8eb437733c493a6b2869e97ee28666f44026ebc264cdd151de4ce21e",
+    "source-after.json": "b009f52661d577cdf5f143102957f9f4e8cc9dcfc3dde02b17ee1fafeacb6396",
+    "raw-trace.log": "2f893512324ae98c0f61d736780a9b83441397445bdf7517dae2ca960ca8bb8e",
+    "declaration_preview-reviewed.rs.gz": "7050fdbe2992e0d18b741ac17a5331732935068ba75b6ff4d247fad64b17763e",
+    "stderr.log": "4a94d136ea68ce955682d3df5c9d03af1c6fef99c4f15c6717db3d1ced856c77",
+    "command.sh": "620b4308e99e67606277d4acec2c76134b301a23ac26a13f62b809a5f4997ea3",
+    "source-before.json": "b009f52661d577cdf5f143102957f9f4e8cc9dcfc3dde02b17ee1fafeacb6396",
+    "stdout.log": "4c0104a7aadd1f040454e7e5b499611ec55270d05c4246afeea4d2d6e4b824ee",
+    "owner-review-after.json": "7222da6c8ec2e84c5e19e6392f94e329e76915f4b7054d95b398240a18a2c955",
+    "source-instrumented-after.json": "24ef5405739815caf03893861f983c0f75a88570971da6610a7acbc5f8467468",
+    "source-instrumented.json": "24ef5405739815caf03893861f983c0f75a88570971da6610a7acbc5f8467468"
+  }
+}

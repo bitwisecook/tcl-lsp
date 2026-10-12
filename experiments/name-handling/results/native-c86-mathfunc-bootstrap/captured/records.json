@@ -1,0 +1,195 @@
+{
+  "question": "Does the measured C8.6 constructor roster permit genuine mathfunc procedure births while preserving independent compiler currency, and how far does real init reach?",
+  "context": "Fresh constructor per process. Native inputs use core-only except the single real init. C API uses Tcl_CreateInterp before any library init. No tcltest harness verdict or other-profile roster inference.",
+  "compile_argv": [
+    "cc",
+    "-DHAVE_UNISTD_H=1",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+    "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured/c86-probe"
+  ],
+  "compile_exit_code": 0,
+  "source_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c": "c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclConfig.sh": "661a8cf02373f7ef5fe3bbd6bac12fac4c5e330f4e7ed744cb06c289602dcd79"
+  },
+  "runs": [
+    {
+      "case": "c86-constructor",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured/c86-probe",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/constructor-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/constructor-input.tcl",
+      "input_sha256": "969fcad4aaa68aec80b1518bd7b63ab5f179e8acfe74ab2a7778b4aa0e4f04a8",
+      "binary_sha256": "1c4df0d3b98640e99815305965622b6e444e9c30da8e25823013c7e405022e78",
+      "stdout_sha256": "655360114e9bf4240903a972c52f32d342cd8963ac00106a25252e7cab550dcd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-constructor",
+      "argv": [
+        "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/constructor-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/constructor-input.tcl",
+      "input_sha256": "969fcad4aaa68aec80b1518bd7b63ab5f179e8acfe74ab2a7778b4aa0e4f04a8",
+      "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+      "stdout_sha256": "7e0a50ccdb69874b722ea3aed80f56b75f8b029e89dc3d20192c809ded1c9697",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c86-empty-birth",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured/c86-probe",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/empty-birth-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/empty-birth-input.tcl",
+      "input_sha256": "72a6f4518eaf6e8a3f24a7db9f5d428dec1a5e2ae27f76e5efdb3521d2dea7ae",
+      "binary_sha256": "1c4df0d3b98640e99815305965622b6e444e9c30da8e25823013c7e405022e78",
+      "stdout_sha256": "06c32595f35788025681364733f4b49202ff06f914b98fd0c82c6a72af2c6827",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-empty-birth",
+      "argv": [
+        "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/empty-birth-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/empty-birth-input.tcl",
+      "input_sha256": "72a6f4518eaf6e8a3f24a7db9f5d428dec1a5e2ae27f76e5efdb3521d2dea7ae",
+      "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c86-init-max-shape",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured/c86-probe",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl",
+      "input_sha256": "2d07caf7d32c41c5dda5697ec6dd7632c01e86b324d70c22adc0b28898af2a09",
+      "binary_sha256": "1c4df0d3b98640e99815305965622b6e444e9c30da8e25823013c7e405022e78",
+      "stdout_sha256": "ee56f39e5bab00dad98d4d1d00fa94eb45cbcbb290a2dbcccb33c57e300c4e51",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-init-max-shape",
+      "argv": [
+        "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl",
+      "input_sha256": "2d07caf7d32c41c5dda5697ec6dd7632c01e86b324d70c22adc0b28898af2a09",
+      "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+      "stdout_sha256": "7b9a72466d3960eb2aacccfc848939453490db0678bd4725def3f789b891c919",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c86-present-replacement",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured/c86-probe",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/present-replacement-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/present-replacement-input.tcl",
+      "input_sha256": "b4c351ff7fe90a10cd3a6cc1daeb2744c3044748b49d473bbef7208ac47c2854",
+      "binary_sha256": "1c4df0d3b98640e99815305965622b6e444e9c30da8e25823013c7e405022e78",
+      "stdout_sha256": "bc265c4770f511f09f8daee8da75c997607f8d24aebfea449a7284d04e81bdb5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-present-replacement",
+      "argv": [
+        "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/present-replacement-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/present-replacement-input.tcl",
+      "input_sha256": "b4c351ff7fe90a10cd3a6cc1daeb2744c3044748b49d473bbef7208ac47c2854",
+      "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c86-real-init",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured/c86-probe",
+        "init"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": null,
+      "input_sha256": null,
+      "binary_sha256": "1c4df0d3b98640e99815305965622b6e444e9c30da8e25823013c7e405022e78",
+      "stdout_sha256": "66344f443be57fe71fe102c5bcfdaa46a1f60bc729ef8dd76f52da859c7ea68c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-real-init",
+      "argv": [
+        "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/startup-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/startup-input.tcl",
+      "input_sha256": "4acce5d2a860f41d7695ecdac170a9783694d1c1cf9a139b408fc0231a319093",
+      "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+      "stdout_sha256": "d38b9a7c7cb7ca852d535a353a07f959e3d6e69033cd368afbfdd9327103fccd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    }
+  ]
+}

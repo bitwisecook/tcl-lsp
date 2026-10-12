@@ -1,0 +1,12 @@
+{
+  "rust/tcl-registry/src/special_vars.rs": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5",
+  "runtime/rust/src/cmd_mathfunc.rs": "03e6cfce6b828ca4ff9f6b58ddb1ac7ae58cd62251f495e771fbfcce99cad24d",
+  "runtime/rust/src/builtins.rs": "76fdb7541c54f6a1e254966f992497e85f05aee6dfb5fb1274957477afb30f0a",
+  "runtime/rust/src/interp.rs": "05ac1f4dcbe231e0c17db3076143630c4c21da1ef70f9f0f38eea2e61f9eb688",
+  "runtime/rust/src/namespace.rs": "782727b73ef81684ca51710f98ca57c0195b9551ce650c9aa7fd99d02ff94ab2",
+  "rust/tcl-registry/src/native_procedure.rs": "f60fb6e65b2d19b0eebf07d3964637ffdcd05d8fcd6d514500db3cb4c680cd45",
+  "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+  "runtime/rust/Cargo.lock": "9d443380f0a6b037dc316d37435bebb070fad74bd740cd965e58674aaac840e4",
+  "runtime/rust/examples/run_script.rs": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+  "rust/tcl-vm/src/cmd_math.rs": "8b2a7f0763b9d4772b2cdecf3c2a0fc5a6670a59e512043d71411e8d5597c5ef"
+}

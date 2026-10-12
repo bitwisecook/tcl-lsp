@@ -1,0 +1,25 @@
+    Finished `test` profile [unoptimized] target(s) in 0.13s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+thread 'analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque' (191756) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13479:13:
+assertion `left == right` failed: tcl8.4/package require tcltest
+namespace import -force ::tcltest::*
+interp alias {} report_test {} ::tcltest::test
+proc exercise {} {report_test t shared -setup {set prepared 1} -body {puts $prepared; puts $absent} -cleanup {puts $prepared} -result {[puts $data_only]}}
+exercise
+
+[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (191760) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+
+thread 'analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion' (191759) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13340:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 2
+error: test failed, to rerun pass `-p tcl-compiler --lib`

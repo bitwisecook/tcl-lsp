@@ -1,0 +1,11 @@
+{
+  "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+  "binary_sha256": "6a16d3785ec60c27ee6413c99d6973e1a5fda76374c40691ba166c1b6acac7d4",
+  "fixture_sha256": "2d07caf7d32c41c5dda5697ec6dd7632c01e86b324d70c22adc0b28898af2a09",
+  "test_log_sha256": "b714cb4070141913a1239e4f48edc04c64f153216c76c45a18332ded18fd3db7",
+  "matched_tests": 1,
+  "passed_tests": 1,
+  "residual_objects_buffers": 0,
+  "double_free_count": 0,
+  "oom": false
+}

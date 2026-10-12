@@ -1,0 +1,5 @@
+{
+  "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+  "sha256": "aa7aa950137ebea78be511866a1b4c4d27f61cc301d3ed8d4b47517c02dacb66",
+  "scope": "Read-only inspection after test/restoration; outside test-time frozen inventory."
+}

@@ -1,0 +1,123 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 04s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+W210_CHILD job base=79 length=130 caller-kind=Procedure
+W210_CHILD selection offset=80 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=80 original-rows-present=true
+W210_CHILD observation offset=80 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=80 layout-advice-present=true
+W210_CHILD selection offset=80 invocation-flow-present=true
+W210_CHILD command offset=80 selected=true
+W210_CHILD body-source offset=80 argument=9 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=9 literal=true contiguous=true
+W210_CHILD body-source offset=80 argument=7 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=7 literal=true contiguous=true
+W210_CHILD phase-body offset=80 argument=7 source-present=true job-scheduled=true
+W210_CHILD body-source offset=80 argument=5 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=5 literal=true contiguous=true
+W210_CHILD phase-body offset=80 argument=5 source-present=true job-scheduled=true
+W210_CHILD body-source offset=80 argument=3 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=3 literal=true contiguous=true
+W210_CHILD phase-body offset=80 argument=3 source-present=true job-scheduled=true
+W210_CHILD job base=102 length=14 caller-kind=Procedure
+W210_CHILD selection offset=102 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=102 original-rows-present=true
+W210_CHILD observation offset=102 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=102 layout-advice-present=true
+W210_CHILD selection offset=102 invocation-flow-present=true
+W210_CHILD command offset=102 selected=true
+W210_CHILD job base=125 length=28 caller-kind=Procedure
+W210_CHILD selection offset=141 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=141 original-rows-present=true
+W210_CHILD observation offset=141 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=141 layout-advice-present=true
+W210_CHILD selection offset=141 invocation-flow-present=true
+W210_CHILD command offset=141 selected=true
+W210_CHILD variable absent offset=141 read-offset=146 authored=true retained-local-read=false
+W210_CHILD selection offset=125 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=125 original-rows-present=true
+W210_CHILD observation offset=125 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=125 layout-advice-present=true
+W210_CHILD selection offset=125 invocation-flow-present=true
+W210_CHILD command offset=125 selected=true
+W210_CHILD selection offset=125 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=125 original-rows-present=true
+W210_CHILD observation offset=125 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=125 layout-advice-present=true
+W210_CHILD selection offset=125 invocation-flow-present=true
+W210_CHILD job base=165 length=14 caller-kind=Procedure
+W210_CHILD selection offset=165 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=165 original-rows-present=true
+W210_CHILD observation offset=165 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=165 layout-advice-present=true
+W210_CHILD selection offset=165 invocation-flow-present=true
+W210_CHILD command offset=165 selected=true
+W210_CHILD warning-node absent id=17 path-present=true unknown-writers=false declared-read-unavailable=false node-unknown=false
+W210_CHILD report caller-kind=Procedure authored-absent=true retained-absent=false warning-absent=true authored-count=2 warning-count=2
+W210_CHILD job base=79 length=130 caller-kind=Procedure
+W210_CHILD selection offset=80 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=80 original-rows-present=true
+W210_CHILD observation offset=80 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=80 layout-advice-present=true
+W210_CHILD selection offset=80 invocation-flow-present=true
+W210_CHILD command offset=80 selected=true
+W210_CHILD body-source offset=80 argument=9 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=9 literal=true contiguous=true
+W210_CHILD body-source offset=80 argument=7 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=7 literal=true contiguous=true
+W210_CHILD phase-body offset=80 argument=7 source-present=true job-scheduled=true
+W210_CHILD body-source offset=80 argument=5 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=5 literal=true contiguous=true
+W210_CHILD phase-body offset=80 argument=5 source-present=true job-scheduled=true
+W210_CHILD body-source offset=80 argument=3 written-present=true word-present=true
+W210_CHILD body-source offset=80 argument=3 literal=true contiguous=true
+W210_CHILD phase-body offset=80 argument=3 source-present=true job-scheduled=true
+W210_CHILD job base=102 length=14 caller-kind=Procedure
+W210_CHILD selection offset=102 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=102 original-rows-present=true
+W210_CHILD observation offset=102 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=102 layout-advice-present=true
+W210_CHILD selection offset=102 invocation-flow-present=true
+W210_CHILD command offset=102 selected=true
+W210_CHILD job base=125 length=28 caller-kind=Procedure
+W210_CHILD selection offset=141 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=141 original-rows-present=true
+W210_CHILD observation offset=141 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=141 layout-advice-present=true
+W210_CHILD selection offset=141 invocation-flow-present=true
+W210_CHILD command offset=141 selected=true
+W210_CHILD variable absent offset=141 read-offset=146 authored=true retained-local-read=false
+W210_CHILD selection offset=125 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=125 original-rows-present=true
+W210_CHILD observation offset=125 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=125 layout-advice-present=true
+W210_CHILD selection offset=125 invocation-flow-present=true
+W210_CHILD command offset=125 selected=true
+W210_CHILD selection offset=125 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=125 original-rows-present=true
+W210_CHILD observation offset=125 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=125 layout-advice-present=true
+W210_CHILD selection offset=125 invocation-flow-present=true
+W210_CHILD job base=165 length=14 caller-kind=Procedure
+W210_CHILD selection offset=165 layouts-present=true caller-kind=Procedure caller-entry=Body
+W210_CHILD selection offset=165 original-rows-present=true
+W210_CHILD observation offset=165 source-kind=Procedure source-entry=Body entry-equal=true frame-equal=true config-equal=true words-equal=true
+W210_CHILD selection offset=165 layout-advice-present=true
+W210_CHILD selection offset=165 invocation-flow-present=true
+W210_CHILD command offset=165 selected=true
+W210_CHILD warning-node absent id=17 path-present=true unknown-writers=false declared-read-unavailable=false node-unknown=false
+W210_CHILD report caller-kind=Procedure authored-absent=true retained-absent=false warning-absent=true authored-count=2 warning-count=2
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (185859) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-compiler --lib`

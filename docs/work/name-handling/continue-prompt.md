@@ -36,6 +36,11 @@ F5 answers come from the other BIG-IP chat via branch documents. The pushed
 seals / 26,097 entries verified;93 original observed pointers match input/context. General questions are under
 `experiments/name-handling/f5/`. Do not borrow C/Jim or adjacent appliance answers.
 
+Remove lab device/transport details and unrelated inventories from current F5
+evidence; preserve Tcl sources/results and historical execution hashes. All970
+original Tcl programs are byte-identical; cleanup/seal verification is recorded
+in `experiments/name-handling/results/f5-evidence-sanitisation/`.
+
 Current independent checks and outstanding work:
 
 - VM/runtime variable-arity matrices and200 array oracle comparisons pass;
@@ -45,10 +50,11 @@ Current independent checks and outstanding work:
 - Selected-release command-backing gate passes392 commands; backing12 and owner21
   unit tests pass. Owner manifest has165 scope/gate obligations; strict public
   default was preserved. Results: `experiments/name-handling/results/gate-validation/`.
-- C8.6 clock scalar epoch and registry controls pass. Real init remains refused;
-  mathfunc min/max topology/hooks, seven missing support workers, map/registration
-  order remain open. Native C8.6 crash input completes after private-counter
-  repair; other profiles and real init still refuse. Exact questions:
+- C8.6 real init now reaches marker after shared29-name constructor mathfunc
+  roster repair; ten fresh native/C controls pass. VM roster integration, seven
+  clock support workers, map/registration order remain open. Frozen-runner real
+  naming suites are running. Native C8.6 crash input completes after counter
+  repair; other profiles still refuse. Exact questions:
   `experiments/name-handling/clock-bootstrap-epoch/registration-repair/` and
   `experiments/name-handling/results/foreach-counter-object-lifetime/`.
 - Conditional C source namespace/path/caller-lifecycle advice passes2 direct and2
@@ -60,7 +66,9 @@ Current independent checks and outstanding work:
   C8.4. Evidence: `experiments/name-handling/results/static-name-advice/`,
   `experiments/name-handling/tcltest-shared-frame/` and latest C-source receipts.
   #2286 remains open. Two traces found metadata/lifecycle selection accepted;
-  current bounded experiment targets child layouts and warning consumption.
+  same retained binding is now forwarded onto original rebuilt tokens; owner
+  regression passes1/1 but nine controls remain6/3. Next read-only comparison
+  targets native factory purpose/header admission; no further trace measured.
 - Residual fixture constructors forward actual source inputs and compile;
   seeded_parameter filter has0 pass/6 fail at shared procedure lookup before SCCP. Exact receipt:
   `experiments/name-handling/results/fixture-source-input/`. Trace independently;

@@ -1,0 +1,5 @@
+{
+  "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+  "sha256": "23a6715e7cde3633a4db0f6f30dfeb131771310f37667cecbc3c62380017e123",
+  "capture": "After the test and restoration. Read-only source review; not part of before/instrumented/after inventory or a claimed test-time freeze."
+}

@@ -1,0 +1,3 @@
+# W210 consumer admission
+
+Which W210 acquisition or authored procedure admission guard actually refuses the same existing direct C8.4 negative control despite original graph absent warnings? One actual exact execution. Temporary cfg(test) traces in dataflow.rs and script_binds.rs only. Comparison uses existing original-procedure report API; its caches retain derived reports/inventory only, excluded from semantic source identity, and grant no execution. Prior experiment records immutable. Scoped source inventory covers two trace owners, unedited report owner and exact test source; independent runtime work excluded.

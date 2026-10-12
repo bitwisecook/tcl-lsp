@@ -1,0 +1,8 @@
+usage: capture.py [-h] --output-dir OUTPUT_DIR --runner RUNNER
+
+Replay this bounded question into a REQUIRED fresh destination.
+
+options:
+  -h, --help            show this help message and exit
+  --output-dir OUTPUT_DIR
+  --runner RUNNER

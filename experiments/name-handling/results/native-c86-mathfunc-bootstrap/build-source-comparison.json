@@ -1,0 +1,6 @@
+{
+  "runtime-dependencies": [],
+  "all-rust": [
+    "rust/tcl-compiler/src/script_binds.rs"
+  ]
+}

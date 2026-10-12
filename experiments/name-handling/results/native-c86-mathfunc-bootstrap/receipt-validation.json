@@ -1,0 +1,46 @@
+{
+  "run_hashes_valid": true,
+  "all_runs_zero": 10,
+  "sorted_constructor_inventory_match": 29,
+  "actual_init_fixture_byte_exact": true,
+  "runtime_real_init_marker_exact": true,
+  "parser_checks": [
+    {
+      "case": "help",
+      "argv": [
+        "python",
+        "experiments/name-handling/results/native-c86-mathfunc-bootstrap/capture.py",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "23c781571553f3aa1d221c4a57c93765c6f7027a451829f3e90f0cf30f54966c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "missing-destination",
+      "argv": [
+        "python",
+        "experiments/name-handling/results/native-c86-mathfunc-bootstrap/capture.py",
+        "--runner",
+        "/tmp/name-native-c86-mathfunc-bootstrap-runner"
+      ],
+      "exit_code": 2,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "7b2b67bf6aad48e93d3aeca200432ec94beac80068ace60522fb0eaa0a8f1c1c"
+    },
+    {
+      "case": "existing-destination",
+      "argv": [
+        "python",
+        "experiments/name-handling/results/native-c86-mathfunc-bootstrap/capture.py",
+        "--output-dir",
+        "experiments/name-handling/results/native-c86-mathfunc-bootstrap/captured",
+        "--runner",
+        "/tmp/name-native-c86-mathfunc-bootstrap-runner"
+      ],
+      "exit_code": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "1381d72ac4bbab20f127e18e1a8bfc142e7ce16bb68fed67be11518bf9fafe9a"
+    }
+  ]
+}
