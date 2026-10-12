@@ -2121,14 +2121,15 @@ fn compile_generic_patterns(patterns: Option<&[String]>) -> Vec<regex::Regex> {
     }
 }
 
-/// `is_generic_static_name` — `var_name` (with the `static::` prefix) is
-/// generic when its lowercased bare name matches any `compiled` pattern.
+/// Configured lexical patterns apply only after the namespace root is selected.
+fn matches_generic_variable_pattern(simple_name: &str, compiled: &[regex::Regex]) -> bool {
+    let lower = simple_name.to_ascii_lowercase();
+    compiled.iter().any(|re| re.is_match(&lower))
+}
+
+#[cfg(test)]
 fn is_generic_static_name(var_name: &str, compiled: &[regex::Regex]) -> bool {
-    let bare = var_name
-        .strip_prefix("static::")
-        .unwrap_or(var_name)
-        .to_ascii_lowercase();
-    compiled.iter().any(|re| re.is_match(&bare))
+    matches_generic_variable_pattern(var_name.strip_prefix("static::").unwrap_or(var_name), compiled)
 }
 
 /// Generic-static-name warnings for IRULE4002. `generic_patterns` follows the
@@ -2148,17 +2149,23 @@ pub fn find_generic_static_name_warnings(
     if compiled.is_empty() {
         return out;
     }
-    let Some(source) = IrulesSourceQuery::capture(cu, cu.ir_module.resolved_registry()) else {
+    let registry = cu.ir_module.resolved_registry();
+    let Some(source) = IrulesSourceQuery::capture(cu, registry) else {
         return out;
     };
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     for fu in cu.analysable_functions() {
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        if event.is_none() {
+        let Some(event) = event else {
             continue;
-        }
+        };
+        let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &fu.cfg,
+            event.body.conditional_entry(),
+            registry,
+        );
         for bn in cfg_order(&fu.cfg) {
             if !fu.sccp.executable_blocks.contains(&bn) {
                 continue;
@@ -2166,20 +2173,41 @@ pub fn find_generic_static_name_warnings(
             let Some(block) = fu.cfg.blocks.get(&bn) else {
                 continue;
             };
-            for stmt in &block.statements {
-                let span = stmt.span();
-                match stmt {
+            for (index, stmt) in block.statements.iter().enumerate() {
+                let labels: Vec<&str> = match stmt {
                     Statement::AssignConst { name, .. }
                     | Statement::AssignValue { name, .. }
-                    | Statement::Incr { name, .. } => {
-                        check_generic_static(name, span, &compiled, &mut seen, &mut out);
+                    | Statement::Incr { name, .. } => vec![name],
+                    Statement::Call { defs, .. } => defs.iter().map(String::as_str).collect(),
+                    _ => continue,
+                };
+                let places = crate::place_bridge::def_places_at(stmt, bn, index, &contexts, registry);
+                for place in places {
+                    if crate::side_effects::namespace_storage_scope_for_place(&place, registry.profile())
+                        != crate::side_effects::StorageScope::Static
+                    {
+                        continue;
                     }
-                    Statement::Call { defs, .. } => {
-                        for name in defs {
-                            check_generic_static(name, span, &compiled, &mut seen, &mut out);
-                        }
-                    }
-                    _ => {}
+                    let Some(key) = crate::var_resolve::canonical_place_key(&place) else {
+                        continue;
+                    };
+                    // A single assignment's label reports that same operation. Multi-output
+                    // calls join their authored labels through the actual SSA cell map.
+                    let label = if !matches!(stmt, Statement::Call { .. }) {
+                        labels.first().copied()
+                    } else {
+                        fu.ssa.source_symbols_at(bn, index).and_then(|symbols| {
+                            labels.iter().copied().find(|label| {
+                                symbols.get(*label).is_some_and(|symbol| {
+                                    fu.ssa.cell_key(*symbol).root() == key.root()
+                                })
+                            })
+                        })
+                    };
+                    let Some(label) = label else {
+                        continue;
+                    };
+                    check_generic_static(&place, key, label, fu.abs_span(stmt.span()), &compiled, &mut seen, &mut out);
                 }
             }
         }
@@ -2188,30 +2216,43 @@ pub fn find_generic_static_name_warnings(
 }
 
 fn check_generic_static(
-    var_name: &str,
+    place: &crate::place::Place,
+    key: crate::var_resolve::VariableCellKey,
+    source_name: &str,
     span: Span,
     compiled: &[regex::Regex],
-    seen: &mut std::collections::HashSet<String>,
+    seen: &mut HashSet<crate::var_resolve::VariableCellKey>,
     out: &mut Vec<IrulesCheckWarning>,
 ) {
-    if !var_name.starts_with("static::") {
+    let root = key.root().clone();
+    if seen.contains(&root) {
         return;
     }
-    if seen.contains(var_name) {
+    let Some(bare) = crate::var_resolve::namespace_variable_simple_name(place) else {
+        return;
+    };
+    let pattern_name = if let Some(index) = &place.index {
+        if index.kind != crate::place::IndexKind::Literal {
+            return;
+        }
+        let Ok(element) = index.value.try_utf8() else {
+            return;
+        };
+        std::borrow::Cow::Owned(format!("{bare}({element})"))
+    } else {
+        std::borrow::Cow::Borrowed(bare)
+    };
+    if !matches_generic_variable_pattern(&pattern_name, compiled) {
         return;
     }
-    if !is_generic_static_name(var_name, compiled) {
-        return;
-    }
-    seen.insert(var_name.to_owned());
-    let bare = var_name.strip_prefix("static::").unwrap_or(var_name);
+    seen.insert(root);
     out.push(IrulesCheckWarning {
         span,
         code: DiagCode::Irule4002,
         message: format!(
-            "'{var_name}' is a generic name that can collide with other iRules. \
+            "'{source_name}' is a generic name that can collide with other iRules. \
              static:: names share storage across rule owners on each executing TMM — \
-             prefix with the application or rule name (e.g. 'static::<app>_{bare}')."
+             prefix with the application or rule name (e.g. 'static::<app>_{pattern_name}')."
         ),
         replacement: None,
         fixes: Vec::new(),
@@ -3575,6 +3616,52 @@ mod tests {
             Some(SurfaceQuery::any_release(Family::F5Irules)),
             Some(patterns),
         )
+    }
+
+    #[test]
+    fn generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations() {
+        // naming.analysis.resolved-static-variable-patterns
+        // docs/design/analysis/name-resolution-proofs/resolved-static-variable-patterns.md
+        // Fixed source-analysis controls; no iRule event or physical TMM executes here.
+        for operation in [
+            "set static::debug 1",
+            "set ::static::debug 1",
+            "set ::::static::::debug 1",
+            "upvar #0 ::static::debug shared; set shared 1",
+        ] {
+            let source = format!("when RULE_INIT {{{operation}}}");
+            let warnings = generic_warnings(&source);
+            let selected: Vec<_> = warnings.iter().filter(|warning| warning.code == DiagCode::Irule4002).collect();
+            assert_eq!(selected.len(), 1, "{source}: {warnings:?}");
+            let text = &source[selected[0].span.start() as usize..selected[0].span.end() as usize];
+            assert_eq!(text, operation.rsplit_once("; ").map_or(operation, |(_, write)| write));
+        }
+        let source = "when RULE_INIT {set static::debug 1; set ::static::debug 2}";
+        assert_eq!(generic_warnings(source).iter().filter(|warning| warning.code == DiagCode::Irule4002).count(), 1);
+        for source in [
+            "when RULE_INIT {set other::static::debug 1}",
+            "when RULE_INIT {set ::static::inner::debug 1}",
+            "when HTTP_REQUEST {set debug 1}",
+            "when RULE_INIT {if {0} {set ::static::debug 1}}",
+        ] {
+            assert!(generic_warnings(source).iter().all(|warning| warning.code != DiagCode::Irule4002), "{source}");
+        }
+        let patterns = vec![r"^debug\(key\)$".to_owned()];
+        assert_eq!(generic_warnings_with("when RULE_INIT {set ::static::debug(key) 1}", &patterns)
+            .iter().filter(|warning| warning.code == DiagCode::Irule4002).count(), 1);
+    }
+
+    #[test]
+    fn generic_static_warning_declines_foreign_module_source_without_spelling_fallback() {
+        // naming.analysis.resolved-static-variable-patterns
+        // docs/design/analysis/name-resolution-proofs/resolved-static-variable-patterns.md
+        // A real built source Module loses its actual document correspondence.
+        let source = "when RULE_INIT {set static::debug 1}";
+        let mut unit = CompilationUnit::build_for(source, &registry(), false);
+        assert_eq!(find_generic_static_name_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)), None)
+            .iter().filter(|warning| warning.code == DiagCode::Irule4002).count(), 1);
+        unit.ir_module.source = tcl_lexer::SourceImage::document("foreign source");
+        assert!(find_generic_static_name_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)), None).is_empty());
     }
 
     #[test]

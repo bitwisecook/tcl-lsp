@@ -4602,33 +4602,49 @@ pub fn canonical_place_key(bound: &Place) -> Option<VariableCellKey> {
     Some(name)
 }
 
+/// Borrow a namespace root from its retained owner, including an actual variable link.
+fn retained_namespace_variable_root(cell: &CellIdentity) -> Option<(&CellOwner, &NameBytes)> {
+    match &cell.owner {
+        CellOwner::NamespaceIdentity(_) | CellOwner::Namespace(_) => Some((&cell.owner, &cell.name)),
+        CellOwner::RetainedSlot(slot) => match slot.as_ref() {
+            crate::raw_binding::RawBindingSlotId::Variable(cell) => retained_namespace_variable_root(cell),
+            crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+        },
+        _ => None,
+    }
+}
+
+/// Checked UTF-8 of an already resolved namespace root key, independent of its display.
+/// Authored places without a retained cell remain descriptive source advice.
+#[must_use]
+pub fn namespace_variable_simple_name(place: &Place) -> Option<&str> {
+    match place.cell.as_ref() {
+        Some(cell) => retained_namespace_variable_root(cell)?.1.try_utf8().ok(),
+        None => place.is_global().then_some(place.name.as_str()),
+    }
+}
+
 /// Original simple key in the actual root namespace table, including resolved links.
 /// Selected frames, locals and displayed namespace names do not grant root identity.
 #[must_use]
 pub fn root_namespace_variable_simple_name(place: &Place) -> Option<&str> {
-    fn original(cell: &CellIdentity) -> Option<&str> {
-        let root = match &cell.owner {
-            CellOwner::NamespaceIdentity(namespace) => match namespace.as_ref() {
-                crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
-                    namespace == "::"
-                }
-                _ => namespace
-                    .exact_native_path()
-                    .is_some_and(tcl_core_types::ByteNamespacePath::is_root),
-            },
-            CellOwner::Namespace(namespace) => namespace == "::",
-            CellOwner::RetainedSlot(slot) => {
-                return match slot.as_ref() {
-                    crate::raw_binding::RawBindingSlotId::Variable(cell) => original(cell),
-                    crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
-                };
-            }
-            _ => false,
-        };
-        root.then(|| cell.name.try_utf8().ok()).flatten()
-    }
     match place.cell.as_ref() {
-        Some(cell) => original(cell),
+        Some(cell) => {
+            let (owner, name) = retained_namespace_variable_root(cell)?;
+            let root = match owner {
+                CellOwner::NamespaceIdentity(namespace) => match namespace.as_ref() {
+                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
+                        namespace == "::"
+                    }
+                    _ => namespace
+                        .exact_native_path()
+                        .is_some_and(tcl_core_types::ByteNamespacePath::is_root),
+                },
+                CellOwner::Namespace(namespace) => namespace == "::",
+                _ => false,
+            };
+            root.then(|| name.try_utf8().ok()).flatten()
+        }
         // Legacy symbolic places have no native owner to project. The
         // already resolved namespace field is authored advice only.
         None => (place.is_global() && place.ns == "::").then_some(place.name.as_str()),
@@ -6836,5 +6852,32 @@ mod byte_cell_identity_tests {
         assert!(
             matches!(selected, VariableCellKey::Element { index, .. } if index.as_bytes() == b"k\xed\xa0\x80")
         );
+    }
+}
+
+#[cfg(test)]
+mod namespace_simple_projection_tests {
+    use super::*;
+
+    #[test]
+    fn namespace_simple_key_projection_keeps_resolved_bytes_separate_from_display_and_frames() {
+        // naming.analysis.resolved-static-variable-patterns
+        // docs/design/analysis/name-resolution-proofs/resolved-static-variable-patterns.md
+        // Actual authored resolver places only; no Native namespace/getter or TMM grant.
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let context = ResolveContext::for_namespace("::static");
+        let mut selected = resolve_literal_place("débug", &context, false, registry);
+        assert_eq!(namespace_variable_simple_name(&selected), Some("débug"));
+        assert_eq!(root_namespace_variable_simple_name(&selected), None);
+        selected.name = "misleading::debug".into();
+        selected.ns = "::".into();
+        assert_eq!(namespace_variable_simple_name(&selected), Some("débug"));
+        assert_eq!(root_namespace_variable_simple_name(&selected), None);
+        let root = resolve_literal_place("debug", &ResolveContext::for_namespace("::"), false, registry);
+        assert_eq!(namespace_variable_simple_name(&root), Some("debug"));
+        assert_eq!(root_namespace_variable_simple_name(&root), Some("debug"));
+        let local = resolve_literal_place("debug", &ResolveContext::for_function("::p"), false, registry);
+        assert_eq!(namespace_variable_simple_name(&local), None);
+        assert_eq!(root_namespace_variable_simple_name(&local), None);
     }
 }

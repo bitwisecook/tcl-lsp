@@ -368,6 +368,27 @@ fn resolved_variable_scope(
         };
         return (scope, None, name.to_owned());
     };
+    let (scope, namespace) = canonical_namespace_storage_scope(&place, &canonical, dialect);
+    (scope, namespace, canonical.compatibility_name())
+}
+
+/// Classify a resolved namespace place; display supplies neither cell nor worker ownership.
+#[must_use]
+pub(crate) fn namespace_storage_scope_for_place(
+    place: &crate::place::Place,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> StorageScope {
+    let Some(canonical) = crate::var_resolve::canonical_place_key(place) else {
+        return StorageScope::Unknown;
+    };
+    canonical_namespace_storage_scope(place, &canonical, dialect).0
+}
+
+fn canonical_namespace_storage_scope(
+    place: &crate::place::Place,
+    canonical: &crate::var_resolve::VariableCellKey,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> (StorageScope, Option<String>) {
     let namespace = if let Some(identity) = canonical.namespace_identity() {
         let root = identity
             .exact_native_path()
@@ -406,7 +427,7 @@ fn resolved_variable_scope(
         }
     };
     let Some((root, namespace, worker)) = namespace else {
-        return (StorageScope::Unknown, None, canonical.compatibility_name());
+        return (StorageScope::Unknown, None);
     };
     let scope = if worker {
         StorageScope::Static
@@ -415,7 +436,7 @@ fn resolved_variable_scope(
     } else {
         StorageScope::Namespace
     };
-    (scope, namespace, canonical.compatibility_name())
+    (scope, namespace)
 }
 
 /// Lift a registry `StorageType` value into the richer
@@ -1905,6 +1926,34 @@ mod tests {
             token,
             path: tcl_core_types::ByteNamespacePath::from_segments(segments.iter().copied()),
         })
+    }
+
+    #[test]
+    fn namespace_place_storage_scope_requires_the_selected_domain_before_static_reporting() {
+        // naming.analysis.resolved-static-variable-patterns
+        // docs/design/analysis/name-resolution-proofs/resolved-static-variable-patterns.md
+        // Actual resolver/domain software inputs; no physical BIG-IP worker is observed.
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let root = native_effect_namespace(1, &[]);
+        let static_namespace = native_effect_namespace(2, &["static"]);
+        let mut context = crate::var_resolve::ResolveContext::for_namespace("::static");
+        context.retain_namespace_world(
+            static_namespace.clone(),
+            [root, static_namespace],
+            Some(tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4)),
+        );
+        context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap()));
+        let ordinary = crate::var_resolve::resolve_literal_place("debug", &context, false, registry);
+        assert_eq!(namespace_storage_scope_for_place(&ordinary, registry.profile()), StorageScope::Namespace);
+        context.hosted_execution_context = Some(tcl_registry::f5::BigIpExecutionContext::TmmIRule);
+        let selected = crate::var_resolve::resolve_literal_place("debug", &context, false, registry);
+        assert_eq!(namespace_storage_scope_for_place(&selected, registry.profile()), StorageScope::Static);
+        let mut displayed = ordinary;
+        displayed.ns = "::static".into();
+        displayed.name = "static::debug".into();
+        assert_eq!(namespace_storage_scope_for_place(&displayed, registry.profile()), StorageScope::Namespace);
+        let unknown = crate::place::unknown_top();
+        assert_eq!(namespace_storage_scope_for_place(&unknown, registry.profile()), StorageScope::Unknown);
     }
 
     #[test]

@@ -742,6 +742,21 @@ authoritative. Native numeric parsing does not grant string-updater authority.
   callers retain their existing drop order. Publication refusal is retained
   before original incoming owners or the held ensemble token retire; same-scope
   checks carry that complete first cause through the existing cleanup workers.
+- Compiler namespace storage classification is shared by side-effect readers
+  and generic static-key advice through `namespace_storage_scope_for_place`.
+  Actual retained cell ownership and its selected storage domain precede the
+  checked simple-key UTF-8 projection; namespace display and F5 profile metadata
+  cannot classify a Native cell as worker-owned. Explicit authored source models
+  retain their descriptive classification without acquiring physical TMM facts.
+  `namespace_variable_simple_name` and the root-only query share the retained
+  namespace-variable root, including real variable links. IRULE4002 consumes
+  `def_places_at` at the retained CFG operation and its operand-selection phase,
+  after original Module/event/source/config guards and executable-block checks.
+  Configured patterns match selected simple keys and literal element metadata;
+  source labels and document spans remain presentation. Missing original cells,
+  unavailable multi-output source correspondence, unknown lifetimes or unchecked
+  UTF-8 decline advice. Static classification grants no executing worker, value
+  equality, cross-worker publication, Native getter or compiler-cache authority.
 - `written_separator_extent` derives the final complete separator run from
   `qualifier_component_extents`; `written_command_tail` shares that boundary.
   Core neutral qualifiers/tail and Registry counted qualifier/fold adapters use
