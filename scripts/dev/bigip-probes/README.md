@@ -60,6 +60,16 @@ Learned the hard way; all of these cost a cycle.
   The [resolution appliance handoff](resolution-2286/README.md) provides isolated
   static/global controls and actual responding-TMM coverage.
 
+### iControl REST iApp submissions
+
+A historical compatibility issue reported by the lab owner on 2026-10-12:
+an iApp submission could fail if its last entry did not specify a value.
+For REST probes, supply an explicit value valid for that final entry and retain
+the exact payload, HTTP status and response body. Missing and explicitly empty
+values need separate controls before drawing a conclusion. This behaviour has
+not been independently measured on the current appliance; the retained naming
+captures use tmsh submissions and actual Chrome APL rendering.
+
 ## Naming oracle captures
 
 `name-patterns/` retains complete inputs, applied configuration, invocation
