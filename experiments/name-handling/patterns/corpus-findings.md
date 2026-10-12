@@ -117,8 +117,11 @@ in setup results are retained raw and are unsuitable as expected values for
 regressions. This C capture contains no Jim or BIG-IP answer. The
 [maintained catalogue](README.md) links the separately retained
 [latest Jim observations](jim-results-5bac7c9/README.md), including original
-setup failures and distinct Jim-native controls. Exact-case BIG-IP answers
-remain pending in the [appliance bundle](f5/README.md).
+setup failures and distinct Jim-native controls. The existing canonical corpus
+question records register the 11 reached unchanged Jim questions: seven values
+and four guest errors. Four failed setups remain unanswered for their intended
+lookup; the separate Jim-native controls do not replace them. Exact-case BIG-IP
+answers remain pending in the [appliance bundle](f5/README.md).
 
 ## Shared-owner acceptance and consumer tests
 

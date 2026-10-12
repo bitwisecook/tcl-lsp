@@ -230,10 +230,15 @@ cannot replace those original failures or infer C equivalence:
 | [namespace-explicit-variable-prefix](jim-probes/namespace-explicit-variable-prefix.tcl) | `0: local {a b} {{c d}}` | [record](jim-results-5bac7c9/jim-native/namespace-explicit-variable-prefix/record.json); explicit namespace `variable` avoids relying on ordinary `set` creation. |
 | [test-shared-lifecycle](jim-probes/test-shared-lifecycle.tcl) | `0: {{a b} {a b}} 0 1 0` | [record](jim-results-5bac7c9/jim-native/test-shared-lifecycle/record.json); real Jim `test` records one pass, zero failures and shared lifecycle values. |
 
-These separately retained captures have their own original driver/source bytes
-and explicit adaptation metadata. The existing canonical proof index remains
-the shared registration authority; consult its exact provider records before
-using any observation as a registered proof for a consumer.
+The 11 reached original corpus questions have registered Jim provider answers
+in their existing canonical records: seven returned values and four guest
+errors. Their exact unchanged setup/final-question wrappers, raw fields,
+upstream revision, harness hashes and build configuration remain attached.
+The four corpus setup failures supply no intended-question answer. Wiki inner
+adaptations and the four separately authored Jim-native controls remain
+supplemental captures with their own driver/source bytes and adaptation metadata.
+Consult each canonical provider record before using an observation as registered
+evidence; these answers establish no Rust consumer conformance.
 
 ## Other provider and source-specific questions
 

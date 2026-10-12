@@ -21,19 +21,19 @@ a source audit is not an executed test.
 | Namespace deletion and retained namespace objects | Runtime agent | Bounded fix verified | Seven native lifecycle/ensemble controls pass. Real 8.5 `namespace-56.2` passes. Preserve the separate cached-child mismatch after 8.5 real initialization. |
 | Real matching `init.tcl` / `tcltest.tcl` bootstrap | Bootstrap / VM agents | Scoped fixes verified; full startup incomplete | Physical byte length and 9.1 auto-path use shared owners. Four native runtime controls and three VM driver controls pass. Both engines' helper-presence tests match all five C releases and Jim; native drivers retain startup refusals. |
 | Static aliases, constructor hints and auto-path keys | Static agent | Three focused regressions pass | Current source binding handles paths/shadows; written variable tails and constructed colon namespaces are preserved; unknown effects withdraw imported constants. Unused analyser alias helper removed. Broader typing/class/dispatch controls remain red. |
-| Corpus naming patterns | Corpus agent | Source/C/Jim observations retained | All 35 public pins verified; 19 sites / 12 repositories, 15 reductions, 75 C observations retained. Catalogue links 45 original-question Jim captures and four distinct native controls. Static held-out coverage, canonical Jim answer registration and F5 observations remain required. |
+| Corpus naming patterns | Corpus agent | Source/C/Jim observations retained | All 35 public pins verified; 19 sites / 12 repositories, 15 reductions, 75 C observations retained. Catalogue links 45 original-question Jim captures and four distinct native controls. 11 reached original Jim questions are registered canonically; four setup failures remain unanswered. Static held-out coverage, adapted-question review and F5 observations remain required. |
 | Wiki naming patterns | Wiki agent | C questions indexed; Jim observations retained | 17 read pages and 30 probes. C passes 21/22/29/29/29. All 44 Wiki/corpus questions are indexed with original runner snapshots. Jim's 30 adapted inner questions have separate captures; unchanged C harness and our native Wiki attempts stop before tests. Canonical Jim registration and consumer coverage remain required. |
 | Related issue state and reproduction | Issue agent / coordinator | Updated; two defects remain open | #2450 closed from published removal. #2286 positives pass but direct/alias undefined-read controls fail. #2287 namespaced and top-level token controls fail; generic conditional import/path advice needs repair. |
 | Latest Jim oracle | Coordinator | Upstream reference verified and executed | Upstream HEAD matches shared pin `5bac7c99`; revision-bearing 0.84 build passes 339 tests in 12 real Jim naming suites. VM/runtime Jim conformance remains required. |
 | F5 appliance questions/answers | Appliance chat / coordinator | Exact pattern bundle pending | [Pattern bundle](../../../experiments/name-handling/patterns/f5/README.md) has 50 questions across eight contexts, all 400 rows pending. Existing BIG-IP controls are linked separately. Returned documents must bind exact input, release, execution channel and reached event; ingest only matching answers. |
-| Required gates and publication | Coordinator | Red; PR readiness blocked | Rust gate stops on formatting drift; full proof audit has 139 changed implementation digests. Command-backing and owner-resolution also report existing drift. Review evidence and repair all required gates at the PR stage. User-authorised development pushes may proceed with failures recorded. |
+| Required gates and publication | Coordinator | Red; PR readiness blocked | Rust gate still needs formatting/full checks; latest complete proof audit has 158 changed implementation evidence digests. Command-backing and owner-resolution also report existing drift. An xtask build stopped at ENOSPC before any owner/backing gate executed; its entire cache was cleaned. Review evidence and repair all required gates at the PR stage. User-authorised development pushes may proceed with failures recorded. |
 
 ## Consumer acceptance census
 
-Experiment structure: a bounded review is replacing the native-ensemble
-capture's broad working-tree snapshot presentation with discrete questions,
-exact sources and per-oracle/consumer results. Preserve recorded hashes and
-immutable historical captures; do not substitute current edited source.
+Experiment structure: the native-ensemble capture now has 11 discrete
+question directories with exact original source/input, scoped results and
+limitations. Build provenance links the immutable historical snapshot; original
+capture bytes are unchanged. New experiments follow this question-led format.
 
 Every row requires an actual call-site/owner audit and relevant executed checks.
 Existing contracts and proof records are evidence to inspect, not automatic
@@ -52,7 +52,7 @@ when its separate preconditions hold.
 | LSP references, rename and refactoring | Complete occurrence coverage, exact geometry and independent rewrite permission | Audit required |
 | Database/workspace/import/package settlement | URI/source currency, loader reachability, ordered mutation and independent identities | Audit required |
 | VM | Actual native object/cache/purpose/lifetime, shared command cores | Native driver selection tested; real-suite startup needs compiler recipes |
-| Runtime/WASM and middleware | Actual native objects, byte names, frame/callback/namespace lifecycle; shared command cores | Seven native controls pass; six-suite 8.5 capture below; other releases blocked |
+| Runtime/WASM and middleware | Actual native objects, byte names, frame/callback/namespace lifecycle; shared command cores | Frozen real 8.5 var.test matches C: 69 pass, 17 skip, zero fail. Compiled alias/namespace controls pass; seven namespace failures and startup refusals remain |
 | Bytecode, WASM, native/AOT and other codegen | Explicit backend admission; preserve dynamic dispatch and selected operation semantics | Audit required |
 | CLI/tooling/diagrams/minifiers | Shared source owner, independent display and edit permissions | Audit required |
 | MCP/AI/editor integrations | Same structured subjects and refusal semantics as shared providers; regenerate authored templates | Audit required |
@@ -112,10 +112,12 @@ publication gates or establish current engine/static conformance.
 3. Provide actual native compiler recipes for the selected `namespace which`
    worker. Repair 8.4 indexed receiver, 8.6 command-entry epoch and 9.x local-alias
    handler prerequisites; bootstrap refusals cannot become Tcltest assertions.
-4. Fix measured `var-7.16` / `var-7.17` zero-argument `variable` acceptance and
-   `var-14.2` `array names -glob`; retain C outcomes and rerun the same cases.
-5. Repair 8.5 cached namespace-object behaviour after real startup and escaped
-   NUL production at its actual string/source owner. The byte-count helper must
+4. Finish the measured Jim maximum variable arity and execute the VM declaration
+   matrix. The original C 8.5 var.test failures are fixed in the frozen capture;
+   original regex enumeration and broader VM/runtime conformance remain open.
+5. Repair original cell/bootstrap prerequisites and the measured 8.5 namespace
+   failures. The cached/fresh public question now matches C after real startup;
+   escaped NUL production still needs its actual string/source owner. The byte-count helper must
    continue to read physical representation rather than reconstruct encoding.
 6. Review the broader typing/class-relation/dispatch failures against actual
    source-entry prerequisites. Recover conditional candidates through shared
@@ -123,11 +125,32 @@ publication gates or establish current engine/static conformance.
 7. Review changed implementation evidence bindings, formatting and owner/backing
    drift; finish required gates and publish. Never rewrite original native
    inputs or provider answers merely to match a new implementation digest.
-8. Register reviewed Jim pattern answers in the existing canonical proof index,
-   keeping exact original questions separate from adaptations. Add held-out
+8. Review remaining Jim adaptations and unreached setups separately; 11 reached
+   original corpus answers are registered in the existing canonical proof index. Add held-out
    static consumer coverage and ingest matching F5 answers when the appliance
    chat returns them. Maintain the [wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md)
    alongside each new experiment, answer or recognised idiom.
 
 [Retained gate/scoped validation](../../../experiments/name-handling/results/current-validation/README.md)
 separates passed controls, failed controls and gates which were not reached.
+
+## Current bounded assignments
+
+- W210: shared body-source controls pass; missing-read diagnostics remain red.
+  Compiler debug investigation is active; temporary tracing must be removed.
+- Source advice: five new focused controls pass; six broader owner failures
+  need baseline attribution before packaged LSP validation.
+- Runtime cells: the C 8.4 declared-cell repair awaits focused execution;
+  original 8.6 command epochs and 9.x simple-cell startup remain unresolved.
+- Jim variable arity: source and oracle-backed VM/runtime tests are ready;
+  fresh execution is pending.
+- Gate owners/backing and generated AI prompts: source fixes ready, gates and
+  generation unexecuted after the interrupted build.
+- Proof source review: syntax review is in `/tmp/name-syntax-proof-review.json`;
+  final source freeze and explicit invariant/scope review are required before
+  renewing implementation evidence. No blanket digest refresh.
+
+Clean validation builds source `/tmp/name-env.sh`, which disables incremental
+caches and dev/test debug info. The interrupted cache was removed; do not reuse
+its artifacts or claim it ran a check. Coordinate source freezes and build
+ownership; use small jobs and update this snapshot before handoff.

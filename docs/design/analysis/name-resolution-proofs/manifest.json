@@ -137265,8 +137265,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-computed-binding-mutation.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact computed-binding-mutation program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact computed-binding-mutation reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored computed-binding-mutation reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 0; result \"replacement\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored computed-binding-mutation reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -137355,13 +137355,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 0; result \"replacement\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -137604,6 +137616,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation/input.tcl",
+          "sha256": "5c5b6897e895bae31c8dec5626144aa2974b4b061431087b2b6d60a9bfa266ef",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation/stdout.txt",
+          "sha256": "d117390e4b3b521a4ee77795b7e13942b90657f019c4d7db036e96d7321caa75",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation/record.json",
+          "sha256": "8c2f06b26eb0e8a5971678bf403efde10d8c8cd61e508966dcdcb2545930eacd",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+          "sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -137614,7 +137703,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -137623,8 +137712,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-computed-qualified.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact computed-qualified program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact computed-qualified reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored computed-qualified reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"first\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 0; result \"first\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored computed-qualified reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -137713,13 +137802,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 0; result \"first\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -137962,6 +138063,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified/input.tcl",
+          "sha256": "85db44ec1484380a0a1af8cc8aafa028c13b1234030a9ae213330d1a5ae61222",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified/stdout.txt",
+          "sha256": "6c1de69c01e75c28ab5c71218135ba7db6582af588cd568f25d971916d738859",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified/record.json",
+          "sha256": "a187cae0d94b6f931447089996cf4129d5d2832458e00711a8016a3d629f9b4d",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+          "sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -137972,7 +138150,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -138339,8 +138517,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-factory-body-near-miss.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact factory-body-near-miss program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact factory-body-near-miss reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"TCL READ VARNAME\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"TCL READ VARNAME\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"TCL READ VARNAME\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored factory-body-near-miss reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"TCL READ VARNAME\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"TCL READ VARNAME\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\"; errorCode \"TCL READ VARNAME\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored factory-body-near-miss reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -138429,13 +138607,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"name\\\": no such variable\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -138678,6 +138868,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss/input.tcl",
+          "sha256": "38984dad3654e5a35b1f8f8a4ee7cbcd7f361095fc95039ff550954e9ce29c63",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss/stdout.txt",
+          "sha256": "a8f24d2e9351db1deebc5c78ad78fe9fdee6c0b33c352d2cc84605e0bc3a22b4",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss/record.json",
+          "sha256": "39663c24df4e31a72b93c7a16e6792d99e29bfaa3237ed3ef350c4c34ec7009c",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+          "sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -138688,7 +138955,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -138697,8 +138964,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-finite-factory.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact finite-factory program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact finite-factory reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored finite-factory reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 0; result \"red blue\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored finite-factory reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -138787,13 +139054,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 0; result \"red blue\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -139036,6 +139315,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory/input.tcl",
+          "sha256": "0f4e738bf2d97398f25361583467649d0d3ffea2f6866925c256d4e55bb70f99",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory/stdout.txt",
+          "sha256": "e67f423ff88077d9c4e0fba6a7be3d876c6cca30818b3d76fa59910188f47235",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory/record.json",
+          "sha256": "56ee2c76e3e4e3ff37982e8b57865d2e59d1e555b4ae216943084dc7f6fc23ab",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+          "sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -139046,7 +139402,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -139055,8 +139411,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-frame-wrapper.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact frame-wrapper program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact frame-wrapper reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored frame-wrapper reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 0; result \"changed\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored frame-wrapper reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -139145,13 +139501,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 0; result \"changed\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -139394,6 +139762,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper/input.tcl",
+          "sha256": "2fcde193d8b8384d162c587e54309e48e5906030207deb6670bc4459ebf4db32",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper/stdout.txt",
+          "sha256": "da535965b46cf58f0df601897dfba1332ba734dc470558fd2bed95a85375f040",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper/record.json",
+          "sha256": "8f6c4bce7d6b1d61bb82b45e472658986a7aff2d527a026cba7ffc727f7eb633",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+          "sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -139404,7 +139849,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -139413,8 +139858,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-frame-wrapper-near-miss.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact frame-wrapper-near-miss program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact frame-wrapper-near-miss reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored frame-wrapper-near-miss reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"original\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 0; result \"original\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored frame-wrapper-near-miss reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -139503,13 +139948,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 0; result \"original\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -139752,6 +140209,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss/input.tcl",
+          "sha256": "127d842c27de156c499e770fd057659217b2041df5094093ca089eb40081ecd0",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss/stdout.txt",
+          "sha256": "edcbbf55ad40d93aab29ceac9b8750a0c24ef2990c2fd1f911656ddf482489fc",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss/record.json",
+          "sha256": "2f3351d87fabcdb7a13bf5d38ecbff2a37524d43f6e8a637642490baba181fe7",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+          "sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -139762,7 +140296,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -139771,8 +140305,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-keyed-variable-link.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact keyed-variable-link program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact keyed-variable-link reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored keyed-variable-link reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"changed\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 0; result \"changed\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored keyed-variable-link reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -139861,13 +140395,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 0; result \"changed\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -140110,6 +140656,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link/input.tcl",
+          "sha256": "ae80cad2f7b30aa46cba2419c3640b58d5c386a354ecac955cf15e76808f77ee",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link/stdout.txt",
+          "sha256": "b4a9ec377afa85678665efd6c669783baf14e9534a55765ecd1c54ac72df25fd",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link/record.json",
+          "sha256": "678bbd0dc6c885dc2c572dd4f8de24e0120a0f1c812b2ca26f1e44c844054153",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+          "sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -140120,7 +140743,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -140129,8 +140752,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-list-prefix.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact list-prefix program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact list-prefix reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored list-prefix reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored list-prefix reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -140219,13 +140842,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 0; result \"{a b} {c d}\". No guest errorCode is reported in the captured return options. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -140468,6 +141103,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix/input.tcl",
+          "sha256": "a7c39ad003395ecfe32d7befca64704b8bc304ae7fc06c2ff3dada732dbe2134",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix/stdout.txt",
+          "sha256": "fbeba1375a1dbe4152a422f5ea9f38e6e3e143bfcabd017461084a2d7e1061d2",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix/record.json",
+          "sha256": "41f2acf73bcd64f1f2277674486469b88fd798acd7de9d210cba25596770e71d",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+          "sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -140478,7 +141190,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -140487,8 +141199,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-namespace-captured-prefix.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact namespace-captured-prefix program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact namespace-captured-prefix reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored namespace-captured-prefix reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"local {a b} {{c d}}\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"::nh::prefix\\\": no such variable\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored namespace-captured-prefix reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -140577,13 +141289,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"::nh::prefix\\\": no such variable\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -140826,6 +141550,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix/input.tcl",
+          "sha256": "0ee88c78458d2e4b2c726b4f2da80fed88b9c8a96f05ff8a1db64b9ec45ca922",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix/stdout.txt",
+          "sha256": "5f8a26f5fcb92d739ab8b5fe4ff3d1c9da5823728a7026d41e86c761ddb0471f",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix/record.json",
+          "sha256": "da7dc5f0b3f8a64fb3bf15eff7165cdae31081be8a7b70f227660a4bf4fa128a",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+          "sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -140836,7 +141637,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -141561,8 +142362,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-string-prefix-near-miss.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact string-prefix-near-miss program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact string-prefix-near-miss reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"TCL LOOKUP COMMAND ::nh::two\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"TCL LOOKUP COMMAND ::nh::two\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"TCL LOOKUP COMMAND ::nh::two\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored string-prefix-near-miss reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"NONE\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"TCL LOOKUP COMMAND ::nh::two\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"TCL LOOKUP COMMAND ::nh::two\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\"; errorCode \"TCL LOOKUP COMMAND ::nh::two\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. F5 remains not tested for this exact question.",
+      "scope": "One retained authored string-prefix-near-miss reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -141651,13 +142452,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 1; result \"invalid command name \\\"::nh::two\\\"\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -141900,6 +142713,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss/input.tcl",
+          "sha256": "b3fef6b3943b5ffed9725e7744720934c787384259e512cffbad90eacdf47b5d",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss/stdout.txt",
+          "sha256": "1df2f64e9c3a6c91eee321d11779dfce8c4a6e7a7c78bdf51c5876b342087186",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss/record.json",
+          "sha256": "bf7124d2cfa5bf80126ed0fee9c68c243cca57b44dcc17cb294249cc75568670",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+          "sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -141910,7 +142800,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
@@ -141919,8 +142809,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/corpus-pattern-tcltest-shared-lifecycle.md",
       "problem_statement": "A reviewed maintained-corpus naming idiom is reduced to the exact tcltest-shared-lifecycle program. The consumer-relevant distinction is the actual reached lookup result versus setup/capability failure and the independent static source, binding, frame and lifecycle premises. Pinned corpus source locations and counterexamples are retained in experiments/name-handling/patterns/sites.json and corpus-findings.md.",
       "question": "What lookup completion and result does the exact tcltest-shared-lifecycle reduction produce after successful setup on each recorded provider?",
-      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim and F5 remain not tested for these exact questions.",
-      "scope": "One retained authored tcltest-shared-lifecycle reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction.",
+      "conclusion": "8.4.20: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.5.19: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 8.6.18: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.0.4: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. 9.1.0: Setup completed with code 0. Actual lookup completion code 0; result \"{{a b} {a b}} 0\"; errorCode \"\". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result. These are native observations of finite authored inputs, not full application execution, corpus prevalence, static recogniser coverage or Rust conformance. Jim 0.84-9-g5bac7c9: Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"::nh::observed\\\": no such variable\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. Jim harness counters separately report one passed test and no failures; those counters do not make the failed final qualified variable read succeed. F5 remains not tested for this exact question.",
+      "scope": "One retained authored tcltest-shared-lifecycle reduction across real C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0; fresh process, real matching init, ASCII-only output capture. An error reached during lookup is a native observation. A failed setup is retained as a limitation and supplies no intended-question answer. No actual Tk/Snit/F5 host or extension semantics are inferred from a reduction. The same authored setup/final question was also reached in fresh upstream Jim 0.84-9-g5bac7c9 with its real tests/testing.tcl sourced before setup; full original Jim wrapper and separate raw fields are retained. Provider support/harness state is specific to this capture. No unchanged C tcltest execution, Jim-wide feature coverage or Rust conformance follows.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -142009,13 +142899,25 @@
         },
         {
           "id": "jim",
-          "version": "not recorded",
-          "build": "not recorded",
-          "input_channel": "not recorded",
+          "version": "0.84-9-g5bac7c9",
+          "build": "Upstream revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; recorded executable SHA-256 c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891; exact Makefile/jim-config.h/jimautoconf.h snapshots and real harness hashes retained. Source-to-binary correspondence and complete inherited environment/transitive startup hashes are not recorded.",
+          "input_channel": "Fresh upstream Jim process, LC_ALL=C, real tests/testing.tcl sourced before the unchanged authored setup and final-question catch wrappers. The original runner removes TCL_LIBRARY and TCLLIBPATH; other inherited environment is not retained. No C init.tcl or C expected value is imposed.",
           "dialect": "Jim Tcl",
-          "status": "not-tested",
-          "answer": "This exact authored corpus reduction was not executed on this provider. C results establish no Jim or appliance answer.",
-          "evidence": []
+          "status": "observed",
+          "answer": "Setup completed with code 0. Actual lookup completion code 1; result \"can't read \\\"::nh::observed\\\": no such variable\". Guest errorCode is NONE. Full setup/question return options and errorInfo remain in the exact raw capture. This observes only the reached original question, not a C-equivalence or Rust consumer result. Jim harness counters separately report one passed test and no failures; those counters do not make the failed final qualified variable read succeed.",
+          "evidence": [
+            "jim-input-tcl",
+            "jim-stdout-txt",
+            "jim-stderr-txt",
+            "jim-record-json",
+            "jim-original-probe",
+            "jim-receipt",
+            "jim-capture-runner",
+            "jim-config-jim-config-h",
+            "jim-config-jimautoconf-h",
+            "jim-config-Makefile",
+            "jim-upstream-head"
+          ]
         },
         {
           "id": "bigip",
@@ -142258,6 +143160,83 @@
           "path": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/capture-runner-original.txt",
           "sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
           "description": "Exact immutable actual corpus capture runner bytes, matching original provider receipt runner_sha256; not a new execution or replay entry point."
+        },
+        {
+          "id": "jim-input-tcl",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle/input.tcl",
+          "sha256": "d18f206f55294f1bbbeeb433106d1a49730e5a5c0b2b51fd6490be7ea45bae2e",
+          "description": "Exact original setup/final-question wrapper in a fresh Jim process; real upstream tests/testing.tcl is sourced before setup. No Wiki extraction or Jim-native adaptation is used."
+        },
+        {
+          "id": "jim-stdout-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle/stdout.txt",
+          "sha256": "8a72b2fc30feef2a425213546e931027c36c502b22fae9eeb2cd03a47d7a7c00",
+          "description": "Exact hex-encoded FIELD rows preserve setup/question completion, result and return options; JIMTEST counters are separate from the final-question result."
+        },
+        {
+          "id": "jim-stderr-txt",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle/stderr.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Exact process stderr; zero process exit is capture success, not guest lookup success."
+        },
+        {
+          "id": "jim-record-json",
+          "role": "observation",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle/record.json",
+          "sha256": "7d148dbcc027f6f11f5969f972e2eff20ffa298159a0d0a8ba26d8064408e519",
+          "description": "Parsed original corpus case, input/source/output hashes and actual argv; reviewed FIELD bytes agree with every recorded setup/question field."
+        },
+        {
+          "id": "jim-original-probe",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+          "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+          "description": "Unchanged authored corpus reduction whose final source line is the question; preceding lines are setup. It is the same reduction referenced by C evidence."
+        },
+        {
+          "id": "jim-receipt",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json",
+          "sha256": "e54bfe5df4137f37c7547da9c96d73995a49f89132df0c3933948d9e74a5e42f",
+          "description": "Recorded upstream revision/describe, executable and real harness hashes, immutable runner identity, configure snapshots and upstream HEAD check. This is not a claim of reproducible source-to-binary correspondence or complete transitive startup inputs."
+        },
+        {
+          "id": "jim-capture-runner",
+          "role": "input",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/runner-original.txt",
+          "sha256": "cc025716eba8b2bfe57aa21d0c853969790bb48015d453f71de4074fe3795cc3",
+          "description": "Immutable original capture runner whose SHA-256 matches the provider receipt; retains exact split/wrapper, fresh process, timeout and environment handling."
+        },
+        {
+          "id": "jim-config-jim-config-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-config.h.txt",
+          "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-jimautoconf-h",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/jimautoconf.h.txt",
+          "sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-config-Makefile",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/Makefile.txt",
+          "sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c",
+          "description": "Recorded build configuration bytes identified by the provider receipt; build flags are not inferred from version text."
+        },
+        {
+          "id": "jim-upstream-head",
+          "role": "provider",
+          "path": "experiments/name-handling/patterns/jim-results-5bac7c9/upstream-head.txt",
+          "sha256": "b462d0ddec77db10702025a9671e50c806eb85e8302b25428dc376895bb87de9",
+          "description": "Exact upstream HEAD check and timestamp retained separately from executable identity; this does not assert that a future upstream HEAD is unchanged."
         }
       ],
       "source_anchors": [],
@@ -142268,7 +143247,7 @@
           "python3",
           "experiments/name-handling/patterns/run_corpus_probes.py"
         ],
-        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. No Rust consumer, Jim or BIG-IP result is supplied by this native-provider record."
+        "limitations": "Requires the canonical real C source/binary trees and release manifest used by the retained capture runner. Original input wrappers and separate raw setup/lookup captures are retained. Replay must preserve existing experiment captures; do not overwrite a measured input or receipt. The retained Jim original-corpus wrapper and immutable runner supply their own reached-question observations; replay Jim into a fresh destination using the recorded revision/harness and inputs. No Rust consumer or BIG-IP result is supplied."
       }
     },
     {
