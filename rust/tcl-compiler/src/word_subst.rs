@@ -242,7 +242,12 @@ fn collect_original_expression_calls(
     if !has_braced_commands {
         return Some(());
     }
-    let invocation = if metadata.permits_logical_source_names() {
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, metadata, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    let invocation = if logical_source {
         crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             registry, metadata, tokens,
         )
@@ -254,7 +259,7 @@ fn collect_original_expression_calls(
         )
     };
     let (roles, traits) = if let Some(invocation) = invocation {
-        let roles = if metadata.permits_logical_source_names() {
+        let roles = if logical_source {
             let realm = tokens
                 .source_binding
                 .as_ref()?
@@ -300,7 +305,7 @@ fn collect_original_expression_calls(
                 .facts
                 .traits
                 .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-                || (!metadata.permits_logical_source_names()
+                || (!logical_source
                     && invocation
                         .facts
                         .arg_roles
@@ -310,7 +315,7 @@ fn collect_original_expression_calls(
             return None;
         }
         (roles, invocation.facts.traits)
-    } else if let Some(invocation) = (!metadata.permits_logical_source_names())
+    } else if let Some(invocation) = (!logical_source)
         .then(|| {
             crate::registry_invocation::logical_structured_invocation_with_metadata_context(
                 registry, metadata, tokens, None,

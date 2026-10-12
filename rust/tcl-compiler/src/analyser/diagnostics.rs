@@ -200,7 +200,8 @@ impl UnitCommandResolver<'_> {
         else {
             return false;
         };
-        if !metadata.permits_logical_source_names()
+        if binding.original_invocation_source_purpose(tokens, metadata, self.registry)
+            != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
             || metadata.context() != self.generation.context()
         {
             return false;

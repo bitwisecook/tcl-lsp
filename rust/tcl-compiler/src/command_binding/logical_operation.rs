@@ -91,9 +91,13 @@ impl super::SourceInvocationBinding {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let input = metadata.source_analysis_input()?;
-        metadata.permits_logical_source_names().then_some(())?;
+        (self.original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
         let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
-        metadata.permits_logical_source_names().then_some(())?;
+        (self.original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
         let point_input = metadata.source_analysis_input()?;
         let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             registry, metadata, tokens,

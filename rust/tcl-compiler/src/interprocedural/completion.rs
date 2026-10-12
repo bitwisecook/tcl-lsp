@@ -54,8 +54,12 @@ impl<'w> CompletionWalk<'w> {
             .retained_source_bindings
             .as_ref()?
             .matches_module(module, registry)
-            || !crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?
-                .permits_logical_source_names()
+            || module.original_invocation_source_purpose(
+                registry,
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry, module,
+                )?,
+            ) != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
         {
             return None;
         }
@@ -883,6 +887,88 @@ pub(super) mod tests {
             );
             assert!(
                 !super::procedures_complete(&unit.ir_module, context.commands(), &|_, _| true,)["::p"]
+            );
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod original_source_purpose_tests {
+    use super::*;
+    use crate::analyser::ResolvedAnalysisInput;
+    use crate::command_binding::{OriginalInvocationSourcePurpose, SourceAnalysisEntry};
+    use crate::registry_invocation::{InvocationMetadataContext, OwnedInvocationMetadataContext};
+    use std::sync::Arc;
+
+    #[test]
+    fn original_module_completion_uses_actual_native_or_logical_entry_purpose() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // A real source-only completion model cannot borrow a held Native Jim entry.
+        let source = "if {1} {set value VALUE}";
+        for native in [true, false] {
+            let environment = tcl_registry::model::ingress::resolve_known_environment(if native {
+                "jimtcl"
+            } else {
+                "tcl9.1"
+            })
+            .unwrap();
+            let profile = if native {
+                environment.unit_profile()
+            } else {
+                tcl_dialect::DialectProfile::plain_tcl()
+            };
+            let input = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                environment.default_context_registry(),
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            let (_owner, entry) = if native {
+                let (owner, held) =
+                    crate::environment_ingress::captured_native_entry_with_owner(profile);
+                (
+                    Some(owner),
+                    SourceAnalysisEntry {
+                        metadata_context: OwnedInvocationMetadataContext::for_source_input(Some(
+                            &input,
+                        )),
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                            profile,
+                        )),
+                        native_compilation:
+                            crate::environment_ingress::authoring_native_compilation(),
+                        native_entry: Some(Arc::new(held)),
+                        ..Default::default()
+                    },
+                )
+            } else {
+                (
+                    None,
+                    SourceAnalysisEntry::for_logical_source(&input).unwrap(),
+                )
+            };
+            let registry = input.borrowed_context_registry().commands();
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_dialect(Some(input.unit_profile()))
+                .with_resolved_analysis_input(input.clone());
+            lowerer.set_source_analysis_options(entry.options());
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
+            let metadata = InvocationMetadataContext::for_module(registry, &module).unwrap();
+            assert!(metadata.permits_logical_source_names());
+            assert_eq!(
+                module.original_invocation_source_purpose(registry, metadata),
+                Some(if native {
+                    OriginalInvocationSourcePurpose::Execution
+                } else {
+                    OriginalInvocationSourcePurpose::Logical
+                })
+            );
+            assert_eq!(
+                CompletionWalk::for_module(&module, registry, true).is_some(),
+                !native
             );
         }
     }

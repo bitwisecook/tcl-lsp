@@ -98,8 +98,10 @@ impl<'a> SourceSummaryContext<'a> {
                 .retained_source_bindings
                 .as_ref()?
                 .matches_module(module, registry)
-            || !InvocationMetadataContext::for_module(registry, module)?
-                .permits_logical_source_names()
+            || module.original_invocation_source_purpose(
+                registry,
+                InvocationMetadataContext::for_module(registry, module)?,
+            ) != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
         {
             return None;
         }
@@ -133,7 +135,12 @@ impl<'a> SourceSummaryContext<'a> {
             .source_binding
             .as_ref()?
             .original_invocation_metadata_for_module(tokens, self.module, self.registry)?;
-        metadata.permits_logical_source_names().then_some(metadata)
+        (tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_source_purpose(tokens, metadata, self.registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(metadata)
     }
 
     pub(super) fn operation(&self, tokens: &CommandTokens) -> Option<ResolvedStatementInvocation> {

@@ -392,8 +392,7 @@ impl PointResolveContexts {
     ) -> Option<&ConditionalLogicalScalarStore> {
         let store = self.logical_scalar_stores.get(&(block, index))?;
         let metadata = self.metadata_context.metadata_context(registry).flatten()?;
-        if !metadata.permits_logical_source_names()
-            || metadata.source_analysis_input() != Some(&store.input)
+        if metadata.source_analysis_input() != Some(&store.input)
             || self.statements.get(&(block, index)) != Some(&store.before)
             || self.after.get(&(block, index)) != Some(&store.after)
         {
@@ -405,7 +404,12 @@ impl PointResolveContexts {
             .source_binding
             .as_ref()?
             .original_invocation_metadata_for_input(tokens, &store.input, registry)?;
-        metadata.permits_logical_source_names().then_some(())?;
+        (tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
         store.definition_place(registry)?;
         Some(store)
     }

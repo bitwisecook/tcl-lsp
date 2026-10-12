@@ -356,12 +356,17 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     tokens: &CommandTokens,
     bindings: Option<&crate::command_binding::SourceCommandBindings>,
 ) -> Option<LogicalStructuredInvocation> {
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
         #[cfg(test)]
         trace_original_structure("registry", tokens, false);
         return None;
     }
-    let context = if context.permits_logical_source_names() {
+    let context = if logical_source {
         tokens
             .source_binding
             .as_ref()?
@@ -404,7 +409,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
         trace_original_structure("original_inline_control", tokens, selected.is_some());
         selected
     })?;
-    let source_roles = if context.permits_logical_source_names() {
+    let source_roles = if logical_source {
         let binding = tokens.source_binding.as_ref()?;
         let realm = binding.original_source_realm_for_input(
             tokens,
@@ -526,6 +531,11 @@ fn original_declared_structured_invocation<'a>(
     tokens: &CommandTokens,
 ) -> Option<ResolvedStatementInvocation> {
     let context = context.into();
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
         #[cfg(test)]
         trace_original_structure("declaration_registry", tokens, false);
@@ -539,7 +549,7 @@ fn original_declared_structured_invocation<'a>(
             return None;
         }
     };
-    let context = if context.permits_logical_source_names() {
+    let context = if logical_source {
         binding.original_invocation_metadata_for_input(
             tokens,
             context.source_analysis_input()?,
@@ -558,7 +568,6 @@ fn original_declared_structured_invocation<'a>(
         trace_original_structure("declaration_config", tokens, false);
         return None;
     }
-    let logical_source = context.permits_logical_source_names();
     let advice = if logical_source {
         binding.original_conditional_operand_layout_advice(tokens, registry)
     } else {
@@ -593,7 +602,12 @@ fn original_inline_control_structured_invocation(
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
 ) -> Option<ResolvedStatementInvocation> {
-    if !context.matches_registry(registry) || context.permits_logical_source_names() {
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    if !context.matches_registry(registry) || logical_source {
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
@@ -627,6 +641,11 @@ pub(crate) fn conditional_option_arguments_with_metadata_context(
     ResolvedStatementInvocation,
     tcl_registry::AuthoredSourceOptionArguments,
 )> {
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) || tokens.synthetic.is_some() {
         return None;
     }
@@ -645,7 +664,7 @@ pub(crate) fn conditional_option_arguments_with_metadata_context(
                 resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
             })
             .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
-    let realm = if context.permits_logical_source_names() {
+    let realm = if logical_source {
         binding.original_source_realm_for_input(
             tokens,
             context.source_analysis_input()?,
@@ -673,10 +692,12 @@ pub(crate) fn original_logical_operation_invocation_with_metadata_context(
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
 ) -> Option<ResolvedStatementInvocation> {
-    if !context.matches_registry(registry)
-        || !context.permits_logical_source_names()
-        || tokens.synthetic.is_some()
-    {
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    if !context.matches_registry(registry) || !logical_source || tokens.synthetic.is_some() {
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
@@ -685,7 +706,7 @@ pub(crate) fn original_logical_operation_invocation_with_metadata_context(
         context.source_analysis_input()?,
         registry,
     )?;
-    if !context.permits_logical_source_names() {
+    if !logical_source {
         return None;
     }
     resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
@@ -701,6 +722,11 @@ pub(crate) fn original_substitution_purity_with_metadata_context(
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
 ) -> Option<bool> {
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     if !context.matches_registry(registry) || tokens.synthetic.is_some() {
@@ -712,7 +738,7 @@ pub(crate) fn original_substitution_purity_with_metadata_context(
     if config.normalized() != input.lexer_config().normalized() {
         return None;
     }
-    let invocation = if context.permits_logical_source_names() {
+    let invocation = if logical_source {
         original_logical_operation_invocation_with_metadata_context(registry, context, tokens)?
     } else {
         if binding.execution_is_unknown() || binding.execution_may_be_absent() {
@@ -7158,15 +7184,23 @@ pub(crate) fn conditional_body_topology_advice_with_metadata_context(
     tokens: &CommandTokens,
     bindings: &crate::command_binding::SourceCommandBindings,
 ) -> Option<PossibleBodyInvocation> {
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
         return None;
     }
-    let context = if context.permits_logical_source_names() {
-        tokens.source_binding.as_ref()?.original_invocation_metadata_for_input(
-            tokens,
-            context.source_analysis_input()?,
-            registry,
-        )?
+    let context = if logical_source {
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_input(
+                tokens,
+                context.source_analysis_input()?,
+                registry,
+            )?
     } else {
         context
     };
@@ -7316,6 +7350,8 @@ fn original_expression_context_advice_selected_word(
         .original_source_metadata_for_advice(tokens, registry)
         .ok()??;
     let advice = binding.original_conditional_operand_layout_advice(tokens, registry)?;
+    let logical_source = advice.original_source_purpose(context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if advice.has_opaque_handler_alternatives() {
         return None;
     }
@@ -7324,7 +7360,7 @@ fn original_expression_context_advice_selected_word(
     // do not certify successful argument evaluation or an entered handler.
     let expressions =
         selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
-            if context.permits_logical_source_names() {
+            if logical_source {
                 schema.authored_logical_source_expression_arguments()
             } else {
                 schema.authored_source_expression_arguments()
@@ -7367,7 +7403,7 @@ fn original_expression_context_advice_selected_word(
         parser,
         dialect,
         written: original,
-        lookup_closed: if context.permits_logical_source_names() {
+        lookup_closed: if logical_source {
             advice.closed_logical_source_lookup()
         } else {
             advice.closed_lookup()
@@ -7441,12 +7477,17 @@ fn original_compilation_body_topology_advice<'a>(
     tokens: &CommandTokens,
 ) -> Option<PossibleBodyInvocation> {
     let context = context.into();
+    let logical_source = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     if !context.matches_registry(registry) {
         return None;
     }
 
     let binding = tokens.source_binding.as_ref()?;
-    let advice = if context.permits_logical_source_names() {
+    let advice = if logical_source {
         binding.original_conditional_operand_layout_advice(tokens, registry)?
     } else {
         binding.original_compilation_lookup_advice(tokens)?
@@ -10270,3 +10311,7 @@ mod original_logical_body_topology_input_tests {
         ).is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "registry_invocation/original_source_purpose_tests.rs"]
+mod original_source_purpose_tests;

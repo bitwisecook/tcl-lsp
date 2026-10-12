@@ -1890,6 +1890,79 @@ impl super::OriginalCompilationLookupAdvice {
     }
 }
 
+impl super::OriginalCompilationLookupAdvice {
+    /// Purpose of this already joined original declaration or compiler layout.
+    /// The shared baseline classifier issues no invocation, frame or handler.
+    pub(crate) fn original_source_purpose(
+        &self,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<super::OriginalInvocationSourcePurpose> {
+        self.snapshot
+            .state
+            .retained_original_source_purpose(metadata, registry)
+    }
+}
+
+impl super::SourceInvocationBinding {
+    /// Keep source-layout purpose separate from actual invocation permission.
+    /// A reached point retains its terminal invocation checks; only its absence
+    /// permits the existing exact declaration/compiler source correspondence.
+    pub(crate) fn original_source_advice_purpose(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<super::OriginalInvocationSourcePurpose> {
+        if self.lookup_state.is_some() {
+            return self.original_invocation_source_purpose(tokens, metadata, registry);
+        }
+        if !metadata.matches_registry(registry) {
+            return None;
+        }
+        let advice = self
+            .declaration_operand_layout_advice(tokens)
+            .or_else(|| self.original_compilation_lookup_advice(tokens))?;
+        let original = advice
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        match (original, metadata.source_analysis_input()) {
+            (Some(original), Some(request)) => {
+                let input = original.source_analysis_input()?;
+                if input != request && input != &request.for_nested_source() {
+                    return None;
+                }
+            }
+            (None, None) if metadata.is_standalone() => {}
+            _ => return None,
+        }
+        advice.original_source_purpose(metadata, registry)
+    }
+}
+
+impl super::SourceCommandBindings {
+    /// Purpose of this complete retained source interpretation. Original image,
+    /// configuration and metadata remain independent prerequisites; no point,
+    /// definition, variable frame or Native permission follows from this tag.
+    pub(crate) fn original_source_entry_purpose(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<super::OriginalInvocationSourcePurpose> {
+        if !self.matches_original_source_image(image, config)
+            || metadata
+                .source_analysis_input()
+                .is_some_and(|input| input.lexer_config() != config)
+        {
+            return None;
+        }
+        self.final_state
+            .retained_original_source_purpose(metadata, registry)
+    }
+}
+
 /// Common immutable declaration-vector join, independent of target selection.
 struct OriginalDeclarationWordSource<'a> {
     snapshot: &'a Arc<super::SourceLookupSnapshot>,
@@ -2015,7 +2088,11 @@ impl super::SourceInvocationBinding {
                     OriginalWordSourcePurpose::ArgumentEvaluation,
                 )
                 .ok()??;
-            metadata.permits_logical_source_names().then_some(())?;
+            (row.snapshot
+                .state
+                .retained_original_source_purpose(metadata, registry)?
+                == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+                .then_some(())?;
             if selected.is_some_and(
                 |prior: crate::registry_invocation::InvocationMetadataContext<'_>| {
                     prior.source_analysis_input() != metadata.source_analysis_input()
@@ -2058,7 +2135,11 @@ impl super::SourceInvocationBinding {
             let checked = advice
                 .original_declaration_metadata_context(registry, tokens)
                 .ok()??;
-            checked.permits_logical_source_names().then_some(())?;
+            (row.snapshot
+                .state
+                .retained_original_source_purpose(checked, registry)?
+                == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+                .then_some(())?;
             let input = row
                 .snapshot
                 .state
@@ -2361,8 +2442,9 @@ impl super::SourceInvocationBinding {
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Vec<super::SourceCommandTarget>> {
-        self.original_invocation_metadata_for_input(tokens, input, registry)?
-            .permits_logical_source_names()
+        let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        (self.original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
             .then_some(())?;
         let advice = self.original_logical_declaration_layout_advice(tokens)?;
         advice.closed_logical_source_lookup().then_some(())?;

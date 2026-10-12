@@ -272,18 +272,27 @@ pub(super) fn collect_existence_guards(
                     Some((query, crate::var_resolve::canonical_place_key(&place)?))
                 })
             } else {
-                crate::existence_query::in_expr_with_metadata_context(
-                    condition,
-                    registry,
-                    config,
-                    Some(metadata),
-                )
-                .and_then(|query| {
-                    let symbol = fu
-                        .ssa
-                        .var_symbol_at_terminator(condition_block, &query.var)?;
-                    Some((query, fu.ssa.cell_key(symbol).clone()))
-                })
+                fu.cfg
+                    .source_tokens_at(condition_block, usize::MAX)
+                    .filter(|tokens| {
+                        tokens.source_binding.as_ref().and_then(|binding| {
+                            binding.original_source_advice_purpose(tokens, metadata, registry)
+                        }) == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+                    })
+                    .and_then(|_| {
+                        crate::existence_query::in_expr_with_metadata_context(
+                            condition,
+                            registry,
+                            config,
+                            Some(metadata),
+                        )
+                    })
+                    .and_then(|query| {
+                        let symbol = fu
+                            .ssa
+                            .var_symbol_at_terminator(condition_block, &query.var)?;
+                        Some((query, fu.ssa.cell_key(symbol).clone()))
+                    })
             };
             if let Some((query, cell)) = selected {
                 let target = if query.negated {
@@ -797,10 +806,10 @@ pub(super) fn call_steps(
     let Some(module) = module else {
         return steps;
     };
-    let Some(metadata) = fu.invocation_metadata_context(registry) else {
-        return steps;
-    };
-    if !metadata.permits_logical_source_names() {
+    if module
+        .invocation_metadata_context_for_function(fu, registry)
+        .is_none()
+    {
         return steps;
     }
     let config = fu.source_lexer_config();
@@ -809,6 +818,20 @@ pub(super) fn call_steps(
             continue;
         };
         for (index, statement) in block.statements.iter().enumerate() {
+            let Some(tokens) = statement.statement.tokens() else {
+                continue;
+            };
+            let Some(metadata) =
+                module.original_invocation_metadata_for_function(fu, tokens, registry)
+            else {
+                continue;
+            };
+            if tokens.source_binding.as_ref().and_then(|binding| {
+                binding.original_invocation_source_purpose(tokens, metadata, registry)
+            }) != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            {
+                continue;
+            }
             for (place, step) in crate::value_transfer::summary_steps(
                 module,
                 &fu.name,

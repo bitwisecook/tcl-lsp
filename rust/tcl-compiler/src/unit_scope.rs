@@ -874,7 +874,11 @@ fn record_call_site_evidence(
         return;
     }
     let invocation = context
-        .filter(|metadata| metadata.permits_logical_source_names())
+        .filter(|metadata| {
+            tokens.source_binding.as_ref().and_then(|binding| {
+                binding.original_invocation_source_purpose(tokens, *metadata, ctx.registry)
+            }) == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+        })
         .and_then(|metadata| {
             crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
                 ctx.registry,
@@ -2787,7 +2791,9 @@ pub fn scan_unit_linkage(
         let Some(context) = context else {
             return;
         };
-        let invocation = context.filter(|metadata| metadata.permits_logical_source_names())
+        let invocation = context.filter(|metadata| binding.original_invocation_source_purpose(
+            tokens, *metadata, registry,
+        ) == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical))
             .and_then(|metadata| crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(registry, metadata, tokens))
             .or_else(|| crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(registry, context, tokens));
         if let Some(invocation) = invocation {

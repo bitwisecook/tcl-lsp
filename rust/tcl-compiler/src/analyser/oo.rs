@@ -2391,6 +2391,32 @@ impl Analyser {
         true
     }
 
+    pub(super) fn retained_source_advice_purpose(
+        &self,
+    ) -> Option<crate::command_binding::OriginalInvocationSourcePurpose> {
+        let input = self
+            .resolved_input
+            .as_ref()
+            .or(self.result.resolved_input.as_ref())?;
+        let config = self.file_lexer_config();
+        if input.lexer_config() != config {
+            return None;
+        }
+        let context = self.analysis_context();
+        let registry = context.commands();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, input,
+        )?;
+        self.head_identities
+            .source_bindings()
+            .original_source_entry_purpose(
+                &tcl_lexer::SourceImage::document(&self.source),
+                config,
+                metadata,
+                registry,
+            )
+    }
+
     fn original_jim_class_lists(
         &self,
         original: Option<&super::original_definer::OriginalClassDefinerSource>,
@@ -2414,9 +2440,15 @@ impl Analyser {
             .and_then(
                 crate::signature_scan::scope::SignatureSourceNameInput::original_list_elements,
             );
-        let native = !self
-            .resolved_analysis_input()
-            .has_logical_source_name_context();
+        let Some(purpose) = self.retained_source_advice_purpose() else {
+            return OriginalJimClassLists {
+                bases_dynamic: true,
+                superclasses: Vec::new(),
+                variable_words: Vec::new(),
+                source_bases: None,
+            };
+        };
+        let native = purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical;
         let bases_dynamic = if native {
             base_at.is_some() && source_bases.is_none()
         } else {
@@ -2465,9 +2497,10 @@ impl Analyser {
         source_bases: Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>>,
         scope_path: &[usize],
     ) {
-        let native = !self
-            .resolved_analysis_input()
-            .has_logical_source_name_context();
+        let Some(purpose) = self.retained_source_advice_purpose() else {
+            return;
+        };
+        let native = purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical;
         if native {
             for input in source_bases.into_iter().flatten() {
                 let Ok(written) = std::str::from_utf8(input.bytes()) else {
@@ -2597,9 +2630,8 @@ impl Analyser {
             }
             return;
         }
-        if !self
-            .resolved_analysis_input()
-            .has_logical_source_name_context()
+        if self.retained_source_advice_purpose()
+            != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
         {
             return;
         }
@@ -2746,10 +2778,10 @@ impl Analyser {
         proc: &super::types::ProcDef,
         scope_path: &[usize],
     ) {
-        if !self
-            .resolved_analysis_input()
-            .has_logical_source_name_context()
-        {
+        let Some(purpose) = self.retained_source_advice_purpose() else {
+            return;
+        };
+        if purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical {
             let selected = self
                 .result
                 .original_procedure_declarations()
@@ -3207,7 +3239,17 @@ fn walk_unknown_stmt(
             )
     });
     let case = source_metadata.and_then(|metadata| {
-        if metadata.permits_logical_source_names() {
+        if script
+            .retained_source_tokens_for_statement(stmt)?
+            .source_binding
+            .as_ref()?
+            .original_invocation_source_purpose(
+                script.retained_source_tokens_for_statement(stmt)?,
+                metadata,
+                context.commands(),
+            )?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+        {
             crate::registry_invocation::source_structure::original_logical_source_case_for_tokens(
                 script.retained_source_tokens_for_statement(stmt)?,
                 context.commands(),
@@ -3260,7 +3302,10 @@ fn walk_unknown_stmt(
             // Logical source advice describes the exact selected operation;
             // Native execution still needs its independent proved target.
             let invocation = source_metadata.and_then(|metadata| {
-                if metadata.permits_logical_source_names() {
+                if script.retained_source_tokens_for_statement(stmt)?
+            .source_binding.as_ref()?.original_invocation_source_purpose(
+                script.retained_source_tokens_for_statement(stmt)?, metadata, context.commands(),
+            )? == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
                     crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
                         context.commands(), metadata, stmt.tokens()?,
                     )

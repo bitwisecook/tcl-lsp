@@ -75,13 +75,15 @@ impl SourceInvocationBinding {
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Vec<super::SourceCommandTarget>> {
         if !input.has_logical_source_name_context()
-            || !self
-                .original_invocation_metadata_for_input(
+            || self.original_invocation_source_purpose(
+                tokens,
+                self.original_invocation_metadata_for_input(
                     tokens,
                     input,
                     input.borrowed_context_registry().commands(),
-                )?
-                .permits_logical_source_names()
+                )?,
+                input.borrowed_context_registry().commands(),
+            )? != crate::command_binding::OriginalInvocationSourcePurpose::Logical
         {
             return None;
         }
@@ -108,7 +110,8 @@ impl SourceInvocationBinding {
         registry: &CommandRegistry,
     ) -> Option<OriginalSourceProcedureArgumentRoles<'a>> {
         let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
-        let logical = metadata.permits_logical_source_names();
+        let logical = self.original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
         let targets = if logical {
             // The sealed declaration keeps raw runtime uncertainty. Join its
             // complete source targets before using internal allocations solely
@@ -350,7 +353,9 @@ impl SourceInvocationBinding {
         if let Some(point) = &self.lookup_state {
             return Some(point.realm);
         }
-        metadata.permits_logical_source_names().then_some(())?;
+        (self.original_invocation_source_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
         let advice = self
             .declaration_operand_layout_advice(tokens)
             .or_else(|| self.original_compilation_lookup_advice(tokens))?;
@@ -696,10 +701,12 @@ impl SourceInvocationBinding {
         request: InvocationMetadataContext<'_>,
     ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
         use super::declaration_layout::original_declaration_layouts;
-        request.permits_logical_source_names().then_some(())?;
         let input = request.source_analysis_input()?;
         let metadata = self.original_declaration_metadata_for_source(tokens, registry)?;
-        if metadata.source_analysis_input() != Some(input) {
+        if metadata.source_analysis_input() != Some(input)
+            || self.original_source_advice_purpose(tokens, metadata, registry)?
+                != crate::command_binding::OriginalInvocationSourcePurpose::Logical
+        {
             return None;
         }
         let advice = self.declaration_operand_layout_advice(tokens);
@@ -950,6 +957,10 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
             config,
             &command,
         );
+        let logical_source = self
+            .bindings()
+            .retained_original_source_purpose(self.metadata, self.registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
         let mut selected = false;
         let mut accepted = true;
         self.bindings().for_each_resolved_command_words(&words, self.namespace(), |target, invocation| {
@@ -965,7 +976,7 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
             accepted &= schema.semantics.body_kind == tcl_registry::BodyKind::Plain
                 && schema.semantics.body_interpreter.resolve(schema.words.arguments())
                     == tcl_registry::InterpreterScope::Current
-                && (if self.metadata.permits_logical_source_names() {
+                && (if logical_source {
                     schema.authored_logical_source_plain_script_arguments()
                 } else { schema.authored_source_plain_script_arguments() })
                     .is_some_and(|arguments| arguments.contains(&argument))

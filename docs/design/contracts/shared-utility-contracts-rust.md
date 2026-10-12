@@ -4234,3 +4234,20 @@ splice, erasure, cell, observer, dispatch or completion proof.
 | `finish` | Retire the original allocation-only lease and settle the same captured owner after mandatory caller cleanup. |
 
 The actual authored binary selectors, namespace keyword table, string selector/counting helpers and static-domain/configuration fronts consume this shared owner. Intrinsic errors are retained inside the String worker before compound backing or unused child ownership retires. Original currentness and header refusals use the same unconditional full-cause latch. A later failed check cannot replace that first cause or publish a refused result. The independent neutral `Value` getters continue through the same renderer with checks absent, preserving its ordering, depth cap, quoting, cache and formatter behavior.
+
+### Compiler source advice purpose
+
+Compiler source-role consumers use `OriginalInvocationSourcePurpose` from the
+retained source owner. A held Native entry selects `Execution`, an independently
+retained Logical input selects `Logical`, and an explicit retained software
+policy selects `AuthoredSimulation`. Explicit standalone metadata keeps its
+separate compatibility purpose. Raw input eligibility does not select a purpose.
+
+An actual invocation keeps its original point and full vector checks. Native or
+authored declaration and compiler layouts can retain readonly source geometry
+through their own exact advice owner when an invocation is unavailable. Neither
+layout supplies a reached frame, handler, compilation admission or trace absence.
+Module, CFG and materialized-value consumers retain their original input,
+configuration, image and command world before querying the same purpose owner.
+Missing or foreign ownership remains unknown; existing Native and authored
+operation guards stay independent of Logical source analysis.

@@ -99,19 +99,24 @@ impl Analyser {
             else {
                 continue;
             };
-            let records = if metadata.permits_logical_source_names() {
-                let Some(values) =
-                    crate::value_transfer::OriginalDiagnosticValues::for_module_function(
-                        module, unit, registry,
-                    )
-                else {
-                    continue;
-                };
-                values.template_plans()
-            } else {
-                // Native execution keeps its independently settled result.
-                unit.sccp.template_plans.iter().collect()
+            let Some(purpose) = module.original_invocation_source_purpose(registry, metadata)
+            else {
+                continue;
             };
+            let records =
+                if purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+                    let Some(values) =
+                        crate::value_transfer::OriginalDiagnosticValues::for_module_function(
+                            module, unit, registry,
+                        )
+                    else {
+                        continue;
+                    };
+                    values.template_plans()
+                } else {
+                    // Native execution keeps its independently settled result.
+                    unit.sccp.template_plans.iter().collect()
+                };
             for record in records {
                 let Some(segment) = original_template_segment(unit, record) else {
                     continue;

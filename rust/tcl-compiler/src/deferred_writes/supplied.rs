@@ -114,6 +114,13 @@ impl SourceScan<'_> {
             return;
         };
         let metadata = footprint.metadata_context();
+        let Some(source_purpose) = footprint
+            .bindings()
+            .retained_original_source_purpose(metadata, self.registry)
+        else {
+            self.out.any = true;
+            return;
+        };
         let Some(invocation) =
             original_callback_invocation_with_metadata_context(self.registry, metadata, tokens)
         else {
@@ -124,7 +131,13 @@ impl SourceScan<'_> {
             self.registry,
             metadata,
             footprint.bindings().invocation_realm(),
-            |schema| selected_values(schema, metadata.permits_logical_source_names()),
+            |schema| {
+                selected_values(
+                    schema,
+                    source_purpose
+                        == crate::command_binding::OriginalInvocationSourcePurpose::Logical,
+                )
+            },
         );
         let Some(selected) = selected else {
             self.out.any = true;
@@ -216,6 +229,12 @@ impl SourceScan<'_> {
             self.out.any = true;
             return;
         };
+        let Some(source_purpose) =
+            state.retained_original_source_purpose(context.metadata, self.registry)
+        else {
+            self.out.any = true;
+            return;
+        };
         let mut selected = Vec::new();
         let mut unknown = false;
         state.for_each_resolved_command_words(words, holder.as_ref(), |target, arguments| {
@@ -231,7 +250,11 @@ impl SourceScan<'_> {
                     state.invocation_realm(),
                 );
             match answer.resolved().and_then(|schema| {
-                selected_values(&schema, context.metadata.permits_logical_source_names())
+                selected_values(
+                    &schema,
+                    source_purpose
+                        == crate::command_binding::OriginalInvocationSourcePurpose::Logical,
+                )
             }) {
                 Some(values) => selected.push(values),
                 None => unknown = true,

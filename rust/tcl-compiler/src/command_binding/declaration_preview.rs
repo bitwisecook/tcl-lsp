@@ -434,7 +434,12 @@ impl SourceCommandBindings {
         if !self.matches_original_source_image(site.source.source_image(), input.lexer_config()) {
             return None;
         }
-        if input.has_logical_source_name_context() {
+        if tokens
+            .source_binding
+            .as_ref()?
+            .original_source_advice_purpose(tokens, metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+        {
             let recipe = self.original_logical_procedure_declaration(tokens, registry, input)?;
             return Some(OriginalProcedureReadDeclaration {
                 source: recipe.source().clone(),

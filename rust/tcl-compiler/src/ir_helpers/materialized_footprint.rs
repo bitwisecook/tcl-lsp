@@ -385,11 +385,20 @@ fn selected_name_ownership(
     purpose: crate::script_binds::Ownership,
 ) -> VariableWriteEffects {
     use tcl_registry::source_name_ownership::{SourceNameOwnershipPurpose, SourceRolePurpose};
-    let role_purpose = if context.metadata.permits_logical_source_names() {
-        SourceRolePurpose::Logical
-    } else {
-        SourceRolePurpose::Original
+    let Some(source_purpose) =
+        state.retained_original_source_purpose(context.metadata, context.registry)
+    else {
+        return VariableWriteEffects {
+            opaque: true,
+            ..Default::default()
+        };
     };
+    let role_purpose =
+        if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+            SourceRolePurpose::Logical
+        } else {
+            SourceRolePurpose::Original
+        };
     let purpose = match purpose {
         crate::script_binds::Ownership::Bindings => SourceNameOwnershipPurpose::Bindings,
         #[cfg(test)]
@@ -496,6 +505,11 @@ fn immediate_values(
     Vec<tcl_registry::value_transfer::TemplateWordPlan>,
     bool,
 ) {
+    let Some(source_purpose) =
+        state.retained_original_source_purpose(context.metadata, context.registry)
+    else {
+        return (Vec::new(), Vec::new(), Vec::new(), true);
+    };
     let mut bodies = Vec::new();
     let mut expressions = Vec::new();
     let mut templates = Vec::new();
@@ -518,7 +532,9 @@ fn immediate_values(
         };
         bodies.extend(immediate_same_frame_script_values_for_role_purpose(
             &schema,
-            context.ownership.is_some() && context.metadata.permits_logical_source_names(),
+            context.ownership.is_some()
+                && (source_purpose
+                    == crate::command_binding::OriginalInvocationSourcePurpose::Logical),
         ));
         if schema
             .semantics
@@ -535,8 +551,8 @@ fn immediate_values(
                 None => opaque = true,
             }
         }
-        let logical =
-            context.ownership.is_some() && context.metadata.permits_logical_source_names();
+        let logical = context.ownership.is_some()
+            && (source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical);
         if context.ownership.is_some() {
             opaque |= immediate_body_ownership_is_opaque(&schema, logical);
         }

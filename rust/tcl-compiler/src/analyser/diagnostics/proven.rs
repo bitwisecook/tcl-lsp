@@ -199,7 +199,11 @@ impl<'u> WordIndex<'u> {
             else {
                 continue;
             };
-            if metadata.permits_logical_source_names() {
+            if cu
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata)
+                == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            {
                 let Some(values) =
                     OriginalDiagnosticValues::for_module_function(&cu.ir_module, fu, registry)
                 else {

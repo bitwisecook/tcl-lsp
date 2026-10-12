@@ -56,7 +56,9 @@ pub(crate) fn original_logical_procedure_calls_for_module<'a>(
 ) -> Option<Vec<OriginalSourceProcedureCall<'a>>> {
     let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
-    if !metadata.permits_logical_source_names() {
+    if binding.original_invocation_source_purpose(tokens, metadata, registry)?
+        != crate::command_binding::OriginalInvocationSourcePurpose::Logical
+    {
         return None;
     }
     let targets = binding
@@ -229,8 +231,10 @@ pub(crate) fn original_procedure_parameters(
     let retained = module.retained_source_bindings.as_ref()?;
     if !retained.matches_module(module, registry)
         || !retained.matches_original_procedure(procedure)
-        || !super::InvocationMetadataContext::for_module(registry, module)?
-            .permits_logical_source_names()
+        || module.original_invocation_source_purpose(
+            registry,
+            super::InvocationMetadataContext::for_module(registry, module)?,
+        ) != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
     {
         return None;
     }

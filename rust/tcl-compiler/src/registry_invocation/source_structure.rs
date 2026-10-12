@@ -1733,10 +1733,12 @@ fn original_native_handler_for_case_source(
     registry: &CommandRegistry,
     metadata: super::InvocationMetadataContext<'_>,
 ) -> Option<super::ResolvedStatementInvocation> {
-    if metadata.permits_logical_source_names() {
+    let binding = tokens.source_binding.as_ref()?;
+    if binding.original_invocation_source_purpose(tokens, metadata, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+    {
         return None;
     }
-    let binding = tokens.source_binding.as_ref()?;
     binding
         .original_source_word_dialect_for_tokens(tokens)?
         .native_name_protocol()?;
@@ -1767,6 +1769,8 @@ fn original_source_case_projection(
 ) -> Option<OriginalSourceCase> {
     let input = metadata.source_analysis_input()?;
     let binding = tokens.source_binding.as_ref()?;
+    let logical_source = binding.original_source_advice_purpose(tokens, metadata, registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
     let realm = binding.invocation_realm()?;
     selected.with_metadata_schema(registry, metadata, realm, |schema| {
@@ -1795,7 +1799,7 @@ fn original_source_case_projection(
                     return None;
                 }
                 let (case, layout) = schema.authored_source_case_invocation()?;
-                let bodies = if metadata.permits_logical_source_names() {
+                let bodies = if logical_source {
                     schema
                         .authored_logical_source_role_projection()?
                         .case_body_operands()?
@@ -2001,7 +2005,10 @@ fn original_folded_case_subject(
         );
     }
     let child_metadata = child_metadata?;
-    let selected = if metadata.permits_logical_source_names() {
+    let logical_source =
+        binding.original_invocation_source_purpose(child, child_metadata, registry)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    let selected = if logical_source {
         super::original_logical_operation_invocation_with_metadata_context(
             registry,
             child_metadata,
@@ -2019,7 +2026,7 @@ fn original_folded_case_subject(
         );
     }
     let selected = selected?;
-    let realm = if metadata.permits_logical_source_names() {
+    let realm = if logical_source {
         binding.original_source_realm_for_input(child, input, registry)?
     } else {
         binding.invocation_realm()?
@@ -2100,7 +2107,8 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
 ) -> Option<OriginalRegistryWords> {
     let registry = input.borrowed_context_registry().commands();
     let binding = tokens.source_binding.as_ref()?;
-    binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let metadata = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let source_purpose = binding.original_invocation_source_purpose(tokens, metadata, registry)?;
     let site = binding.invocation_site()?;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
     let image = site.source.source_image();
@@ -2125,13 +2133,14 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
     if realm.original_source_registry_barrier(&context, tokens) {
         return None;
     }
-    let selected = if input.has_logical_source_name_context() {
-        logical_source_registry_words(source, realm, input, &segment)
-    } else {
-        selected_registry_words_with_context(source, config, realm, &segment, &context).or_else(
-            || native_source_registry_words(source, config, realm, &context, &segment, None),
-        )
-    }?;
+    let selected =
+        if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical {
+            logical_source_registry_words(source, realm, input, &segment)
+        } else {
+            selected_registry_words_with_context(source, config, realm, &segment, &context).or_else(
+                || native_source_registry_words(source, config, realm, &context, &segment, None),
+            )
+        }?;
     if selected.head_source()?.word() != native.first() {
         return None;
     }

@@ -56,7 +56,9 @@ impl<'a> OriginalDiagnosticValues<'a> {
             .matches_module(module, registry)
             .then_some(())?;
         let metadata = function.invocation_metadata_context_for_module(registry, module)?;
-        metadata.permits_logical_source_names().then_some(())?;
+        (module.original_invocation_source_purpose(registry, metadata)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
         function.has_original_semantic_value_owner().then_some(())?;
         let input = metadata.source_analysis_input()?;
         function
@@ -116,7 +118,12 @@ impl<'a> OriginalDiagnosticValues<'a> {
                 self.module,
                 self.registry.registry(),
             )?;
-        metadata.permits_logical_source_names().then_some(())?;
+        (tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_source_purpose(tokens, metadata, self.registry.registry())?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(())?;
         let config = metadata.source_analysis_input()?.lexer_config();
         (config.nested().normalized() == self.function.source_lexer_config().nested().normalized())
             .then_some(metadata)

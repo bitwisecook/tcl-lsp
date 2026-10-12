@@ -7548,11 +7548,7 @@ impl Analyser {
             .resolved_input
             .as_ref()
             .or(self.result.resolved_input.as_ref());
-        let logical_source = retained.is_some_and(|input| input.has_logical_source_name_context())
-            || tokens
-                .source_binding
-                .as_ref()
-                .is_some_and(|binding| binding.logical_source_name_advice_input().is_some());
+
         #[cfg(test)]
         let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some();
         #[cfg(test)]
@@ -7561,16 +7557,25 @@ impl Analyser {
                 eprintln!("ORIGINAL_COMPLETION_GUARD label={label} passed={passed}");
             }
         };
-        let metadata = retained
-            .and_then(|input| {
-                crate::registry_invocation::InvocationMetadataContext::for_source_input(
-                    registry,
-                    input,
-                    self.file_lexer_config(),
-                    Some(input.unit_profile()),
-                )
-            })
-            .filter(|metadata| metadata.permits_logical_source_names());
+        let metadata = retained.and_then(|input| {
+            crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                self.file_lexer_config(),
+                Some(input.unit_profile()),
+            )
+        });
+        let purpose = metadata.and_then(|metadata| {
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_source_advice_purpose(&tokens, metadata, registry)
+        });
+        let Some(purpose) = purpose else {
+            return InvocationCompletion::Unknown;
+        };
+        let logical_source =
+            purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
         #[cfg(test)]
         if trace_enabled {
             trace("source.logical", logical_source);
@@ -9485,14 +9490,7 @@ impl Analyser {
                 config,
             )
             || !self.head_identities.matches_resolved_analysis_input(input)
-            || (input.has_logical_source_name_context()
-                && self.source_analysis_entry.as_ref().is_some_and(|entry| {
-                    entry.native_entry.is_some()
-                        || matches!(
-                            entry.execution_name_policy,
-                            Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(_))
-                        )
-                }))
+            || self.retained_source_advice_purpose().is_none()
         {
             return None;
         }

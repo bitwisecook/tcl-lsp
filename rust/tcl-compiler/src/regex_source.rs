@@ -290,9 +290,11 @@ fn literal_value_word_span(
     }
     let tokens = stmt.tokens()?;
     let metadata = source_metadata_at(tokens, module, registry)?;
-    let value = if let Some(metadata) =
-        metadata.filter(|metadata| metadata.permits_logical_source_names())
-    {
+    let value = if let Some(metadata) = metadata.filter(|metadata| {
+        tokens.source_binding.as_ref().and_then(|binding| {
+            binding.original_invocation_source_purpose(tokens, *metadata, registry)
+        }) == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+    }) {
         let selected = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             registry, metadata, tokens,
         )?;
@@ -471,9 +473,11 @@ fn regex_pattern_word<'a>(
 ) -> Option<&'a crate::ir::WordExpr> {
     let tokens = stmt.tokens()?;
     let metadata = source_metadata_at(tokens, module, registry)?;
-    let idx = if let Some(metadata) =
-        metadata.filter(|metadata| metadata.permits_logical_source_names())
-    {
+    let idx = if let Some(metadata) = metadata.filter(|metadata| {
+        tokens.source_binding.as_ref().and_then(|binding| {
+            binding.original_invocation_source_purpose(tokens, *metadata, registry)
+        }) == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+    }) {
         let selected = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             registry, metadata, tokens,
         )?;
