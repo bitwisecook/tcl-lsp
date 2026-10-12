@@ -1,0 +1,210 @@
+{
+  "sha": "755f78207b993cdfa4b0fd230abcafb1f3f606bc",
+  "seal_count": 30,
+  "sealed_entries": 26097,
+  "seal_bad": [],
+  "seals": [
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012aplbroad1/MANIFEST.sha256",
+      "entries": 45
+    },
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012aplnsowner1/MANIFEST.sha256",
+      "entries": 47
+    },
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012broad1/MANIFEST.sha256",
+      "entries": 1798
+    },
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012broad2/MANIFEST.sha256",
+      "entries": 2490
+    },
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012coverage2/MANIFEST.sha256",
+      "entries": 3
+    },
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012literal1/MANIFEST.sha256",
+      "entries": 1980
+    },
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012nsowner1/MANIFEST.sha256",
+      "entries": 326
+    },
+    {
+      "manifest": "experiments/name-handling/f5/answers/nh20261012persist1/MANIFEST.sha256",
+      "entries": 458
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012aplcap1/MANIFEST.sha256",
+      "entries": 46
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/MANIFEST.sha256",
+      "entries": 46
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/MANIFEST.sha256",
+      "entries": 43
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/MANIFEST.sha256",
+      "entries": 45
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012app1/MANIFEST.sha256",
+      "entries": 284
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012app2/MANIFEST.sha256",
+      "entries": 284
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012app3/MANIFEST.sha256",
+      "entries": 355
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012cap1/MANIFEST.sha256",
+      "entries": 791
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012cap2/MANIFEST.sha256",
+      "entries": 544
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/MANIFEST.sha256",
+      "entries": 693
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/MANIFEST.sha256",
+      "entries": 37
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup2/MANIFEST.sha256",
+      "entries": 66
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012coverage2/MANIFEST.sha256",
+      "entries": 3
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012exact1/MANIFEST.sha256",
+      "entries": 5433
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012exact2/MANIFEST.sha256",
+      "entries": 7635
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012pat1/MANIFEST.sha256",
+      "entries": 892
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012pat3/MANIFEST.sha256",
+      "entries": 943
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012repair1/MANIFEST.sha256",
+      "entries": 32
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/MANIFEST.sha256",
+      "entries": 384
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012stock3/MANIFEST.sha256",
+      "entries": 384
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/MANIFEST.sha256",
+      "entries": 5
+    },
+    {
+      "manifest": "experiments/name-handling/patterns/f5/answers/nh20261012validation1/MANIFEST.sha256",
+      "entries": 5
+    }
+  ],
+  "coverage_equal": true,
+  "inputs_checked": 26,
+  "input_bad": [],
+  "original_questions": 50,
+  "contexts": [
+    "tmsh-cli-script",
+    "iapp-implementation",
+    "tmm-RULE_INIT",
+    "tmm-procedure",
+    "tmm-traffic-event",
+    "appliance-stock-tclsh",
+    "icall",
+    "iapp-apl"
+  ],
+  "matrix_rows": 400,
+  "matrix_counts": {
+    "observed": 93,
+    "unreached": 244,
+    "unavailable": 63
+  },
+  "identity_bad": [],
+  "reports": 23,
+  "report_records": 5317,
+  "broad_questions": 16,
+  "accepted_pointers": 93,
+  "pointer_bad": [],
+  "read_problems": [],
+  "source_digests_checked": 16,
+  "admitted_reference_hashes_checked": 1665,
+  "bad_references": [],
+  "admitted_field_counts": {
+    "reached": 93,
+    "input_retained": 93,
+    "provider_release_retained": 93,
+    "invocation_retained": 93,
+    "raw_channel_retained": 93,
+    "complete_result_capture": 93
+  },
+  "admitted_events": [
+    {
+      "context": "tmsh-cli-script",
+      "event": null,
+      "count": 9
+    },
+    {
+      "context": "iapp-implementation",
+      "event": null,
+      "count": 9
+    },
+    {
+      "context": "tmm-procedure",
+      "event": "RULE_INIT",
+      "count": 9
+    },
+    {
+      "context": "tmm-traffic-event",
+      "event": "HTTP_REQUEST",
+      "count": 9
+    },
+    {
+      "context": "appliance-stock-tclsh",
+      "event": null,
+      "count": 35
+    },
+    {
+      "context": "icall",
+      "event": null,
+      "count": 9
+    },
+    {
+      "context": "iapp-apl",
+      "event": null,
+      "count": 9
+    },
+    {
+      "context": "tmm-RULE_INIT",
+      "event": "RULE_INIT",
+      "count": 4
+    }
+  ],
+  "bad_capture": [],
+  "interpretation": "Retained original answers only; repeated/adapted receipts do not close original questions. Blob integrity is not a semantic cleanup or complete coverage claim."
+}

@@ -1,0 +1,61 @@
+{
+  "captured_at_utc": "2026-10-12T17:54:40.017596+00:00",
+  "record_count": 2327,
+  "selected_renewals": [
+    {
+      "record_id": "naming.embedding.original-host-publication-and-fact-transport",
+      "evidence_id": "receiver-current642b-fe8f7372cc95c258",
+      "path": "rust/tcl-registry/src/native_tcloo_bootstrap.rs",
+      "current_sha256": "92330cadfabb7bf9053d10a18bb2e2ea205adeeef9b71dc7546c2735887dce40",
+      "survived_merge": true
+    },
+    {
+      "record_id": "naming.analysis.constructed-key-consumer-projections",
+      "evidence_id": "receiver-selected-source598-b4b47bc24979d9a6",
+      "path": "rust/tcl-registry/src/profiles.rs",
+      "current_sha256": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249",
+      "survived_merge": true
+    },
+    {
+      "record_id": "naming.core.original-registry-source-hover",
+      "evidence_id": "receiver-selected-source598-fcc49de305f18e82",
+      "path": "rust/tcl-registry/src/profiles.rs",
+      "current_sha256": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249",
+      "survived_merge": true
+    }
+  ],
+  "digests": {
+    "docs/design/analysis/name-resolution-proofs/manifest.json": "ac8fb53fc52fc8d59434d20d0fd6acb5f0e5bc5c37f31ef69c568a2b8d1af28d",
+    "scripts/dev/update-name-resolution-proof-index.py": "e3a6728b81388b29b9f7403b97288e5dd8e251fabded039d7b77f81e4f516ab2",
+    "scripts/dev/check-name-resolution-proofs.py": "ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808",
+    "docs/work/name-handling/evidence-review/next-proof-source-review.json": "37598b7db1c90d553b9812b2af83b41579826795f315a6da1d951a5717990021",
+    "rust/tcl-registry/src/native_tcloo_bootstrap.rs": "92330cadfabb7bf9053d10a18bb2e2ea205adeeef9b71dc7546c2735887dce40",
+    "rust/tcl-registry/src/profiles.rs": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249"
+  },
+  "selected_page_rendering": [
+    {
+      "record_id": "naming.embedding.original-host-publication-and-fact-transport",
+      "path": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md",
+      "before_sha256": "3945afe7e1778b80262bb41e1674124a3510d305f88a27906e0be1b834b369d1",
+      "after_sha256": "3945afe7e1778b80262bb41e1674124a3510d305f88a27906e0be1b834b369d1",
+      "changed": false,
+      "canonical": true
+    },
+    {
+      "record_id": "naming.analysis.constructed-key-consumer-projections",
+      "path": "docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md",
+      "before_sha256": "98c6f86d49d922c8522b90259515b60679310ced11070335d2dcbe63039f053a",
+      "after_sha256": "98c6f86d49d922c8522b90259515b60679310ced11070335d2dcbe63039f053a",
+      "changed": false,
+      "canonical": true
+    },
+    {
+      "record_id": "naming.core.original-registry-source-hover",
+      "path": "docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md",
+      "before_sha256": "5648bcc13f19ccdf5e501c5cc78346d4ab33e71dcca7515942227bc861f882d2",
+      "after_sha256": "5648bcc13f19ccdf5e501c5cc78346d4ab33e71dcca7515942227bc861f882d2",
+      "changed": false,
+      "canonical": true
+    }
+  ]
+}

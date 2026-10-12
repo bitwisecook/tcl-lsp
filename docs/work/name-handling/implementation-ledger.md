@@ -1,10 +1,10 @@
 # Name-handling current obligations
 
 Temporary coordination snapshot; remove this file and its links before merge.
-Published checkpoint: `2d1f5a73b` on `work`; clock fixes are in `e20c572d6`.
+Published checkpoint: `9bcc2c449` on `work`; clock fixes are in `e20c572d6`.
 The coordinator owns integration, publication, issue receipts and source freezes.
 Confirm live ownership before shared edits; source inspection is not execution.
-Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. The issues-cache lease is released; never reuse interrupted/ENOSPC artefacts.
+Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. Clock agent owns the runtime-cache lease; the issues cache is idle. Never reuse interrupted/ENOSPC artefacts.
 
 ## Independent authority and acceptance
 
@@ -43,17 +43,17 @@ acceptance. Existing contracts/proofs are evidence to inspect, not completion.
 
 | Obligation | Owner | Current status / next acceptance |
 | --- | --- | --- |
-| Source namespace advice / #2287 | LSP agent; coordinator receipt/publication | Final direct controls pass 2/2 across C5; post-offset packaged imported_tcltest passes 2/2; Logical controls5/5 and retained-import1/1 pass. Coordinator must bind exact receipt/source/publication before resolving #2287. |
+| Source namespace advice / #2287 | LSP agent; coordinator receipt/publication | Final direct controls pass 2/2 across C5; post-offset packaged imported_tcltest passes 2/2; Logical controls5/5 and retained-import1/1 pass. Published `c7b94e8fb`; #2287 closed with exact receipt. Broader consumers remain open. |
 | Tcltest W210 / #2286 | LSP/W210 agent | Final frozen 9-control run: 6 pass and 3 genuine-missing-read failures at C8.4. Nonzero lifecycle operand-offset correction/regression passes1/1; no warning repair claim. #2286 remains open. |
 | Gate fixture repairs | Gate agent | Actual source inputs forwarded; build completes. Six tests fail at shared cu.function("::p") before SCCP/source-input assertions; pre-existing status unknown. Gate agent owns a read-only procedure lookup diagnosis; exact receipt: fixture-source-input/. |
-| Clock/bootstrap/foreach | Runtime/clock agents | Scalar epoch and registry controls pass; real init, mathfunc min/max topology/hooks, seven missing workers, map/registration/worker order pending. Native compiled foreach SIGABRT persists; iterator ownership unresolved. |
+| Clock/bootstrap/foreach | Runtime/clock agents | Scalar epoch and registry controls pass; real init, mathfunc min/max topology/hooks, seven missing workers, map/registration/worker order pending. Native compiled foreach SIGABRT persists; source review found NULL-type counter/capacity collision. Clock agent owns bounded typed-counter repair and exact foreach/real-init checks. |
 | Native variables/namespace/startup | Runtime/VM/bootstrap agents | Arity matrices pass C5/Jim; array modes pass 200 comparisons, 10 populated-regexp refusals explicit. C8.4 var/proc/rename pass; namespace has 10 assertion failures, upvar/interp refusals and remaining interp failures. Frozen C8.5 var: 69 pass/17 skip/0 fail; namespace/cached-child and unreached cases remain. C8.6 command-entry epochs and C9.x simple-cell startup need actual compiler recipes. |
 | Static typing/class/dispatch advice | Static agent | Review broader failures against actual source-entry prerequisites; recover bounded candidates through shared facts without weakening negative controls or inventing Native/Normal evidence. |
 | Corpus/Wiki/callback acceptance | Corpus/Wiki agents; coordinator | Pinned source/C/Jim observations retained; 11 reached original Jim corpus answers registered, four setup failures unanswered. Review adapted Wiki questions separately; canonical registration/consumer coverage, composed held-out positive/negative controls, Snit/Clay host/frame provenance and broader recogniser precision remain required. |
 | Jim engine conformance | Coordinator; VM/runtime agents | Reference HEAD pin `5bac7c99` verified; 339 tests in 12 real Jim suites pass in reference. VM/runtime conformance remains required. |
-| F5 appliance answers | Appliance chat; coordinator | Exact 50-question/eight-context bundle: all 400 rows pending. Bind exact input/release/channel/reached event; adjacent controls and C/Jim answers cannot answer these questions. |
+| F5 appliance answers | Appliance chat; coordinator | Integrated 755f: 400 original rows = 93 observed / 244 unreached / 63 unavailable; 30 seals / 26,097 entries verified. Bind exact input/release/channel/reached event; adjacent controls and C/Jim answers cannot answer these questions. |
 | Backing/owner/full gates | Gate agent; coordinator | Selected-release backing passes 392 commands; backing12/owner21 controls and AI drift pass. Owner gate fails on 165 scope/gate obligations; preserve strict visibility. Full Rust/PR gates remain required; development pushes authorised, merge not authorised. |
-| Implementation proof currency | Proof reviewers; coordinator | 1,179 questions, zero pending candidates/unlinked tests. Last full gate: 348 digest failures before 39 scoped renewals. Review exact frozen source/invariants/scope before remaining renewals; no blanket digest refresh or altered oracle bytes. |
+| Implementation proof currency | Proof reviewers; coordinator | Merged checker: 2,327 records, zero pending/unlinked; 315 implementation-digest errors across 154 paths, no other class. Review exact frozen source/invariants/scope before remaining renewals; no blanket digest refresh or altered oracle bytes. |
 | Durable docs/entry point and final cleanup | Coordinator | Per-consumer contract verification and repository-wide cleanup incomplete, including pre-existing unchanged material. Five unrelated prose fixes plus five F5-document correction groups complete; remaining search hits are unreviewed candidates. |
 
 ## Exact evidence and retention obligations

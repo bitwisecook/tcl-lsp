@@ -6,7 +6,7 @@ C Tcl 8.4–9.1, latest JimTcl and F5 oracle evidence. The starting report is
 across `tcltest` setup/body/cleanup execution. Its reproduction must be covered
 alongside the broader command, namespace, variable and object identity work.
 
-Current published checkpoint at this snapshot: `2d1f5a73b` on `work`.
+Current published checkpoint at this snapshot: `9bcc2c449` on `work`.
 Read the compact continuation prompt and ledger for current ownership/results.
 Evidence certifies its exact recorded source and inputs, not later commits.
 

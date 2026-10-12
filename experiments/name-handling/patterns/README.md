@@ -315,7 +315,17 @@ canonical consumer integration map.
 
 [Stock final-error review](f5/answers/stock-final-review.md) retains source-reviewed original near-error final operations from sealed stock2 captures without claiming a new execution.
 
-[Current appliance coverage](f5/answers/nh20261012coverage2/answers.md) preserves the 400 original context states separately from bounded variant and per-unit/invocation receipt counts. The [broad numbered-question snapshot](../f5/answers/nh20261012coverage2/answers.md) states the remaining concrete variants; neither snapshot claims all native semantics complete.
+[Current appliance coverage](f5/answers/nh20261012coverage2/answers.md) retains
+400 original context states: 93 observed, 244 unreached and 63 unavailable.
+Bounded variants and per-unit/invocation receipt counts remain separate.
+The [portable report index](../f5/answers/README.md#portable-report-index)
+links the 23 input reports, raw records and seals. All 30 retained F5 answer
+seals verified at `755f78207b993cdfa4b0fd230abcafb1f3f606bc` (26,097 entries;
+no missing or mismatching blobs). The
+[broad numbered-question snapshot](../f5/answers/nh20261012coverage2/answers.md)
+keeps F5-N01–F5-N16 remaining variants explicit, including suspended frames,
+restart/reload after deletion, other traffic contexts and earlier-state
+cleanup limits. These counts establish the recorded inputs and contexts.
 
 The [clock bootstrap questions](../clock-bootstrap-epoch/registration-repair/README.md)
 retain actual C8.6 registration and compiler-epoch observations. Separate

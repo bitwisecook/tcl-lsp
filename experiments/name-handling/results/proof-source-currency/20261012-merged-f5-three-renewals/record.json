@@ -1,0 +1,42 @@
+{
+  "question": "Does the merged 2,327-record manifest retain the three scoped renewals and pass the maintained source proof checker?",
+  "command_argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "scripts/dev/check-name-resolution-proofs.py",
+    "--root",
+    "/workspace/tcl-lsp"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "started_at_utc": "2026-10-12T17:54:40.017854+00:00",
+  "finished_at_utc": "2026-10-12T17:58:37.917260+00:00",
+  "checker_invocations": 1,
+  "exit_status": 1,
+  "raw_log": "check.log",
+  "raw_log_bytes": 38854,
+  "raw_log_sha256": "2b8c80c1bd32935cdb305f12ee1205bb909563d81dfdba16afce701e4386776e",
+  "summary": {
+    "candidate_records": 7069,
+    "corpus_files": 31924,
+    "pending_candidates": 0,
+    "questions": 2327,
+    "structural_errors": 315,
+    "unlinked_tests": 0
+  },
+  "error_classes": {
+    "evidence digest changed": 315
+  },
+  "surviving_renewals": 3,
+  "selected_records": 3,
+  "selected_owner_files": 2,
+  "canonical_pages_checked": 3,
+  "canonical_pages_changed": 0,
+  "manifest_before_sha256": "ac8fb53fc52fc8d59434d20d0fd6acb5f0e5bc5c37f31ef69c568a2b8d1af28d",
+  "manifest_after_sha256": "ac8fb53fc52fc8d59434d20d0fd6acb5f0e5bc5c37f31ef69c568a2b8d1af28d",
+  "manifest_and_selected_source_bytes_unchanged": true,
+  "scope": "Current merged manifest and current working sources; only listed input digests are retained. This is a source-currency/coverage checker, not oracle execution or conformance evidence.",
+  "repairs_or_additional_renewals": false,
+  "evidence_digest_error_roles": {
+    "implementation": 315
+  },
+  "distinct_changed_evidence_paths": 154
+}

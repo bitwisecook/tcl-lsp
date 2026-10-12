@@ -18,7 +18,24 @@ questions are indexed in [the answer directory](answers/README.md) and its
 [coverage snapshot](answers/nh20261012coverage2/answers.md). The snapshot links
 individual units/invocations and preserves load, setup and lookup boundaries;
 it does not silently promote a related variant into an original matrix row.
-The current snapshot retains the reviewed original-source matrix and later bounded controls. [Historical snapshot 1](answers/nh20261012coverage1/answers.md) remains unchanged and predates those updates.
+The current matrix has 400 rows: 93 observed, 244 unreached and 63 unavailable.
+The snapshot retains original answer pointers separately from later bounded
+controls. Its [JSON inventory](answers/nh20261012coverage2/coverage.json)
+preserves each record path and JSON pointer; the
+[portable report index](../../f5/answers/README.md#portable-report-index)
+links all 23 input reports and their raw records and seals. Follow a matrix
+`answer_record` for an accepted original answer or an `attempt_record` for a
+measured boundary, then inspect that record's input, provider, reached stage
+and raw evidence. [Historical snapshot 1](answers/nh20261012coverage1/answers.md)
+remains unchanged and predates those updates.
+
+At commit `755f78207b993cdfa4b0fd230abcafb1f3f606bc`, all 30 retained
+`MANIFEST.sha256` seals across the two F5 answer trees verified: 26,097 listed
+entries, with no missing or mismatching blobs. The
+[numbered-question snapshot](../../f5/answers/nh20261012coverage2/answers.md)
+retains F5-N01–F5-N16 bounded variants and remaining questions. Suspended
+frames, restart/reload after deletion, other traffic contexts and cleanup of
+earlier state remain separate evidence limits.
 
 Use the [main request](../../f5/REQUEST.md),
 [answer protocol](../../f5/ANSWER-TEMPLATE.md), and

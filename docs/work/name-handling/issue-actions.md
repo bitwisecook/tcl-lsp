@@ -10,7 +10,7 @@ Final frozen `tcltest_` filter: six pass, three fail. The reported shared-frame
 fixtures pass across the five C profiles, but direct, captured-alias and the
 real-oracle-program missing-read controls fail at their first C8.4 assertion:
 zero W210 instead of the expected 1/1/2. Later negative variants are unreached.
-The [existing GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6124201808)
+The [existing GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6129658416)
 correctly withholds closure. Repair the actual selection/declaration-read
 boundary and execute both reported fixtures and adversarial controls.
 
@@ -19,7 +19,7 @@ Evidence: [latest exact source/log receipt](../../../experiments/name-handling/r
 [real C Tcltest input/results](../../../experiments/name-handling/tcltest-shared-frame/README.md).
 Do not infer runtime execution or package installation from source advice.
 
-## #2287 — publish verified fix, then close
+## #2287 — verified and closed
 
 The complete packaged filter
 `imported_tcltest_test_structure_recognised` passes both regressions, including
@@ -32,8 +32,9 @@ geometry and C8.6 caller-lifecycle child schemas with foreign-contract refusals.
 [Exact receipt](../../../experiments/name-handling/results/c-source-namespace-advice/outcomes.json)
 contains six unchanged before/after owner hashes and complete logs. Accepted
 source advice is conditional and grants no native entry or edit permission.
-The coordinator must identify the fixing published commit in the closure
-comment. Keep #2286 and broader centralisation obligations independent.
+[Closure comment](https://github.com/bitwisecook/tcl-lsp/issues/2287#issuecomment-6129655008)
+identifies published `c7b94e8fb` and the exact final controls. #2286 and broader
+centralisation obligations remain independent.
 
 ## #2450 — already closed
 

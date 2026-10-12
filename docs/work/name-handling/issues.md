@@ -15,7 +15,7 @@ Rust receipts retain separate authority.
 ## Starting user reports
 
 - [#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286), OPEN: W210 false positives across tcltest setup/body/cleanup, including optimiser/object variables, pdata, and pars built in a loop. This requires invocation identity plus registry body sequencing/frame semantics and definition/read tracking. It is not merely canonical spelling.
-- [#2287](https://github.com/bitwisecook/tcl-lsp/issues/2287), OPEN: tcltest import inside namespace eval loses highlighting. Closely paired consumer acceptance witness for the same namespace-aware invocation resolution.
+- [#2287](https://github.com/bitwisecook/tcl-lsp/issues/2287), CLOSED: tcltest import inside namespace eval loses highlighting. Closely paired consumer acceptance witness for the same namespace-aware invocation resolution.
 - The refreshed tree includes all four reported #2286 source fixtures in
   `rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/`, five-profile
   W210 regressions, direct/captured-prefix alias controls, genuine-undefined-read
@@ -31,7 +31,9 @@ Rust receipts retain separate authority.
 - Both complete packaged highlighting regressions now pass, including the
   import moved inside `::nativeTest`, option pairs and nested commands.
   [Exact C-source receipts](../../../experiments/name-handling/results/c-source-namespace-advice/outcomes.json)
-  bind unchanged source owners; #2287 awaits coordinator publication and closure.
+  bind unchanged source owners. Published `c7b94e8fb` resolves #2287;
+  [verified closure](https://github.com/bitwisecook/tcl-lsp/issues/2287#issuecomment-6129655008)
+  leaves #2286 and broader centralisation open.
 
 ## Open centralisation acceptance targets
 

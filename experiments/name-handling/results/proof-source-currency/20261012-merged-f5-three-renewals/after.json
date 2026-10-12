@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-10-12T17:58:39.000713+00:00",
+  "record_count": 2327,
+  "digests": {
+    "docs/design/analysis/name-resolution-proofs/manifest.json": "ac8fb53fc52fc8d59434d20d0fd6acb5f0e5bc5c37f31ef69c568a2b8d1af28d",
+    "scripts/dev/update-name-resolution-proof-index.py": "e3a6728b81388b29b9f7403b97288e5dd8e251fabded039d7b77f81e4f516ab2",
+    "scripts/dev/check-name-resolution-proofs.py": "ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808",
+    "docs/work/name-handling/evidence-review/next-proof-source-review.json": "37598b7db1c90d553b9812b2af83b41579826795f315a6da1d951a5717990021",
+    "rust/tcl-registry/src/native_tcloo_bootstrap.rs": "92330cadfabb7bf9053d10a18bb2e2ea205adeeef9b71dc7546c2735887dce40",
+    "rust/tcl-registry/src/profiles.rs": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249"
+  },
+  "all_selected_inputs_unchanged_during_checker": true,
+  "whole_manifest_bytes_unchanged": true,
+  "all_selected_record_objects_unchanged": true
+}

@@ -31,8 +31,9 @@ Oracles: actual C Tcl8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 matching real `init.tcl`
 and `tcltest.tcl`; latest Jim pinned at `5bac7c99ad65864c87da513e22e2f01703fa4e03`
 with its equivalent real suites. Verify the Jim pin against upstream when needed.
 F5 answers come from the other BIG-IP chat via branch documents. The pushed
-50-question/8-context bundle is `experiments/name-handling/patterns/f5/`; all400
-rows were pending at the last check. General questions are under
+50-question/8-context bundle is `experiments/name-handling/patterns/f5/`;
+755f78207 answers are integrated:93 observed, 244 unreached, 63 unavailable. All 30
+seals / 26,097 entries verified;93 original observed pointers match input/context. General questions are under
 `experiments/name-handling/f5/`. Do not borrow C/Jim or adjacent appliance answers.
 
 Current independent checks and outstanding work:
@@ -52,7 +53,7 @@ Current independent checks and outstanding work:
   full packaged highlighting regressions after operand-offset correction; five
   Logical namespace controls and one retained-original import control pass. Exact source and limits:
   `experiments/name-handling/results/c-source-namespace-advice/`. Coordinator
-  must publish the checkpoint and update/close #2287 against its exact reproduction.
+  published `c7b94e8fb` and closed #2287 against its exact reproduction.
 - Final W210 filter has6 passing controls and3 genuine-missing-read failures at
   C8.4. Evidence: `experiments/name-handling/results/static-name-advice/`,
   `experiments/name-handling/tcltest-shared-frame/` and latest C-source receipts.
@@ -62,9 +63,11 @@ Current independent checks and outstanding work:
   `experiments/name-handling/results/fixture-source-input/`. Trace independently;
   do not fabricate None inputs or claim a pre-existing defect without comparison.
 - Scoped Syntax/LSP proof reviews and renewals are in `evidence-review/`.
-  The last full gate had348 implementation-digest errors before39 further
-  reviewed renewals. No pending candidates/unlinked tests. Review exact invariants
-  before renewing remaining bindings; never blanket-rehash or alter oracle bytes.
+  Merged checker: 2,327 records, zero pending/unlinked; 315 implementation-digest
+  errors across 154 paths, no other error class. Exact result:
+  `experiments/name-handling/results/proof-source-currency/20261012-merged-f5-three-renewals/`.
+  Review exact invariants before renewing remaining bindings; never blanket-rehash
+  or alter oracle bytes. Current typed-counter repair has separate ownership.
 - Five unrelated F5/editor prose passages and five F5-document correction groups
   were cleaned. Whole-repository docs,
   comments and generated-copy/link audit remains unfinished. Preserve current
