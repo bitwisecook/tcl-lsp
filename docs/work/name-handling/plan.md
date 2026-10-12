@@ -226,6 +226,9 @@ or switching the entire source to Logical compatibility.
 
 ## Documentation/comment cleanup checklist
 
+- Apply the whole cleanup to documentation and code comments, including API
+  doc comments, implementation/test/script comments, templates and generated
+  sources. Fix generator owners and regenerate rather than editing outputs only.
 - Reconcile all existing name/frame/binding contracts against implementation
   and source/measurement evidence; update API ownership and consumer tables.
 - Correct the specific contradictions in [current-state.md](current-state.md).

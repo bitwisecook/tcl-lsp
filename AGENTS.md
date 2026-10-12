@@ -231,12 +231,14 @@ glossary, and screenshot updates in the same PR
 
 Before merge, remove temporary implementation ledgers, continuation prompts,
 state documents and development-process narratives, including their links and
-generated copies. Audit process references to phases, lanes and steps in context;
+generated copies. This cleanup applies to documentation and all code comments,
+including API doc comments, tests, scripts, templates and generated sources.
+Audit process references to phases, lanes and steps in context;
 retain terminology that actually describes current runtime/compiler semantics or
 user procedures. Shipped documentation describes the current code and its
 contracts; minimal comments explain necessary how/why. Preserve reproducible
 experiment sources, results, oracle provenance and conformance tests. Development
-history belongs in git, not the final PR or architecture documentation.
+history belongs in git, not the final PR, documentation or code comments.
 
 ## Build and release
 

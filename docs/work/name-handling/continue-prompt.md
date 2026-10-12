@@ -207,6 +207,9 @@ Update durable contracts as implementation changes. Then scrub the entire
 codebase's documentation and comments so they describe only current semantics,
 ownership, public preconditions, actual limitations and necessary how/why.
 Comments must be minimal; make the code itself clear and self describing.
+Apply this cleanup to API doc comments and implementation, test and script
+comments too, including templates and generated sources. Repair generator
+owners and regenerate outputs rather than cleaning only generated copies.
 Remove development process/history, milestones, phase diaries, past-bug
 narratives, handoffs and completed TODOs from final shipped docs and comments.
 Retain legal/machine markers and reproducible experimental evidence. Regenerate
