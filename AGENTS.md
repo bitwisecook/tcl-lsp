@@ -20,6 +20,11 @@ what good Rust looks like here in
 
 ## Gates before every push
 
+For the active name-handling work on `work`, the user explicitly authorises
+regular development pushes before these gates are green. Keep failures and
+unexecuted checks explicit in the active tracking documents. All required
+gates must pass at the PR stage; this exception does not authorise merging.
+
 Commit coherent, reviewed changes regularly, including their current contracts,
 experiment indexes and tracking updates. Before pausing or handing off, record
 the current obligations, exact validation/evidence paths, blockers and next

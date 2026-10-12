@@ -5,10 +5,11 @@ owner and acceptance evidence here; retain experiments separately. Remove this
 ledger from the completed implementation diff. Git records implementation history.
 
 The integration baseline is `c49ef6fd5`, including remote `work` `bcaf88c12`.
-Local checkpoint `d9b573dc9` contains the implementation and scoped validation;
-`e9159312d` contains the maintained wild-pattern catalogue and new Jim/F5
-bundles. No subagent assignment is currently active. Check git for later changes
-before assigning lanes. Measurements identify their own source and binary;
+Local checkpoint `e803f53f1` contains the implementation and scoped validation;
+`df919cbed` contains the maintained wild-pattern catalogue and new Jim/F5
+bundles. Source advice, W210, runtime variable/array handling, native bootstrap,
+gate repair and consumer/documentation audits currently have assigned agents.
+Check git and assignment status before taking shared-file ownership. Measurements identify their own source and binary;
 a source audit is not an executed test.
 
 ## Active assignments
@@ -25,7 +26,7 @@ a source audit is not an executed test.
 | Related issue state and reproduction | Issue agent / coordinator | Updated; two defects remain open | #2450 closed from published removal. #2286 positives pass but direct/alias undefined-read controls fail. #2287 namespaced and top-level token controls fail; generic conditional import/path advice needs repair. |
 | Latest Jim oracle | Coordinator | Upstream reference verified and executed | Upstream HEAD matches shared pin `5bac7c99`; revision-bearing 0.84 build passes 339 tests in 12 real Jim naming suites. VM/runtime Jim conformance remains required. |
 | F5 appliance questions/answers | Appliance chat / coordinator | Exact pattern bundle pending | [Pattern bundle](../../../experiments/name-handling/patterns/f5/README.md) has 50 questions across eight contexts, all 400 rows pending. Existing BIG-IP controls are linked separately. Returned documents must bind exact input, release, execution channel and reached event; ingest only matching answers. |
-| Required gates and publication | Coordinator | Red; publication blocked | Rust gate stops on formatting drift; full proof audit has 139 changed implementation digests. Command-backing and owner-resolution also report existing drift. Review evidence and repair gates before `make prep-pr` and any push. |
+| Required gates and publication | Coordinator | Red; PR readiness blocked | Rust gate stops on formatting drift; full proof audit has 139 changed implementation digests. Command-backing and owner-resolution also report existing drift. Review evidence and repair all required gates at the PR stage. User-authorised development pushes may proceed with failures recorded. |
 
 ## Consumer acceptance census
 
@@ -92,7 +93,7 @@ temporary work directory and its links only when the consumer census is complete
 Keep this list and the acceptance rows current at every coherent commit and
 before handing off. Link exact raw results and distinguish passing controls,
 remaining failures, unreached checks and source-only inspection. Research
-scripts/capture validation passed for `e9159312d`; this does not repair the
+scripts/capture validation passed for `df919cbed`; this does not repair the
 publication gates or establish current engine/static conformance.
 
 1. Repair conditional readonly import/export/path advice in the existing

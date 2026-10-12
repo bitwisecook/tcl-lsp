@@ -59,7 +59,8 @@ current-state claims accurate in the same commit. Before pausing or handing off,
 commit accepted work, record any remaining shared-file ownership, and leave exact
 evidence paths, validation outcomes, blockers and ordered next actions. Inspect
 git for the latest checkpoint; do not rely on another chat's memory or an agent
-report alone. Local checkpoint commits do not waive publication gates. Keep
+report alone. The user authorises regular development pushes before green gates; record
+failures explicitly and require all gates at the PR stage. Keep
 coordination documents as a current snapshot, with history in git.
 
 Use current Original/source-binding/native object owners and the existing
@@ -222,7 +223,7 @@ specific contradictory claims listed in `current-state.md` using code/oracles.
 
 Before final delivery reconcile every consumer row, related issue reproduction,
 required oracle record, API contract and gate. Run focused deterministic tests
-for each semantic change, `make rust-check`, and `make prep-pr` before each push;
+for each semantic change, `make rust-check`, and `make prep-pr` at the PR stage;
 fix failures and include generated/formatting changes. CI owns deep tiers;
 address its failures when a PR is requested or already exists. Do not run
 unnecessary full-suite loops after appropriate checks pass.

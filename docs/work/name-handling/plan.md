@@ -166,7 +166,9 @@ name-resolution fixtures; MCP/CLI integration. Add meaningful regressions for
 new measured gaps. Manual fuzz/generator campaigns remain outside normal CI.
 
 Follow `AGENTS.md`: isolated build directories for concurrent worktrees,
-`make rust-check` for Rust changes, and `make prep-pr` before every push.
+`make rust-check` for Rust changes, and `make prep-pr` at the PR stage.
+The user authorises regular development pushes before green gates while
+failures and unexecuted checks remain explicit in the tracking documents.
 CI runs the deep tiers; reproduce failures locally when needed. Do not claim a
 passed gate when tools or oracle binaries are absent.
 
