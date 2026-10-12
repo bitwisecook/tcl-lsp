@@ -52566,8 +52566,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md",
       "problem_statement": "Analytical command/class/procedure inventories and diagnostic groups use different name presentations. Local delimiter splits can collapse a constructed lone-colon segment or mistake literal reporting geometry for an original namespace/procedure owner.",
       "question": "Which shared projection governs literal diagnostic QName grouping versus constructed class/procedure/inventory holders and tails, and what independent producer/source/metadata guards remain necessary before actual lookup, factory or creation reasoning?",
-      "conclusion": "Literal W214 grouping delegates reported_qname_namespace with LiteralPrefix and keeps its existing String/default semantics. Constructed graph and inventory consumers delegate key_holder_and_tail or key_tail, preserving lone-colon segments, root/bare holders and qualified nonempty recovery selection. The query does not recover an arbitrary native component path. Existing original source class lookup, positioned procedure/invocation, original module/source/availability correspondence, hierarchy and manufacturer/layout requirements remain independent; displayed labels cannot replace absent receipts. Four fixed software control definitions exercise the actual reporting, graph, recovery and placeholder helper surfaces. No assertion outcome, external provider execution or general source/factory/type-soundness closure is attached.",
-      "scope": "Current analytical projections for eight local production splitter sites in five Compiler leaves. One is literal reporting; seven are constructed graph/procedure/inventory projections. Four fixed source-defined controls are unexecuted. Colon/Unicode/NUL reporting inputs are metadata examples, not native namespace semantics or addressability observations. Existing original command/namespace/class/procedure receipts and logical compatibility admission are unchanged. C Tcl/Jim/BIG-IP processes are not applicable and not tested; no Native getter, callback chronology, dispatch, class/factory or creation effect is inferred.",
+      "conclusion": "Literal W214 grouping delegates reported_qname_namespace with LiteralPrefix and keeps its existing String/default semantics. Constructed graph and inventory consumers delegate key_holder_and_tail or key_tail, preserving lone-colon segments, root/bare holders and qualified nonempty recovery selection. The query does not recover an arbitrary native component path. Existing original source class lookup, positioned procedure/invocation, original module/source/availability correspondence, hierarchy and manufacturer/layout requirements remain independent; displayed labels cannot replace absent receipts. Four fixed software control definitions exercise the actual reporting, graph, recovery and placeholder helper surfaces. No assertion outcome, external provider execution or general source/factory/type-soundness closure is attached. The LSP Itcl member projection uses an explicitly supplied Registry for standalone constructed rows. Contextual callers obtain the descriptor family only from complete retained input matching the analysis-owned command realm/store; missing or foreign input and absent grammar withhold family metadata. The standalone projection control preserves its expected holder/tail and refusal assertions without establishing contextual source currency.",
+      "scope": "Current analytical projections for eight local production splitter sites in five Compiler leaves. One is literal reporting; seven are constructed graph/procedure/inventory projections. Four fixed source-defined controls are unexecuted. Colon/Unicode/NUL reporting inputs are metadata examples, not native namespace semantics or addressability observations. Constructed key geometry does not replace original command/namespace/class/procedure receipts or independent logical compatibility admission. C Tcl/Jim/BIG-IP processes are not applicable and not tested; no Native getter, callback chronology, dispatch, class/factory or creation effect is inferred. The linked LSP constructed-member control supplies its Registry explicitly and covers descriptive partition, family and member-row selection. Contextual retained-input family selection and current-source guards are separate source obligations described by naming.core.original-dispatch-region-context. This clarification adds no assertion execution or provider outcome.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -52722,7 +52722,7 @@
           "id": "receiver-selected-source598-4eda8b24595a9447",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/definition.rs",
-          "sha256": "32ac7a990c58b855bb61e3e240a8caf4c01bd9b8e3201a321bf015f0d98cba10",
+          "sha256": "3f81d885fb8bb45fc72b544be4368538d7c31bf00da60c19acc7f55e8a4ef080",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -52736,7 +52736,7 @@
           "id": "receiver-selected-source598-25d2ef4700a35adc",
           "role": "implementation",
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "sha256": "661b72624473d4255353257b91595b94784f0961bd1afd91f90140663eb5501a",
+          "sha256": "b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -52785,7 +52785,7 @@
           "id": "receiver-compatibility602-834e0bf1515bb1fe",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/references.rs",
-          "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
           "description": "Current authored one-root compatibility consumer with actual fixed source controls. Original selected reference and public naming permissions remain independent; no assertion or external-provider outcome is attached."
         },
         {
@@ -52826,7 +52826,7 @@
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "selector": "definition::tests::constructed_itcl_member_projection_preserves_colon_tail_and_actual_family_guard",
           "status": "linked",
-          "assertion": "Explicit descriptive class rows preserve a literal-colon or Unicode constructed member tail only for the existing Itcl class-procedure family and an actual class-method row. Missing, empty, instance-only, foreign-holder and changed-family rows decline; no original class or dispatch identity is supplied. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+          "assertion": "Explicit descriptive class rows and an explicitly supplied Registry preserve literal-colon and Unicode constructed member tails only with an Itcl definition-body family and a class-method row. Bare, empty, missing, instance-only, foreign-holder and changed-family rows decline. This standalone helper control does not exercise contextual retained-input or current-source admission. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         },
         {
           "path": "rust/tcl-lsp-server/src/lib.rs",
@@ -52942,7 +52942,7 @@
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "symbol": "itcl_class_proc_at",
-          "purpose": "Use the shared constructed holder/tail only after actual class metadata, Itcl grammar and class-method membership selection; no original class or callable identity."
+          "purpose": "Contextual member projection obtains the descriptor family from complete matching retained input/store before shared constructed holder/tail and class-method membership selection; no original class or callable identity follows."
         },
         {
           "path": "rust/tcl-lsp-core/src/implementation.rs",
@@ -52993,6 +52993,11 @@
           "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
           "symbol": "normalise_fn_name",
           "purpose": "Project one optional root from an already constructed FunctionUnit/analyser scope label, preserving literal-colon and Unicode components; the public hint entry retains independent whole-source, configuration, Registry and declaration/SSA owners."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "itcl_class_proc_at_in_registry",
+          "purpose": "Explicit standalone metadata supplies its Registry for shared holder/tail, Itcl descriptor-family and class-method row selection; this helper does not establish contextual source currency."
         }
       ],
       "replay": {
@@ -113947,8 +113952,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md",
       "problem_statement": "References, rename hazards, caller-frame scans and refactors need current source-region metadata. A display profile or freshly reconstructed realm can lose selected custom schema, moved operands, availability or whole-source currency.",
       "question": "How do references, hazard, caller-frame and refactor source-region consumers retain actual analysis context and original moved/captured operands rather than rebuilding a nominal profile realm?",
-      "conclusion": "retained_dispatch_context requires positive actual retained input, complete original image/configuration, matching retained command realm, selected Registry generation and current availability context. nested_dispatch_regions and frame_shifted_dispatch_regions consume shared source_registry_words and selected script purpose with original operands and known command barriers. Method scans use that same context for custom body schemas, excluding ReferenceOnly and unavailable script positions. Genuine moved namespace source retains its selected region; known replacement/deletion or missing/stale input withdraws it. Caller-frame, reference/hazard and refactor consumers share these readonly regions while retaining independent receiver/method/frame/edit obligations. Neither a source body span nor a selected metadata descriptor proves actual dispatch, entered frame, Native receiver identity or edit authority. Method-reference and namespace rename-hazard scanners share current whole analysis/configuration and selected original source schema under actual availability. A custom dispatch trait or NamespaceName role is usable only through that current owner; known replacements, older same-store availability and missing/foreign/stale ownership preserve refusal. Conditional method spans and namespace blockers retain their independent runtime and edit purposes. Core callback references consume the separate authored command-prefix data receipt at its actual builder point. Genuine list/alias target roles and original geometry retain full source configuration and package availability; known shadows and incomplete stored writes withdraw advice. This source data does not satisfy a deferred Produced parent, future lookup, entered callback or edit permission. Source next/self dispatch consumers share authentic original selected roles, helper/composite selectors and exact captured/written coordinates under actual availability/configuration. Known target replacement/deletion or missing/foreign/stale source owners withdraw their conditional references/hazards. The shared Core CurrentSourceContext receipt validates the original complete source image, full lexer configuration and retained input/store/realm before source-backed editor entries. Reporting labels and positive Logical advice purpose cannot replace that receipt. Conditional type/hierarchy/next-definition consumers retain current class/source frame, selected helper roles, captured targets and actual availability; stale owners or replaced helpers withdraw extra advice. Source-backed inline and data-group consumers share CurrentSourceContext and actual selected command geometry. Complete image/input/configuration and genuine original clauses remain required, including when selected operands originate in a captured prefix. Five additional marked Core definitions retain current captured-method metadata and typed external/internal object masks. Original selected receiver-local dispatch differs from variable or literal object names; ConditionalSource advice stays separate from canonical visibility, and Unavailable masks withhold workspace fallbacks despite populated facts. The marked external-self source control requires an independent actual method entry and export status after internal dispatch; genuine my and ordinary [self] calls retain different purposes.",
-      "scope": "Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate. Two additional source/API controls classify reference geometry and rename blockers under authentic custom source roles. They compare no external C/Jim/BIG-IP completion, live receiver, original table/private holder, Native method/body/frame execution or executable rename equivalence. All provider answers remain not tested, with no assertion execution claimed. Three additional Core source controls have no executed assertion receipt. Their callback-like source role projection grants no current receiver, Native handler/frame, result object, dispatch or execution authority. Three additional Core source controls have no executed assertion or provider receipt. Original roles and lookup horizons do not establish Native receiver/frame/dispatch execution, caller body entry, compiler admission or rename/edit equivalence. Seven additional current Core source controls have no executed assertion result here. Source correspondence and lexical frames do not establish Native command/class identity, current runtime frame/receiver, actual method dispatch/body entry, observer closure or edit authority. Two added source/software definitions attach no assertion outcome. Current source currency, original dispatch roles and conditional output metadata remain separate from physical receiver/frame identity, Native entry and safe insertion/movement/rewrite authority. These source API definitions do not establish Native receiver allocation, method entry, current frame, physical identity, visibility behavior on an original provider or edit permission. Full source/configuration/availability/store currency remains required independently of reported names; no assertion outcome is attached. This source software definition attaches no execution outcome or provider promotion. C8.6/C9.0/C9.1 fixture selections do not constitute fresh external runs. Existing original my/internal and external-self/unexported observations stay independent, including the separate C9 true-private declaration scope. Current self identity, a clear local mask or source configuration supplies no method execution, Native visibility, physical frame, editor fallback correctness or edit permission. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.",
+      "conclusion": "retained_dispatch_context requires positive actual retained input, complete original image/configuration, matching retained command realm, selected Registry generation and current availability context. nested_dispatch_regions and frame_shifted_dispatch_regions consume shared source_registry_words and selected script purpose with original operands and known command barriers. Method scans use that same context for custom body schemas, excluding ReferenceOnly and unavailable script positions. Genuine moved namespace source retains its selected region; known replacement/deletion or missing/stale input withdraws it. Caller-frame, reference/hazard and refactor consumers share these readonly regions while retaining independent receiver/method/frame/edit obligations. Neither a source body span nor a selected metadata descriptor proves actual dispatch, entered frame, Native receiver identity or edit authority. Method-reference and namespace rename-hazard scanners share current whole analysis/configuration and selected original source schema under actual availability. A custom dispatch trait or NamespaceName role is usable only through that current owner; known replacements, older same-store availability and missing/foreign/stale ownership preserve refusal. Conditional method spans and namespace blockers retain their independent runtime and edit purposes. Core callback references consume the separate authored command-prefix data receipt at its actual builder point. Genuine list/alias target roles and original geometry retain full source configuration and package availability; known shadows and incomplete stored writes withdraw advice. This source data does not satisfy a deferred Produced parent, future lookup, entered callback or edit permission. Source next/self dispatch consumers share authentic original selected roles, helper/composite selectors and exact captured/written coordinates under actual availability/configuration. Known target replacement/deletion or missing/foreign/stale source owners withdraw their conditional references/hazards. The shared Core CurrentSourceContext receipt validates the original complete source image, full lexer configuration and retained input/store/realm before source-backed editor entries. Reporting labels and positive Logical advice purpose cannot replace that receipt. Conditional type/hierarchy/next-definition consumers retain current class/source frame, selected helper roles, captured targets and actual availability; stale owners or replaced helpers withdraw extra advice. Source-backed inline and data-group consumers share CurrentSourceContext and actual selected command geometry. Complete image/input/configuration and genuine original clauses remain required, including when selected operands originate in a captured prefix. Five additional marked Core definitions retain current captured-method metadata and typed external/internal object masks. Original selected receiver-local dispatch differs from variable or literal object names; ConditionalSource advice stays separate from canonical visibility, and Unavailable masks withhold workspace fallbacks despite populated facts. The marked external-self source control requires an independent actual method entry and export status after internal dispatch; genuine my and ordinary [self] calls retain different purposes. Stored callback variable selection reconstructs configured CommandTokens from the original segmented command, requires a sole variable substitution, and validates the whole reference under the retained braced-variable style. Bare and quoted sole scalar references can select an earlier uniquely matching stored target; suffix or command concatenation, escaped dollars and array-shaped spellings cannot donate a scalar prefix. Positioned Itcl targets and local Logical classmethod source scans independently require CurrentSourceContext. Definer family comes from the matching retained input/store descriptor, not a dialect label or constructor spelling: known Itcl metadata selects class-procedure candidates, known non-Itcl metadata permits local two-word classmethod receiver candidates, and unknown family withholds those local candidates. Workspace class rows preserve this optional family and Server cross-document receiver-name selection requires known non-Itcl metadata. Indexed Registry borrowing rejects mismatched input/configuration, and actual store identity participates in import-settlement dependencies.",
+      "scope": "Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate. Two additional source/API controls classify reference geometry and rename blockers under authentic custom source roles. They compare no external C/Jim/BIG-IP completion, live receiver, original table/private holder, Native method/body/frame execution or executable rename equivalence. All provider answers remain not tested, with no assertion execution claimed. Three additional Core source controls have no executed assertion receipt. Their callback-like source role projection grants no current receiver, Native handler/frame, result object, dispatch or execution authority. Three additional Core source controls have no executed assertion or provider receipt. Original roles and lookup horizons do not establish Native receiver/frame/dispatch execution, caller body entry, compiler admission or rename/edit equivalence. Seven additional current Core source controls have no executed assertion result here. Source correspondence and lexical frames do not establish Native command/class identity, current runtime frame/receiver, actual method dispatch/body entry, observer closure or edit authority. Two added source/software definitions attach no assertion outcome. Current source currency, original dispatch roles and conditional output metadata remain separate from physical receiver/frame identity, Native entry and safe insertion/movement/rewrite authority. These source API definitions do not establish Native receiver allocation, method entry, current frame, physical identity, visibility behavior on an original provider or edit permission. Full source/configuration/availability/store currency remains required independently of reported names; no assertion outcome is attached. This source software definition attaches no execution outcome or provider promotion. C8.6/C9.0/C9.1 fixture selections do not constitute fresh external runs. Existing original my/internal and external-self/unexported observations stay independent, including the separate C9 true-private declaration scope. Current self identity, a clear local mask or source configuration supplies no method execution, Native visibility, physical frame, editor fallback correctness or edit permission. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority. The ten linked family, configured-callback, indexed-store and Server controls are current source definitions without attached executed assertion results. They distinguish explicit standalone metadata from contextual retained input/store and complete current source currency. The Core family reference control positively selects the Itcl qualified-procedure tail and excludes that tail for known non-Itcl metadata; it does not positively assert a known non-Itcl two-word local call site. The Server control positively selects known non-Itcl receiver names, which is a separate coverage surface. The array-shaped callback refusal is specifically ${cbé(extra)} against a stored scalar cbé, not an exhaustive array-syntax claim. Existing captured outcomes and provider answers retain their original inventories and scope; these definitions add no native class, loader, dispatch, frame, callback execution or edit authority.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -114026,7 +114031,7 @@
           "id": "naming-core-original-dispatch-region-context-references.rs",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/references.rs",
-          "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
           "description": "Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result."
         },
         {
@@ -114044,6 +114049,27 @@
           "sha256": "4430bc0a73265f91e97b56507108488bfa9319899dd188babfff8cf17870e7c6",
           "description": "Exact original source350 body/question/document joins to the owned Core image, actual inventory/admission and 14 passing selections. Other source images and external-provider answers receive no outcome.",
           "json_pointer": "/by_question/naming.core.original-dispatch-region-context"
+        },
+        {
+          "id": "naming-core-original-dispatch-region-context-definition.rs",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "sha256": "3f81d885fb8bb45fc72b544be4368538d7c31bf00da60c19acc7f55e8a4ef080",
+          "description": "Current contextual family selection from complete matching retained input/store, positioned CurrentSourceContext guard, explicit standalone projection helper and linked family source controls. Source definition only; no executed Rust assertion or new native-provider observation is attached."
+        },
+        {
+          "id": "naming-core-original-dispatch-region-context-workspace_index.rs",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "sha256": "2eb79c0c683e5bf9b0e5ca07d4f8d82ec6ef10eff2cb1b9f15140ac4a05cbed0",
+          "description": "Current optional indexed family capture, matching retained Registry borrow and actual-store import-settlement dependencies with linked source controls. Source definition only; no executed Rust assertion or new native-provider observation is attached."
+        },
+        {
+          "id": "naming-core-original-dispatch-region-context-server-lib.rs",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "sha256": "b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d",
+          "description": "Current Server known-non-Itcl receiver-name selection and linked source control; this metadata selection supplies no local call-site or native dispatch result. Source definition only; no executed Rust assertion or new native-provider observation is attached."
         }
       ],
       "source_anchors": [],
@@ -114127,6 +114153,71 @@
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "symbol": "object_dispatch_mask_at_command",
           "purpose": "Retain authentic original receiver and independently exported method entry; distinguish selected internal dispatch from external self identity and conditional object configuration."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "class_family_registry",
+          "purpose": "Require complete retained input matching the analysis-owned command realm/store and available analysis context; never recapture family metadata from a reporting profile."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "class_definer_family",
+          "purpose": "Read optional definition-body family from the actual retained descriptor; absent grammar remains unknown rather than a known non-Itcl family or native class identity."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "itcl_class_proc_target_at",
+          "purpose": "Require CurrentSourceContext before positioned Itcl source target advice; a supplied nominal dialect does not replace actual retained source/input/store correspondence."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "callback_targets_from_command",
+          "purpose": "Use configured CommandTokens and sole_variable_substitution for written stored-callback operands under selected original callback roles and builder geometry."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "strip_var_decoration",
+          "purpose": "Validate a whole configured reference with whole_var_ref and the retained braced-variable style; explicit standalone decoration without configuration is a separate metadata convention."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "dispatch_receivers",
+          "purpose": "Local classmethod receiver candidates require a known non-Itcl retained family and the class-method row; unknown family withholds local family-derived candidates while independently supplied workspace candidates remain separate."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "find_obj_method_call_sites_with_extra_cmd_names",
+          "purpose": "Require complete CurrentSourceContext and lexical-advice purpose before selecting actual source sites; separate known Itcl class-procedure tails from known non-Itcl local receiver candidates."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "symbol": "WorkspaceClass::definer_family",
+          "purpose": "Preserve optional retained descriptor-family metadata without deriving native class or dispatch identity from a constructor spelling or nominal dialect."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "symbol": "DocumentRecords::index_classes",
+          "purpose": "Capture class-family metadata from the indexed analysis-owned input/store; unknown family stays unknown in workspace class rows."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "symbol": "DocumentRecords::registry",
+          "purpose": "Borrow the indexed document's actual retained Registry only when input configuration and semantic store key match captured source context; missing or foreign input supplies no replacement profile store."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "symbol": "DocumentRecords::settlement_dependencies",
+          "purpose": "Include actual retained Registry identity in authored import-settlement dependencies so same-profile store changes invalidate warmed metadata links."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "symbol": "WorkspaceIndex::registry_for",
+          "purpose": "Delegate per-document metadata-store borrowing to its retained document receipt; missing or cleared slots do not recapture a profile Registry."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "Backend::classmethod_dispatch_names",
+          "purpose": "Admit cross-document classmethod receiver-name candidates only for known non-Itcl indexed family metadata while retaining independent classmethod and inheritance selection; unknown family withholds candidates."
         }
       ],
       "tests": [
@@ -114288,62 +114379,62 @@
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
-          "selector": "contextual_itcl_targets_use_the_actual_store_instead_of_a_display_profile",
-          "assertion": "Software source definition checks contextual itcl targets use the actual store instead of a display profile.",
+          "selector": "definition::itcl_family_context_tests::contextual_itcl_targets_use_the_actual_store_instead_of_a_display_profile",
+          "assertion": "An authored custom Itcl-family descriptor absent from the nominal profile supplies contextual family metadata, positioned target/declaration and self-qualified candidates under the actual retained store. Changing the nominal profile does not replace that store; changed source and unrelated or extended qualified candidates decline. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
-          "selector": "same_profile_family_metadata_keeps_known_non_itcl_and_missing_grammar_distinct",
-          "assertion": "Software source definition checks same profile family metadata keeps known non itcl and missing grammar distinct.",
+          "selector": "definition::itcl_family_context_tests::same_profile_family_metadata_keeps_known_non_itcl_and_missing_grammar_distinct",
+          "assertion": "Same-profile analyses with different actual stores distinguish Some(Snit) from missing definition-body grammar. Known non-Itcl family and absent grammar withhold Itcl class-procedure projection; a descriptive class row from another analysis does not supply the missing grammar. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
-          "selector": "contextual_itcl_family_refuses_missing_or_foreign_retained_input",
-          "assertion": "Software source definition checks contextual itcl family refuses missing or foreign retained input.",
+          "selector": "definition::itcl_family_context_tests::contextual_itcl_family_refuses_missing_or_foreign_retained_input",
+          "assertion": "Missing or foreign retained input withholds contextual family and Itcl member projection, including the positioned source target. Changing only a reporting dialect label preserves the original retained Itcl family. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
-          "selector": "actual_itcl_reference_calls_keep_source_currency_and_the_selected_family",
-          "assertion": "Software source definition checks actual itcl reference calls keep source currency and the selected family.",
+          "selector": "definition::itcl_family_context_tests::actual_itcl_reference_calls_keep_source_currency_and_the_selected_family",
+          "assertion": "Actual Core reference-site selection returns the Itcl qualified-procedure member tail, withdraws it for changed source or missing retained input, and excludes that qualified tail for known non-Itcl metadata. This control does not positively assert a known non-Itcl two-word local call site. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/references.rs",
-          "selector": "actual_stored_callback_reference_uses_its_retained_brace_configuration",
-          "assertion": "Stored callback reference advice uses the actual retained brace grammar and refuses foreign source bytes or changed lexer configuration.",
+          "selector": "references::configured_callback_variable_tests::actual_stored_callback_reference_uses_its_retained_brace_configuration",
+          "assertion": "Actual stored callback reference selection admits ${a{b}c} under retained Tcl9Nesting and declines it under FirstClose. Foreign source bytes and changed strict-quoting configuration withdraw the stored target despite the retained analysis. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/references.rs",
-          "selector": "actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name",
-          "assertion": "Whole scalar callback reads are candidates; suffix interpolation, escaped dollar syntax and array-element reads cannot donate the scalar prefix name.",
+          "selector": "references::configured_callback_variable_tests::actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name",
+          "assertion": "Actual callback reference selection admits bare ${cbé} and quoted \"${cbé}\" sole scalar reads. Suffix interpolation, concatenated command substitution, escaped dollar syntax and ${cbé(extra)} cannot donate the stored scalar cbé prefix name. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/workspace_index.rs",
-          "selector": "indexed_class_family_retains_its_actual_store_and_unknown_stays_unknown",
-          "assertion": "Software source definition checks indexed class family retains its actual store and unknown stays unknown.",
+          "selector": "workspace_index::retained_store_consumer_tests::indexed_class_family_retains_its_actual_store_and_unknown_stays_unknown",
+          "assertion": "Indexed class rows retain the authored custom store's Itcl family, independently of a nominal profile lacking that descriptor, and preserve it through index cloning. Removing retained input makes family metadata unknown and withholds indexed Registry borrowing. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/workspace_index.rs",
-          "selector": "actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement",
-          "assertion": "Software source definition checks actual import metadata store change invalidates warmed same profile settlement.",
+          "selector": "workspace_index::retained_store_consumer_tests::actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement",
+          "assertion": "Replacing an indexed caller with a different same-profile command store changes settlement dependencies and withdraws a warmed authored import link when the actual store declares a conflicting command. Restoring the first store restores the link; no installed native import is supplied. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-core/src/workspace_index.rs",
-          "selector": "indexed_registry_borrow_rejects_foreign_input_and_cleared_slot",
-          "assertion": "Software source definition checks indexed registry borrow rejects foreign input and cleared slot.",
+          "selector": "workspace_index::retained_store_consumer_tests::indexed_registry_borrow_rejects_foreign_input_and_cleared_slot",
+          "assertion": "Indexed Registry borrowing retains the original semantic store key, rejects foreign input inserted into the retained document, and recovers on replacement with the original analysis. Removed documents and cleared/reused slots supply no borrowed Registry. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-lsp-server/src/lib.rs",
-          "selector": "actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata",
-          "assertion": "Software source definition checks actual cross document classmethod receivers require known non itcl metadata.",
+          "selector": "retained_class_family_receiver_tests::actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata",
+          "assertion": "Server receiver-name selection excludes known Itcl metadata, admits the known Snit-family class name only for a classmethod request, and excludes unknown family after retained input is removed. Receiver-name candidates do not prove a local two-word call site or actual class/method dispatch. Source definition only; no matched current owned assertion outcome or new provider observation is attached.",
           "status": "linked"
         }
       ],
