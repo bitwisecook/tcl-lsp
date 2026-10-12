@@ -65,7 +65,7 @@ This Rust consumer contract has no native execution receipt.
 ## Exact evidence
 
 - `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/mod.rs](../../../../rust/tcl-lsp-core/src/refactor/mod.rs). SHA-256 `48d9eac1fa3a6dbd56fb2d5e39331ad205d93ea4412b067d83fdab34b2979eaa`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283`. Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `7c6db6339422484816da5ee8d1aae1c55f1fc203b82f2ea086405f4a29bc4184`. Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced.
 
 ## Source inspection
 

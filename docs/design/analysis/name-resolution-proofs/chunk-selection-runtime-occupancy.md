@@ -64,7 +64,7 @@ No native interpreter executes this compiler-carrier contract.
 
 ## Exact evidence
 
-- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). SHA-256 `f16f5527f395586bef35f9b0f7c9f60c2668902906fad791cd8e28225613acf0`. Actual central compiler selector and finite discriminating unit test; digest is source correspondence, not execution evidence.
+- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). SHA-256 `26e7cde53ba40f33001cd1a8908eccba17b6f1704e04fcd666f13ad02f2ad06b`. Actual central compiler selector and finite discriminating unit test; digest is source correspondence, not execution evidence.
 
 ## Source inspection
 

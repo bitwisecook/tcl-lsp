@@ -64,7 +64,7 @@ This is a Rust implementation contract. No interpreter or appliance observation 
 
 ## Exact evidence
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). SHA-256 `7b9174d771935c408b9bb253a64bc7856ddc707f96b8aeccc1ae9a143831fefb`. Reviewed implementation owner; this source file does not record native provider execution.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). SHA-256 `21a4e4dce640f9b3bc17d8c9ac146229471e47df772bca28cdf21fb35f2334fd`. Reviewed implementation owner; this source file does not record native provider execution.
 - `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `c44ea509aa5c225acdc07ab7140c8dc55a783b77b2d670f7fb1210f9c96b99ea`. Reviewed implementation owner; this source file does not record native provider execution.
 
 ## Source inspection

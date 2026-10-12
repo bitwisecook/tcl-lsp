@@ -64,7 +64,7 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `a93b2274d863b4dc48ce4d37f3313b2164c58365b1a1be616d33cb0fba39d283`. Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced.
+- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `7c6db6339422484816da5ee8d1aae1c55f1fc203b82f2ea086405f4a29bc4184`. Structured Inline Control source requires genuine original compiler issuer/selection, schema, complete vector/full input/configuration/realm and closed actual targets. Handler/Native compiler/normal transfer doors keep their separate reached permissions; no terminal-handler fallback or arithmetic normalization is introduced.
 - `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-optimiser-chain_fold.rs` (implementation): [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs). SHA-256 `59d8c2817f30fe47aa7b415a1fb3c36600c0f7bbb50242efb8ca6197bfda940b`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection

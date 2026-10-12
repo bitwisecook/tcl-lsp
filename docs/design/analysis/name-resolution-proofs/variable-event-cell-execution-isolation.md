@@ -65,7 +65,7 @@ This record tests the Rust model; no engine observation for this question.
 ## Exact evidence
 
 - `event-cell` (implementation): [rust/tcl-compiler/src/connection_scope.rs](../../../../rust/tcl-compiler/src/connection_scope.rs). SHA-256 `994745916e428ec0f4c7942d909f95dee2695ad2b4c1d3fab68e2e1920dc350a`. Current shared Rust implementation, independently of native provider observations.
-- `execution-join` (implementation): [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs). SHA-256 `f7472e3734403e202305e782d14933d06f06aea0f53fc7fce4447f9c12e89451`. Current shared Rust implementation, independently of native provider observations.
+- `execution-join` (implementation): [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs). SHA-256 `9e90aaf8fafd9aa0f85ac245be88b8a179b428b92718af84125aa0253ccd2075`. Current shared Rust implementation, independently of native provider observations.
 
 ## Source inspection
 

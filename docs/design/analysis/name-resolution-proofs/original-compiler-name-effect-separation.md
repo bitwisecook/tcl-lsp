@@ -64,7 +64,7 @@ No appliance observation for this question.
 
 ## Exact evidence
 
-No evidence artifact is attached.
+- `current-compiler-source-ef7ed85a7f48baaa` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). SHA-256 `26e7cde53ba40f33001cd1a8908eccba17b6f1704e04fcd666f13ad02f2ad06b`. Current original source/software control definitions and independent retained owner purpose; no executed assertion, external Native observation or provider grant.
 
 ## Source inspection
 
@@ -79,6 +79,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `original_compiler_names_preserved_for_tokens`: Project the independently retained original compiler name-effect closure under the unchanged full token vector; admission and completion remain separate.
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `native_compilation::tests::original_literal_set_compiler_effects_do_not_grant_opcode_admission` (linked): Original static Set vectors close names while admission remains Unknown; dynamic or nested words, wrong argc/operation/ordinal or missing dialect decline.
 - [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `command_binding::compiled_invocation::tests::original_literal_compiler_name_effects_remain_separate_from_unknown_admission` (linked): Keep Unknown native admission and absent preparations while projecting actual stock compiler name-effect closure; foreign original word values and a joined nested unknown compiler effect withdraw the readonly query.
+- [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `command_binding::compiled_invocation::original_logical_compiler_purpose_tests::original_logical_root_procedure_and_alias_select_no_native_compiler_admission` (linked): Positive held Logical source roots, procedure bodies and alias calls select lexical continuation with admission/policy/structured compiler fields absent. Genuine Native handler/execution remains separately unavailable.
+- [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `command_binding::compiled_invocation::original_logical_compiler_purpose_tests::original_logical_unknown_callback_stays_open_without_compiler_admission` (linked): Actual prior unknown callback preserves open target uncertainty while no Native compiler admission is manufactured; it cannot borrow a closed source declaration target.
+- [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `command_binding::compiled_invocation::original_logical_compiler_purpose_tests::original_native_and_authored_unknown_compiler_purposes_are_not_logical_source` (linked): Genuinely held C Native ingress and independent authored simulation preserve Unknown compilation selection and their actual purposes; they cannot take the positive Logical source branch.
 
 A named test is a coverage binding, not a claim that it executed.
 
