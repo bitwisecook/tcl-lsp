@@ -200,3 +200,14 @@ Registry through the same family/projection worker. This readonly family metadat
 supplies no package loading, native class, current method table, lookup or edit
 permission. The custom class-member prefix grammar and dispatch precedence retain
 their independent source purpose.
+
+
+Workspace class records retain the descriptor family selected from their actual
+analysis input and Registry. Cross-document class-method candidates require a
+known family with the appropriate call shape; an unknown family cannot stand in
+for a non-Itcl family. Import conflict metadata borrows the indexed document's
+same immutable command store under its complete source/configuration context.
+Changing that store invalidates settlement even when the dialect label and
+reported declarations match. These projections do not establish a native class,
+loaded package, installed import or callable method; original source and command
+capabilities remain independently guarded.

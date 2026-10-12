@@ -16525,7 +16525,7 @@ impl Backend {
         inheritors: &[&core_workspace_index::WorkspaceClass],
         method: &str,
         is_classmethod: bool,
-        dialect: &'static tcl_dialect::DialectProfile,
+        _dialect: &'static tcl_dialect::DialectProfile,
     ) -> Vec<String> {
         // `is_classmethod` is the caller's already-resolved fact (from the
         // cursor, or the caller's own test fixture) about which of a
@@ -16546,7 +16546,10 @@ impl Backend {
         definers
             .iter()
             .chain(inheritors.iter().filter(|_| inheritable))
-            .filter(|wc| !wc.is_itcl(dialect))
+            .filter(|wc| {
+                wc.definer_family()
+                    .is_some_and(|family| family != tcl_registry::definer::DefinerFamily::Itcl)
+            })
             .map(|wc| wc.qualified_name.clone())
             .collect()
     }
@@ -59437,4 +59440,77 @@ proc p {} {
         assert!(refusal.reason.contains("already exists"));
     }
 
+}
+
+#[cfg(test)]
+mod retained_class_family_receiver_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, ITCL_GRAMMAR};
+
+    const OTHER_FAMILY: DefinitionBodyGrammar = DefinitionBodyGrammar {
+        family: DefinerFamily::Snit,
+        ..ITCL_GRAMMAR
+    };
+
+    fn analysis(grammar: &'static DefinitionBodyGrammar) -> tcl_compiler::analyser::AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = CommandRegistry::build_default();
+        let mut spec = registry.get("itcl::class").unwrap().clone();
+        spec.name = "source_class";
+        spec.required_package = None;
+        spec.definition_body = Some(grammar);
+        registry.insert(spec);
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(
+                tcl_registry::model::ingress::context_for_profile(profile)
+                    .with_command_store(Arc::new(registry)),
+            ),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse("source_class C {proc make {} {return OK}}", profile.name)
+    }
+
+    #[test]
+    fn actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let itcl = analysis(&ITCL_GRAMMAR);
+        let other = analysis(&OTHER_FAMILY);
+        let nominal = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let itcl_index =
+            core_workspace_index::WorkspaceIndex::from_documents([("file:///itcl.tcl", &itcl)]);
+        let other_index =
+            core_workspace_index::WorkspaceIndex::from_documents([("file:///other.tcl", &other)]);
+        let itcl_classes = itcl_index.classes_named("::C");
+        let other_classes = other_index.classes_named("::C");
+        assert!(
+            Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal)
+                .is_empty()
+        );
+        assert_eq!(
+            Backend::classmethod_dispatch_names(&other_classes, &[], "make", true, nominal),
+            vec!["::C".to_owned()]
+        );
+        assert!(
+            Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal)
+                .is_empty()
+        );
+        let mut missing = other;
+        missing.resolved_input = None;
+        let unknown_index = core_workspace_index::WorkspaceIndex::from_documents([(
+            "file:///unknown.tcl",
+            &missing,
+        )]);
+        let unknown = unknown_index.classes_named("::C");
+        assert_eq!(unknown[0].definer_family(), None);
+        assert!(
+            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).is_empty()
+        );
+    }
 }

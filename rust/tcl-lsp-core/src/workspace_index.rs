@@ -218,6 +218,9 @@ pub struct WorkspaceClass {
     /// `classmethod` / snit `typemethod` (dispatched as two bare words)
     /// without a local `ClassDef` to ask.
     pub metaclass: String,
+    /// Descriptor family selected from this record's actual analysis input and
+    /// Registry at publication. This is metadata, not native class identity.
+    definer_family: Option<tcl_registry::definer::DefinerFamily>,
     /// Whether this class's **own command** constructs an instance from a
     /// bare unrecognised word and yields its name — see
     /// [`tcl_compiler::analyser::ClassDef::class_command_fallback`] (Tk's
@@ -240,11 +243,18 @@ impl WorkspaceClass {
     /// two-word `Factory make` shape — true for [incr Tcl] only.  Registry
     /// data (`DefinerFamily`), not a hardcoded command-name check.
     #[must_use]
-    pub fn is_itcl(&self, dialect: &'static tcl_dialect::DialectProfile) -> bool {
-        crate::registry_for_dialect_profile(dialect)
-            .get(&self.metaclass)
-            .and_then(|spec| spec.definition_body)
-            .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
+    pub const fn is_itcl(&self, _dialect: &'static tcl_dialect::DialectProfile) -> bool {
+        matches!(
+            self.definer_family,
+            Some(tcl_registry::definer::DefinerFamily::Itcl)
+        )
+    }
+
+    /// Retained descriptor family, independently of callable class or method
+    /// identity. Unknown does not establish a different dispatch family.
+    #[must_use]
+    pub const fn definer_family(&self) -> Option<tcl_registry::definer::DefinerFamily> {
+        self.definer_family
     }
 
     /// Whether this record directly defines `name` (any receiver kind).
@@ -1234,15 +1244,8 @@ struct DocumentRecords {
     /// to prove that a closed file did not reindex while its source was being
     /// loaded for byte-span to LSP-range conversion.
     revision: u64,
-    /// The dialect this document was analysed under — carried straight from
-    /// [`AnalysisResult::dialect`], so the registry consulted for a decision
-    /// about this document is the one it was actually analysed with.
-    ///
-    /// A workspace is not one dialect: an iRule and a plain Tcl script can sit
-    /// in one folder, and which commands a fresh interpreter holds differs
-    /// between them (`HTTP::uri` exists for `f5-irules` and nowhere else).
-    /// Empty for a default-constructed record, which
-    /// [`WorkspaceIndex::registry_for`] reads as "no dialect known".
+    /// Descriptive analysed dialect label. Current Registry queries retain the
+    /// actual input and complete source context independently of this label.
     dialect: String,
     diagnostic_source: Option<WorkspaceDiagnosticSourceContext>,
     procs: Vec<WorkspaceProc>,
@@ -1321,6 +1324,8 @@ struct OriginalPublicationDependency {
 #[derive(Clone, PartialEq, Eq)]
 struct SettlementDependencies {
     dialect: String,
+    /// Command-store currency read by the import metadata conflict gates.
+    registry: Option<tcl_registry::RegistrySemanticKey>,
     /// Only the facts `defined_command_names` and the nested-builtin gate
     /// read.  Parameter edits and a shifted declaration span cannot change a
     /// call's target, so retaining the whole `WorkspaceProc` would turn those
@@ -1369,9 +1374,22 @@ struct SettlementDependencies {
 }
 
 impl DocumentRecords {
+    /// Actual immutable command store for this indexed source revision. The
+    /// full source/configuration guard was captured at index ingress; its
+    /// exact store must still match the retained input. No Native capability
+    /// or loaded-package effect is supplied by this metadata borrow.
+    fn registry(&self) -> Option<&tcl_registry::CommandRegistry> {
+        let input = self.original_source_input.as_ref()?;
+        let source = self.diagnostic_source.as_ref()?;
+        let registry = input.borrowed_context_registry().commands().as_ref();
+        (input.lexer_config() == source.config && registry.snapshot().semantic_key() == source.registry)
+            .then_some(registry)
+    }
+
     fn settlement_dependencies(&self) -> SettlementDependencies {
         SettlementDependencies {
             dialect: self.dialect.clone(),
+            registry: self.registry().map(|registry| registry.snapshot().semantic_key()),
             procs: self
                 .procs
                 .iter()
@@ -2111,6 +2129,7 @@ impl DocumentRecords {
                 retracted_members: class_def.retracted_members.clone(),
                 via_define: class_def.via_define,
                 metaclass: class_def.metaclass.clone(),
+                definer_family: crate::definition::class_definer_family(analysis, class_def),
                 bare_word_construction: class_def
                     .class_command_fallback
                     .constructs_named_instance(),
@@ -3467,7 +3486,7 @@ impl WorkspaceIndex {
                             && (self.defines_command(&l.linked_qname)
                                 || self
                                     .registry_for(&l.uri)
-                                    .is_some_and(|r| r.declares_command_at(&l.linked_qname))
+                                    .is_some_and(|r| r.declares_command_at_rooted_key(&l.linked_qname))
                                 || wci.conflicting_alias_at(
                                     importing_ns,
                                     &g.source_ns,
@@ -3492,18 +3511,10 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// The registry a decision about `uri`'s content must be made against —
-    /// the one for the dialect that document was analysed under.
-    ///
-    /// `None` for a document the index does not hold, or one whose record
-    /// carries no dialect (a default-constructed [`AnalysisResult`], which
-    /// only unit tests produce).  Callers abstain rather than guessing a
-    /// dialect: answering an iRule's question out of the plain-Tcl command
-    /// table would be worse than not answering it.
-    fn registry_for(&self, uri: &str) -> Option<&'static tcl_registry::CommandRegistry> {
-        let slot = *self.slots.get(uri)?;
-        let dialect = self.docs[slot].dialect.as_str();
-        (!dialect.is_empty()).then(|| crate::registry_for_dialect(dialect))
+    /// Metadata store retained with the indexed document's complete source
+    /// context. Missing or mismatched input does not recapture a profile store.
+    fn registry_for(&self, uri: &str) -> Option<&tcl_registry::CommandRegistry> {
+        self.docs[*self.slots.get(uri)?].registry()
     }
 
     /// Whether the workspace holds a real proc or class definition at
@@ -6608,11 +6619,10 @@ impl<'a> ExportGate<'a> {
 struct GlobImportRow<'a> {
     imp: &'a WorkspaceGlobImport,
     exported: ExportGate<'a>,
-    /// The command table a fresh interpreter running *this import's document*
-    /// holds — the other half of the import-conflict rule, and dialect-correct
-    /// because it is resolved from that document's own analysed dialect.
-    /// `None` when the index cannot say.
-    registry: Option<&'static tcl_registry::CommandRegistry>,
+    /// Declared-command metadata from this import document's retained store.
+    /// Original import/export/source capabilities remain independently guarded.
+    /// `None` when the actual source input cannot supply that store.
+    registry: Option<&'a tcl_registry::CommandRegistry>,
 }
 
 /// Every wildcard import recorded for one importing namespace, indexed by the
@@ -6734,7 +6744,7 @@ impl<'a> GlobImportRow<'a> {
     /// inventing a conflict drops an alias the program really has.
     fn declares_builtin_at(&self, qualified_name: &str) -> bool {
         self.registry
-            .is_some_and(|r| r.declares_command_at(qualified_name))
+            .is_some_and(|r| r.declares_command_at_rooted_key(qualified_name))
     }
 }
 
@@ -13926,5 +13936,125 @@ mod original_namespace_export_index_tests {
             ),
             ExportVerdict::Unknown
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_store_consumer_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+    use tcl_registry::definer::DefinerFamily;
+
+    fn analyse(source: &str, conflict: bool, class_grammar: bool) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        if conflict {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "Target::p",
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+        }
+        if class_grammar {
+            let mut spec = registry.get("itcl::class").unwrap().clone();
+            spec.name = "source_class";
+            spec.required_package = None;
+            registry.insert(spec);
+        }
+        let context = tcl_registry::model::ingress::context_for_profile(profile)
+            .with_command_store(Arc::new(registry));
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::new(context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn indexed_class_family_retains_its_actual_store_and_unknown_stays_unknown() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "source_class C {proc make {} {return OK}}";
+        let mut analysis = analyse(source, false, true);
+        let uri = "file:///class.tcl";
+        let index = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        let class = index.classes_named("::C")[0];
+        assert_eq!(class.definer_family(), Some(DefinerFamily::Itcl));
+        assert!(class.is_itcl(tcl_dialect::DialectProfile::find("tcl9.1").unwrap()));
+        assert!(
+            crate::registry_for_dialect_profile(tcl_dialect::DialectProfile::plain_tcl())
+                .get(&class.metaclass)
+                .is_none()
+        );
+        assert_eq!(
+            index.clone().classes_named("::C")[0].definer_family(),
+            class.definer_family()
+        );
+        analysis.resolved_input = None;
+        let unknown = WorkspaceIndex::from_documents([(uri, &analysis)]);
+        assert_eq!(unknown.classes_named("::C")[0].definer_family(), None);
+        assert!(unknown.registry_for(uri).is_none());
+    }
+
+    #[test]
+    fn actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Readonly authored import metadata; no installed native import is issued.
+        let library_source = "namespace eval Mine {proc p {} {}; namespace export p}\n";
+        let caller_source = "namespace eval Target {namespace import ::Mine::*; proc run {} {p}}\n";
+        let library = analyse(library_source, false, false);
+        let first = analyse(caller_source, false, false);
+        let second = analyse(caller_source, true, false);
+        assert_eq!(first.dialect, second.dialect);
+        let uri = "file:///caller.tcl";
+        let mut index =
+            WorkspaceIndex::from_documents([("file:///library.tcl", &library), (uri, &first)]);
+        let before = index.docs[*index.slots.get(uri).unwrap()].settlement_dependencies();
+        assert_eq!(index.linked_invocations_of("::Mine::p", "").len(), 1);
+        index.replace_document(uri, &second);
+        let after = index.docs[*index.slots.get(uri).unwrap()].settlement_dependencies();
+        assert!(before != after);
+        assert!(
+            index
+                .registry_for(uri)
+                .unwrap()
+                .declares_command_at("::Target::p")
+        );
+        assert!(index.linked_invocations_of("::Mine::p", "").is_empty());
+        index.replace_document(uri, &first);
+        assert_eq!(index.linked_invocations_of("::Mine::p", "").len(), 1);
+    }
+
+    #[test]
+    fn indexed_registry_borrow_rejects_foreign_input_and_cleared_slot() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "proc p {} {}; p";
+        let original = analyse(source, false, false);
+        let foreign = analyse(source, true, false);
+        let uri = "file:///source.tcl";
+        let mut index = WorkspaceIndex::from_documents([(uri, &original)]);
+        assert_eq!(
+            index.registry_for(uri).unwrap().snapshot().semantic_key(),
+            original
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key()
+        );
+        let slot = *index.slots.get(uri).unwrap();
+        index.docs[slot].original_source_input = foreign.resolved_input;
+        assert!(index.registry_for(uri).is_none());
+        index.replace_document(uri, &original);
+        assert!(index.registry_for(uri).is_some());
+        index.remove_document(uri);
+        index.add_document("file:///reused.tcl", &AnalysisResult::default());
+        assert!(index.registry_for("file:///reused.tcl").is_none());
+        assert!(index.registry_for(uri).is_none());
     }
 }
