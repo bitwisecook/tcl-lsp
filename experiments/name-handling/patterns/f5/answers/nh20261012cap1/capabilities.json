@@ -1,0 +1,87 @@
+[
+  {
+    "id": "version",
+    "setup": "",
+    "operation": "list [info patchlevel] [info tclversion] [namespace current]"
+  },
+  {
+    "id": "encoding",
+    "setup": "",
+    "operation": "binary scan [encoding convertto utf-8 [format %c 945]] H* x; set x"
+  },
+  {
+    "id": "namespace.eval",
+    "setup": "",
+    "operation": "namespace eval ::__nh_nh20261012cap1 {namespace current}"
+  },
+  {
+    "id": "namespace.code",
+    "setup": "",
+    "operation": "namespace eval ::__nh_nh20261012cap1 {namespace code {list captured}}"
+  },
+  {
+    "id": "namespace.path",
+    "setup": "",
+    "operation": "namespace path"
+  },
+  {
+    "id": "namespace.export",
+    "setup": "namespace eval ::__nh_nh20261012cap1 {}",
+    "operation": "namespace eval ::__nh_nh20261012cap1 {namespace export nh_none}"
+  },
+  {
+    "id": "namespace.import",
+    "setup": "namespace eval ::__nh_nh20261012cap1 {}",
+    "operation": "namespace eval ::__nh_nh20261012cap1 {namespace import ::__absent_nh_*}"
+  },
+  {
+    "id": "namespace.ensemble",
+    "setup": "namespace eval ::__nh_nh20261012cap1 {}",
+    "operation": "namespace eval ::__nh_nh20261012cap1 {namespace ensemble create -command facade -map {}}"
+  },
+  {
+    "id": "namespace.upvar",
+    "setup": "namespace eval ::__nh_nh20261012cap1 {variable x VALUE}",
+    "operation": "namespace upvar ::__nh_nh20261012cap1 x nh_link; set nh_link"
+  },
+  {
+    "id": "interp.create",
+    "setup": "",
+    "operation": "set nh_child [interp create]; set nh_result [interp eval $nh_child {info patchlevel}]; interp delete $nh_child; set nh_result"
+  },
+  {
+    "id": "interp.alias",
+    "setup": "proc ::__nh_nh20261012cap1_target {} {return TARGET}",
+    "operation": "interp alias {} ::__nh_nh20261012cap1_alias {} ::__nh_nh20261012cap1_target; set r [::__nh_nh20261012cap1_alias]; interp alias {} ::__nh_nh20261012cap1_alias {}; set r"
+  },
+  {
+    "id": "tcltest",
+    "setup": "",
+    "operation": "package require tcltest"
+  },
+  {
+    "id": "tcloo",
+    "setup": "",
+    "operation": "oo::class create ::__nh_nh20261012cap1_class {}; ::__nh_nh20261012cap1_class destroy"
+  },
+  {
+    "id": "catch.options",
+    "setup": "",
+    "operation": "catch {list value} nh_r nh_o; list $nh_r $nh_o"
+  },
+  {
+    "id": "trace.execution",
+    "setup": "proc ::__nh_nh20261012cap1_target {} {return TARGET}; proc ::__nh_nh20261012cap1_trace args {}",
+    "operation": "trace add execution ::__nh_nh20261012cap1_target leave ::__nh_nh20261012cap1_trace; ::__nh_nh20261012cap1_target"
+  },
+  {
+    "id": "proc.dynamic",
+    "setup": "",
+    "operation": "proc ::__nh_nh20261012cap1_target {} {return TARGET}; ::__nh_nh20261012cap1_target"
+  },
+  {
+    "id": "call",
+    "setup": "",
+    "operation": "call ::__nh_nh20261012cap1_absent"
+  }
+]

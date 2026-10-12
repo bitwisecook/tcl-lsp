@@ -1,0 +1,6 @@
+NHO|nh20261012stock2|wiki-upvar-2|stock-8.5|setup|0|none|once|result|utf-8|0|1|
+oracle 8.5.13 library /usr/share/tcl8.5 tcltest 2.3.4
+NHO|nh20261012stock2|wiki-upvar-2|stock-8.5|body-return|0|none|once|result|utf-8|0|1|31
+++++ wiki-upvar-2 PASSED
+:	Total	30	Passed	1	Skipped	29	Failed	0
+NHO|nh20261012stock2|wiki-upvar-2|stock-8.5|lookup|0|none|once|result|utf-8|0|1|

@@ -1,0 +1,8 @@
+[
+  {
+    "id": "cap1-runtime-state-cleanup",
+    "setup": "",
+    "operation": "list [namespace exists ::__nh_nh20261012cap1] [info commands ::__nh_nh20261012cap1_*]",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap1]} {namespace delete ::__nh_nh20261012cap1}; foreach n [info commands ::__nh_nh20261012cap1_*] {rename $n {}}; list [namespace exists ::__nh_nh20261012cap1] [info commands ::__nh_nh20261012cap1_*]"
+  }
+]

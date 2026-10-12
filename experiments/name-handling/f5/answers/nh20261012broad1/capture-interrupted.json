@@ -1,0 +1,13 @@
+{
+  "timestamp_utc": "2026-10-12T15:17:05.874886+00:00",
+  "last_job": "tmm-procedure-18",
+  "reason": "SSH public-key authentication failed before remote driver could run; subsequent evidence retrieval also failed. Working file-key route and documented default password fallback were both rejected.",
+  "remaining": [
+    "tmm-procedure-18",
+    "tmm-procedure-19",
+    "tmm-procedure-20",
+    "tmm-traffic-event",
+    "iapp-apl"
+  ],
+  "cleanup": "Independent absence check for last job is pending authenticated access; no applied/load/owned transcripts exist for that last job."
+}
