@@ -592032,6 +592032,13 @@
           "path": "rust/tcl-lsp-core/src/references.rs",
           "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
           "description": "Current authored one-root compatibility consumer with actual fixed source controls. Original selected reference and public naming permissions remain independent; no assertion or external-provider outcome is attached."
+        },
+        {
+          "id": "receiver-inlay-constructed-source608",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+          "sha256": "7968ca5ff95dd27ee3d3b22237ec1dcb2f8c1125a4afcf911564216117f31997",
+          "description": "Current constructed FunctionUnit/scope one-root projection and actual Logical inlay consumer control. No Native identity, source rewrite, executed assertion or provider outcome is attached."
         }
       ],
       "source_anchors": [],
@@ -592113,6 +592120,12 @@
           "selector": "minify::constructed_compatibility_tests::constructed_minifier_call_sites_keep_original_indirect_and_naming_guards",
           "status": "linked",
           "assertion": "Actual minifier call-site selection over explicit descriptive metadata preserves literal-colon holders, independently resolved labels, exact span deduplication and exclusion of indirect command heads. The separate genuine Native source analysis retains its public naming-rewrite refusal; constructed labels provide no rewrite or execution permission. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+          "selector": "inlay_hints::retained_hint_context_tests::logical_type_hints_keep_constructed_colon_scopes_and_original_source",
+          "status": "linked",
+          "assertion": "The actual Logical inlay consumer keeps Unicode namespace labels and distinct constructed literal-colon procedure keys in separate int/double type maps. Changed whole source and absent analysis cannot supply hints. The one-root reporting projection supplies no native cell, receiver, scope, lookup or rewrite authority."
         }
       ],
       "owners": [
@@ -592220,6 +592233,11 @@
           "path": "rust/tcl-lsp-core/src/minify.rs",
           "symbol": "find_proc_call_sites",
           "purpose": "Reuse the central one-root descriptive label projection while preserving actual original call selection, indirect-head exclusion and exact-span deduplication; the public naming contract remains independent."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+          "symbol": "normalise_fn_name",
+          "purpose": "Project one optional root from an already constructed FunctionUnit/analyser scope label, preserving literal-colon and Unicode components; the public hint entry retains independent whole-source, configuration, Registry and declaration/SSA owners."
         }
       ],
       "replay": {
@@ -593680,6 +593698,154 @@
         "command": [],
         "limitations": "Fixed source-defined software controls permit later owned-executable reconfirmation. No assertion outcome or external C/Jim/BIG-IP process is attached. Retained purpose and metadata do not certify physical namespace/command lookup, callback absence or executable rewrite equivalence."
       }
+    },
+    {
+      "id": "naming.package.authored-index-written-head-projections",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/authored-index-written-head-projections.md",
+      "problem_statement": "The authored package-index advisory scan receives written command heads. Removing pairs of leading colons can leave a spurious literal colon and miss selected registration, version-guard or termination metadata.",
+      "question": "How does the authored package-index scan project complete written heads to Registry keys while retaining symbolic control conditions and independent original-source authority?",
+      "conclusion": "The advisory scan uses canonical_written_command on the complete written head, then removes one optional root from that constructed key. Registry descriptors select registration, body and termination roles. Symbolic version guards retain their Tcl-package subject and requirements; uncertain or dynamic guards remain conditional. Literal single colons, relative qualifiers, trailing empty names and dynamic heads cannot select an unrelated stock command. This authored convention supplies no C/Jim lookup, actual package publication, loader execution, rewrite or Native authority. Analysis-backed index advice keeps its independent complete source, grammar, Registry, entry and selected-handler owner.",
+      "scope": "The five neutral package-index head projections in scan_with_config and its existing authored control/guard helpers. Software controls exercise the actual scanner and its symbolic availability output. They measure no interpreter execution, native name conversion, command lookup or package registration. Original scan_with_analysis and its SourceStructure gates are independent and unchanged.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "not applicable to this authored advisory projection",
+          "build": "No external provider process is used.",
+          "input_channel": "Fixed authored index source and software advisory scan.",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "not applicable to this authored advisory projection",
+          "build": "No external provider process is used.",
+          "input_channel": "Fixed authored index source and software advisory scan.",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "not applicable to this authored advisory projection",
+          "build": "No external provider process is used.",
+          "input_channel": "Fixed authored index source and software advisory scan.",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "not applicable to this authored advisory projection",
+          "build": "No external provider process is used.",
+          "input_channel": "Fixed authored index source and software advisory scan.",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "not applicable to this authored advisory projection",
+          "build": "No external provider process is used.",
+          "input_channel": "Fixed authored index source and software advisory scan.",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "not applicable to this authored advisory projection",
+          "build": "No external provider process is used.",
+          "input_channel": "Fixed authored index source and software advisory scan.",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "not applicable to this authored advisory projection",
+          "build": "No external provider process is used.",
+          "input_channel": "Fixed authored index source and software advisory scan.",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "authored-index-source608-0",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "sha256": "3b007f580b998d60e76a5bb8c107f93ae5c650d0dd4c670272f460ff22265753",
+          "description": "Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached."
+        },
+        {
+          "id": "authored-index-source608-1",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs",
+          "sha256": "bcd6de2ef35808cd617344efddb62af8608ac6f980a59ee5f83b2e641133fb71",
+          "description": "Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "symbol": "scan_with_config",
+          "purpose": "Retain the supplied whole source grammar and explicit authored advisory convention; original analysis-backed source advice is independent."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "symbol": "is_package_ifneeded",
+          "purpose": "Canonicalise the complete written head through the shared Syntax owner, then project one optional root before the existing Registry registration/body-role query."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "symbol": "ScriptWalker::walk_script",
+          "purpose": "Reuse selected Registry control/body metadata after written-head projection, retaining existing symbolic branch and completion conditions."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "symbol": "body_may_terminate",
+          "purpose": "Use the same written-head projection before the existing Registry may-termination query; no native handler or completion follows."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "symbol": "parse_vsatisfies",
+          "purpose": "Require the existing Tcl-package subject and actual version-requirement geometry under authored written-head projection."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
+          "symbol": "is_tcl_version_subject",
+          "purpose": "Project only the complete written package head in the existing exact provide/require Tcl subject; other packages or malformed/dynamic subjects decline this guard."
+        }
+      ],
+      "tests": [
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs",
+          "selector": "package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_complete_colon_runs_and_literal_boundaries",
+          "status": "linked",
+          "assertion": "The actual authored advisory scanner recognises complete odd/even leading colon runs and retains literal Unicode package names. Single-colon, relative-qualified, trailing-empty, dynamic, malformed and case-divergent heads cannot borrow the stock package row. This is a neutral source convention, not a C/Jim lookup or package-registration observation."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs",
+          "selector": "package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions",
+          "status": "linked",
+          "assertion": "Actual authored version and termination paths retain selected Registry roles: the Tcl subject and known requirements preserve conditional release advice; unguarded returns stop scanning, loop termination remains conditional and foreign-package/dynamic requirements cannot settle the guard. No loader execution or native completion is inferred."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "The exact named Rust bodies are source-defined coverage. No executed assertion receipt or external provider observation is attached."
+      },
+      "source_anchors": []
     }
   ]
 }
