@@ -11,8 +11,17 @@ The [constructor controls](native-c86-mathfunc-bootstrap/README.md) compare actu
 C API and Native process results for the original 29-name constructor roster,
 procedure birth shapes, replacement currency and matching real initialisation.
 All ten fresh-process controls complete; Native real init reaches its marker.
-These startup controls do not establish general naming conformance. The real
-C8.6 naming suites are being measured separately with upstream harness settings.
+These startup controls do not establish general naming conformance.
+
+[Eight unchanged C8.6 naming suites](runtime-c86-real-suites/README.md) use real
+matching init/Tcltest and upstream single-process constraints. C completes with
+1,182 passes,85 skips,0 failures. Native proc/rename complete with40 passes,
+17 skips,0 failures; five files refuse and ooNext2 exits with a script error.
+Those incomplete files retain34 assertion failures; no full Native total exists.
+The actual upstream all.tcl reaches runAllTests but fails before any suite on the
+missing clock worker `ParseFormatArgs`. Discrete questions retain exact files,
+streams, skips, failure IDs, original orchestration and two diagnostic harness
+attempts; only the final upstream-consistent attempt supplies conformance counts.
 
 ## Actual native runtime: Tcl 8.5.19
 

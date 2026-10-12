@@ -53,7 +53,9 @@ Current independent checks and outstanding work:
 - C8.6 real init now reaches marker after shared29-name constructor mathfunc
   roster repair; ten fresh native/C controls pass. VM roster integration, seven
   clock support workers, map/registration order remain open. Frozen-runner real
-  naming suites are running. Native C8.6 crash input completes after counter
+  naming suites measured C1182/85/0; Native proc/rename40/17/0, five refusals,
+  ooNext2 error and34 prior failures. Actual all.tcl missing ParseFormatArgs
+  before tests; see `results/runtime-c86-real-suites/`. Native C8.6 crash input completes after counter
   repair; other profiles still refuse. Exact questions:
   `experiments/name-handling/clock-bootstrap-epoch/registration-repair/` and
   `experiments/name-handling/results/foreach-counter-object-lifetime/`.

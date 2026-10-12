@@ -1,0 +1,53 @@
+{
+  "owner_before": {
+    "runtime/rust/src/cmd_mathfunc.rs": "03e6cfce6b828ca4ff9f6b58ddb1ac7ae58cd62251f495e771fbfcce99cad24d",
+    "rust/tcl-registry/src/special_vars.rs": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+  },
+  "owner_after": {
+    "runtime/rust/src/cmd_mathfunc.rs": "03e6cfce6b828ca4ff9f6b58ddb1ac7ae58cd62251f495e771fbfcce99cad24d",
+    "rust/tcl-registry/src/special_vars.rs": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+  },
+  "frozen_owners_unchanged": true,
+  "original_sources_unchanged": true,
+  "runner_unchanged": true,
+  "records": 20,
+  "attempt_validation": [
+    {
+      "attempt": "20261012T192755Z",
+      "validated_records": 18,
+      "frozen_owners_unchanged": true,
+      "all_source_archive_wrapper_stream_and_capture_hashes_match": true
+    },
+    {
+      "attempt": "20261012T193042Z",
+      "validated_records": 18,
+      "frozen_owners_unchanged": true,
+      "all_source_archive_wrapper_stream_and_capture_hashes_match": true
+    },
+    {
+      "attempt": "20261012T193343Z",
+      "validated_records": 20,
+      "frozen_owners_unchanged": true,
+      "all_source_archive_wrapper_stream_and_capture_hashes_match": true
+    }
+  ],
+  "final_c_counts": {
+    "total": 1267,
+    "passed": 1182,
+    "skipped": 85,
+    "failed": 0
+  },
+  "final_native_completed_counts": {
+    "total": 57,
+    "passed": 40,
+    "skipped": 17,
+    "failed": 0
+  },
+  "incomplete_native_failure_ids": 34,
+  "native_full_suite_totals": null,
+  "real_constraints_seen": true,
+  "native_runner_source_sha256": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+  "library_source_inventory_checked": 832,
+  "library_source_inventory_unchanged": true,
+  "observed_constraints_and_failure_ids_validated": true
+}

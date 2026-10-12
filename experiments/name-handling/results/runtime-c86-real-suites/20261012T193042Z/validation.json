@@ -1,0 +1,14 @@
+{
+  "owner_before": {
+    "runtime/rust/src/cmd_mathfunc.rs": "03e6cfce6b828ca4ff9f6b58ddb1ac7ae58cd62251f495e771fbfcce99cad24d",
+    "rust/tcl-registry/src/special_vars.rs": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+  },
+  "owner_after": {
+    "runtime/rust/src/cmd_mathfunc.rs": "03e6cfce6b828ca4ff9f6b58ddb1ac7ae58cd62251f495e771fbfcce99cad24d",
+    "rust/tcl-registry/src/special_vars.rs": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+  },
+  "frozen_owners_unchanged": true,
+  "original_sources_unchanged": true,
+  "runner_unchanged": true,
+  "records": 18
+}

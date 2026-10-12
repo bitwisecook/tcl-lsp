@@ -1,0 +1,35 @@
+{
+  "engine": "c",
+  "stem": "interp",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/20261012T192755Z/c/interp/input.tcl"
+  ],
+  "input_sha256": "debfca03307bda02ea594eaef9fcf87f1a354537da32defc442142fa3e1eb45b",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "exit_code": 0,
+  "elapsed_seconds": 1.268,
+  "init_reached": true,
+  "harness_reached": true,
+  "suite_entered": true,
+  "suite_returned": true,
+  "failed_ids": [
+    "interp-38.4",
+    "interp-38.5"
+  ],
+  "started_count": 341,
+  "last_started_id": "interp-38.8",
+  "stdout_sha256": "fef4f1068648756d44ca21ad81274800c5084042f2d2890293e135e73334fd62",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "TCL_BACKEND_CONSTRAINTS": null,
+  "test_sha256": "1a34ca7db200ce0f8936ef537217625f01b525a2eb1fa207c967c71f78b0040b",
+  "total": 354,
+  "passed": 339,
+  "skipped": 13,
+  "failed": 2,
+  "status": "completed-suite"
+}

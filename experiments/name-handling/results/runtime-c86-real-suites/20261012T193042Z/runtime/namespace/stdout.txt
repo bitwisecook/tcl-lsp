@@ -1,0 +1,497 @@
+NH_INIT
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.6.18/library tcl 8.6.18 tcltest 2.5.11
+NH_SUITE_ENTER
+---- namespace-1.1 start
+---- namespace-2.1 start
+---- namespace-2.2 start
+---- namespace-3.1 start
+---- namespace-4.1 start
+---- namespace-4.2 start
+---- namespace-5.1 start
+---- namespace-5.2 start
+---- namespace-6.1 start
+---- namespace-6.2 start
+---- namespace-6.3 start
+---- namespace-6.4 start
+---- namespace-6.5 start
+---- namespace-7.1 start
+---- namespace-7.2 start
+---- namespace-7.3 start
+---- namespace-7.4 start
+---- namespace-7.5 start
+---- namespace-7.6 start
+---- namespace-7.7 start
+---- namespace-7.8 start
+---- namespace-8.1 start
+---- namespace-8.2 start
+---- namespace-8.3 start
+---- namespace-8.4 start
+---- namespace-8.5 start
+
+
+==== namespace-8.5 TclTeardownNamespace: preserve errorInfo; errorCode values FAILED
+==== Contents of test case:
+
+    interp create child
+    child eval {trace add execution error leave {namespace delete :: ;#}}
+    catch {child eval error foo bar baz}
+    interp delete child
+    set ::errorInfo
+
+---- Result was:
+bar
+    invoked from within
+"error foo bar baz"
+---- Result should have been (exact matching):
+bar
+    invoked from within
+"child eval error foo bar baz"
+==== namespace-8.5 FAILED
+
+---- namespace-8.6 start
+
+
+==== namespace-8.6 TclTeardownNamespace: preserve errorInfo; errorCode values FAILED
+==== Contents of test case:
+
+    interp create child
+    child eval {trace add variable errorCode write {namespace delete :: ;#}}
+    catch {child eval error foo bar baz}
+    interp delete child
+    set ::errorInfo
+
+---- Result was:
+bar
+---- Result should have been (exact matching):
+bar
+    invoked from within
+"child eval error foo bar baz"
+==== namespace-8.6 FAILED
+
+---- namespace-8.7 start
+---- namespace-9.1 start
+---- namespace-9.2 start
+---- namespace-9.3 start
+---- namespace-9.4 start
+---- namespace-9.5 start
+---- namespace-9.6 start
+---- namespace-9.7 start
+
+
+==== namespace-9.8 Tcl_Import: Bug 1017299 FAILED
+==== Contents of test case:
+
+    namespace eval two [list namespace import -force  [namespace current]::three::other]
+    namespace origin two::other
+
+---- Test setup failed:
+can't rename "cmd": command doesn't exist
+---- errorInfo(setup): can't rename "cmd": command doesn't exist
+    while executing
+"rename cmd other"
+    (in namespace eval "::three" script line 2)
+    invoked from within
+"namespace eval three {
+	rename cmd other
+	namespace export other
+    }"
+    ("uplevel" body line 12)
+    invoked from within
+"uplevel 1 $setup"
+---- errorCode(setup): TCL LOOKUP COMMAND cmd
+==== namespace-9.8 FAILED
+
+---- namespace-9.9 start
+
+
+==== namespace-9.9 Tcl_Import: Bug 1017299 FAILED
+==== Contents of test case:
+
+    namespace eval two [list namespace import -force  [namespace current]::three::cmd]
+    namespace origin two::cmd
+
+---- Result was:
+invalid command name "two::cmd"
+---- Result should have been (glob matching):
+import pattern * would create a loop*
+==== namespace-9.9 FAILED
+
+---- namespace-10.1 start
+---- namespace-10.2 start
+---- namespace-10.3 start
+---- namespace-10.4 start
+
+
+==== namespace-10.4 Tcl_ForgetImport: Bug 560297 FAILED
+==== Contents of test case:
+
+    namespace eval my  [list namespace forget [namespace current]::unrelated::cmd]
+    my::cmd
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "my::cmd"
+    while executing
+"my::cmd"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: TCL LOOKUP COMMAND my::cmd
+==== namespace-10.4 FAILED
+
+
+
+==== namespace-10.5 Tcl_ForgetImport: Bug 560297 FAILED
+==== Contents of test case:
+
+    namespace eval my  [list namespace forget [namespace current]::origin::cmd]
+    my::newname
+
+---- Test setup failed:
+can't rename "cmd": command doesn't exist
+---- errorInfo(setup): can't rename "cmd": command doesn't exist
+    while executing
+"rename cmd newname"
+    (in namespace eval "::my" script line 1)
+    invoked from within
+"namespace eval my rename cmd newname"
+    ("uplevel" body line 7)
+    invoked from within
+"uplevel 1 $setup"
+---- errorCode(setup): TCL LOOKUP COMMAND cmd
+==== namespace-10.5 FAILED
+
+
+
+==== namespace-10.6 Tcl_ForgetImport: Bug 560297 FAILED
+==== Contents of test case:
+
+    namespace eval your namespace forget newname
+    your::newname
+
+---- Test setup failed:
+can't rename "cmd": command doesn't exist
+---- errorInfo(setup): can't rename "cmd": command doesn't exist
+    (in namespace eval "::my" script line 1)
+    invoked from within
+"namespace eval my  [list rename cmd [namespace current]::your::newname]"
+    ("uplevel" body line 8)
+    invoked from within
+"uplevel 1 $setup"
+---- errorCode(setup): TCL LOOKUP COMMAND cmd
+==== namespace-10.6 FAILED
+
+---- namespace-10.7 start
+---- namespace-10.8 start
+
+
+==== namespace-10.8 Tcl_ForgetImport: Bug 560297 FAILED
+==== Contents of test case:
+
+    namespace eval my  [list namespace forget [namespace current]::link::cmd]
+    my::cmd
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "my::cmd"
+    while executing
+"my::cmd"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: TCL LOOKUP COMMAND my::cmd
+==== namespace-10.8 FAILED
+
+---- namespace-10.9 start
+---- namespace-11.1 start
+---- namespace-11.2 start
+---- namespace-11.3 start
+---- namespace-12.1 start
+---- namespace-13.1 start
+---- namespace-13.2 start
+---- namespace-14.1 start
+---- namespace-14.2 start
+---- namespace-14.3 start
+---- namespace-14.4 start
+---- namespace-14.5 start
+---- namespace-14.6 start
+---- namespace-14.7 start
+---- namespace-14.8 start
+---- namespace-14.9 start
+---- namespace-14.10 start
+---- namespace-14.11 start
+---- namespace-14.12 start
+---- namespace-14.13 start
+
+
+==== namespace-14.13 TclGetNamespaceForQualName, namespace other than global ns can't have empty name FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_1 {
+	proc {} {} {}
+	namespace eval {} {}
+	{}
+    }
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== namespace-14.13 FAILED
+
+---- namespace-15.1 start
+---- namespace-15.2 start
+---- namespace-15.3 start
+---- namespace-15.4 start
+---- namespace-16.1 start
+---- namespace-16.2 start
+---- namespace-16.3 start
+---- namespace-16.4 start
+---- namespace-16.5 start
+---- namespace-16.6 start
+---- namespace-16.7 start
+---- namespace-16.8 start
+---- namespace-16.9 start
+---- namespace-16.10 start
+---- namespace-16.11 start
+---- namespace-17.1 start
+---- namespace-17.2 start
+---- namespace-17.3 start
+---- namespace-17.4 start
+---- namespace-17.5 start
+---- namespace-17.6 start
+---- namespace-17.7 start
+---- namespace-17.8 start
+---- namespace-17.9 start
+---- namespace-17.10 start
+---- namespace-18.1 start
+---- namespace-18.2 start
+---- namespace-19.1 start
+---- namespace-19.2 start
+---- namespace-19.3 start
+---- namespace-19.4 start
+---- namespace-20.1 start
+---- namespace-20.2 start
+---- namespace-20.3 start
+---- namespace-21.1 start
+---- namespace-21.2 start
+---- namespace-21.3 start
+---- namespace-21.4 start
+---- namespace-21.5 start
+---- namespace-21.6 start
+---- namespace-21.7 start
+---- namespace-21.8 start
+---- namespace-22.1 start
+---- namespace-22.2 start
+---- namespace-22.3 start
+---- namespace-22.4 start
+---- namespace-22.5 start
+---- namespace-22.6 start
+---- namespace-22.7 start
+---- namespace-23.1 start
+---- namespace-23.2 start
+---- namespace-23.3 start
+---- namespace-24.1 start
+---- namespace-24.2 start
+---- namespace-24.3 start
+---- namespace-24.4 start
+---- namespace-25.1 start
+---- namespace-25.2 start
+---- namespace-25.3 start
+---- namespace-25.4 start
+---- namespace-25.5 start
+---- namespace-25.6 start
+---- namespace-25.7 start
+---- namespace-25.8 start
+---- namespace-25.9 start
+---- namespace-26.1 start
+---- namespace-26.2 start
+---- namespace-26.3 start
+---- namespace-26.4 start
+---- namespace-26.5 start
+---- namespace-26.6 start
+---- namespace-26.7 start
+---- namespace-26.8 start
+---- namespace-27.1 start
+---- namespace-27.2 start
+---- namespace-27.3 start
+---- namespace-28.1 start
+---- namespace-28.2 start
+---- namespace-28.3 start
+---- namespace-29.1 start
+---- namespace-29.2 start
+---- namespace-29.3 start
+---- namespace-29.4 start
+---- namespace-29.5 start
+---- namespace-29.6 start
+---- namespace-30.1 start
+---- namespace-30.2 start
+---- namespace-30.3 start
+---- namespace-30.4 start
+---- namespace-30.5 start
+---- namespace-31.1 start
+---- namespace-31.2 start
+---- namespace-31.3 start
+---- namespace-31.4 start
+---- namespace-32.1 start
+---- namespace-32.2 start
+---- namespace-32.3 start
+---- namespace-32.4 start
+---- namespace-32.5 start
+---- namespace-32.6 start
+---- namespace-32.7 start
+---- namespace-32.8 start
+---- namespace-33.1 start
+---- namespace-33.2 start
+---- namespace-33.3 start
+---- namespace-33.4 start
+---- namespace-33.5 start
+---- namespace-33.6 start
+---- namespace-33.7 start
+---- namespace-33.8 start
+---- namespace-34.1 start
+---- namespace-34.2 start
+---- namespace-34.3 start
+---- namespace-34.4 start
+---- namespace-34.5 start
+---- namespace-34.6 start
+---- namespace-34.7 start
+---- namespace-35.1 start
+---- namespace-35.2 start
+---- namespace-36.1 start
+---- namespace-37.1 start
+---- namespace-37.2 start
+---- namespace-38.1 start
+---- namespace-39.1 start
+---- namespace-39.2 start
+---- namespace-39.3 start
+---- namespace-40.1 start
+---- namespace-41.1 start
+---- namespace-41.2 start
+---- namespace-41.3 start
+---- namespace-42.1 start
+---- namespace-42.2 start
+---- namespace-42.3 start
+---- namespace-42.4 start
+---- namespace-42.5 start
+---- namespace-42.6 start
+---- namespace-42.7 start
+---- namespace-42.8 start
+---- namespace-42.9 start
+---- namespace-42.10 start
+---- namespace-42.11 start
+---- namespace-43.1 start
+---- namespace-43.2 start
+---- namespace-43.3 start
+---- namespace-43.4 start
+---- namespace-43.5 start
+---- namespace-43.6 start
+---- namespace-43.7 start
+---- namespace-43.8 start
+---- namespace-43.9 start
+---- namespace-43.10 start
+---- namespace-43.11 start
+---- namespace-43.12 start
+---- namespace-43.13 start
+---- namespace-43.14 start
+---- namespace-43.15 start
+---- namespace-43.16 start
+---- namespace-43.17 start
+---- namespace-44.1 start
+---- namespace-44.2 start
+---- namespace-44.3 start
+---- namespace-44.4 start
+---- namespace-44.5 start
+---- namespace-44.6 start
+---- namespace-45.1 start
+---- namespace-45.2 start
+---- namespace-46.1 start
+---- namespace-46.2 start
+---- namespace-46.3 start
+---- namespace-46.4 start
+---- namespace-46.5 start
+---- namespace-46.6 start
+---- namespace-46.7 start
+---- namespace-46.8 start
+---- namespace-46.9 start
+---- namespace-47.1 start
+---- namespace-47.2 start
+---- namespace-47.3 start
+---- namespace-47.4 start
+---- namespace-47.5 start
+---- namespace-47.6 start
+---- namespace-47.7 start
+---- namespace-47.8 start
+---- namespace-48.1 start
+---- namespace-48.2 start
+---- namespace-48.3 start
+---- namespace-49.1 start
+---- namespace-49.2 start
+---- namespace-50.1 start
+---- namespace-50.2 start
+
+
+==== namespace-50.2 ensembles affect WrongNumArgs error messages FAILED
+==== Contents of test case:
+
+    namespace ens cre -command a -map {b {string is}}
+    a b boolean
+
+---- Result was:
+wrong # args: should be "string is class ?-strict? ?-failindex var? str"
+---- Result should have been (exact matching):
+wrong # args: should be "a b class ?-strict? ?-failindex var? str"
+==== namespace-50.2 FAILED
+
+---- namespace-50.3 start
+---- namespace-50.4 start
+---- namespace-50.5 start
+---- namespace-50.6 start
+
+
+==== namespace-50.6 [4402cfa58c] FAILED
+==== Contents of test case:
+
+    set s s
+    catch {e1 s1 s2 a} m; lappend result $m
+    catch {e1 $s s2 a} m; lappend result $m
+    catch {e1 s1 $s a} m; lappend result $m
+    catch {e1 $s $s a} m; lappend result $m
+
+---- Result was:
+{wrong # args: should be "e1 s1 s2 x y"} {wrong # args: should be "e1 s1 s2 x y"} {wrong # args: should be "e1 s1 s x y"} {wrong # args: should be "e1 s1 s x y"}
+---- Result should have been (exact matching):
+{wrong # args: should be "e1 s1 s2 x y"} {wrong # args: should be "e1 s1 s2 x y"} {wrong # args: should be "e1 s1 s2 x y"} {wrong # args: should be "e1 s1 s2 x y"}
+==== namespace-50.6 FAILED
+
+---- namespace-50.7 start
+
+
+==== namespace-50.7 [4402cfa58c] FAILED
+==== Contents of test case:
+
+    set s s
+    catch {e1 s2 s1 a} m; lappend result $m
+    catch {e1 $s s1 a} m; lappend result $m
+    catch {e1 s2 $s a} m; lappend result $m
+    catch {e1 $s $s a} m; lappend result $m
+
+---- Result was:
+{wrong # args: should be "e1 s2 s1 x y"} {wrong # args: should be "e1 s s1 x y"} {wrong # args: should be "e1 s2 s1 x y"} {wrong # args: should be "e1 s s1 x y"}
+---- Result should have been (exact matching):
+{wrong # args: should be "e1 s2 s1 x y"} {wrong # args: should be "e1 s2 s1 x y"} {wrong # args: should be "e1 s2 s1 x y"} {wrong # args: should be "e1 s2 s1 x y"}
+==== namespace-50.7 FAILED
+
+---- namespace-50.8 start
+---- namespace-50.9 start
+---- namespace-51.1 start
+---- namespace-51.2 start
+---- namespace-51.3 start
+---- namespace-51.4 start
+---- namespace-51.5 start
+---- namespace-51.6 start
+---- namespace-51.7 start
+---- namespace-51.8 start
+---- namespace-51.9 start
+---- namespace-51.10 start
+---- namespace-51.11 start
+---- namespace-51.12 start
+---- namespace-51.13 start

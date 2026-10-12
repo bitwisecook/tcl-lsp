@@ -1,0 +1,361 @@
+[
+  {
+    "stem": "var",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "var-3.3",
+        "var-3.4",
+        "var-4.1",
+        "var-4.2",
+        "var-4.3",
+        "var-8.3",
+        "var-9.1",
+        "var-9.2",
+        "var-9.3",
+        "var-9.4",
+        "var-9.5",
+        "var-9.6",
+        "var-9.7",
+        "var-9.8",
+        "var-9.9",
+        "var-9.10",
+        "var-9.11",
+        "var-9.12",
+        "var-22.0",
+        "var-22.1"
+      ],
+      "observed_skip_constraint_counts": {
+        "testupvar": 2,
+        "testgetvarfullname": 3,
+        "memory": 3,
+        "testsetnoerr": 12
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [],
+      "observed_skip_constraint_counts": {},
+      "first_terminal_refusal_boundary": "var-1.15",
+      "terminal_status": "host-refusal"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  },
+  {
+    "stem": "proc",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "proc-4.1",
+        "proc-4.2",
+        "proc-4.3",
+        "proc-4.4",
+        "proc-4.5",
+        "proc-4.6",
+        "proc-4.7",
+        "proc-4.8",
+        "proc-4.9"
+      ],
+      "observed_skip_constraint_counts": {
+        "procbodytest": 9
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "proc-4.1",
+        "proc-4.2",
+        "proc-4.3",
+        "proc-4.4",
+        "proc-4.5",
+        "proc-4.6",
+        "proc-4.7",
+        "proc-4.8",
+        "proc-4.9"
+      ],
+      "observed_skip_constraint_counts": {
+        "procbodytest": 9
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  },
+  {
+    "stem": "rename",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "rename-4.1",
+        "rename-4.2",
+        "rename-4.3",
+        "rename-4.4",
+        "rename-4.5",
+        "rename-4.6",
+        "rename-4.7",
+        "rename-4.8"
+      ],
+      "observed_skip_constraint_counts": {
+        "testdel": 8
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "rename-4.1",
+        "rename-4.2",
+        "rename-4.3",
+        "rename-4.4",
+        "rename-4.5",
+        "rename-4.6",
+        "rename-4.7",
+        "rename-4.8"
+      ],
+      "observed_skip_constraint_counts": {
+        "testdel": 8
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  },
+  {
+    "stem": "upvar",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "upvar-9.1",
+        "upvar-9.1.1",
+        "upvar-9.2",
+        "upvar-9.3",
+        "upvar-9.4",
+        "upvar-9.5",
+        "upvar-9.6",
+        "upvar-9.7"
+      ],
+      "observed_skip_constraint_counts": {
+        "testupvar": 8
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [],
+      "observed_skip_constraint_counts": {},
+      "first_terminal_refusal_boundary": "upvar-1.1",
+      "terminal_status": "host-refusal"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  },
+  {
+    "stem": "namespace",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "namespace-52.10",
+        "namespace-54.1",
+        "namespace-56.4"
+      ],
+      "observed_skip_constraint_counts": {
+        "testevalobjv": 1,
+        "memory": 1,
+        "knownBug": 1
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": "namespace-8.5",
+      "ordered_assertion_failure_ids": [
+        "namespace-8.5",
+        "namespace-8.6",
+        "namespace-9.8",
+        "namespace-9.9",
+        "namespace-10.4",
+        "namespace-10.5",
+        "namespace-10.6",
+        "namespace-10.8",
+        "namespace-14.13",
+        "namespace-50.2",
+        "namespace-50.6",
+        "namespace-50.7"
+      ],
+      "observed_skipped_ids": [],
+      "observed_skip_constraint_counts": {},
+      "first_terminal_refusal_boundary": "namespace-51.13",
+      "terminal_status": "host-refusal"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  },
+  {
+    "stem": "interp",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "interp-18.1",
+        "interp-18.2",
+        "interp-18.3",
+        "interp-18.4",
+        "interp-18.5",
+        "interp-18.6",
+        "interp-26.4",
+        "interp-26.6",
+        "interp-26.8",
+        "interp-27.5",
+        "interp-27.6",
+        "interp-27.7",
+        "interp-27.8",
+        "interp-38.4",
+        "interp-38.5"
+      ],
+      "observed_skip_constraint_counts": {
+        "testinterpdelete": 6,
+        "knownBug": 7,
+        "!singleTestInterp": 2
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": "interp-4.8",
+      "ordered_assertion_failure_ids": [
+        "interp-4.8",
+        "interp-9.3",
+        "interp-10.1",
+        "interp-10.2",
+        "interp-10.3",
+        "interp-10.5",
+        "interp-10.6",
+        "interp-10.7",
+        "interp-11.2"
+      ],
+      "observed_skipped_ids": [],
+      "observed_skip_constraint_counts": {},
+      "first_terminal_refusal_boundary": "interp-11.4",
+      "terminal_status": "host-refusal"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  },
+  {
+    "stem": "oo",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "oo-0.3",
+        "oo-0.4",
+        "oo-0.5.1",
+        "oo-0.5.2",
+        "oo-0.8",
+        "oo-1.18.1",
+        "oo-1.18.2",
+        "oo-1.23",
+        "oo-1.24",
+        "oo-11.6.1",
+        "oo-11.6.2",
+        "oo-11.6.3",
+        "oo-19.5",
+        "oo-20.16",
+        "oo-27.12",
+        "oo-31.1",
+        "oo-31.2"
+      ],
+      "observed_skip_constraint_counts": {
+        "memory": 14,
+        "knownBug": 3
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": "oo-0.9",
+      "ordered_assertion_failure_ids": [
+        "oo-0.9",
+        "oo-1.18.4",
+        "oo-1.18.5",
+        "oo-1.21",
+        "oo-2.6",
+        "oo-2.7",
+        "oo-3.5a",
+        "oo-6.18",
+        "oo-6.19",
+        "oo-6.20"
+      ],
+      "observed_skipped_ids": [
+        "oo-0.3",
+        "oo-0.4",
+        "oo-0.5.1",
+        "oo-0.5.2",
+        "oo-0.8",
+        "oo-1.18.1",
+        "oo-1.18.2",
+        "oo-1.23",
+        "oo-1.24"
+      ],
+      "observed_skip_constraint_counts": {
+        "memory": 7,
+        "knownBug": 2
+      },
+      "first_terminal_refusal_boundary": "oo-7.10",
+      "terminal_status": "host-refusal"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  },
+  {
+    "stem": "ooNext2",
+    "c": {
+      "first_assertion_failure_id": null,
+      "ordered_assertion_failure_ids": [],
+      "observed_skipped_ids": [
+        "oo-call-1.18",
+        "oo-call-1.19",
+        "oo-call-2.13",
+        "oo-call-2.14",
+        "oo-call-3.2"
+      ],
+      "observed_skip_constraint_counts": {
+        "memory": 5
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "completed-suite"
+    },
+    "runtime": {
+      "first_assertion_failure_id": "oo-nextto-2.5",
+      "ordered_assertion_failure_ids": [
+        "oo-nextto-2.5",
+        "oo-call-1.20",
+        "oo-call-1.21"
+      ],
+      "observed_skipped_ids": [
+        "oo-call-1.18",
+        "oo-call-1.19",
+        "oo-call-2.13",
+        "oo-call-2.14",
+        "oo-call-3.2"
+      ],
+      "observed_skip_constraint_counts": {
+        "memory": 5
+      },
+      "first_terminal_refusal_boundary": null,
+      "terminal_status": "process-error"
+    },
+    "interpretation": "Observed skips and assertion IDs only; aborted cases and unreached tails receive no invented counts."
+  }
+]

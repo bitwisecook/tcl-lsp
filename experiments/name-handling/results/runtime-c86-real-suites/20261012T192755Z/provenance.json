@@ -1,0 +1,44 @@
+{
+  "source_root": "/workspace/tcl-lsp/tmp/tcl8.6.18",
+  "source_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/license.terms": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/proc.test": "d79b4b1ad1a374e8839c46175b4f58daad1dfe4e18389e21af9f13f3cf20ece7",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/rename.test": "7404adea7e0f939698c398c2bdc2a7abaaaf854e8086f864ff006ade80c9d081",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/upvar.test": "715f0e882539601bf8f1bf33fed09cf2b9a5ab66e7f00bc93a27c73eded64458",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/namespace.test": "5bfb373b86f503ecfe52d1018a5850c5b24ddf1e5e56101304022a1674d82623",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/interp.test": "1a34ca7db200ce0f8936ef537217625f01b525a2eb1fa207c967c71f78b0040b",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/oo.test": "dda92defec55b7c37ae1bcc1f9a199aa3403148341213220e2cb394ef3bb0ceb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/ooNext2.test": "fdb5e18350991760d1504aa4de8340e71817463937d0a9d32fdec48a52d1b2c9"
+  },
+  "owner_before": {
+    "runtime/rust/src/cmd_mathfunc.rs": "03e6cfce6b828ca4ff9f6b58ddb1ac7ae58cd62251f495e771fbfcce99cad24d",
+    "rust/tcl-registry/src/special_vars.rs": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+  },
+  "binary_sha256": {
+    "c": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "runtime": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6"
+  },
+  "engines": {
+    "c": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "runtime": [
+      "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.6",
+      "--init"
+    ]
+  },
+  "bootstrap": "Native --init; C tclsh automatic matching init",
+  "harness": "direct source of unchanged real library/tcltest/tcltest.tcl; package require 2.5",
+  "overlay": false,
+  "timeout_seconds": 60,
+  "address_space_limit_bytes": 1073741824,
+  "stream_limit_bytes": 8388608,
+  "capture_sha256": "cf6cef8ad47d7fe7db647e1d100187c166a335f46086f0d8fc30721d5f4eeb2e"
+}

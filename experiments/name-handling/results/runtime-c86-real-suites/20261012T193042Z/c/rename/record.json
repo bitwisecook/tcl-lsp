@@ -1,0 +1,32 @@
+{
+  "engine": "c",
+  "stem": "rename",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/20261012T193042Z/c/rename/input.tcl"
+  ],
+  "input_sha256": "3017c01034728b9a736a402ba1f38b37d4103f2b13fc5704d0a651f5ffac5356",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "exit_code": 0,
+  "elapsed_seconds": 0.036,
+  "init_reached": true,
+  "harness_reached": true,
+  "suite_entered": true,
+  "suite_returned": true,
+  "failed_ids": [],
+  "started_count": 11,
+  "last_started_id": "rename-6.1",
+  "stdout_sha256": "3eed0595c0759fb84284e46201159625f59076d180214404028951e7e178d85a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "TCL_BACKEND_CONSTRAINTS": null,
+  "test_sha256": "7404adea7e0f939698c398c2bdc2a7abaaaf854e8086f864ff006ade80c9d081",
+  "total": 19,
+  "passed": 11,
+  "skipped": 8,
+  "failed": 0,
+  "status": "completed-suite"
+}

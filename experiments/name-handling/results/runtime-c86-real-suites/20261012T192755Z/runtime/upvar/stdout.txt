@@ -1,0 +1,5 @@
+NH_INIT
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.6.18/library tcl 8.6.18 tcltest 2.5.11
+NH_SUITE_ENTER
+---- upvar-1.1 start

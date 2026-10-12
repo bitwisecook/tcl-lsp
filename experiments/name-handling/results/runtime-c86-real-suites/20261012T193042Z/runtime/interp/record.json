@@ -1,0 +1,42 @@
+{
+  "engine": "runtime",
+  "stem": "interp",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/20261012T193042Z/runtime/interp/input.tcl"
+  ],
+  "input_sha256": "d12e41b6f27ab380dd3a262e02a4f6acac0d1cf6c5bc6eae649288e44bed44f7",
+  "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+  "exit_code": 2,
+  "elapsed_seconds": 17.47,
+  "init_reached": true,
+  "harness_reached": true,
+  "suite_entered": true,
+  "suite_returned": false,
+  "failed_ids": [
+    "interp-10.1",
+    "interp-10.2",
+    "interp-10.3",
+    "interp-10.5",
+    "interp-10.6",
+    "interp-10.7",
+    "interp-11.2",
+    "interp-4.8",
+    "interp-9.3"
+  ],
+  "started_count": 75,
+  "last_started_id": "interp-11.4",
+  "stdout_sha256": "3199eec088803a857ebc05b503bc8e0ce437f7217c4b3e103cb62d1557ee4a42",
+  "stderr_sha256": "00a6d109318d373b9112e829f3a5a6965b0eb6979b30245653ac5150fa467438",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "TCL_BACKEND_CONSTRAINTS": null,
+  "test_sha256": "1a34ca7db200ce0f8936ef537217625f01b525a2eb1fa207c967c71f78b0040b",
+  "status": "host-refusal"
+}

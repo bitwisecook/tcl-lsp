@@ -1,0 +1,32 @@
+{
+  "engine": "c",
+  "stem": "namespace",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/20261012T193042Z/c/namespace/input.tcl"
+  ],
+  "input_sha256": "977c85727723fc8ac6581cee079f7b77fd96753e223fe8f53555ef7075bd30dc",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "exit_code": 0,
+  "elapsed_seconds": 0.064,
+  "init_reached": true,
+  "harness_reached": true,
+  "suite_entered": true,
+  "suite_returned": true,
+  "failed_ids": [],
+  "started_count": 310,
+  "last_started_id": "namespace-57.0",
+  "stdout_sha256": "d6179c83e88fc19c97b57126da69f5ee6fd89aeba9c7ab67bc92a9908453a22b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "TCL_BACKEND_CONSTRAINTS": null,
+  "test_sha256": "5bfb373b86f503ecfe52d1018a5850c5b24ddf1e5e56101304022a1674d82623",
+  "total": 313,
+  "passed": 310,
+  "skipped": 3,
+  "failed": 0,
+  "status": "completed-suite"
+}

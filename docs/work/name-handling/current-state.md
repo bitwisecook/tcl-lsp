@@ -21,8 +21,9 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Shared variable declarations | VM/runtime zero/three/four-operand matrices pass against C5/Jim; shared release-selected grammar | Broader native variable/frame/link conformance |
 | Shared array modes | 200 oracle comparisons pass; ten populated-regexp refusals explicit | Original regex worker; old-release trace/arity order |
 | Real C8.4 suites | Native var/proc/rename pass; six original suites retained | Ten namespace assertion failures; upvar/interp refusals; remaining interp failures |
+| Real C8.6 suites | C eight files:1182 pass/85 skip/0 fail; Native proc/rename40/17/0; real init/Tcltest load | Five suite refusals, ooNext2 script error,34 prior assertion failures; actual all.tcl stops before tests on ParseFormatArgs |
 | Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
-| C8.6 clock/bootstrap | Real original init reaches startup marker after shared 29-name mathfunc constructor roster repair; ten fresh native/C controls pass | Seven missing clock support workers; map/worker ordering; VM roster integration; real naming suites running |
+| C8.6 clock/bootstrap | Real original init reaches startup marker after shared 29-name mathfunc constructor roster repair; ten fresh native/C controls pass | Seven missing clock support workers; map/worker ordering; VM roster integration; real naming suites measured separately |
 | Native compiled foreach | Exact C8.6 crash input now completes; one lifetime regression passes; original stock C/Jim controls retained | C8.5/9.x command-entry refusals; broader iterator conformance |
 | Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Post-offset packaged checks pass2/2; #2287 closed against published `c7b94e8fb`; broader consumer census |
 | Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Same retained binding now forwarded; owner refusal/currentness regression passes1/1, full nine-control filter remains6/3; next native factory admission boundary unmeasured; #2286 open |
@@ -32,6 +33,7 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 
 Exact raw results and limits:
 
+- [Real C8.6 suite questions](../../../experiments/name-handling/results/runtime-c86-real-suites/README.md).
 - [Original suite census](../../../experiments/name-handling/results/RESULTS.md).
 - [Mathfunc constructor/startup controls](../../../experiments/name-handling/results/native-c86-mathfunc-bootstrap/README.md).
 - [Retained read binding](../../../experiments/name-handling/results/w210-retained-read-binding/question.md).

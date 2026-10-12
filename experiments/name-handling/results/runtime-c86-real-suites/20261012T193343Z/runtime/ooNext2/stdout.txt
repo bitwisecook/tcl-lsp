@@ -1,0 +1,175 @@
+NH_INIT
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.6.18/library tcl 8.6.18 tcltest 2.5.11
+NH_CONSTRAINT singleProcess 1 singleTestInterp 1
+NH_SUITE_ENTER
+---- oo-nextto-1.1 start
+---- oo-nextto-1.2 start
+---- oo-nextto-1.3 start
+---- oo-nextto-1.4 start
+---- oo-nextto-2.1 start
+---- oo-nextto-2.2 start
+---- oo-nextto-2.3 start
+---- oo-nextto-2.4 start
+---- oo-nextto-2.5 start
+
+
+==== oo-nextto-2.5 errors in nextto FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	method x y {nextto $y}
+    }
+    oo::class create B {
+	superclass A
+	method x y {nextto $y $y $y}
+    }
+    [B new] x A
+
+---- Result was:
+wrong # args: should be "oo::Obj59 x y"
+---- Result should have been (exact matching):
+wrong # args: should be "nextto A y"
+==== oo-nextto-2.5 FAILED
+
+---- oo-nextto-2.6 start
+---- oo-nextto-2.7 start
+---- oo-call-1.1 start
+---- oo-call-1.2 start
+---- oo-call-1.3 start
+---- oo-call-1.4 start
+---- oo-call-1.5 start
+---- oo-call-1.6 start
+---- oo-call-1.7 start
+---- oo-call-1.8 start
+---- oo-call-1.9 start
+---- oo-call-1.10 start
+---- oo-call-1.11 start
+---- oo-call-1.12 start
+---- oo-call-1.13 start
+---- oo-call-1.14 start
+---- oo-call-1.15 start
+---- oo-call-1.16 start
+---- oo-call-1.17 start
+++++ oo-call-1.18 SKIPPED: memory
+++++ oo-call-1.19 SKIPPED: memory
+---- oo-call-1.20 start
+
+
+==== oo-call-1.20 object call introspection - complex case FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+    }
+    oo::class create ::C {
+	superclass root
+	method x {} {}
+	mixin B
+    }
+    oo::class create ::D {
+	superclass C
+	method x {} {}
+    }
+    oo::class create ::E {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::F {
+	superclass E
+	method x {} {}
+    }
+    oo::class create ::G {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::H {
+	superclass G
+	method x {} {}
+    }
+    oo::define F mixin H
+    F create y
+    oo::objdefine y {
+	method x {} {}
+	mixin D
+    }
+    info object call y x
+
+---- Result was:
+{method x ::D method} {method x ::B method} {method x ::A method} {method x ::C method} {method x object method} {method x ::H method} {method x ::G method} {method x ::F method} {method x ::E method}
+---- Result should have been (exact matching):
+{method x ::D method} {method x ::B method} {method x ::A method} {method x ::C method} {method x ::H method} {method x ::G method} {method x object method} {method x ::F method} {method x ::E method}
+==== oo-call-1.20 FAILED
+
+---- oo-call-1.21 start
+
+
+==== oo-call-1.21 object call introspection - complex case FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method y {} {}
+	filter y
+    }
+    oo::class create ::B {
+	superclass A
+	method y {} {}
+    }
+    oo::class create ::C {
+	superclass root
+	method x {} {}
+	mixin B
+    }
+    oo::class create ::D {
+	superclass C
+	filter x
+    }
+    oo::class create ::E {
+	superclass root
+	method y {} {}
+	method x {} {}
+    }
+    oo::class create ::F {
+	superclass E
+	method z {} {}
+	method q {} {}
+    }
+    F create y
+    oo::objdefine y {
+	method unknown {} {}
+	mixin D
+	filter q
+    }
+    info object call y z
+
+---- Result was:
+{filter q ::F method} {filter x ::C method} {filter x ::E method} {filter y ::B method} {filter y ::A method} {filter y ::E method} {method z ::F method}
+---- Result should have been (exact matching):
+{filter x ::C method} {filter x ::E method} {filter y ::B method} {filter y ::A method} {filter y ::E method} {filter q ::F method} {method z ::F method}
+==== oo-call-1.21 FAILED
+
+---- oo-call-2.1 start
+---- oo-call-2.2 start
+---- oo-call-2.3 start
+---- oo-call-2.4 start
+---- oo-call-2.5 start
+---- oo-call-2.6 start
+---- oo-call-2.7 start
+---- oo-call-2.8 start
+---- oo-call-2.9 start
+---- oo-call-2.10 start
+---- oo-call-2.11 start
+---- oo-call-2.12 start
+++++ oo-call-2.13 SKIPPED: memory
+++++ oo-call-2.14 SKIPPED: memory
+---- oo-call-3.1 start
+++++ oo-call-3.2 SKIPPED: memory
+---- oo-call-3.3 start
+---- oo-call-3.4 start
+---- next-tailcall-simple-1 start

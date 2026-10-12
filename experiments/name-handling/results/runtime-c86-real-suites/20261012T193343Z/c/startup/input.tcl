@@ -1,0 +1,1 @@
+puts NH_INIT

@@ -1,0 +1,340 @@
+NH_INIT
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.6.18/library tcl 8.6.18 tcltest 2.5.11
+NH_SUITE_ENTER
+---- oo-0.1 start
+---- oo-0.2 start
+++++ oo-0.3 SKIPPED: memory
+++++ oo-0.4 SKIPPED: memory
+++++ oo-0.5.1 SKIPPED: memory
+++++ oo-0.5.2 SKIPPED: memory
+---- oo-0.6 start
+---- oo-0.7 start
+++++ oo-0.8 SKIPPED: memory
+---- oo-0.9 start
+
+
+==== oo-0.9 various types of presence of the TclOO package FAILED
+==== Contents of test case:
+
+    list [lsearch -nocase -all -inline [package names] tcloo]  [package present TclOO] [expr {$::oo::patchlevel in [package versions TclOO]}]
+
+---- Result was:
+TclOO 1.1.0 0
+---- Result should have been (exact matching):
+TclOO 1.3.1 1
+==== oo-0.9 FAILED
+
+---- oo-1.1 start
+---- oo-1.2 start
+---- oo-1.3 start
+---- oo-1.4 start
+---- oo-1.4.1 start
+---- oo-1.4.2 start
+---- oo-1.5 start
+---- oo-1.5.1 start
+---- oo-1.6 start
+---- oo-1.7 start
+---- oo-1.8 start
+---- oo-1.9 start
+---- oo-1.10 start
+---- oo-1.11 start
+---- oo-1.12 start
+---- oo-1.13 start
+---- oo-1.14 start
+---- oo-1.15 start
+---- oo-1.16 start
+---- oo-1.17 start
+---- oo-1.18 start
+++++ oo-1.18.1 SKIPPED: memory
+++++ oo-1.18.2 SKIPPED: memory
+---- oo-1.18.3 start
+---- oo-1.18.4 start
+
+
+==== oo-1.18.4 correct handling of cleanup in superclass set error FAILED
+==== Contents of test case:
+
+    child eval {
+	oo::class create A
+	oo::class create B {
+	    superclass oo::class
+	    constructor {} {
+		next {superclass A}
+		next {superclass -append A}
+	    }
+	}
+	[B create C] create d
+    }
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== oo-1.18.4 FAILED
+
+---- oo-1.18.5 start
+
+
+==== oo-1.18.5 correct handling of cleanup in superclass set error FAILED
+==== Contents of test case:
+
+    child eval {
+	oo::class create A
+	oo::class create B {
+	    superclass oo::class
+	    constructor {c} {
+		next {superclass A}
+		next [list superclass -append {*}$c]
+	    }
+	}
+	[B create C {B C}] create d
+    }
+
+---- Result was:
+wrong # args: should be "<constructor> c"
+---- Result should have been (exact matching):
+attempt to form circular dependency graph
+==== oo-1.18.5 FAILED
+
+---- oo-1.19 start
+---- oo-1.20 start
+---- oo-1.21 start
+
+
+==== oo-1.21 basic test of OO functionality: default relations FAILED
+==== Contents of test case:
+
+    lmap x [$fresh eval {
+	foreach cmd {instances subclasses mixins superclass} {
+	    foreach initial {object class Slot} {
+		lappend x [info class $cmd ::oo::$initial]
+	    }
+	}
+	foreach initial {object class Slot} {
+	    lappend x [info object class ::oo::$initial]
+	}
+	return $x
+    }] {lsort $x}
+
+---- Result was:
+{} {::oo::SingletonInstance ::oo::Slot ::oo::class ::oo::configurable ::oo::configuresupport::configurable ::oo::object ::oo::singleton} {::oo::configuresupport::objreadableproperties ::oo::configuresupport::objwritableproperties ::oo::configuresupport::readableproperties ::oo::configuresupport::writableproperties ::oo::define::filter ::oo::define::mixin ::oo::define::superclass ::oo::define::variable ::oo::objdefine::filter ::oo::objdefine::mixin ::oo::objdefine::variable} {::oo::SingletonInstance ::oo::Slot ::oo::class ::oo::configuresupport::configurable} {::oo::configurable ::oo::singleton} {} {} {} {} {} ::oo::object ::oo::object ::oo::class ::oo::class ::oo::class
+---- Result should have been (exact matching):
+{} {::oo::Slot ::oo::class ::oo::object} {::oo::define::filter ::oo::define::mixin ::oo::define::superclass ::oo::define::variable ::oo::objdefine::filter ::oo::objdefine::mixin ::oo::objdefine::variable} {::oo::Slot ::oo::class} {} {} {} {} {} {} ::oo::object ::oo::object ::oo::class ::oo::class ::oo::class
+==== oo-1.21 FAILED
+
+---- oo-1.22 start
+++++ oo-1.23 SKIPPED: knownBug
+++++ oo-1.24 SKIPPED: knownBug
+---- oo-1.25 start
+---- oo-2.1 start
+---- oo-2.2 start
+---- oo-2.4 start
+---- oo-2.5 start
+---- oo-2.6 start
+
+
+==== oo-2.6 OO constructor and tailcall - Bug 2414858 FAILED
+==== Contents of test case:
+
+    oo::define foo {
+	constructor {} { tailcall my bar }
+	method bar {}  { return bad }
+    }
+    namespace tail [foo create good]
+
+---- Result was:
+bad
+---- Result should have been (exact matching):
+good
+==== oo-2.6 FAILED
+
+---- oo-2.7 start
+
+
+==== oo-2.7 construction, method calls and ensembles - Bug 3514761 FAILED
+==== Contents of test case:
+
+    namespace eval k {
+	oo::class create s {
+	    constructor {j} {
+		# nothing
+	    }
+	}
+	namespace export s
+	namespace ensemble create
+    }
+    k s create X
+
+---- Result was:
+wrong # args: should be "k s j"
+---- Result should have been (exact matching):
+wrong # args: should be "k s create X j"
+==== oo-2.7 FAILED
+
+---- oo-2.8 start
+---- oo-2.9 start
+---- oo-3.1 start
+---- oo-3.2 start
+---- oo-3.3 start
+---- oo-3.4 start
+---- oo-3.4a start
+---- oo-3.5 start
+---- oo-3.5a start
+
+
+==== oo-3.5a basic test of OO functionality: destructor: evil case for Itcl FAILED
+==== Contents of test case:
+
+    oo::define cls {
+	variable state result
+	constructor {} {
+	    proc localcmdexists {} {}
+	    set state ok
+	    my eval {upvar 0 ::result result}
+	}
+	method nuke {} {
+	    namespace delete [namespace current]
+	    return $result
+	}
+	destructor {
+	    lappend result [self] $state [info commands localcmdexists]
+	}
+    }
+    cls create obj
+    namespace delete [info object namespace obj]
+    [cls create obj2] nuke
+
+---- Result was:
+::obj ok localcmdexists
+---- Result should have been (glob matching):
+::obj ok localcmdexists ::obj2 ok localcmdexists
+==== oo-3.5a FAILED
+
+---- oo-3.6 start
+---- oo-3.7 start
+---- oo-3.8 start
+---- oo-3.9 start
+---- oo-3.10 start
+---- oo-3.11 start
+---- oo-3.12 start
+---- oo-4.1 start
+---- oo-4.2 start
+---- oo-4.3 start
+---- oo-4.4 start
+---- oo-4.5 start
+---- oo-4.6 start
+---- oo-5.1 start
+---- oo-5.2 start
+---- oo-5.3 start
+---- oo-5.4 start
+---- oo-5.5 start
+---- oo-6.1 start
+---- oo-6.2 start
+---- oo-6.3 start
+---- oo-6.4 start
+---- oo-6.5 start
+---- oo-6.6 start
+---- oo-6.7 start
+---- oo-6.8 start
+---- oo-6.9 start
+---- oo-6.10 start
+---- oo-6.11 start
+---- oo-6.12 start
+---- oo-6.13 start
+---- oo-6.14 start
+---- oo-6.15 start
+---- oo-6.16 start
+---- oo-6.17 start
+---- oo-6.18 start
+
+
+==== oo-6.18 Bug 3408830: more forwarding cases FAILED
+==== Contents of test case:
+
+    oo::define fooClass {
+	forward len  string length
+    }
+    [fooClass create foo] len a b
+
+---- Result was:
+wrong # args: should be "string length string"
+---- Result should have been (exact matching):
+wrong # args: should be "::foo len string"
+==== oo-6.18 FAILED
+
+---- oo-6.19 start
+
+
+==== oo-6.19 Bug 3610404: forwarding resolution + traces FAILED
+==== Contents of test case:
+
+    proc ::my {method} {lappend ::result global}
+    oo::objdefine foo {
+	method target {} {lappend ::result instance}
+	forward bar my target
+	method bump {} {
+	    set ns [info object namespace ::foo]
+	    rename ${ns}::my ${ns}::
+	    rename ${ns}:: ${ns}::my
+	}
+    }
+    proc harness {} {
+	foo target
+	foo bar
+	foo target
+    }
+    trace add execution harness enterstep {apply {{cmd args} {foo bump}}}
+    foo target
+    foo bar
+    foo bump
+    foo bar
+    harness
+
+---- Result was:
+instance instance instance instance global instance
+---- Result should have been (exact matching):
+instance instance instance instance instance instance
+==== oo-6.19 FAILED
+
+---- oo-6.20 start
+
+
+==== oo-6.20 Bug 3610404: forwarding resolution + traces FAILED
+==== Contents of test case:
+
+    proc ::my {method} {lappend ::result global}
+    oo::define fooClass {
+	method target {} {lappend ::result class}
+	forward bar my target
+	method bump {} {
+	    set ns [info object namespace [self]]
+	    rename ${ns}::my ${ns}::
+	    rename ${ns}:: ${ns}::my
+	}
+    }
+    proc harness {} {
+	foo target
+	foo bar
+	foo target
+    }
+    trace add execution harness enterstep {apply {{cmd args} {foo bump}}}
+    foo target
+    foo bar
+    foo bump
+    foo bar
+    harness
+
+---- Result was:
+class class class class global class
+---- Result should have been (exact matching):
+class class class class class class
+==== oo-6.20 FAILED
+
+---- oo-7.1 start
+---- oo-7.2 start
+---- oo-7.3 start
+---- oo-7.4 start
+---- oo-7.5 start
+---- oo-7.6 start
+---- oo-7.7 start
+---- oo-7.8 start
+---- oo-7.9 start
+---- oo-7.10 start

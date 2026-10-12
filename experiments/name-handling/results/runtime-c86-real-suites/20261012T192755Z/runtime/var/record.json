@@ -1,0 +1,32 @@
+{
+  "engine": "runtime",
+  "stem": "var",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/20261012T192755Z/runtime/var/input.tcl"
+  ],
+  "input_sha256": "992e56e93d880a01db6c473466827af10b7c6a9d67416c2a619bac9aa68d0e83",
+  "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+  "exit_code": 2,
+  "elapsed_seconds": 5.385,
+  "init_reached": true,
+  "harness_reached": true,
+  "suite_entered": true,
+  "suite_returned": false,
+  "failed_ids": [],
+  "started_count": 15,
+  "last_started_id": "var-1.15",
+  "stdout_sha256": "bd7bbc0a5334e5cc3df9b6a0f43531184e551378ee6f187cfe2524646a6e0553",
+  "stderr_sha256": "e28416806f3b477b0328ca3b23d9c92fc8476dab0377155c66d306365f69c676",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "TCL_BACKEND_CONSTRAINTS": null,
+  "test_sha256": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+  "status": "host-refusal"
+}

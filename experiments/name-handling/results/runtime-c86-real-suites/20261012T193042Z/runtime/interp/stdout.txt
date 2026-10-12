@@ -1,0 +1,274 @@
+NH_INIT
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.6.18/library tcl 8.6.18 tcltest 2.5.11
+NH_SUITE_ENTER
+---- interp-1.1 start
+---- interp-1.2 start
+---- interp-1.3 start
+---- interp-1.4 start
+---- interp-1.5 start
+---- interp-1.6 start
+---- interp-1.7 start
+---- interp-1.8 start
+---- interp-1.9 start
+---- interp-1.10 start
+---- interp-2.1 start
+---- interp-2.2 start
+---- interp-2.3 start
+---- interp-2.4 start
+---- interp-2.5 start
+---- interp-2.6 start
+---- interp-2.7 start
+---- interp-2.8 start
+---- interp-2.9 start
+---- interp-2.10 start
+---- interp-2.11 start
+---- interp-2.12 start
+---- interp-2.13 start
+---- interp-3.1 start
+---- interp-3.2 start
+---- interp-3.3 start
+---- interp-3.4 start
+---- interp-3.5 start
+---- interp-3.6 start
+---- interp-3.7 start
+---- interp-3.8 start
+---- interp-3.9 start
+---- interp-3.10 start
+---- interp-3.11 start
+---- interp-4.1 start
+---- interp-4.2 start
+---- interp-4.3 start
+---- interp-4.4 start
+---- interp-4.5 start
+---- interp-4.6 start
+---- interp-4.7 start
+---- interp-4.8 start
+
+
+==== interp-4.8 testing interp delete FAILED
+==== Contents of test case:
+
+    interp delete {}
+
+---- Result was:
+could not find interpreter ""
+---- Result should have been (exact matching):
+cannot delete the current interpreter
+==== interp-4.8 FAILED
+
+---- interp-5.1 start
+---- interp-5.2 start
+---- interp-5.3 start
+---- interp-6.1 start
+---- interp-6.2 start
+---- interp-6.3 start
+---- interp-6.4 start
+---- interp-6.5 start
+---- interp-6.6 start
+---- interp-7.1 start
+---- interp-7.2 start
+---- interp-7.3 start
+---- interp-7.4 start
+---- interp-7.5 start
+---- interp-7.6 start
+---- interp-8.1 start
+---- interp-8.2 start
+---- interp-8.3 start
+---- interp-9.1 start
+---- interp-9.2 start
+---- interp-9.3 start
+
+
+==== interp-9.3 testing aliases for hidden commands FAILED
+==== Contents of test case:
+
+    catch {interp create a}
+    a eval {proc p {} {return ENTER_A}}
+    interp alias {} p a p
+    set res {}
+    lappend res [list [catch p msg] $msg]
+    interp hide a p
+    lappend res [list [catch p msg] $msg]
+    rename p {}
+    interp delete a
+    set res
+ 
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias {} p a p"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-9.3 FAILED
+
+---- interp-9.4 start
+---- interp-10.1 start
+
+
+==== interp-10.1 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    interp alias a a_alias b b_alias 1 2 3
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_alias b b_alias 1 2 3"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.1 FAILED
+
+---- interp-10.2 start
+
+
+==== interp-10.2 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    b eval {proc b_alias {args} {return [list got $args]}}
+    interp alias a a_alias b b_alias 1 2 3
+    a eval a_alias a b c
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_alias b b_alias 1 2 3"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.2 FAILED
+
+---- interp-10.3 start
+
+
+==== interp-10.3 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    interp alias a a_alias b b_alias 1 2 3
+    list [catch {a eval a_alias a b c} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_alias b b_alias 1 2 3"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.3 FAILED
+
+---- interp-10.4 start
+---- interp-10.5 start
+
+
+==== interp-10.5 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    a alias a_alias puts
+    interp alias a a_del b b_del
+    interp delete b
+    a aliases
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_del b b_del"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.5 FAILED
+
+---- interp-10.6 start
+
+
+==== interp-10.6 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    interp alias a a_command b b_command a1 a2 a3
+    b alias b_command in_parent b1 b2 b3
+    a eval a_command m1 m2 m3
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_command b b_command a1 a2 a3"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.6 FAILED
+
+---- interp-10.7 start
+
+
+==== interp-10.7 testing aliases between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias "" foo a zoppo
+    a eval {proc zoppo {x} {list $x $x $x}}
+    set x [foo 33]
+    a eval {rename zoppo {}}
+    interp alias "" foo a {}
+    return $x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias "" foo a zoppo"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.7 FAILED
+
+---- interp-11.1 start
+---- interp-11.2 start
+
+
+==== interp-11.2 testing interp target FAILED
+==== Contents of test case:
+
+    list [catch {interp target nosuchinterpreter foo} msg] $msg
+
+---- Result was:
+1 {alias "foo" in path "nosuchinterpreter" not found}
+---- Result should have been (exact matching):
+1 {could not find interpreter "nosuchinterpreter"}
+==== interp-11.2 FAILED
+
+---- interp-11.3 start
+---- interp-11.4 start

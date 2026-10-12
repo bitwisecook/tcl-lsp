@@ -1,0 +1,11 @@
+NH_INIT
+NH_HARNESS
+NH_ORCHESTRATION_ENTER
+Tests running in interp:  /tmp/name-native-c86-mathfunc-bootstrap-runner
+Tests located in:  /workspace/tcl-lsp/tmp/tcl8.6.18/tests
+Tests running in:  /tmp/name-c86-real-suite-u79n4ryb
+Temporary files stored in /tmp/name-c86-real-suite-u79n4ryb
+Test files sourced into current interpreter
+Running tests that match:  *
+Skipping test files that match:  l.*.test
+Only running test files that match:  var.test

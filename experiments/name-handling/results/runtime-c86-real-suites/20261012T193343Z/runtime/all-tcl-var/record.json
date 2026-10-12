@@ -1,0 +1,31 @@
+{
+  "engine": "runtime",
+  "stem": "all-tcl-var",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/20261012T193343Z/runtime/all-tcl-var/input.tcl"
+  ],
+  "input_sha256": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+  "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+  "exit_code": 1,
+  "elapsed_seconds": 4.981,
+  "init_reached": true,
+  "harness_reached": true,
+  "suite_entered": false,
+  "suite_returned": false,
+  "failed_ids": [],
+  "started_count": 0,
+  "last_started_id": null,
+  "stdout_sha256": "fbccbb0888fc1f9c32cd5b6b801a1a21ba6d08818d94edd8fafb462c4f1b0e49",
+  "stderr_sha256": "e5cc380437547c36b3212c5b608540aedbe06e9fb31eb6a38bb3a3585509e7a0",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "TCL_BACKEND_CONSTRAINTS": null,
+  "status": "process-error"
+}

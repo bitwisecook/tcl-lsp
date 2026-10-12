@@ -1,0 +1,36 @@
+{
+  "engine": "runtime",
+  "stem": "ooNext2",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/tmp/name-native-c86-mathfunc-bootstrap-runner",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/20261012T193343Z/runtime/ooNext2/input.tcl"
+  ],
+  "input_sha256": "9ba7ee469e7dc315c99cc46280e0fa4b00e50dc85be255b5ffc4c2b79fea5bed",
+  "binary_sha256": "fb1ae94b86854a4f56476011dd50ead92ec7c94fac5aa721d678e72bb15885c6",
+  "exit_code": 1,
+  "elapsed_seconds": 13.258,
+  "init_reached": true,
+  "harness_reached": true,
+  "suite_entered": true,
+  "suite_returned": false,
+  "failed_ids": [
+    "oo-call-1.20",
+    "oo-call-1.21",
+    "oo-nextto-2.5"
+  ],
+  "started_count": 46,
+  "last_started_id": "next-tailcall-simple-1",
+  "stdout_sha256": "ee1d946f026f1f43dddc8a5af5e1fbe4339dbde9b8f19ae42394d7eff4497891",
+  "stderr_sha256": "d18c7cc60fcaa33f55ceb1a0929e59ec804ffd75369bdb99c3985f80431d6425",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "TCL_BACKEND_CONSTRAINTS": null,
+  "test_sha256": "fdb5e18350991760d1504aa4de8340e71817463937d0a9d32fdec48a52d1b2c9",
+  "status": "process-error"
+}
