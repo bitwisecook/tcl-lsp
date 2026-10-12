@@ -95937,7 +95937,7 @@
           "id": "authored-consumer645d-1bfa2199f14a",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_append.rs",
-          "sha256": "d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5",
+          "sha256": "9fbc9f03e909776d6193dcd73c65f19d55d3aedddf51f69b1b68558c7a7c2266",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
@@ -96354,7 +96354,7 @@
           "id": "authored-consumer645d-1bfa2199f14a",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_append.rs",
-          "sha256": "d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5",
+          "sha256": "9fbc9f03e909776d6193dcd73c65f19d55d3aedddf51f69b1b68558c7a7c2266",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         }
       ],
@@ -322603,7 +322603,7 @@
           "id": "authored-consumer645d-1bfa2199f14a",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_append.rs",
-          "sha256": "d7b6989e2836f800aed0e0292811d44b86a383bd62705cfd3db8d1376b19abe5",
+          "sha256": "9fbc9f03e909776d6193dcd73c65f19d55d3aedddf51f69b1b68558c7a7c2266",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         },
         {
@@ -322976,6 +322976,34 @@
           "path": "runtime/rust/src/interp/native_arguments.rs",
           "sha256": "e0a1f255f1fd9b60510dc6d5db59ca890a076ba2b41f3918732e10f56f1b7f86",
           "description": "Original argument/frame observations retain actual receiver currency, activation and weak frame birth without native references. The same typed failure owner brackets reached callbacks, backing retirement and mandatory cleanup; source definitions grant no Native or executed-test authority."
+        },
+        {
+          "id": "authored-consumer645e-ba1129b57fe3",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_string.rs",
+          "sha256": "7ffb8c8bad1a24a5d6cbb9701d968e320f0b84192fdea7f13a2948e31b5e6271",
+          "description": "Ordinary append uses the actual existing NativeObjectAppendProtocol issuer or its explicit logical provider before Name; no dialect-only Native entry is added. The logical body and all prior test brace bodies are byte-identical."
+        },
+        {
+          "id": "authored-consumer645e-3ed7cc191181",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_append/original_command_boundary_tests.rs",
+          "sha256": "a68511b16856cc36e170f6417d4685961a7b63dd9056d337abb80edcf0ca1fca",
+          "description": "Actual current canonical software control body/document pair and recursive Rust module declarations only; no execution or external Native outcome is inferred."
+        },
+        {
+          "id": "authored-consumer645e-e2cce7a48f51",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_coroutine.rs",
+          "sha256": "06bdae5ef280e00a5c2db9b8d4f251f94a6b9f9491fdee439d3dccddd68277b4",
+          "description": "Finite compiled Concat/Name/Tailcall source projection keeps authentic Body/Arguments through converters and mandatory retirement. Legacy incoming RHS is acquired at its existing stage; old local word retires before local write, and original check precedes List construction/scheduling. These software guards grant no general park/resume or Native teardown equivalence."
+        },
+        {
+          "id": "authored-consumer645e-e192a2075a37",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_coroutine/original_concat_boundary_tests.rs",
+          "sha256": "20fb6b1860287756f94426b035eb717b5f8aa956a3e9de1cb5c86d1f743fe7c4",
+          "description": "Actual current canonical software control body/document pair and recursive Rust module declarations only; no execution or external Native outcome is inferred."
         }
       ],
       "source_anchors": [],
@@ -328419,6 +328447,42 @@
           "selector": "interp::native_body_artifact::native_oo_next::original_stages_tests::original_compiled_next_and_nextto_keep_selected_list_and_public_results",
           "status": "linked",
           "assertion": "Genuine C86/C90/C91 software command ingress executes original Next/NextTo operand expansion and keeps their public List results. Source availability and declared execution coverage supply no new external Native observation."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_coroutine/original_concat_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_coroutine::original_concat_boundary_tests::original_coroutine_concat_keeps_frame_inside_source_conversion_before_tailcall_publication",
+          "assertion": "The real compiled coroutine Concat checks its original frame and input headers inside selected List conversion and after source/stack retirement before publishing a tailcall. Reached Host/context/frame withdrawal retains the first full cause and existing genuine reference roles. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_coroutine/original_concat_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_coroutine::original_concat_boundary_tests::original_coroutine_name_checks_reached_last_result_retirement_before_success",
+          "assertion": "Actual info-coroutine result publication checks the same compiled frame immediately after the prior result last-owner retirement before reporting success; reached incoming publication and the first full cause remain observable. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append/original_command_boundary_tests.rs",
+          "selector": "interp::native_append::original_command_boundary_tests::original_command_append_captures_frame_before_name_and_blocks_later_sources",
+          "assertion": "The genuine ordinary Native Append issuer captures actual Arguments/frame/namespace before the Name getter. Real Host/context/frame withdrawal blocks source getters and preserves prior result, initial cell and true borrowed argument roles. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append/original_command_boundary_tests.rs",
+          "selector": "interp::native_append::original_command_boundary_tests::original_command_append_checks_selected_cell_inside_source_getter_before_later_operand",
+          "assertion": "The genuine ordinary Append source getter checks the same selected cell/header and original frame inside the existing String worker. Legal same-cell replacement and Host/context/frame withdrawal are terminal before later operands, mutation or result continuation while reached replacement remains observable. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append/original_command_boundary_tests.rs",
+          "selector": "interp::native_append::original_command_boundary_tests::original_command_append_keeps_explicit_logical_simulation_and_read_only_purpose",
+          "assertion": "The existing explicit Tcl84CoreSimulation Append provider retains its portable algorithm, read-only result identity and source reference role without issuing a Native operation. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_append/original_command_boundary_tests.rs",
+          "selector": "interp::native_append::original_command_boundary_tests::original_command_append_native_issuer_cannot_use_the_explicit_logical_byte_port",
+          "assertion": "An actual Native Append issuer refuses the explicit logical byte-name port before source materialization or publication, retaining its full typed cause and genuine argument reference role. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
         }
       ],
       "replay": {
