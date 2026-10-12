@@ -66,7 +66,7 @@ This Rust consumer contract has no native execution receipt.
 
 - `implementation-0` (implementation): [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs). SHA-256 `db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 - `implementation-1` (implementation): [rust/tcl-lsp-core/src/original_oo.rs](../../../../rust/tcl-lsp-core/src/original_oo.rs). SHA-256 `de5a0c048df6e3b16166e4658307f93850e71a1ad4f0f10ab0043a838d8de0c1`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-2` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). SHA-256 `1f8388ab4fffb1fe1d744480a9cb18119160cecdc72f550b728f5f772f895bc4`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-2` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). SHA-256 `4716d9bc5dd50d631e33d2e35b5a4a8192d710b0fdfb1a0f587874a24327574e`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 
 ## Source inspection
 

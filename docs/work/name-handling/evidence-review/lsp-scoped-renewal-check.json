@@ -1,0 +1,31 @@
+{
+  "scope": "Only 22 allowlisted implementation SHA-256 fields across 21 records and their canonical pages",
+  "allowlist_path": "docs/work/name-handling/evidence-review/lsp-additional-source-review.json",
+  "allowlist_sha256": "f14853a177507ff5f5f6991f1f2d4f52f3cd9ed7e0105c56f35143ee328fef2e",
+  "source_review_observed_head": "ef3bcdbfc3ee73f25d4ade4a182b8110ad943507",
+  "manifest_before_sha256": "073b0eac2876d68b78f54a221d89eb7a1ab167df3e59fb5bda96e8e39f2f3868",
+  "manifest_after_sha256": "85f58be923be26c24ee313490ae087e97775f79476e5cbba65067f1723dc7afb",
+  "total_manifest_records": 1179,
+  "renewed_implementation_joins": 22,
+  "renewed_records": 21,
+  "all_exact_old_digests_verified_before_mutation": true,
+  "all_five_source_digests_rechecked_before_mutation": true,
+  "all_renewed_digests_match_current_source": true,
+  "duplicate_or_outside_allowlist_changes": 0,
+  "all_unaffected_record_objects_identical": true,
+  "all_record_objects_identical_after_reverting_only_22_allowed_hash_fields": true,
+  "excluded_record_ids": [
+    "naming.analysis.constructed-key-consumer-projections",
+    "naming.core.original-dispatch-region-context"
+  ],
+  "excluded_records_preserved_exactly": true,
+  "meaning_provider_capture_teststatus_objects_preserved": true,
+  "selected_record_schema_errors": [],
+  "canonical_renderer": "scripts/dev/update-name-resolution-proof-index.py:render",
+  "canonical_renderer_sha256": "51b2dc7e96729fffa3a25c8dfd38254d097075836c836c0d93c9863ec1f54f33",
+  "canonical_pages_rendered": 21,
+  "canonical_page_deltas_only_allowlisted_evidence_digest_replacements": true,
+  "sources_changed": false,
+  "native_or_rust_execution": "not run",
+  "complete_proof_audit": "not run; scoped record-schema, digest, object-identity and canonical-page checks only"
+}

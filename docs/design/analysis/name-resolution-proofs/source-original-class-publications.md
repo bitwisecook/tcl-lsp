@@ -66,7 +66,7 @@ This original-source implementation contract supplies no native process, reached
 
 - `naming-source-original-class-publications-source_class_publications.rs` (implementation): [rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_publications.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_publications.rs). SHA-256 `7b37944681aa16d9af8a9454c7cdfa1a749ec64b660cf88597191aa21bd88cc3`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 - `naming-source-original-class-publications-source_structure.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs). SHA-256 `6a132935c7016cc2af026d34309f796a8fe1c1bf8f060324ddee160da30cb55a`. Original source-case and supplied-word projections distinguish genuine Logical source purpose from retained Native/source recipes. Full source/vector/realm/input and actual Native handler/word-provider checks remain separate.
-- `naming-source-original-class-publications-lib.rs` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-source-original-class-publications-lib.rs` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

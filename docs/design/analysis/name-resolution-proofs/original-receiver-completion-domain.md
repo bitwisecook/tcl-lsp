@@ -64,7 +64,7 @@ This is an editor source-schema/candidate implementation contract. No native pro
 
 ## Exact evidence
 
-- `receiver-whole-source609-82b2015aa5fe` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). SHA-256 `bc4c7af337dda67784672b2e2e358eecb5e0decd183b36eb44afbf5b6c5a021d`. Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
+- `receiver-whole-source609-82b2015aa5fe` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). SHA-256 `4716d9bc5dd50d631e33d2e35b5a4a8192d710b0fdfb1a0f587874a24327574e`. Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
 
 ## Source inspection
 
