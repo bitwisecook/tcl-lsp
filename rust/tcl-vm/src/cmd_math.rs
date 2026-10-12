@@ -271,7 +271,11 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "math handler has no selected stock implementation identity".into(),
         );
     };
-    let name = identity.rsplit("::").next().unwrap_or(identity).to_owned();
+    let Some(name) = tcl_registry::mathfunc::global_command_bare_name(identity).map(str::to_owned) else {
+        return vm.refuse_host_command(
+            "math handler stock identity is not a direct global math function".into(),
+        );
+    };
     let int_width = IntWidth::for_tcl_version(vm.runtime_version());
     let dialect = vm.native_invocation_dialect();
     if dialect.scalar_numeric_input_policy().is_none() && vm.authored_numeric_context().is_none() {

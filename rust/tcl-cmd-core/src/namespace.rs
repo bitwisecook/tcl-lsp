@@ -82,23 +82,8 @@ pub fn unknown_subcommand_message(
 /// colon-run handling — a run of 3+ colons is one separator (so `foo:::` has
 /// qualifier `foo` and an empty tail), where a naive `rsplit("::")` diverges.
 fn last_sep_run(s: &[u8]) -> Option<(usize, usize)> {
-    // Scan back for the last "::" pair, then extend over every adjacent colon.
-    let mut i = s.len();
-    while i >= 2 {
-        if s[i - 1] == b':' && s[i - 2] == b':' {
-            let mut start = i - 2;
-            while start > 0 && s[start - 1] == b':' {
-                start -= 1;
-            }
-            let mut end = i;
-            while end < s.len() && s[end] == b':' {
-                end += 1;
-            }
-            return Some((start, end));
-        }
-        i -= 1;
-    }
-    None
+    tcl_syntax::naming::written_separator_extent(s)
+        .map(|separator| (separator.start, separator.end))
 }
 
 /// The namespace portion of a written qualified name, retaining whether the
@@ -1383,5 +1368,29 @@ mod native_dispatch_diagnostic_tests {
             compared += 1;
         }
         assert_eq!(compared, 18);
+    }
+}
+
+#[cfg(test)]
+mod shared_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn neutral_namespace_boundaries_share_counted_written_spans() {
+        // Implementation contract: naming.grammar.shared-written-name-boundaries
+        // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
+        // Neutral counted geometry; selected Native C/Jim input is independent.
+        for (written, expected_qualifier, expected_tail) in [
+            (b"::a:::b".as_slice(), b"::a".as_slice(), b"b".as_slice()),
+            (b"a:::".as_slice(), b"a".as_slice(), b"".as_slice()),
+            (b":".as_slice(), b"".as_slice(), b":".as_slice()),
+            (b"a\0x:::b".as_slice(), b"a\0x".as_slice(), b"b".as_slice()),
+        ] {
+            assert_eq!(qualifiers(written), expected_qualifier);
+            assert_eq!(tail(written), expected_tail);
+        }
+        assert_eq!(qualifier(b"::::p"), Qualifier::Absolute(b"::"));
+        assert_eq!(qualifier(b"a:::p"), Qualifier::Relative(b"a"));
+        assert_eq!(qualifier(b"p"), Qualifier::Unqualified);
     }
 }

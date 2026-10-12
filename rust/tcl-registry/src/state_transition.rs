@@ -221,18 +221,8 @@ pub fn namespace_qualifiers(name: &str) -> &str {
 /// geometry only; callers select their own operation's input extent first.
 #[must_use]
 pub fn namespace_qualifiers_bytes(name: &[u8]) -> &[u8] {
-    let mut position = name.len();
-    while position > 0 {
-        position -= 1;
-        if name[position] == b':' && position > 0 && name[position - 1] == b':' {
-            let mut qualifier_end = position - 1;
-            while qualifier_end > 0 && name[qualifier_end - 1] == b':' {
-                qualifier_end -= 1;
-            }
-            return &name[..qualifier_end];
-        }
-    }
-    &name[..0]
+    tcl_syntax::naming::written_separator_extent(name)
+        .map_or(&name[..0], |separator| &name[..separator.start])
 }
 
 /// Namespace used when a command-prefix alias resolves its target.

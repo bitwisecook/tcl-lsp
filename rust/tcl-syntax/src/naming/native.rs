@@ -1243,13 +1243,8 @@ impl NativeNameProtocol {
                 _ => b"",
             };
         }
-        let Some(mut start) = prefix.windows(2).rposition(|pair| pair == b"::") else {
-            return b"";
-        };
-        while start > 0 && prefix[start - 1] == b':' {
-            start -= 1;
-        }
-        &prefix[..start]
+        super::written_separator_extent(prefix)
+            .map_or(&prefix[..0], |separator| &prefix[..separator.start])
     }
 
     /// Root-variable receiver input. Qualification is tested before raw NUL in

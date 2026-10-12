@@ -189,7 +189,7 @@ pub fn scan_array_index(
                     }
                     continue;
                 }
-                position = scan_bare_var_name(source, after_dollar);
+                position = tcl_core_types::naming::scan_var_name_end(source, after_dollar);
                 if position > after_dollar && source.get(position) == Some(&b'(') {
                     nested_indices += 1;
                     position += 1;
@@ -207,23 +207,6 @@ pub fn scan_array_index(
         end: ArrayIndexEnd::Unterminated,
         invalid: first_invalid,
     }
-}
-
-fn scan_bare_var_name(source: &[u8], mut position: usize) -> usize {
-    while position < source.len() {
-        let byte = source[position];
-        if byte.is_ascii_alphanumeric() || byte == b'_' {
-            position += 1;
-        } else if byte == b':' && source.get(position + 1) == Some(&b':') {
-            position += 2;
-            while source.get(position) == Some(&b':') {
-                position += 1;
-            }
-        } else {
-            break;
-        }
-    }
-    position
 }
 
 /// Where a `${…}` variable name ends — the result of [`braced_var_name_end`].
@@ -1569,5 +1552,28 @@ mod tests {
             off as usize <= src.len(),
             "append point must stay in bounds"
         );
+    }
+}
+
+#[cfg(test)]
+mod shared_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn array_index_nested_variables_use_the_shared_ascii_name_scanner() {
+        // Implementation contract: naming.grammar.shared-written-name-boundaries
+        // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
+        // Actual array-index scan; ASCII nested bare variables keep the old door.
+        for (source, end) in [("$a($n:::v(k))", 13), ("$a($foo:::(k))", 14), ("$a($:(k))", 8), ("$a($é(k))", 9)] {
+            let bytes = source.as_bytes();
+            let scan = scan_array_index(
+                bytes,
+                2,
+                ArrayIndexSyntax::Tcl8,
+                BracedVarStyle::FirstClose,
+            );
+            assert_eq!(scan.end, ArrayIndexEnd::Closed(end));
+            assert_eq!(scan.invalid, None);
+        }
     }
 }

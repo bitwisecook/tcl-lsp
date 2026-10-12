@@ -231,6 +231,27 @@ pub fn qualifier_component_extents(
     })
 }
 
+/// The exact byte extent of the final written namespace separator run.
+/// Each complete run of two or more colons separates components; a lone colon
+/// remains component data. The counted input is not truncated or normalised.
+/// This pure span query supplies no dialect, native input extent, namespace,
+/// source edit, command lookup or publication authority.
+#[must_use]
+pub fn written_separator_extent(name: &[u8]) -> Option<std::ops::Range<usize>> {
+    let mut previous_end = 0;
+    let mut separator = None;
+    for component in qualifier_component_extents(name) {
+        if component.start > previous_end {
+            separator = Some(previous_end..component.start);
+        }
+        previous_end = component.end;
+    }
+    if previous_end < name.len() {
+        separator = Some(previous_end..name.len());
+    }
+    separator
+}
+
 /// Does `name` end with a namespace separator (a run of ≥2 colons)? In a
 /// command or variable name such a trailing `::` names the `{}` (empty) entity
 /// in the qualified namespace (`TclGetNamespaceForQualName`), so the simple name
@@ -252,11 +273,7 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
 /// disagree about which command a trailing-separator spelling names.
 #[must_use]
 pub fn written_command_tail(name: &[u8]) -> &[u8] {
-    if name.is_empty() || ends_with_separator(name) {
-        b""
-    } else {
-        qualifier_segments(name).last().copied().unwrap_or(name)
-    }
+    written_separator_extent(name).map_or(name, |separator| &name[separator.end..])
 }
 
 /// [`qualifier_segments`] over a `&str`, as owned `String`s — the one shared
@@ -2532,6 +2549,32 @@ mod tests {
                     .map(|extent| &written[extent.clone()])
                     .collect::<Vec<_>>()
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod shared_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn written_separator_spans_retain_complete_runs_and_counted_units() {
+        // Implementation contract: naming.grammar.shared-written-name-boundaries
+        // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
+        // Counted source geometry only; no native extent or name identity.
+        for (written, separator, tail) in [
+            (b"".as_slice(), None, b"".as_slice()),
+            (b":".as_slice(), None, b":".as_slice()),
+            (b"a:b".as_slice(), None, b"a:b".as_slice()),
+            (b":::".as_slice(), Some(0..3), b"".as_slice()),
+            (b"::a:::b".as_slice(), Some(3..6), b"b".as_slice()),
+            (b"a:::".as_slice(), Some(1..4), b"".as_slice()),
+            (b"a\0x:::b".as_slice(), Some(3..6), b"b".as_slice()),
+            (b"a::b\0c".as_slice(), Some(1..3), b"b\0c".as_slice()),
+            ("é:::λ".as_bytes(), Some(2..5), "λ".as_bytes()),
+        ] {
+            assert_eq!(written_separator_extent(written), separator);
+            assert_eq!(written_command_tail(written), tail);
         }
     }
 }

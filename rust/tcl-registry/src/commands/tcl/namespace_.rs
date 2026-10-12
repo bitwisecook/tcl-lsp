@@ -474,28 +474,11 @@ pub(crate) fn fold_qualifiers(args: &[&str]) -> Option<String> {
 }
 
 pub(crate) fn fold_tail(args: &[&str]) -> Option<String> {
-    let [s] = args else {
+    let [written] = args else {
         return None;
     };
-    let b = s.as_bytes();
-    if b.is_empty() {
-        // `NamespaceTailCmd`'s `p` lands before the string start for the
-        // empty input and sets no result at all — the empty string.
-        return Some(String::new());
-    }
-    // The scan stops one short of the front (C's `while (--p > name)`), so a
-    // leading `::` is never treated as a separator: `namespace tail ::foo` is
-    // `foo`, but `namespace tail :` is `:`.
-    let mut p = b.len() - 1;
-    let mut start = 0usize;
-    while p > 0 {
-        if b[p] == b':' && b[p - 1] == b':' {
-            start = p + 1;
-            break;
-        }
-        p -= 1;
-    }
-    Some(s[start..].to_owned())
+    let tail = tcl_syntax::naming::written_command_tail(written.as_bytes());
+    Some(written[written.len() - tail.len()..].to_owned())
 }
 
 const NAMESPACE_UPVAR_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
