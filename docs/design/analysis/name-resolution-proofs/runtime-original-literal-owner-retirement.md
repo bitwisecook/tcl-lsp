@@ -64,9 +64,10 @@ This original-source implementation contract supplies no native process, reached
 
 ## Exact evidence
 
-- `naming-runtime-original-literal-owner-retirement-rust-tcl-runtime-api-src-native_literal.rs` (implementation): [rust/tcl-runtime-api/src/native_literal.rs](../../../../rust/tcl-runtime-api/src/native_literal.rs). SHA-256 `01d42be470ac2a1b6fc085308efb01cb388f67509a02754b0d187c684c1a0988`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-runtime-original-literal-owner-retirement-runtime-rust-src-interp-native_literal_pool.rs` (implementation): [runtime/rust/src/interp/native_literal_pool.rs](../../../../runtime/rust/src/interp/native_literal_pool.rs). SHA-256 `2a7033f929b6ae8927841cfd1d8f08dc70da02624bab65a5eae6abc294813633`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-runtime-original-literal-owner-retirement-rust-tcl-vm-src-literal_pool.rs` (implementation): [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs). SHA-256 `b9ae6506d187a2e9b683b3d08e65f9ba6f0cf38b17a63a65e240616f484539a7`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-runtime-original-literal-owner-retirement-rust-tcl-runtime-api-src-native_literal.rs` (implementation): [rust/tcl-runtime-api/src/native_literal.rs](../../../../rust/tcl-runtime-api/src/native_literal.rs). SHA-256 `61096b9c41b8d3619e5308f18cc5deea143e9cc81e0eebea3d385ca8e7746691`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-runtime-original-literal-owner-retirement-runtime-rust-src-interp-native_literal_pool.rs` (implementation): [runtime/rust/src/interp/native_literal_pool.rs](../../../../runtime/rust/src/interp/native_literal_pool.rs). SHA-256 `95b9ca221ece23b80e6a8bf89f72ec303921fe402dc270638ea4600ccfe0600a`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-runtime-original-literal-owner-retirement-rust-tcl-vm-src-literal_pool.rs` (implementation): [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs). SHA-256 `9c285f4066be2096414aa5cd2b70e5e01ab8dc675aa514d0b86115d6dfabbfaf`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `own-source349-runtime-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json). SHA-256 `bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f`. JSON pointer `/by_question/naming.runtime.original-literal-owner-retirement`. Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.
 
 ## Source inspection
 
@@ -85,15 +86,3 @@ A named test is a coverage binding, not a claim that it executed.
 ## Replay
 
 Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
-
-
-## Exact original-source349 software outcomes
-
-These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
-
-| Original selection | Passed | Failed | Aborted or incomplete | Not started |
-| --- | ---: | ---: | ---: | ---: |
-| `grouped` | 1 | 0 | 0 | 0 |
-| `isolated` | 1 | 0 | 0 | 0 |
-
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

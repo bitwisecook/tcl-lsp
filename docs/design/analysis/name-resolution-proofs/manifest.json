@@ -15270,7 +15270,7 @@
           "id": "authored-static-policy-regression675",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
-          "sha256": "9892e4a31acf12daaf58b142f09b5247d517369d09d14b8ffa0439879cf4138c",
+          "sha256": "e0c90231d9f056fdbaa48a52a06f034846e857c02b64d29e3aa2902448d6756a",
           "description": "Existing explicit authored static publication policy and software regressions reading retained build-specific appliance state responses. This authored source is not BIG-IP implementation source and supplies no new provider execution, scalar-trace chronology, collision or native rule-loader proof."
         }
       ],
@@ -15844,7 +15844,7 @@
           "id": "authored-static-policy-regression675",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
-          "sha256": "9892e4a31acf12daaf58b142f09b5247d517369d09d14b8ffa0439879cf4138c",
+          "sha256": "e0c90231d9f056fdbaa48a52a06f034846e857c02b64d29e3aa2902448d6756a",
           "description": "Existing explicit authored static publication policy and software regressions reading retained build-specific appliance state responses. This authored source is not BIG-IP implementation source and supplies no new provider execution, scalar-trace chronology, collision or native rule-loader proof."
         }
       ],
@@ -203013,7 +203013,7 @@
           "id": "current-primary-table-owner-0",
           "role": "implementation",
           "path": "runtime/rust/src/vars/entered_container.rs",
-          "sha256": "271efb22bbc2e3504f5f4c2357cf248c72e75fe1ad55552f1acb6cc4da8a4ad3",
+          "sha256": "4482f4cad881861e6358d153a4100df4f7c60386d274efafd0bb8f5aa5e49f68",
           "description": "Current checked primary-table source/API owner. Static membership, links, original operation currency and frame identity retain independent guards; no C/Jim process or software assertion outcome is attached."
         },
         {
@@ -224394,21 +224394,21 @@
           "id": "naming-runtime-original-literal-owner-retirement-rust-tcl-runtime-api-src-native_literal.rs",
           "role": "implementation",
           "path": "rust/tcl-runtime-api/src/native_literal.rs",
-          "sha256": "01d42be470ac2a1b6fc085308efb01cb388f67509a02754b0d187c684c1a0988",
+          "sha256": "61096b9c41b8d3619e5308f18cc5deea143e9cc81e0eebea3d385ca8e7746691",
           "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
         },
         {
           "id": "naming-runtime-original-literal-owner-retirement-runtime-rust-src-interp-native_literal_pool.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_literal_pool.rs",
-          "sha256": "2a7033f929b6ae8927841cfd1d8f08dc70da02624bab65a5eae6abc294813633",
+          "sha256": "95b9ca221ece23b80e6a8bf89f72ec303921fe402dc270638ea4600ccfe0600a",
           "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
         },
         {
           "id": "naming-runtime-original-literal-owner-retirement-rust-tcl-vm-src-literal_pool.rs",
           "role": "implementation",
           "path": "rust/tcl-vm/src/literal_pool.rs",
-          "sha256": "b9ae6506d187a2e9b683b3d08e65f9ba6f0cf38b17a63a65e240616f484539a7",
+          "sha256": "9c285f4066be2096414aa5cd2b70e5e01ab8dc675aa514d0b86115d6dfabbfaf",
           "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
         },
         {
@@ -323764,7 +323764,7 @@
           "id": "original-scalar-mapping-owner-366fd691de27",
           "role": "implementation",
           "path": "runtime/rust/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
-          "sha256": "0071aeaa912e014be464c88fb81953fed3a3f30fa6995330f4cc226c618c4fc9",
+          "sha256": "4ca9d0e1f603a0e205dd90d2d911749c5c8a912bfc1e91d1f7c507aba4660635",
           "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
         },
         {
@@ -323834,7 +323834,7 @@
           "id": "original-scalar-mapping-owner-67a891b21b16",
           "role": "implementation",
           "path": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
-          "sha256": "e11a5b53703f12e1cf69e3eb45043fd5be5c41fe8e288c9535549e32d06769ad",
+          "sha256": "0a754da4ab27258422b66a84cf7d42a8d516d6a444d572074c4fcde81ec568d7",
           "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
         },
         {
@@ -323904,7 +323904,7 @@
           "id": "original-source-consumer-520fb4baa60a",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_command_names.rs",
-          "sha256": "ecdf63632086548ba789c722e44d6d8c924215bf7e1abbfb6c37ab0e2f121b65",
+          "sha256": "99c0883807c038d813a421f0720b5caa44abed2b9bef3c0dc0318ac27987cb62",
           "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
         },
         {
@@ -323918,7 +323918,7 @@
           "id": "original-frame-observation-5ada83a256e2",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_arguments.rs",
-          "sha256": "e0a1f255f1fd9b60510dc6d5db59ca890a076ba2b41f3918732e10f56f1b7f86",
+          "sha256": "8530ae0f411015492459df4a89507cc728260d8c01eaef2025b83c6ede757349",
           "description": "Original argument/frame observations retain actual receiver currency, activation and weak frame birth without native references. The same typed failure owner brackets reached callbacks, backing retirement and mandatory cleanup; source definitions grant no Native or executed-test authority."
         },
         {
@@ -324240,7 +324240,7 @@
           "id": "original-command-retirement-source-a85e2ccfc6403191",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
-          "sha256": "693d49952e249300b0697d62cad6bb6fc0dc1148aa029f4cdf46eb58535eac7b",
+          "sha256": "a6f1f9aaba1f9a16fd759f57be40805244b153812b3fb0e4e1c4e287f4a39b96",
           "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
         },
         {
@@ -554488,7 +554488,7 @@
           "id": "current-runtime-source-1",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+          "sha256": "95365905b66c41c79377243a3970cb9e5736b5e32b765d0f2ef8e8e6870265b7",
           "description": "Current source/API or authentic parent module registration for two finite software controls. No matching own Rust executable/assertion receipt is attached to these controls; native printed values do not certify Host metadata or physical ABI correspondence."
         },
         {
@@ -558091,7 +558091,7 @@
           "id": "implementation-source-0",
           "role": "implementation",
           "path": "runtime/rust/src/capi.rs",
-          "sha256": "64a8394fdab682cb874404e1e4a1ebda4603806a04268de6904942d82c4ce3b1",
+          "sha256": "2392fb8f372b2b970b31d885201787a590e44f567173af418f903952d6e03795",
           "description": "Exact current explicit C API header setter, selected error-code storage/getter owner or finite software definition. Only this bounded source/API purpose is pinned; the file hash supplies no matching owned assertion, provider callback chronology or whole-program execution."
         },
         {
@@ -558105,14 +558105,14 @@
           "id": "implementation-source-2",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
+          "sha256": "95365905b66c41c79377243a3970cb9e5736b5e32b765d0f2ef8e8e6870265b7",
           "description": "Exact current explicit C API header setter, selected error-code storage/getter owner or finite software definition. Only this bounded source/API purpose is pinned; the file hash supplies no matching owned assertion, provider callback chronology or whole-program execution."
         },
         {
           "id": "implementation-source-3",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_error_variables.rs",
-          "sha256": "47c46ca5b7696a2abaae665bc95fe7f9ef73ca5c939e470c3d31a1e246852606",
+          "sha256": "09d1bd05bfdb148acb26839e5b9291ea4ca9e631561bef50a4182f33cc3b6f20",
           "description": "Exact current explicit C API header setter, selected error-code storage/getter owner or finite software definition. Only this bounded source/API purpose is pinned; the file hash supplies no matching owned assertion, provider callback chronology or whole-program execution."
         },
         {
@@ -592184,7 +592184,7 @@
           "id": "original-command-retirement-source-480fa275cf1ac98c",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "474c1283ba6a97ed1069f9c20712a94159793ba89699c200d0adc6e55777ce30",
+          "sha256": "95365905b66c41c79377243a3970cb9e5736b5e32b765d0f2ef8e8e6870265b7",
           "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
         },
         {
@@ -592198,7 +592198,7 @@
           "id": "original-command-retirement-source-a85e2ccfc6403191",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
-          "sha256": "693d49952e249300b0697d62cad6bb6fc0dc1148aa029f4cdf46eb58535eac7b",
+          "sha256": "a6f1f9aaba1f9a16fd759f57be40805244b153812b3fb0e4e1c4e287f4a39b96",
           "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
         }
       ],
