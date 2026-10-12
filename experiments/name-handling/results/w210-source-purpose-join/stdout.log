@@ -1,0 +1,11 @@
+
+running 1 test
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9557 filtered out; finished in 2.19s
+

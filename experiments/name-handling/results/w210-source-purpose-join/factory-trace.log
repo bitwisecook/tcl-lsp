@@ -1,0 +1,8 @@
+W210_SOURCE factory metadata-present=true token-binding-present=true
+W210_SOURCE request supplied-input=true input-equal=true
+W210_SOURCE retained point-present=true owner=Standalone supplied-input=false input-equal=false native-entry-present=false site-present=true vector-equal=true
+W210_SOURCE factory image-current=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=false input-equal=false
+W210_SOURCE factory source-purpose=Refused

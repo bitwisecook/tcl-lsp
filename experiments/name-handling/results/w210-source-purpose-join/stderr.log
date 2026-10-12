@@ -1,0 +1,182 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 04s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+W210_SOURCE factory metadata-present=true token-binding-present=true
+W210_SOURCE request supplied-input=true input-equal=true
+W210_SOURCE retained point-present=true owner=Standalone supplied-input=false input-equal=false native-entry-present=false site-present=true vector-equal=true
+W210_SOURCE factory image-current=true
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=false input-equal=false
+W210_SOURCE factory source-purpose=Refused
+W210_SOURCE join point-present=true input-logical=false
+W210_SOURCE join original-config-present=true
+W210_SOURCE join retained-source-input-present=true input-equal=true
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (195855) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-compiler --lib`

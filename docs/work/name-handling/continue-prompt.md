@@ -71,7 +71,10 @@ Current independent checks and outstanding work:
   #2286 remains open. Two traces found metadata/lifecycle selection accepted;
   same retained binding is now forwarded onto original rebuilt tokens; owner
   regression passes1/1 but nine controls remain6/3. Next read-only comparison
-  targets native factory purpose/header admission; no further trace measured.
+  measured retained proc-point Standalone versus full source request as the
+  first refusal; Native header/formals unreached. Trace owners restored.
+  Genuine provider input producer fix is in validation; see
+  `results/w210-source-purpose-join/` and its separate producer result.
 - Residual fixture constructors forward actual source inputs and compile;
   seeded_parameter filter has0 pass/6 fail at shared procedure lookup before SCCP. Exact receipt:
   `experiments/name-handling/results/fixture-source-input/`. Trace independently;

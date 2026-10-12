@@ -1,0 +1,77 @@
+{
+  "question": "Which post-forwarding proc-header metadata/source-purpose guard first refuses the direct C8.4 control?",
+  "answer": "The retained proc-header point is present with Standalone metadata; its source_analysis_input is None. original_word_metadata_for_input refuses there when joining the available SuppliedSource request, so source purpose refuses before Native header/formal checks.",
+  "test": "analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque",
+  "test_executions": 1,
+  "successful_compilations": 1,
+  "compile_only_failures": 0,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  },
+  "first_profile": "tcl8.4",
+  "w210": {
+    "actual": 0,
+    "expected": 1
+  },
+  "test_status": {
+    "command": "command.sh",
+    "started_utc": "2026-10-12T19:45:54.426574+00:00",
+    "elapsed_seconds": 186.328,
+    "exit_code": 101
+  },
+  "factory_observations": {
+    "request_metadata_present": true,
+    "request_source_input_present": true,
+    "request_input_equal": true,
+    "token_binding_present": true,
+    "retained_lookup_point_present": true,
+    "retained_metadata_owner_tag": "Standalone",
+    "retained_source_input_present": false,
+    "retained_input_equal": false,
+    "native_entry_present": false,
+    "original_invocation_site_present": true,
+    "original_vector_equal": true,
+    "source_image_current": true,
+    "original_config_present": true,
+    "input_logical": false,
+    "source_purpose_result": "Refused",
+    "first_refusing_expression": "materialized_footprint.rs:329 retained point.state.baseline.metadata_context.source_analysis_input()?",
+    "native_formal_branch_reached": false
+  },
+  "distinctions": "A retained point exists; this is not absent-point fallback. Standalone is a valid tag for its own explicit compatibility purpose but lacks the complete source owner required by this SuppliedSource request. input-equal=false here follows from absent source input, not an observed stale SuppliedSource object. No actual Native entry is present. Other same-offset queries outside the factory retain complete source inputs and pass; they are separate carriers, not donors for this point.",
+  "next_manufacturer_question": "Seal the explicit source-entry producer with its genuine resolved input before interpreting the immutable source realm; do not repair the present point by borrowing another channel/declaration, by profile labels, or by loosening the join. This job makes no production repair.",
+  "production_restoration": {
+    "owners": [
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+    ],
+    "instrumented_after_equals_instrumented_before": true,
+    "restored_bytes_equal_original": true,
+    "all_ten_scoped_hashes_equal_before": true,
+    "restored_owner_sha256": {
+      "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "aa7aa950137ebea78be511866a1b4c4d27f61cc301d3ed8d4b47517c02dacb66",
+      "rust/tcl-compiler/src/command_binding/materialized_footprint.rs": "418e3aeae18b7541e28cc4a6f2138b5e67cbe0e10a70d26b08121d1b4b5a739d"
+    }
+  },
+  "scope": "One compiler negative test; no native oracle/runtime/Normal/edit authority/full-gate/fix claim. Two temporary owners restored. Runtime/VM source excluded from inventory and frozen by coordinator.",
+  "artifact_sha256": {
+    "declaration_preview-instrumented.rs.gz": "29875e3c34c696e917cb667692ea081af96ffe04d32a0940a8f38eb3a486d5db",
+    "materialized_footprint-original.rs.gz": "9b15af57437ac27e18522e3fde4ff0221b4f89382c0e8554aefc88da4a026913",
+    "materialized_footprint-instrumented.rs.gz": "cf84872c2f143b3f622cfe69dacfa4e551ce0744db676af362050d0e8341f79c",
+    "declaration_preview-original.rs.gz": "7050fdbe2992e0d18b741ac17a5331732935068ba75b6ff4d247fad64b17763e",
+    "test-source.rs": "a79d62711fac8db2a06125c428075f38d02e5d7ec055aeb8935d824fdb0cd5e2",
+    "input.tcl": "6e6003645fbfa73941dd80e0d49f2f598eaa168cfcf5684fa9648ca00f565db7",
+    "question.md": "d7425ab61d4e1f14556ba449735990c499cada01da44ab8c2e76f7010f7b59b6",
+    "test-status.json": "0480cbfc4be66c1667e732ae678c47fab395297d11b09241bafc102e178fbbaa",
+    "source-after.json": "13488db01bb68f6269e702ae81b5330c194af57c732b6c4057a924f542b42c30",
+    "raw-trace.log": "b1b77014dc96a93d8532a2e5933b039d696da61069a717091e6088f9ae2a5d54",
+    "stderr.log": "05d7b44c3e3a1e0686de7837836153900bb3828bffe28e1126b5940c48c063cd",
+    "command.sh": "b92fc1f0f9c650c52aaaa8f997b505e03ab7207ec1051b985fcf2ffa79e0463e",
+    "source-before.json": "13488db01bb68f6269e702ae81b5330c194af57c732b6c4057a924f542b42c30",
+    "stdout.log": "a295bb39f2cdc2382d6380e826deb58f35f1e0379b9c3e405b69f4735ad686c7",
+    "factory-trace.log": "89b214b18f491aa0d57d3788bc07572e3546fe1a122f48ee81c65b314eb18baf",
+    "source-instrumented-after.json": "2e1e8640f8ad669caf4ccc0f7d0f6d979be8d3c4f505b1340a7fc13838d13449",
+    "source-instrumented.json": "2e1e8640f8ad669caf4ccc0f7d0f6d979be8d3c4f505b1340a7fc13838d13449"
+  }
+}

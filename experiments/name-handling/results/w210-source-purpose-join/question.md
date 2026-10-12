@@ -1,0 +1,3 @@
+# W210 source-purpose join
+
+After retained-token binding forwarding, which existing proc-header source-purpose/metadata guard first refuses the direct C8.4 missing-read control? One exact existing test execution; cfg(test) primitive traces in declaration_preview.rs and materialized_footprint.rs only. Freeze inventory pins ten named compiler/registry owners, including the current production forwarding owner and fixture/default-metadata producers; runtime/VM source is outside this scoped inventory and is frozen by the coordinator. No fallback, production repair, Native execution or oracle claim.
