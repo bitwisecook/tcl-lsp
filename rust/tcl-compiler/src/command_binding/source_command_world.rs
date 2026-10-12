@@ -1167,7 +1167,7 @@ impl SourceCommandBindings {
         let publishes = self.original_class_relation_source(module, registry, relation)?;
         let definer = relation.definer.as_ref();
         let binding = definer.source_binding.as_ref()?;
-        let body = definer.words().get(relation.body_word)?;
+        let config = binding.original_lexer_config_for_tokens(definer)?;
         let world = self.original_completed_command_world()?;
         let class = if publishes {
             let site = binding.invocation_site()?;
@@ -1185,7 +1185,7 @@ impl SourceCommandBindings {
         } else {
             let selected = self.original_class_configuration_target_at_span(
                 *definer.argv.get(relation.target_word)?,
-                body.config(),
+                config,
                 registry,
             )?;
             if selected.site() != binding.invocation_site()?
@@ -1231,15 +1231,22 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        let body = definer.words().get(relation.body_word)?;
-        if member.words().is_empty()
-            || member.words().iter().any(|word| {
-                word.image() != body.image()
-                    || word.config() != body.config()
-                    || word.span().start() < body.span().start()
-                    || word.span().end() > body.span().end()
-            })
-        {
+        let config = binding.original_lexer_config_for_tokens(definer)?;
+        let site = binding.invocation_site()?;
+        let original =
+            site.source
+                .original_lexical_command(definer.words(), site.offset, config)?;
+        let body = original.native_words().get(relation.body_word)?;
+        let member_offset = member.words().first()?.source().span.start();
+        let original_member =
+            site.source
+                .original_lexical_command(member.words(), member_offset, config)?;
+        if original_member.native_words().iter().any(|word| {
+            word.image() != body.image()
+                || word.config() != body.config()
+                || word.span().start() < body.span().start()
+                || word.span().end() > body.span().end()
+        }) {
             return None;
         }
         let invocation =
@@ -1277,7 +1284,7 @@ impl SourceCommandBindings {
                         .then_some(false),
                     _ => None,
                 })
-        })?
+        })
     }
 
     /// Completed original root publication ledger. Partial fallback states,

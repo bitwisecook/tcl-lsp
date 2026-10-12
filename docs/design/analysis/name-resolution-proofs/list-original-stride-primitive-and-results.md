@@ -16,7 +16,7 @@ Stride has an independent scalar command purpose. Actual tables reject it in C 8
 
 ## Scope
 
-108 fresh case processes, 18 per selected library. All process exits are zero: 31 successful commands and 77 Guest errors, without skips. The original counted String has one argument-owner native reference and no additional observer hold; the List is genuinely empty. Before-command, reached-before-result-getter and materialised-result fields remain distinct. No private cache payload, callback/teardown chronology, temporary argv reference donation, universal platform or Long ABI, software assertion or BIG-IP outcome follows. CLI and independent same-library version queries run in separate processes.
+108 fresh case processes, 18 per selected library. All process exits are zero: 31 successful commands and 77 Guest errors, without skips. The original counted String has one argument-owner native reference and no additional observer hold; the List is genuinely empty. Before-command, reached-before-result-getter and materialised-result fields remain distinct. No private cache payload, callback/teardown chronology, temporary argv reference donation, universal platform or Long ABI, software assertion or BIG-IP outcome follows. CLI and independent same-library version queries run in separate processes. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -531,7 +531,9 @@ int Jim_GetLong(Jim_Interp *interp, Jim_Obj *objPtr, long *longPtr)
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-registry/src/native_numeric_error/command.rs](../../../../rust/tcl-registry/src/native_numeric_error/command.rs), `original_stride_recipes_keep_actual_command_tables_primitive_widths_and_minima` (linked): Software source definition checks stride recipes keep actual command tables primitive widths and minima.
+- [rust/tcl-vm/src/cmd_list/native_original_stride_controls.rs](../../../../rust/tcl-vm/src/cmd_list/native_original_stride_controls.rs), `original_stride_guest_and_header_predicates_match_native644` (linked): Software source definition checks stride guest and header predicates match native644.
+- [runtime/rust/src/cmd_list/native_original_stride_controls.rs](../../../../runtime/rust/src/cmd_list/native_original_stride_controls.rs), `original_stride_guest_and_header_predicates_match_native644` (linked): Software source definition checks stride guest and header predicates match native644.
 
 A named test is a coverage binding, not a claim that it executed.
 

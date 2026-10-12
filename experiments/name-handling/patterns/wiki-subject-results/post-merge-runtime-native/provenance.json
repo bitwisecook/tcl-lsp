@@ -1,0 +1,28 @@
+{
+  "engine": "runtime",
+  "subject_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "build_receipt": "experiments/name-handling/results/runtime-lifecycle-fix/native-runner/receipt.json",
+  "build_receipt_sha256": "27904f695da9bd16d7237b8261d4ab7a9e9bb521d1e20fd7eb93611bbbdd9e8c",
+  "build_currency_note": "Includes coordinated uncommitted repairs plus namespace publication/lifecycle changes; see exact source.patch.",
+  "input": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "input_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "command": [
+    "/tmp/name-runtime-native-lifecycle",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "9.0",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl"
+  ],
+  "binary_sha256": "cbcd5ee8504c05f022fbb5d418faabc67ce2bcf9747a4f0363dfaf09c43526be",
+  "started_utc": "2026-10-12T12:11:25Z",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+  "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+  "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+  "backend_constraints_applied": false,
+  "timeout_seconds": 60,
+  "exit_code": 2,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "84f95ca329632ac804c10cdedc9b088c8820f8d2737261981b87c93e59048c67",
+  "counts": null
+}

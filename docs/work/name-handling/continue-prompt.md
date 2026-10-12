@@ -22,10 +22,13 @@ branch documents first:
 - `docs/design/analysis/name-resolution.md`
 - `docs/design/analysis/name-resolution-c-conformance.md`
 - `docs/design/contracts/command-resolution.md`
+- `docs/design/contracts/naming-consumer-matrix.md`
+- `docs/design/compiler/name-resolution-implementer-guide.md`
+- `docs/design/analysis/name-resolution-proofs/{README,consumer-integrations}.md`
 - `docs/design/contracts/command-binding-and-aliasing.md`
 - `docs/design/contracts/runtime-variable-frame-model.md`
 - `docs/design/contracts/compiled-scope-and-name-lowering.md`
-- `docs/work/name-handling/{current-state,issues,plan}.md`
+- `docs/work/name-handling/{current-state,issues,plan,implementation-ledger}.md`
 - `experiments/name-handling/README.md`
 - `experiments/name-handling/results/RESULTS.md`
 - `experiments/name-handling/pattern-sources.md`
@@ -36,8 +39,9 @@ The user's `work` instruction overrides the stale AGENTS statement that only
 status and incoming changes before editing. Refresh the source audit and all
 related open/closed issue relationships. Do not interpret an issue marked
 closed as proof that every consumer conforms, or an open issue as proof its
-reproduction is still broken on this branch. Do not close issues or send other
-external messages merely because you have read them.
+reproduction is still broken on this branch. The user authorises relevant
+issue updates and evidence-backed closures. Close only after reproducing and
+verifying the whole reported defect; keep pending or unpublished work explicit.
 
 The key contract is parse source/evaluated written names at ingress with the
 selected dialect, retain structured namespace/command/variable identity and
@@ -46,6 +50,20 @@ output. Different slots can have the same rendered FQN: `a:` / `p` versus
 `a` / `:p`. Never repair that collision with another string canonicaliser.
 Do not parse displays back into identities or prove a target by a simple-name
 fallback. Uncertain static facts must abstain consistently.
+
+Use current Original/source-binding/native object owners and the existing
+proof index. Logical reporting, original C/Jim and hosted source inputs are
+separate purposes. Do not reintroduce superseded String adapters, manufacture
+a native receipt from source syntax, or bypass a typed host refusal to make a
+test pass. Original source ownership, lookup, entered objects, Normal completion
+and rewrite permissions have independent manufacturers.
+
+Read capture provenance before using counts. Retained older binaries and
+Logical harness runs do not certify native construction on current HEAD.
+Use release-selected actual constructors and matching real startup/test files;
+classify bootstrap/preflight refusals as unreached tests. Preserve input-pinned
+runner bytes separately from maintained, formatable tools. Refresh the ledger
+with source audits and executions labelled separately.
 
 Tcl is a highly dynamic metaprogramming language. Do not make the tool useful
 only for literal declarations and direct calls. Build solid shared heuristics

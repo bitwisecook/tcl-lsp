@@ -1,0 +1,5 @@
+{
+  "captured_date": "2026-10-12",
+  "probe_sha256": "540b22f19b29e154eaf062cbed3275161ede5da55aa9d3d5ec2a79ad6cf15dde",
+  "purpose": "Initial hypotheses before real-oracle correction; not final expected fixtures. Same real C binaries and loaded libraries as parent provenance.json; this source has 28 cases."
+}

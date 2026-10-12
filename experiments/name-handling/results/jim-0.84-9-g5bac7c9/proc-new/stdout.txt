@@ -1,0 +1,1 @@
+   proc-new.test: Total    35   Passed    35  Skipped     0  Failed     0

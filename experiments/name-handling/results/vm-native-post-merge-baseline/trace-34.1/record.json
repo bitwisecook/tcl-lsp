@@ -1,0 +1,20 @@
+{
+  "case": "trace-34.1",
+  "release": "9.0",
+  "reference_distribution": "9.0.4",
+  "engine": "vm-native-core",
+  "command": [
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/trace.test",
+    "--match",
+    "trace-34.1",
+    "--tcl-version",
+    "9.0"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 5.762,
+  "test_sha256": "985967578f3b1ff4086427423e0968539fa6493123d8861f53925e291b6b3645",
+  "binary_sha256": "018ac8741cd251e32bb8786795e69310d72e5c1c06d5e5952b37a2fcc7593137",
+  "head": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "classification": "host-refusal-before-upstream-case"
+}

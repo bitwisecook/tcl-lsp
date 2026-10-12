@@ -322,6 +322,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         info_::spec(),
         interp::jim_spec(),
         interp::spec(),
+        interp::init_auto_path_spec(),
         join_::spec(),
         lappend_::spec(),
         lappend_::jim_spec(),

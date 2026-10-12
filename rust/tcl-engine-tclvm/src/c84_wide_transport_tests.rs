@@ -6,7 +6,7 @@ fn native() -> Vm {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
     let mut vm = Vm::with_native_core(
         Box::new(std::io::sink()),
-        Vm::new().host_rc(),
+        Rc::new(tcl_vm::host_native::NativeHost::new()),
         profile,
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
@@ -22,14 +22,17 @@ fn original_c84_wide_recursive_bridge_retains_actual_ingress_for_plain_and_resid
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     let mut vm = native();
     let dialect = vm.native_scalar_carrier_dialect();
-    let carrier = Value::List(vec![
-        Value::NativeScalar(Carrier::Tcl84Wide(17)),
-        Value::Resident {
-            value: Box::new(Value::NativeScalar(Carrier::Tcl84Wide(4_294_967_296))),
-            string: Rc::from(b"4294967296".as_slice()),
-            storage: tcl_engine_api::NativeStringStorageIdentity::Allocated,
-        },
-    ]);
+    let carrier = Value::List(
+        vec![
+            Value::NativeScalar(Carrier::Tcl84Wide(17)),
+            Value::Resident {
+                value: Rc::new(Value::NativeScalar(Carrier::Tcl84Wide(4_294_967_296))),
+                string: Rc::from(b"4294967296".as_slice()),
+                storage: tcl_engine_api::NativeStringStorageIdentity::Allocated,
+            },
+        ]
+        .into(),
+    );
     assert!(to_vm_value(&carrier, dialect).is_err());
     let original = vm.capture_original_scalar_ingress().unwrap();
     let imported = {

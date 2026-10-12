@@ -1,0 +1,362 @@
+[
+  {
+    "case": "upstream-namespace-56.2",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.4"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "exit_code": 2,
+    "seconds": 1.003,
+    "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "deletion-global-survival-probe",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.4"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "exit_code": 0,
+    "seconds": 1.582,
+    "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "upstream-namespace-56.2",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.5"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "exit_code": 1,
+    "seconds": 1.793,
+    "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "deletion-global-survival-probe",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.5"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "exit_code": 0,
+    "seconds": 1.4,
+    "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "cached-fresh-namespace-probe",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.5"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "exit_code": 0,
+    "seconds": 1.393,
+    "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "parent-child-observation",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.5"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "exit_code": 0,
+    "seconds": 3.089,
+    "input_sha256": "233c6d5c6657f079fab4e6d7e3466038e1b361a0a96432a4fde9195d6605773c",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "upstream-namespace-56.2",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.6"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "exit_code": 1,
+    "seconds": 2.629,
+    "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "deletion-global-survival-probe",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.6"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "exit_code": 1,
+    "seconds": 2.982,
+    "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "cached-fresh-namespace-probe",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.6"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "exit_code": 1,
+    "seconds": 2.635,
+    "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "parent-child-observation",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.6"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "exit_code": 1,
+    "seconds": 2.523,
+    "input_sha256": "233c6d5c6657f079fab4e6d7e3466038e1b361a0a96432a4fde9195d6605773c",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "upstream-namespace-56.2",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 2,
+    "seconds": 2.436,
+    "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "deletion-global-survival-probe",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 0,
+    "seconds": 2.366,
+    "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "cached-fresh-namespace-probe",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 0,
+    "seconds": 2.704,
+    "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "parent-child-observation",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 0,
+    "seconds": 3.539,
+    "input_sha256": "233c6d5c6657f079fab4e6d7e3466038e1b361a0a96432a4fde9195d6605773c",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "upstream-namespace-56.2",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.1"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "exit_code": 2,
+    "seconds": 2.385,
+    "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "deletion-global-survival-probe",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.1"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "exit_code": 0,
+    "seconds": 2.902,
+    "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "cached-fresh-namespace-probe",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.1"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "exit_code": 0,
+    "seconds": 2.046,
+    "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+    "started_or_completed_test": false
+  },
+  {
+    "case": "parent-child-observation",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.1"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "exit_code": 0,
+    "seconds": 2.166,
+    "input_sha256": "233c6d5c6657f079fab4e6d7e3466038e1b361a0a96432a4fde9195d6605773c",
+    "started_or_completed_test": false
+  }
+]

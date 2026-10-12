@@ -1,0 +1,825 @@
+[
+  {
+    "url": "https://wiki.tcl-lang.org/page/oo%3A%3Adefine",
+    "status": "200",
+    "title": "oo::define",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2026-02-16 20:46:01",
+    "html_sha256": "ca5515e36e1c4280ba25eb8da3f3cda00e0008ba7d9c7ef9d8c933aa9a2dfbff",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "6742859de671d1718e2929a3490f74c3f383fec5205cbfaeaadd3b505f9007fc"
+      },
+      {
+        "index": 1,
+        "sha256": "5f568baf76aefccfb351c7f1c3c207c9d1d45e33b24e6c5a6a899b13b3b13670"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/command+prefix",
+    "status": "200",
+    "title": "command prefix",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2014-04-08 20:43:55",
+    "html_sha256": "1810eae0007ba552e87912f1b149e8178d9b65e64f75087a1a20caf8f5be6857",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "c0f808af8c04f38b7bc886f66e85cceb7af1fd5297a71893e3e99ea9d5311a40"
+      },
+      {
+        "index": 1,
+        "sha256": "44028c6052e991874876654cf39c62c89348b745e51360d6f81a1db2af6376dd"
+      },
+      {
+        "index": 2,
+        "sha256": "fa61de4e7734240dc02bcb9d50d0719c398baa39965d9c02d1f0e32ae6cf99d8"
+      },
+      {
+        "index": 3,
+        "sha256": "8fea755882b7d953010a03e4cd6ee28cb3d7ba48f58a106901bc57579c05e2e9"
+      },
+      {
+        "index": 4,
+        "sha256": "a9d3033d99635d68ab15f760dbde1aeb12115eb4947eb2b09fb042ca9f0aafab"
+      },
+      {
+        "index": 5,
+        "sha256": "d0f700d0147458e1f2302e1239db86d82b5b5d3214107e291cc5c2cdd8b33033"
+      },
+      {
+        "index": 6,
+        "sha256": "284c27b09c5a052d3682385c5ecbee88389a4ef1b637c65d2b7fb11b2b149f43"
+      },
+      {
+        "index": 7,
+        "sha256": "1c9d6a5c25594fb80aa89cf1317bb40956ebd2c3260cdf90c956394cc321a3fb"
+      },
+      {
+        "index": 8,
+        "sha256": "a36de3ff23406915cb4662d0d520d45e274bc67b0e313139b895f0dfac6b2b76"
+      },
+      {
+        "index": 9,
+        "sha256": "533164574e6603c8dd88654d4770825f12ff019f08df72ccff7e27e985edbf92"
+      },
+      {
+        "index": 10,
+        "sha256": "b06d623cd472adc68cc40cca9b97b85f92a6385ecf31d3b52718cc1437290936"
+      },
+      {
+        "index": 11,
+        "sha256": "57d18f090433fd3d4fd47fa997ee1bd5e860c86dab8066eb144eaecf937765d4"
+      },
+      {
+        "index": 12,
+        "sha256": "751984b6866835978e8ba6347c8a35519b9a4e7517599f3fed9083377f3a4e36"
+      },
+      {
+        "index": 13,
+        "sha256": "38603d478f7d3c19b2cf23a3dc4c49c21c17d1a8e8e8253e042b4d8816fc21e7"
+      },
+      {
+        "index": 14,
+        "sha256": "0ef889eabba8840708375034441de06bc6c08ec216ae8adcfe491b01000a6261"
+      },
+      {
+        "index": 15,
+        "sha256": "74b97262c95d45351695aee2d4a8c97283dd2b7b32fc9eb3c92c63f8dbf84124"
+      },
+      {
+        "index": 16,
+        "sha256": "5592e8be280a4c9a56ba6e0338a3a101ff5ec46f196b1559b86b9553900622a6"
+      },
+      {
+        "index": 17,
+        "sha256": "7899d4e0c7b963c55784fab07efeb5e20e8520b339e723719aff831bedd5e375"
+      },
+      {
+        "index": 18,
+        "sha256": "d642e8e9fcf3b4927a6e74dab4c33e901c812f1f68c5a0fbd06a63db210694f5"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/namespace+code",
+    "status": "200",
+    "title": "namespace code",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2016-10-11 15:50:32",
+    "html_sha256": "54eaa368dbc4319da183bdeb6e07fbe6ff0ebbfa0cd140379995138a65f2532a",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "525fb7d0bd079d08352ff48dbd9ecc139fab9e5dc1a3c0102a1a85929e475599"
+      },
+      {
+        "index": 1,
+        "sha256": "7a24c29a9871df58923c07edc6c68acb20ddf464dcd517bab02c14da36b642f6"
+      },
+      {
+        "index": 2,
+        "sha256": "1b904d4464cfd2a6d8dcaae4633144140f2371902584bc1ae6943975bfa8cfe1"
+      },
+      {
+        "index": 3,
+        "sha256": "e483f5e95cf045086cf00e03d5064bc6393dc77f65de90032b912f021a00bb18"
+      },
+      {
+        "index": 4,
+        "sha256": "51815a8f21f2d7840ca8679cf0d098da5e7266f5daca910727087f93a52852de"
+      },
+      {
+        "index": 5,
+        "sha256": "c73f76353a3763f46d2994a051ee7d94997f2c5f812627b6a884fa83a7bdabc9"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/namespace+inscope",
+    "status": "200",
+    "title": "namespace inscope",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2017-11-03 18:09:09",
+    "html_sha256": "7b9362104e9849021d20fad7091ad870230fcbf044b7b841381243ffd6af8e79",
+    "examples": [],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/namespace+eval",
+    "status": "200",
+    "title": "namespace eval",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2020-08-29 18:04:57",
+    "html_sha256": "9b8928a7a5c62bfe94337c23fd5a5d97d26e93581b36935596f9f137bb7fc944",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "e552616a7d884d1609bf8d3039ddbe8689cf0c673c22012e98fbfdb56b2ff386"
+      },
+      {
+        "index": 1,
+        "sha256": "0cbcc69914bc04deda34ce0d4a24c8d64ffa2309728f68d0400b1788aa671b47"
+      },
+      {
+        "index": 2,
+        "sha256": "40460d8868f5692fb51e733b86572cf17c632333cc8a4e049d0e908c9e94972c"
+      },
+      {
+        "index": 3,
+        "sha256": "e1182f6dc5a82ab39e9dff403fdbe49c905a6022302a06a6598e78c8aa7c260e"
+      },
+      {
+        "index": 4,
+        "sha256": "0b5ce81f126630cc07663896e0168646a48f283bbfa551c3730b0fcb4d817e3f"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/Namespace+MegaWidgets",
+    "status": "200",
+    "title": "Namespace MegaWidgets",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2014-06-08 05:15:02",
+    "html_sha256": "4e04adb0225c51cc275382e170858190c26854ee5a939692ff54bbb02c4d14bb",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "788bd6ec30e77c468495a36b68246817c223e4dff464e0734e464a2495eb555d"
+      },
+      {
+        "index": 1,
+        "sha256": "ce5d0d93a82d98fe7b8bfb23ff9560fdd0d53aac617aaf7d8a6dc94d74e797aa"
+      },
+      {
+        "index": 2,
+        "sha256": "f33c0b6642f09c42f8168e7c5bd89b655c261820072e0d166639d84b1cea357d"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/proc",
+    "status": "200",
+    "title": "proc",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2026-02-16 20:53:39",
+    "html_sha256": "d9a39e84383bd263e757a917da3dec69aba1510bfd9f2e69eca47b0199cbf73c",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "3ded837a6c35ff16c901c0c9e98f784d5c798dbd46e4bd91b9bdea19d1392097"
+      },
+      {
+        "index": 1,
+        "sha256": "b681a427add00b5f1aa55db977cb73cbea693a37f5d726be04fda4388e838d30"
+      },
+      {
+        "index": 2,
+        "sha256": "05c69063e7c1b297a7f293f4916605d29ebd1c5bffc7aa41e44caaadfb2855b7"
+      },
+      {
+        "index": 3,
+        "sha256": "067814b83f3574d8120dffd4a8b721b5677c7f33b7e049a50fb0455262db24ad"
+      },
+      {
+        "index": 4,
+        "sha256": "54b91b6fd9998732dad3cdae90a05e9219b20cd948c52a2f261135cff52390e4"
+      },
+      {
+        "index": 5,
+        "sha256": "a5c31201f4c6f1af56e2aa3c4582f13809d3eacafb77f94935fcf2a5a4619fd9"
+      },
+      {
+        "index": 6,
+        "sha256": "c7b99a46048993e2aafae59fd3311d1d867fd50efa04713c68d778cf45ae12a3"
+      },
+      {
+        "index": 7,
+        "sha256": "c45849ddfe83315ca5f001cae5db1f34436dd00e4d38550e87724c280b3092b7"
+      },
+      {
+        "index": 8,
+        "sha256": "de7566af0ae00d7764035a8f59c023efb800cc62e060a6ba7a25813807c505b3"
+      },
+      {
+        "index": 9,
+        "sha256": "839f8247edd1f35fcde514f139502477b2f75f179cf2b27a032ef804c2d51bf1"
+      },
+      {
+        "index": 10,
+        "sha256": "faa33e0ab6f4fc06204d1fa04ea71e9f72a6810090d619c0207e7adbe4bee95b"
+      },
+      {
+        "index": 11,
+        "sha256": "d3e7cd781a3278c46c570f3926e7094776e70893e86c1f4833719a794d2a02ba"
+      },
+      {
+        "index": 12,
+        "sha256": "a914f580a9ca7520696a312a0b20a75b83a9e916aeb7e8edee6a545dbe651db7"
+      },
+      {
+        "index": 13,
+        "sha256": "d64bdded14ccaae822c03c79b40c27d72e81bf07af5b1a7a1509baeef98ba53d"
+      },
+      {
+        "index": 14,
+        "sha256": "ac214fa47c3ae777d47f3a442657b5157cc850e48b40728f5d5de289e3b973a8"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/interp+alias",
+    "status": "200",
+    "title": "interp alias",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2020-02-05 12:09:18",
+    "html_sha256": "83eabda20023f80a5a1111ebfe1a0d4be6ea6bc6329049694f7c38495f60ed61",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "e470dea54b5c6f596dea3576efec23a308f37a94344b9c4616ec7ee734081077"
+      },
+      {
+        "index": 1,
+        "sha256": "6b99adc3344fc53dabce921e1a884080174425c65841edb78668ba591a66a62d"
+      },
+      {
+        "index": 2,
+        "sha256": "a33788b83bc7b6c7623768116de379e3c636fa22256592096d23d3281e292621"
+      },
+      {
+        "index": 3,
+        "sha256": "0d42990d53c4b0da8a26309a3890d03b767720df767acd87b046a481894abae0"
+      },
+      {
+        "index": 4,
+        "sha256": "1f53a4ed13774807c27715c64440af1e420343e9fec05f1e10d349ebac86913c"
+      },
+      {
+        "index": 5,
+        "sha256": "516bc3b1cefc716d92b234223fc9f19e0b039874577f6add952934bebf31d2c2"
+      },
+      {
+        "index": 6,
+        "sha256": "de2e22da51720034b3ca4f06691e56f3c51b2e5dbc04396b9a047feec62da3a9"
+      },
+      {
+        "index": 7,
+        "sha256": "0c2d86e0cddf6f4421c78efbbdd2b1bf63691995acefad6bc007bc72976f733a"
+      },
+      {
+        "index": 8,
+        "sha256": "451c92c802972523331af2cff20217d4601e385e9b60a58022f675237e1125c2"
+      },
+      {
+        "index": 9,
+        "sha256": "36a13995cd0e70317ed52c0e9107d8c2d79faf81ca13bc96164d77a262bda9c7"
+      },
+      {
+        "index": 10,
+        "sha256": "040033627f4b06421819333b91bd9cfed98d4e503a10884554c3c73beeb5e943"
+      },
+      {
+        "index": 11,
+        "sha256": "e4e544d378625c257de64f58dc9edfa92af55497497b4dabc84112241be3cbe6"
+      },
+      {
+        "index": 12,
+        "sha256": "f8e6b924224056c15e264d6ad20ad1da8e3e43341ed56474f87729f4b8731f4b"
+      },
+      {
+        "index": 13,
+        "sha256": "cccd53fc48e800c62e6c8045e740140a3d101203586aae4b01c4ba62bda1962c"
+      },
+      {
+        "index": 14,
+        "sha256": "f17ce1034831d6ff44eff51c9e9906c83958545400eab3c2b193f71e691b5181"
+      },
+      {
+        "index": 15,
+        "sha256": "29893102461f182c55ddb2c70b611c1ec824095e5ea78dfcf7ead1ef415531db"
+      },
+      {
+        "index": 16,
+        "sha256": "2a1e420b216ba90560037d94908439d70b790dfca9b698c2f95f2bdfff78c57a"
+      },
+      {
+        "index": 17,
+        "sha256": "0c6819e56e724c6007549362cf9773ce6b90fcc5caf829cf6342f252c75fc128"
+      },
+      {
+        "index": 18,
+        "sha256": "f2a3870dfe572582a6ed7a6366486ff02f6b8886480de5466203f3156524358f"
+      },
+      {
+        "index": 19,
+        "sha256": "1cf71e4e37b6d540e67940ae74c55627c95cc2bf51f51f3e4af8c5b2d6e46295"
+      },
+      {
+        "index": 20,
+        "sha256": "5714dccc4ca22d36c0a4be11158101ee5a318ea8817498f1ddf9c03f29cb599b"
+      },
+      {
+        "index": 21,
+        "sha256": "39457228d70c02c99bc304aff9887c7e9c9df7a00baf62d072aeeaff0dccf740"
+      },
+      {
+        "index": 22,
+        "sha256": "782194a940545de0cc986c184583d04a6d4aaf4ecc551a7b08bd3a6c5f3aed28"
+      },
+      {
+        "index": 23,
+        "sha256": "1429dfd9f696e47124cb9fdd830e3992a1c5bcd9b6894d62a39188453524c2d2"
+      },
+      {
+        "index": 24,
+        "sha256": "af176a04d43cbf26f5c30d9d8c32a49d04442ebd9b3f0ff7fd5c1d807ce31597"
+      },
+      {
+        "index": 25,
+        "sha256": "fdfdfc38a5394b9cc5a4a2cd572adc76dc1690d4b908c5746abc5b17315cf566"
+      },
+      {
+        "index": 26,
+        "sha256": "8ec4343553f9de201302244ccfa76a7063456467856ddca2b7c32e20b7118710"
+      },
+      {
+        "index": 27,
+        "sha256": "4db5e54ee8bc782af563d784412cc41453e51f74cc0fd09cc9fb9866038fe62c"
+      },
+      {
+        "index": 28,
+        "sha256": "07794e152ce4a5eafd9805ad6632814331e676c55d6f7a41d1d478e00333fc54"
+      },
+      {
+        "index": 29,
+        "sha256": "801d08e31ddcfa48f81ca71f06d96368f3797979f8c100555b5408ae08093cab"
+      },
+      {
+        "index": 30,
+        "sha256": "45eb3385d776cb58a1be4e5ce6fdec93ca8b7abf160a0f96adc1f0226647942c"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/rename",
+    "status": "200",
+    "title": "rename",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2025-08-12 07:57:56",
+    "html_sha256": "b697bd7979a082a5399e38f29b6e38bd938b5ee594a8943fd431c23373ab0717",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "f6fe1c17a95cc05050c8abc13a9aab3ac42703fa3a01193d948521776d9506e8"
+      },
+      {
+        "index": 1,
+        "sha256": "599d1b458d5c6b1e651aa39f2856f9c49f0013b379ecbaf092506b0aa9e68b58"
+      },
+      {
+        "index": 2,
+        "sha256": "5380e7ade309a531c3786909a8d2ecc042a76912a28803324969c89b9d7237c6"
+      },
+      {
+        "index": 3,
+        "sha256": "ac6cc75b10468d0e5aae8670fd78618edc03499312de13b024f52a947f4f55b3"
+      },
+      {
+        "index": 4,
+        "sha256": "2a73597b5157b8e433dcec43778041646197158ab6febc12d2efc02c29f406c3"
+      },
+      {
+        "index": 5,
+        "sha256": "da1de89c0910fd4e9f67f37c2515362e2aa6fbb021922a61cb021fcbbc44074a"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/unknown",
+    "status": "200",
+    "title": "unknown",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2025-12-04 20:35:32",
+    "html_sha256": "bd196ba03b1bfa1f60c23a4f8a36b580370d6eb956c30ddba3c0d9fe863608b2",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "76ee2384df123cca2f924dfef1f22bea25b4959229608a2fddd0062ddaf46136"
+      },
+      {
+        "index": 1,
+        "sha256": "522096dd2951ca01fd103e3e1338490a4c4bcf6032da91123ff567d893162034"
+      },
+      {
+        "index": 2,
+        "sha256": "9153da56f2c9a4700b2ea4f704350394dc1ed4a3387d664f17b3f9c93eaa1ec9"
+      },
+      {
+        "index": 3,
+        "sha256": "6c6e2830eecebb5a0127325d2dad05427d5243ef7a3272239f3339f434e91d8b"
+      },
+      {
+        "index": 4,
+        "sha256": "a188b4fbd382fe1c848963159d15fb8d42a28b3432a6f34b27525dd393b66753"
+      },
+      {
+        "index": 5,
+        "sha256": "9c4d414d2c0bac76877cc2c0b71e1165f37d9404d0a7dd4073a5e7a898026195"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/auto_load",
+    "status": "200",
+    "title": "auto_load",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2016-05-22 11:00:07",
+    "html_sha256": "6354371e8ba493af4b39821eafd14bfc7bf344ba76e82331f953b781000882e4",
+    "examples": [],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/upvar",
+    "status": "200",
+    "title": "upvar",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2026-02-17 18:11:22",
+    "html_sha256": "acf27ef273365f4ccd14641e5ab6ffcea538fa485d0d1b292532999c2eeb40ea",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "20535b76b06dc6fe9eba2fb68bceb5827164976a1574d685ca61968148fb65a8"
+      },
+      {
+        "index": 1,
+        "sha256": "e32ae7d29b296f52b66ec2959d31e3ad9d9491acddadb719d6598055c03769d7"
+      },
+      {
+        "index": 2,
+        "sha256": "3e1b863bfed47ad971716eff1cbc780a195d75bacdc89bcedca99cc690fe749e"
+      },
+      {
+        "index": 3,
+        "sha256": "b06918c2fe2d6102fc81e75596bc1c5e15ba1001143a3e3fb6e1066d23d2306f"
+      },
+      {
+        "index": 4,
+        "sha256": "7edbf6bf9b00186eac5ef59adc6039b1c408db687486d6b0cbaa522395d0ee45"
+      },
+      {
+        "index": 5,
+        "sha256": "7279299ca036153f6ab68440b34d2f741bcea208e30134b6091625d6508e2749"
+      },
+      {
+        "index": 6,
+        "sha256": "7c21a21ef03986b71ca96e101ace6fa9ce78b0f90b0b8f37a33c813d514988b1"
+      },
+      {
+        "index": 7,
+        "sha256": "065ac8eb3a353730d83247ca8bd61b2e43d6d50ed0c8b9ff9865d411eea0f335"
+      },
+      {
+        "index": 8,
+        "sha256": "68a57deaf92c389b5299c73ec70baad60285d98f2c01415495a8ba9529fae86c"
+      },
+      {
+        "index": 9,
+        "sha256": "3206baf9e05adb0602ac97f333b4b37cc84dda8242f3c506df48c4e65d216629"
+      },
+      {
+        "index": 10,
+        "sha256": "1c2cf7070a4a20d5c51c4b787ba0904e3a0c67de6fe7ce072e903391880c989f"
+      },
+      {
+        "index": 11,
+        "sha256": "14d78ac9735bab9d83dc2bd854a7ffd4df1b74a28aea5d85c24e5556e086e092"
+      },
+      {
+        "index": 12,
+        "sha256": "df9eecec2e16354156be60f32a0362945e1da75fc2cb804f309b080365665230"
+      },
+      {
+        "index": 13,
+        "sha256": "f51af57fd26e4a4f823b45a5986ab2a001b50e57d1d1bbbfb2906b9225526d68"
+      },
+      {
+        "index": 14,
+        "sha256": "8c07be0bb18253fe0d4d6f3717ee79c1b47bf5ebc91020a8adad83ab291f155c"
+      },
+      {
+        "index": 15,
+        "sha256": "299e856fdbabecc14095a7f6147588b690cdc3af83f15b10fd25ba312ce12e29"
+      },
+      {
+        "index": 16,
+        "sha256": "757eeec203d48dfe03206a4092a5ce98dfe3ca7a270f9b497f91d4b6bc2e8ac9"
+      },
+      {
+        "index": 17,
+        "sha256": "ca7eaf0ba6d79a531ae3537475a49f5bf7183daa25293639a3cdbc597ef792b4"
+      },
+      {
+        "index": 18,
+        "sha256": "b1a436ab099df42fbd154c09d4ec4076ff112e87d027599749b18f6a66b46ee6"
+      },
+      {
+        "index": 19,
+        "sha256": "34a048cd1ddb4f3151728de52833b3c060efad8bda2a88ac6d8f27c8e8cd1117"
+      },
+      {
+        "index": 20,
+        "sha256": "37ae7d355c38cc834f27487af3db61f54b4cc9541d206b1d6c82c2d588e6e9f5"
+      },
+      {
+        "index": 21,
+        "sha256": "b39373b374934cb90edd9245100eb93f1ae5ce7dfe3d81b1e38bd670548bfc83"
+      },
+      {
+        "index": 22,
+        "sha256": "c89a6145a00d3343dbb40f4cf54282cd5c1e1696728f2c4b4e0e119699216757"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/global",
+    "status": "200",
+    "title": "global",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2026-02-16 20:41:31",
+    "html_sha256": "c0356805a0b58098823eff9f67a2ac0f2d7c44ff50d69f43407d839a87b50b0d",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "3f6dbeb87615cd461b48968b015b654ba4a2656c8a8519b7f6bd65235ef5253c"
+      },
+      {
+        "index": 1,
+        "sha256": "886cce64a3cbfc035592ab468045b2ae06d9766c013c668d87890d69306979b0"
+      },
+      {
+        "index": 2,
+        "sha256": "30cd1fd53edf72ea45a66b02a6d570214f0d7563c0f73077abab57cf630ce560"
+      },
+      {
+        "index": 3,
+        "sha256": "9a285d511d9fc7efb3d17dc68269f3725c46e664d6f80723d7ab1874cee51c78"
+      },
+      {
+        "index": 4,
+        "sha256": "783f46eca07c159deebbad2634971691a57ab35d629634096dfab4e94bd38af3"
+      },
+      {
+        "index": 5,
+        "sha256": "b7122c434c8d36a14a9bcac2c304844ed27f1f70892fd5b2f7679ead268afe87"
+      },
+      {
+        "index": 6,
+        "sha256": "f88fcfa593431f2254a219703758e3d5c20970c6f13d7026b1177af0057216d4"
+      },
+      {
+        "index": 7,
+        "sha256": "50b50d4bcfb565766a5289733ffea9a46e44ab0706318fac75b233b845478e39"
+      },
+      {
+        "index": 8,
+        "sha256": "06e37e1f40c47867e63b14641c4a8989f393d6831f6f8c6c610be330c81f221f"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/variable",
+    "status": "200",
+    "title": "variable",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2026-02-16 20:49:22",
+    "html_sha256": "0ed0c3d4ee4b2132318aaa4a8fdf02038843fe49e339de22701b2fa7ab6ac508",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "1fc20843225a7916fc6a8e18769edc46f9d22e65aca27ea9cb4015a1723a8c48"
+      },
+      {
+        "index": 1,
+        "sha256": "8b2e27ed3b6ef44f903eb3c7232d91d90afc7e7b13704d1cdc5210eee9f083f4"
+      },
+      {
+        "index": 2,
+        "sha256": "cb47a69ef625864df6bde5363d9de45b36f494fb9079d8d938165ae048698bf9"
+      },
+      {
+        "index": 3,
+        "sha256": "97baafc374611a0b9d64d722c594d285b64276ccc87ef1511d68c3fee32f63a1"
+      },
+      {
+        "index": 4,
+        "sha256": "c9ac720009024ed66aad6abbc02932c1e7bf66fde752533ecd19be50f2450438"
+      },
+      {
+        "index": 5,
+        "sha256": "61094bd028dc741ffa33ef4cba01fb296b7f6b54721653ec9afbb237334eb105"
+      },
+      {
+        "index": 6,
+        "sha256": "c79fe0a685471d6f5c302c3be496b378c6463a0c8d861d3512364d71bf381f88"
+      },
+      {
+        "index": 7,
+        "sha256": "5652e6ed69a527254edef175be01a0a6550769b049d61eb54f5aab3283190ab8"
+      },
+      {
+        "index": 8,
+        "sha256": "bba7d75ab5cd1a16f7956b52c45bef93e14bb99c776d089962bbbb58fbbbace5"
+      },
+      {
+        "index": 9,
+        "sha256": "e8cc63ef1ef8821d2bee1f992c5f46862d83b10d291ae5973c4a4477d9756684"
+      },
+      {
+        "index": 10,
+        "sha256": "7d5ff701a362c8de2d2703d06a9c79e8b2e005a7e36b7a18c60d7f251de6980a"
+      },
+      {
+        "index": 11,
+        "sha256": "eddcbf1a9967e778131ab903d523cdce199713a6c9ffaab7618e0d0a1df5b230"
+      },
+      {
+        "index": 12,
+        "sha256": "265425347478a165dcc87ebf24fd5f9c58441055ff25456ecf41e1f8f37a5131"
+      },
+      {
+        "index": 13,
+        "sha256": "9df9d215e2d9f2632ff5f8d2fdb5b35fb1c5276fb93e7dca27bbf1acf962a0c7"
+      },
+      {
+        "index": 14,
+        "sha256": "6c828e0523c1e804b323338e4fec8079c2a318461dbebbc38e92391b0df7dcaa"
+      },
+      {
+        "index": 15,
+        "sha256": "0eed5a2d5a039f20d5932eb34cc19d5986e9bf40fbe453d2df8931e673983493"
+      },
+      {
+        "index": 16,
+        "sha256": "e94d02e3dac820d052e457260cb72431f251d80cae094329b282bc9bf3c6f78b"
+      },
+      {
+        "index": 17,
+        "sha256": "cea83886c4d01247470899611cd14f98f2330f01e8482e53b8b9d004db23808e"
+      },
+      {
+        "index": 18,
+        "sha256": "1976d2fc412c67b5b7885a265457133946c506d294e68847d006a92e50d6c3f9"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/TclOO",
+    "status": "200",
+    "title": "TclOO",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2026-02-17 20:05:27",
+    "html_sha256": "6dd24371ed6fbed44faacd1889ee744e6632a727c82eac1debe06c5fb7efc71a",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "7976cdad4382c2b150486ba39f3ab01ec849b7c7c74a292cf84f4eb06438d565"
+      },
+      {
+        "index": 1,
+        "sha256": "e3405287a46e9239a0ffd41e034acbab402863ad923259bcaa3bd3e9ea230a04"
+      },
+      {
+        "index": 2,
+        "sha256": "4033e58c1dff022559c7f95cfad2bddae3cb6b85eec2e341d16e788c1a57ad05"
+      },
+      {
+        "index": 3,
+        "sha256": "69ea890ba009cc452bced8b5bb94065f611d57cadbbe1e6f5e43eefefb653aa8"
+      },
+      {
+        "index": 4,
+        "sha256": "09537b7a8b2d2e0343eef3c20ef85e68c840ac667bf915f89509df76286b6f70"
+      },
+      {
+        "index": 5,
+        "sha256": "3b96946346855ecd968979abb74e239cc5eae47512a4e9f13b5fbccc04e9168d"
+      },
+      {
+        "index": 6,
+        "sha256": "e1d0e028b8ff0e97cf6312b2c40db9c301b4c2bdd958a377d4ab16202bce3762"
+      },
+      {
+        "index": 7,
+        "sha256": "2481c3cdb874a2fe74dfc3bdab33c0338c07fdffccc00332733fbfff1f819268"
+      },
+      {
+        "index": 8,
+        "sha256": "d3074cc4d565a216fe641c3880090764143ed88518003d938e011440aa44c312"
+      },
+      {
+        "index": 9,
+        "sha256": "706a2a31217b4dec6e174bee5b6e739699ebf94cfec55d63ace1ea40572ae89b"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/metaclass",
+    "status": "200",
+    "title": "metaclass",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2014-12-28 15:00:20",
+    "html_sha256": "845061bfed2acc74e673d91ca35667d9aae55120d72593f3390b8dde702d0a61",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "bb65d122adc641120d06827e318c962dca8c8d10ae8551a74be95ba357301cf4"
+      }
+    ],
+    "status_class": "read"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/forward",
+    "status": "200",
+    "title": "Page not found",
+    "retrieved_date": "2026-10-12",
+    "page_updated": null,
+    "html_sha256": "f49ac5a4b444400ed2935e39f57cf83e3022e668b48f0cd541b39302f29f7334",
+    "examples": [],
+    "status_class": "page-not-found"
+  },
+  {
+    "url": "https://wiki.tcl-lang.org/page/callback",
+    "status": "200",
+    "title": "callback",
+    "retrieved_date": "2026-10-12",
+    "page_updated": "2017-11-10 13:14:47",
+    "html_sha256": "f04790e9d85b9dcc9d4a80739dd83c6abd5a37dd5de716fbfa2caec324e30ed2",
+    "examples": [
+      {
+        "index": 0,
+        "sha256": "81e95d4289e41a853d407daba60f1841c726c3aa98ddab3a086e4c0b119266b3"
+      },
+      {
+        "index": 1,
+        "sha256": "dbe4645c0910a8ec36f5305eda5e0be4b625a82584b397918cfa5752319cd551"
+      }
+    ],
+    "status_class": "read"
+  }
+]

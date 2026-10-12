@@ -1,0 +1,19 @@
+{
+  "suite": "proc",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/proc.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "8145b5ca0e0fbfb871e1662e0380178d094d89d0d068e36199e1e055a6948ede",
+  "stdout_sha256": "09dd695deaecf32fe661861ea0ed18a6bc083128ea766885e4a84503659a1ba2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 62,
+    "passed": 62,
+    "skipped": 0,
+    "failed": 0
+  }
+}

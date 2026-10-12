@@ -1,0 +1,19 @@
+{
+  "suite": "jiminterp",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/jiminterp.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "cad6da7f2356c7ec3c6fd8fb36da6a29bebf1bfd012f2145b13bbdb61364f84a",
+  "stdout_sha256": "fc2f374fe089c64ddfc9c651a7a868f35d2814718fa29afbba15f6e9651b06a1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 4,
+    "passed": 4,
+    "skipped": 0,
+    "failed": 0
+  }
+}

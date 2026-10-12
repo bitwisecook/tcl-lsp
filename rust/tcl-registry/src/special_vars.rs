@@ -1508,6 +1508,15 @@ impl NativeBootstrapProtocol {
         matches!(self.names, tcl_syntax::naming::NativeNameProtocol::C(_))
     }
 
+    /// Whether the selected core registers Tcl's library-path initializer.
+    #[must_use]
+    pub const fn registers_core_init_auto_path(self) -> bool {
+        matches!(
+            self.names,
+            tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V9_1)
+        )
+    }
+
     /// Whether the constructor registers and exports the original C operator
     /// namespace. Jim and C8.4 have no `::tcl::mathop` core command family.
     #[must_use]

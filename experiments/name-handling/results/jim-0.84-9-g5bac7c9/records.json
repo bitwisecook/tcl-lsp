@@ -1,0 +1,230 @@
+[
+  {
+    "suite": "namespace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/namespace.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "a3df226ea9ef35afa59bf82ad5187b6987e6ac4f00cdbbaf1e1c78bb52379dbd",
+    "stdout_sha256": "8f143f0ff7ff1090b66bd3d6ec51b459da13ce3b009ca0568f63b348b8d23902",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 79,
+      "passed": 79,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "proc",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/proc.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "8145b5ca0e0fbfb871e1662e0380178d094d89d0d068e36199e1e055a6948ede",
+    "stdout_sha256": "09dd695deaecf32fe661861ea0ed18a6bc083128ea766885e4a84503659a1ba2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 62,
+      "passed": 62,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "proc-new",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/proc-new.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "51812eca81671d7d2d6d1db3f7e1d5bb84f52ebbcb98b608dcff0b32a4196114",
+    "stdout_sha256": "be9a5aaa0c9641b1bc7c0a377e453d8a48fcd7fea1ff1545c7df02d5f486d91f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 35,
+      "passed": 35,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "procstatic",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/procstatic.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "d5435a13279f74e456c3eaf7eaa3613b521a850e65e7219487612cd993d3df7e",
+    "stdout_sha256": "b0ed68c9c116ad10481dd5bcf792085f6791ab9ac701a98b64fb4960319c87a3",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 12,
+      "passed": 12,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "procref",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/procref.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "700b25a4fa6cb3ad364c01faf8508a08e89fc325d96be3ccc6c200198ea3ae61",
+    "stdout_sha256": "6c61c0631e6d75402e573c21249c3b1b524a5068205971d6437175daa364c79c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 6,
+      "passed": 6,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "rename",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/rename.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "fe470e9e032cbe5fa24ed930b8154a90636c25e0addffc7097923e7e044f6255",
+    "stdout_sha256": "aa94bb07c5bf02a61bd49bd2a788bb8fe8b72987ce1923fcfcf2fd645189dda0",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 10,
+      "passed": 10,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "alias",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/alias.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "f0926a977f15a528f80367db0fd7e0f1aebf511dfae4ec15b0c43cff8f31da0b",
+    "stdout_sha256": "960ecc304a50035ed1c454acb7c494224662e9211b1cc02c70f0dd75fdefb111",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 34,
+      "passed": 34,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "upvar",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/upvar.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "f150ac135ae0c8e42490ea96fd8b44061ba7994ef67aa202132202eb507b3799",
+    "stdout_sha256": "2c8bcdd9eef42a61112aa595263ac34b904e1829e78326bed4c40625e43dec37",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 42,
+      "passed": 42,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "jiminterp",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/jiminterp.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "cad6da7f2356c7ec3c6fd8fb36da6a29bebf1bfd012f2145b13bbdb61364f84a",
+    "stdout_sha256": "fc2f374fe089c64ddfc9c651a7a868f35d2814718fa29afbba15f6e9651b06a1",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 4,
+      "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "infoframe",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/infoframe.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "023820148a5fe9f0c3a56ee0b770176c8f00f66d4061d442e500f10840408b4c",
+    "stdout_sha256": "d6801f7f007bf2a39bcc8e19292286a3d315a2d5793c8f75e48c3377f3e45ea8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 6,
+      "passed": 6,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "xtrace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/xtrace.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "44ea231ef7c24bfabf12386df22dd6b4c22e8689a17537b504733a71cb178299",
+    "stdout_sha256": "5e764c08cfdfa57baa25a6ff30d6efaad010acd30bd7c9fe242fba4803b53798",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 4,
+      "passed": 4,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  {
+    "suite": "stacktrace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/stacktrace.test"
+    ],
+    "timeout_seconds": 60,
+    "process_exit_code": 0,
+    "timed_out": false,
+    "source_sha256": "6f5ef54e5a71e39eb278bd4d8f55144b263808327f5f623f0c087cc5c1aa6a44",
+    "stdout_sha256": "0cdcd3be92ea016049200cc39ba8e5f2bbdd0ed8fc0cd16179b63a922b10faea",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "counts": {
+      "total": 45,
+      "passed": 45,
+      "skipped": 0,
+      "failed": 0
+    }
+  }
+]

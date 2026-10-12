@@ -1,0 +1,23 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.5.19/library tcl 8.5.19 tcltest 2.3.8 loader {source /workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl}
+---- namespace-1.1 start
+---- namespace-2.1 start
+---- namespace-2.2 start
+---- namespace-3.1 start
+---- namespace-4.1 start
+---- namespace-4.2 start
+---- namespace-5.1 start
+---- namespace-5.2 start
+---- namespace-6.1 start
+---- namespace-6.2 start
+---- namespace-6.3 start
+---- namespace-6.4 start
+---- namespace-6.5 start
+---- namespace-7.1 start
+---- namespace-7.2 start
+---- namespace-7.3 start
+---- namespace-7.4 start
+---- namespace-7.5 start
+---- namespace-7.6 start
+---- namespace-7.7 start
+---- namespace-8.1 start

@@ -1,0 +1,3041 @@
+{
+  "schema_version": 1,
+  "input": {
+    "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5"
+  },
+  "capture_receipt": {
+    "path": "experiments/name-handling/patterns/wiki-results/provenance.json",
+    "sha256": "aa61d1c91ccf72d1b5904dc892c58dff23142a5b7d2ba6b5fdd6f8f273927f0f"
+  },
+  "method": "Derived join of exact retained real tcltest PASS/SKIP lines to authored case/result expressions. PASS records only the asserted equality, not unrecorded intermediate values or execution traces. SKIP supplies no oracle answer. Original input, raw transcripts and actual C binary/startup receipts remain separately retained evidence.",
+  "questions": [
+    {
+      "id": "naming.wiki.prefix-1",
+      "question": "Does this retained program establish that list prefix preserves embedded data?",
+      "tests": [
+        {
+          "test_id": "wiki-prefix-1",
+          "title": "list prefix preserves embedded data",
+          "input_lines": [
+            20,
+            26
+          ],
+          "expected_expression": "{{x; error injected} {a b}}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                2,
+                2
+              ],
+              "stdout_row": "++++ wiki-prefix-1 PASSED",
+              "expected_expression": "{{x; error injected} {a b}}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                2,
+                2
+              ],
+              "stdout_row": "++++ wiki-prefix-1 PASSED",
+              "expected_expression": "{{x; error injected} {a b}}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                2,
+                2
+              ],
+              "stdout_row": "++++ wiki-prefix-1 PASSED",
+              "expected_expression": "{{x; error injected} {a b}}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                2,
+                2
+              ],
+              "stdout_row": "++++ wiki-prefix-1 PASSED",
+              "expected_expression": "{{x; error injected} {a b}}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                2,
+                2
+              ],
+              "stdout_row": "++++ wiki-prefix-1 PASSED",
+              "expected_expression": "{{x; error injected} {a b}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.prefix-2",
+      "question": "Does this retained program establish that script and list prefix treat newline differently?",
+      "tests": [
+        {
+          "test_id": "wiki-prefix-2",
+          "title": "script and list prefix treat newline differently",
+          "input_lines": [
+            28,
+            35
+          ],
+          "expected_expression": "{extra script}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-2",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                3,
+                3
+              ],
+              "stdout_row": "++++ wiki-prefix-2 SKIPPED: tcl85",
+              "expected_expression": "{extra script}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                3,
+                3
+              ],
+              "stdout_row": "++++ wiki-prefix-2 PASSED",
+              "expected_expression": "{extra script}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                3,
+                3
+              ],
+              "stdout_row": "++++ wiki-prefix-2 PASSED",
+              "expected_expression": "{extra script}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                3,
+                3
+              ],
+              "stdout_row": "++++ wiki-prefix-2 PASSED",
+              "expected_expression": "{extra script}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                3,
+                3
+              ],
+              "stdout_row": "++++ wiki-prefix-2 PASSED",
+              "expected_expression": "{extra script}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.prefix-3",
+      "question": "Does this retained program establish that builder spelling alone cannot prove list construction?",
+      "tests": [
+        {
+          "test_id": "wiki-prefix-3",
+          "title": "builder spelling alone cannot prove list construction",
+          "input_lines": [
+            37,
+            46
+          ],
+          "expected_expression": "actual"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                4,
+                4
+              ],
+              "stdout_row": "++++ wiki-prefix-3 PASSED",
+              "expected_expression": "actual"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                4,
+                4
+              ],
+              "stdout_row": "++++ wiki-prefix-3 PASSED",
+              "expected_expression": "actual"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                4,
+                4
+              ],
+              "stdout_row": "++++ wiki-prefix-3 PASSED",
+              "expected_expression": "actual"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                4,
+                4
+              ],
+              "stdout_row": "++++ wiki-prefix-3 PASSED",
+              "expected_expression": "actual"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-prefix-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                4,
+                4
+              ],
+              "stdout_row": "++++ wiki-prefix-3 PASSED",
+              "expected_expression": "actual"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.code-1",
+      "question": "Does this retained program establish that namespace code captures command lookup namespace?",
+      "tests": [
+        {
+          "test_id": "wiki-code-1",
+          "title": "namespace code captures command lookup namespace",
+          "input_lines": [
+            48,
+            57
+          ],
+          "expected_expression": "{local fixed {a b}}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-code-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                5,
+                5
+              ],
+              "stdout_row": "++++ wiki-code-1 PASSED",
+              "expected_expression": "{local fixed {a b}}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-code-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                5,
+                5
+              ],
+              "stdout_row": "++++ wiki-code-1 PASSED",
+              "expected_expression": "{local fixed {a b}}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-code-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                5,
+                5
+              ],
+              "stdout_row": "++++ wiki-code-1 PASSED",
+              "expected_expression": "{local fixed {a b}}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-code-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                5,
+                5
+              ],
+              "stdout_row": "++++ wiki-code-1 PASSED",
+              "expected_expression": "{local fixed {a b}}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-code-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                5,
+                5
+              ],
+              "stdout_row": "++++ wiki-code-1 PASSED",
+              "expected_expression": "{local fixed {a b}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.code-2",
+      "question": "Does this retained program establish that captured namespace does not capture a proc local?",
+      "tests": [
+        {
+          "test_id": "wiki-code-2",
+          "title": "captured namespace does not capture a proc local",
+          "input_lines": [
+            59,
+            67
+          ],
+          "expected_expression": "namespace"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-code-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                6,
+                6
+              ],
+              "stdout_row": "++++ wiki-code-2 PASSED",
+              "expected_expression": "namespace"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-code-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                6,
+                6
+              ],
+              "stdout_row": "++++ wiki-code-2 PASSED",
+              "expected_expression": "namespace"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-code-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                6,
+                6
+              ],
+              "stdout_row": "++++ wiki-code-2 PASSED",
+              "expected_expression": "namespace"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-code-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                6,
+                6
+              ],
+              "stdout_row": "++++ wiki-code-2 PASSED",
+              "expected_expression": "namespace"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-code-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                6,
+                6
+              ],
+              "stdout_row": "++++ wiki-code-2 PASSED",
+              "expected_expression": "namespace"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.code-3",
+      "question": "Does this retained program establish that captured command spelling observes replacement?",
+      "tests": [
+        {
+          "test_id": "wiki-code-3",
+          "title": "captured command spelling observes replacement",
+          "input_lines": [
+            69,
+            76
+          ],
+          "expected_expression": "replacement"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-code-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                7,
+                7
+              ],
+              "stdout_row": "++++ wiki-code-3 PASSED",
+              "expected_expression": "replacement"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-code-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                7,
+                7
+              ],
+              "stdout_row": "++++ wiki-code-3 PASSED",
+              "expected_expression": "replacement"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-code-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                7,
+                7
+              ],
+              "stdout_row": "++++ wiki-code-3 PASSED",
+              "expected_expression": "replacement"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-code-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                7,
+                7
+              ],
+              "stdout_row": "++++ wiki-code-3 PASSED",
+              "expected_expression": "replacement"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-code-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                7,
+                7
+              ],
+              "stdout_row": "++++ wiki-code-3 PASSED",
+              "expected_expression": "replacement"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.code-4",
+      "question": "Does this retained program establish that inscope requires a live namespace?",
+      "tests": [
+        {
+          "test_id": "wiki-code-4",
+          "title": "inscope requires a live namespace",
+          "input_lines": [
+            78,
+            84
+          ],
+          "expected_expression": "1"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-code-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                8,
+                8
+              ],
+              "stdout_row": "++++ wiki-code-4 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-code-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                8,
+                8
+              ],
+              "stdout_row": "++++ wiki-code-4 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-code-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                8,
+                8
+              ],
+              "stdout_row": "++++ wiki-code-4 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-code-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                8,
+                8
+              ],
+              "stdout_row": "++++ wiki-code-4 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-code-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                8,
+                8
+              ],
+              "stdout_row": "++++ wiki-code-4 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.code-5",
+      "question": "Does this retained program establish that namespace name may denote a recreated namespace?",
+      "tests": [
+        {
+          "test_id": "wiki-code-5",
+          "title": "namespace name may denote a recreated namespace",
+          "input_lines": [
+            86,
+            93
+          ],
+          "expected_expression": "recreated"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-code-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                9,
+                9
+              ],
+              "stdout_row": "++++ wiki-code-5 PASSED",
+              "expected_expression": "recreated"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-code-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                9,
+                9
+              ],
+              "stdout_row": "++++ wiki-code-5 PASSED",
+              "expected_expression": "recreated"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-code-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                9,
+                9
+              ],
+              "stdout_row": "++++ wiki-code-5 PASSED",
+              "expected_expression": "recreated"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-code-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                9,
+                9
+              ],
+              "stdout_row": "++++ wiki-code-5 PASSED",
+              "expected_expression": "recreated"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-code-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                9,
+                9
+              ],
+              "stdout_row": "++++ wiki-code-5 PASSED",
+              "expected_expression": "recreated"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.code-6",
+      "question": "Do the original nested namespace-code command heads invoke their scoped target through the default unknown handler on each recorded C release?",
+      "tests": [
+        {
+          "test_id": "wiki-code-6",
+          "title": "legacy unknown repairs nested namespace code",
+          "input_lines": [
+            95,
+            100
+          ],
+          "expected_expression": "fixed"
+        },
+        {
+          "test_id": "wiki-code-7",
+          "title": "modern unknown rejects nested namespace code",
+          "input_lines": [
+            102,
+            107
+          ],
+          "expected_expression": "1"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-code-6",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                10,
+                10
+              ],
+              "stdout_row": "++++ wiki-code-6 PASSED",
+              "expected_expression": "fixed"
+            },
+            {
+              "test_id": "wiki-code-7",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                11,
+                11
+              ],
+              "stdout_row": "++++ wiki-code-7 SKIPPED: noAunt",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-code-6",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                10,
+                10
+              ],
+              "stdout_row": "++++ wiki-code-6 PASSED",
+              "expected_expression": "fixed"
+            },
+            {
+              "test_id": "wiki-code-7",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                11,
+                11
+              ],
+              "stdout_row": "++++ wiki-code-7 SKIPPED: noAunt",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-code-6",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                10,
+                10
+              ],
+              "stdout_row": "++++ wiki-code-6 SKIPPED: aunt",
+              "expected_expression": "fixed"
+            },
+            {
+              "test_id": "wiki-code-7",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                11,
+                11
+              ],
+              "stdout_row": "++++ wiki-code-7 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-code-6",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                10,
+                10
+              ],
+              "stdout_row": "++++ wiki-code-6 SKIPPED: aunt",
+              "expected_expression": "fixed"
+            },
+            {
+              "test_id": "wiki-code-7",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                11,
+                11
+              ],
+              "stdout_row": "++++ wiki-code-7 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-code-6",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                10,
+                10
+              ],
+              "stdout_row": "++++ wiki-code-6 SKIPPED: aunt",
+              "expected_expression": "fixed"
+            },
+            {
+              "test_id": "wiki-code-7",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                11,
+                11
+              ],
+              "stdout_row": "++++ wiki-code-7 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.factory-1",
+      "question": "Does this retained program establish that finite factory substitutes constant body data?",
+      "tests": [
+        {
+          "test_id": "wiki-factory-1",
+          "title": "finite factory substitutes constant body data",
+          "input_lines": [
+            109,
+            116
+          ],
+          "expected_expression": "{alpha beta}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-factory-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                12,
+                12
+              ],
+              "stdout_row": "++++ wiki-factory-1 PASSED",
+              "expected_expression": "{alpha beta}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-factory-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                12,
+                12
+              ],
+              "stdout_row": "++++ wiki-factory-1 PASSED",
+              "expected_expression": "{alpha beta}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-factory-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                12,
+                12
+              ],
+              "stdout_row": "++++ wiki-factory-1 PASSED",
+              "expected_expression": "{alpha beta}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-factory-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                12,
+                12
+              ],
+              "stdout_row": "++++ wiki-factory-1 PASSED",
+              "expected_expression": "{alpha beta}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-factory-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                12,
+                12
+              ],
+              "stdout_row": "++++ wiki-factory-1 PASSED",
+              "expected_expression": "{alpha beta}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.factory-2",
+      "question": "Does this retained program establish that braced factory body does not capture loop local?",
+      "tests": [
+        {
+          "test_id": "wiki-factory-2",
+          "title": "braced factory body does not capture loop local",
+          "input_lines": [
+            118,
+            126
+          ],
+          "expected_expression": "1"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-factory-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                13,
+                13
+              ],
+              "stdout_row": "++++ wiki-factory-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-factory-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                13,
+                13
+              ],
+              "stdout_row": "++++ wiki-factory-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-factory-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                13,
+                13
+              ],
+              "stdout_row": "++++ wiki-factory-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-factory-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                13,
+                13
+              ],
+              "stdout_row": "++++ wiki-factory-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-factory-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                13,
+                13
+              ],
+              "stdout_row": "++++ wiki-factory-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.alias-1",
+      "question": "Does this retained program establish that alias target name rebinds while import retains command?",
+      "tests": [
+        {
+          "test_id": "wiki-alias-1",
+          "title": "alias target name rebinds while import retains command",
+          "input_lines": [
+            128,
+            137
+          ],
+          "expected_expression": "{{replacement fixed} {old fixed}}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-alias-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                14,
+                14
+              ],
+              "stdout_row": "++++ wiki-alias-1 PASSED",
+              "expected_expression": "{{replacement fixed} {old fixed}}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-alias-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                14,
+                14
+              ],
+              "stdout_row": "++++ wiki-alias-1 PASSED",
+              "expected_expression": "{{replacement fixed} {old fixed}}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-alias-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                14,
+                14
+              ],
+              "stdout_row": "++++ wiki-alias-1 PASSED",
+              "expected_expression": "{{replacement fixed} {old fixed}}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-alias-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                14,
+                14
+              ],
+              "stdout_row": "++++ wiki-alias-1 PASSED",
+              "expected_expression": "{{replacement fixed} {old fixed}}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-alias-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                14,
+                14
+              ],
+              "stdout_row": "++++ wiki-alias-1 PASSED",
+              "expected_expression": "{{replacement fixed} {old fixed}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.alias-2",
+      "question": "Does this retained program establish that alias target interpreter owns lookup?",
+      "tests": [
+        {
+          "test_id": "wiki-alias-2",
+          "title": "alias target interpreter owns lookup",
+          "input_lines": [
+            139,
+            147
+          ],
+          "expected_expression": "helper"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-alias-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                15,
+                15
+              ],
+              "stdout_row": "++++ wiki-alias-2 PASSED",
+              "expected_expression": "helper"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-alias-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                15,
+                15
+              ],
+              "stdout_row": "++++ wiki-alias-2 PASSED",
+              "expected_expression": "helper"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-alias-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                15,
+                15
+              ],
+              "stdout_row": "++++ wiki-alias-2 PASSED",
+              "expected_expression": "helper"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-alias-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                15,
+                15
+              ],
+              "stdout_row": "++++ wiki-alias-2 PASSED",
+              "expected_expression": "helper"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-alias-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                15,
+                15
+              ],
+              "stdout_row": "++++ wiki-alias-2 PASSED",
+              "expected_expression": "helper"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.rename-1",
+      "question": "Does this retained program establish that renaming a proc changes its namespace context?",
+      "tests": [
+        {
+          "test_id": "wiki-rename-1",
+          "title": "renaming a proc changes its namespace context",
+          "input_lines": [
+            149,
+            156
+          ],
+          "expected_expression": "two"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-rename-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                16,
+                16
+              ],
+              "stdout_row": "++++ wiki-rename-1 PASSED",
+              "expected_expression": "two"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-rename-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                16,
+                16
+              ],
+              "stdout_row": "++++ wiki-rename-1 PASSED",
+              "expected_expression": "two"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-rename-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                16,
+                16
+              ],
+              "stdout_row": "++++ wiki-rename-1 PASSED",
+              "expected_expression": "two"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-rename-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                16,
+                16
+              ],
+              "stdout_row": "++++ wiki-rename-1 PASSED",
+              "expected_expression": "two"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-rename-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                16,
+                16
+              ],
+              "stdout_row": "++++ wiki-rename-1 PASSED",
+              "expected_expression": "two"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.upvar-1",
+      "question": "Does this retained program establish that explicit level supports digit-leading names?",
+      "tests": [
+        {
+          "test_id": "wiki-upvar-1",
+          "title": "explicit level supports digit-leading names",
+          "input_lines": [
+            158,
+            164
+          ],
+          "expected_expression": "changed"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                17,
+                17
+              ],
+              "stdout_row": "++++ wiki-upvar-1 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                17,
+                17
+              ],
+              "stdout_row": "++++ wiki-upvar-1 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                17,
+                17
+              ],
+              "stdout_row": "++++ wiki-upvar-1 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                17,
+                17
+              ],
+              "stdout_row": "++++ wiki-upvar-1 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                17,
+                17
+              ],
+              "stdout_row": "++++ wiki-upvar-1 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.upvar-2",
+      "question": "Does this retained program establish that implicit level parsing changes across releases?",
+      "tests": [
+        {
+          "test_id": "wiki-upvar-2",
+          "title": "implicit level parsing changes across releases",
+          "input_lines": [
+            166,
+            172
+          ],
+          "expected_expression": "[expr {[package vcompare [info patchlevel] 8.6] < 0}]"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                18,
+                18
+              ],
+              "stdout_row": "++++ wiki-upvar-2 PASSED",
+              "expected_expression": "[expr {[package vcompare [info patchlevel] 8.6] < 0}]"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                18,
+                18
+              ],
+              "stdout_row": "++++ wiki-upvar-2 PASSED",
+              "expected_expression": "[expr {[package vcompare [info patchlevel] 8.6] < 0}]"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                18,
+                18
+              ],
+              "stdout_row": "++++ wiki-upvar-2 PASSED",
+              "expected_expression": "[expr {[package vcompare [info patchlevel] 8.6] < 0}]"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                18,
+                18
+              ],
+              "stdout_row": "++++ wiki-upvar-2 PASSED",
+              "expected_expression": "[expr {[package vcompare [info patchlevel] 8.6] < 0}]"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                18,
+                18
+              ],
+              "stdout_row": "++++ wiki-upvar-2 PASSED",
+              "expected_expression": "[expr {[package vcompare [info patchlevel] 8.6] < 0}]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.upvar-3",
+      "question": "Does this retained program establish that frame-forwarding wrapper links the caller variable?",
+      "tests": [
+        {
+          "test_id": "wiki-upvar-3",
+          "title": "frame-forwarding wrapper links the caller variable",
+          "input_lines": [
+            174,
+            181
+          ],
+          "expected_expression": "changed"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                19,
+                19
+              ],
+              "stdout_row": "++++ wiki-upvar-3 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                19,
+                19
+              ],
+              "stdout_row": "++++ wiki-upvar-3 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                19,
+                19
+              ],
+              "stdout_row": "++++ wiki-upvar-3 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                19,
+                19
+              ],
+              "stdout_row": "++++ wiki-upvar-3 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                19,
+                19
+              ],
+              "stdout_row": "++++ wiki-upvar-3 PASSED",
+              "expected_expression": "changed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.upvar-4",
+      "question": "Does this retained program establish that naive wrapper creates a link in its own frame?",
+      "tests": [
+        {
+          "test_id": "wiki-upvar-4",
+          "title": "naive wrapper creates a link in its own frame",
+          "input_lines": [
+            183,
+            190
+          ],
+          "expected_expression": "old"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                20,
+                20
+              ],
+              "stdout_row": "++++ wiki-upvar-4 PASSED",
+              "expected_expression": "old"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                20,
+                20
+              ],
+              "stdout_row": "++++ wiki-upvar-4 PASSED",
+              "expected_expression": "old"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                20,
+                20
+              ],
+              "stdout_row": "++++ wiki-upvar-4 PASSED",
+              "expected_expression": "old"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                20,
+                20
+              ],
+              "stdout_row": "++++ wiki-upvar-4 PASSED",
+              "expected_expression": "old"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-upvar-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                20,
+                20
+              ],
+              "stdout_row": "++++ wiki-upvar-4 PASSED",
+              "expected_expression": "old"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.variable-1",
+      "question": "Does this retained program establish that variable alternates names and assigned values?",
+      "tests": [
+        {
+          "test_id": "wiki-variable-1",
+          "title": "variable alternates names and assigned values",
+          "input_lines": [
+            192,
+            196
+          ],
+          "expected_expression": "{b 0}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-variable-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                21,
+                21
+              ],
+              "stdout_row": "++++ wiki-variable-1 PASSED",
+              "expected_expression": "{b 0}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-variable-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                21,
+                21
+              ],
+              "stdout_row": "++++ wiki-variable-1 PASSED",
+              "expected_expression": "{b 0}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-variable-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                21,
+                21
+              ],
+              "stdout_row": "++++ wiki-variable-1 PASSED",
+              "expected_expression": "{b 0}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-variable-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                21,
+                21
+              ],
+              "stdout_row": "++++ wiki-variable-1 PASSED",
+              "expected_expression": "{b 0}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-variable-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                21,
+                21
+              ],
+              "stdout_row": "++++ wiki-variable-1 PASSED",
+              "expected_expression": "{b 0}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.global-1",
+      "question": "Does this retained program establish that global wrapper must execute declaration in caller?",
+      "tests": [
+        {
+          "test_id": "wiki-global-1",
+          "title": "global wrapper must execute declaration in caller",
+          "input_lines": [
+            198,
+            205
+          ],
+          "expected_expression": "global"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-global-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                22,
+                22
+              ],
+              "stdout_row": "++++ wiki-global-1 PASSED",
+              "expected_expression": "global"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-global-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                22,
+                22
+              ],
+              "stdout_row": "++++ wiki-global-1 PASSED",
+              "expected_expression": "global"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-global-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                22,
+                22
+              ],
+              "stdout_row": "++++ wiki-global-1 PASSED",
+              "expected_expression": "global"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-global-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                22,
+                22
+              ],
+              "stdout_row": "++++ wiki-global-1 PASSED",
+              "expected_expression": "global"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-global-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                22,
+                22
+              ],
+              "stdout_row": "++++ wiki-global-1 PASSED",
+              "expected_expression": "global"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.autoload-1",
+      "question": "Does this retained program establish that a missing command may load from auto_index?",
+      "tests": [
+        {
+          "test_id": "wiki-autoload-1",
+          "title": "a missing command may load from auto_index",
+          "input_lines": [
+            207,
+            212
+          ],
+          "expected_expression": "{{} loaded ::late}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-autoload-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                23,
+                23
+              ],
+              "stdout_row": "++++ wiki-autoload-1 PASSED",
+              "expected_expression": "{{} loaded ::late}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-autoload-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                23,
+                23
+              ],
+              "stdout_row": "++++ wiki-autoload-1 PASSED",
+              "expected_expression": "{{} loaded ::late}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-autoload-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                23,
+                23
+              ],
+              "stdout_row": "++++ wiki-autoload-1 PASSED",
+              "expected_expression": "{{} loaded ::late}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-autoload-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                23,
+                23
+              ],
+              "stdout_row": "++++ wiki-autoload-1 PASSED",
+              "expected_expression": "{{} loaded ::late}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-autoload-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                23,
+                23
+              ],
+              "stdout_row": "++++ wiki-autoload-1 PASSED",
+              "expected_expression": "{{} loaded ::late}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.unknown-1",
+      "question": "Does this retained program establish that unknown can make an absent head executable?",
+      "tests": [
+        {
+          "test_id": "wiki-unknown-1",
+          "title": "unknown can make an absent head executable",
+          "input_lines": [
+            214,
+            219
+          ],
+          "expected_expression": "{{} {absent fixed}}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-unknown-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                24,
+                24
+              ],
+              "stdout_row": "++++ wiki-unknown-1 PASSED",
+              "expected_expression": "{{} {absent fixed}}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-unknown-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                24,
+                24
+              ],
+              "stdout_row": "++++ wiki-unknown-1 PASSED",
+              "expected_expression": "{{} {absent fixed}}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-unknown-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                24,
+                24
+              ],
+              "stdout_row": "++++ wiki-unknown-1 PASSED",
+              "expected_expression": "{{} {absent fixed}}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-unknown-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                24,
+                24
+              ],
+              "stdout_row": "++++ wiki-unknown-1 PASSED",
+              "expected_expression": "{{} {absent fixed}}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-unknown-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                24,
+                24
+              ],
+              "stdout_row": "++++ wiki-unknown-1 PASSED",
+              "expected_expression": "{{} {absent fixed}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.oo-1",
+      "question": "Does this retained program establish that namespace code preserves private my method dispatch?",
+      "tests": [
+        {
+          "test_id": "wiki-oo-1",
+          "title": "namespace code preserves private my method dispatch",
+          "input_lines": [
+            221,
+            232
+          ],
+          "expected_expression": "{1 fixed}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-oo-1",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                25,
+                25
+              ],
+              "stdout_row": "++++ wiki-oo-1 SKIPPED: tcloo",
+              "expected_expression": "{1 fixed}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-oo-1",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                25,
+                25
+              ],
+              "stdout_row": "++++ wiki-oo-1 SKIPPED: tcloo",
+              "expected_expression": "{1 fixed}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-oo-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                25,
+                25
+              ],
+              "stdout_row": "++++ wiki-oo-1 PASSED",
+              "expected_expression": "{1 fixed}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-oo-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                25,
+                25
+              ],
+              "stdout_row": "++++ wiki-oo-1 PASSED",
+              "expected_expression": "{1 fixed}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-oo-1",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                25,
+                25
+              ],
+              "stdout_row": "++++ wiki-oo-1 PASSED",
+              "expected_expression": "{1 fixed}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.oo-2",
+      "question": "Does this retained program establish that object deletion invalidates captured my callback?",
+      "tests": [
+        {
+          "test_id": "wiki-oo-2",
+          "title": "object deletion invalidates captured my callback",
+          "input_lines": [
+            234,
+            242
+          ],
+          "expected_expression": "1"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-oo-2",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                26,
+                26
+              ],
+              "stdout_row": "++++ wiki-oo-2 SKIPPED: tcloo",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-oo-2",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                26,
+                26
+              ],
+              "stdout_row": "++++ wiki-oo-2 SKIPPED: tcloo",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-oo-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                26,
+                26
+              ],
+              "stdout_row": "++++ wiki-oo-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-oo-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                26,
+                26
+              ],
+              "stdout_row": "++++ wiki-oo-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-oo-2",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                26,
+                26
+              ],
+              "stdout_row": "++++ wiki-oo-2 PASSED",
+              "expected_expression": "1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.oo-3",
+      "question": "Does this retained program establish that forward target observes command replacement?",
+      "tests": [
+        {
+          "test_id": "wiki-oo-3",
+          "title": "forward target observes command replacement",
+          "input_lines": [
+            244,
+            253
+          ],
+          "expected_expression": "{replacement fixed}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-oo-3",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                27,
+                27
+              ],
+              "stdout_row": "++++ wiki-oo-3 SKIPPED: tcloo",
+              "expected_expression": "{replacement fixed}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-oo-3",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                27,
+                27
+              ],
+              "stdout_row": "++++ wiki-oo-3 SKIPPED: tcloo",
+              "expected_expression": "{replacement fixed}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-oo-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                27,
+                27
+              ],
+              "stdout_row": "++++ wiki-oo-3 PASSED",
+              "expected_expression": "{replacement fixed}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-oo-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                27,
+                27
+              ],
+              "stdout_row": "++++ wiki-oo-3 PASSED",
+              "expected_expression": "{replacement fixed}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-oo-3",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                27,
+                27
+              ],
+              "stdout_row": "++++ wiki-oo-3 PASSED",
+              "expected_expression": "{replacement fixed}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.oo-4",
+      "question": "Does this retained program establish that metaclass methods can define class methods dynamically?",
+      "tests": [
+        {
+          "test_id": "wiki-oo-4",
+          "title": "metaclass methods can define class methods dynamically",
+          "input_lines": [
+            255,
+            266
+          ],
+          "expected_expression": "generated"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-oo-4",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                28,
+                28
+              ],
+              "stdout_row": "++++ wiki-oo-4 SKIPPED: tcloo",
+              "expected_expression": "generated"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-oo-4",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                28,
+                28
+              ],
+              "stdout_row": "++++ wiki-oo-4 SKIPPED: tcloo",
+              "expected_expression": "generated"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-oo-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                28,
+                28
+              ],
+              "stdout_row": "++++ wiki-oo-4 PASSED",
+              "expected_expression": "generated"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-oo-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                28,
+                28
+              ],
+              "stdout_row": "++++ wiki-oo-4 PASSED",
+              "expected_expression": "generated"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-oo-4",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                28,
+                28
+              ],
+              "stdout_row": "++++ wiki-oo-4 PASSED",
+              "expected_expression": "generated"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.oo-5",
+      "question": "Does this retained program establish that metaclass can override new to return a non-object?",
+      "tests": [
+        {
+          "test_id": "wiki-oo-5",
+          "title": "metaclass can override new to return a non-object",
+          "input_lines": [
+            268,
+            275
+          ],
+          "expected_expression": "{ordinary 0}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-oo-5",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                29,
+                29
+              ],
+              "stdout_row": "++++ wiki-oo-5 SKIPPED: tcloo",
+              "expected_expression": "{ordinary 0}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-oo-5",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                29,
+                29
+              ],
+              "stdout_row": "++++ wiki-oo-5 SKIPPED: tcloo",
+              "expected_expression": "{ordinary 0}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-oo-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                29,
+                29
+              ],
+              "stdout_row": "++++ wiki-oo-5 PASSED",
+              "expected_expression": "{ordinary 0}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-oo-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                29,
+                29
+              ],
+              "stdout_row": "++++ wiki-oo-5 PASSED",
+              "expected_expression": "{ordinary 0}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-oo-5",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                29,
+                29
+              ],
+              "stdout_row": "++++ wiki-oo-5 PASSED",
+              "expected_expression": "{ordinary 0}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.oo-6",
+      "question": "Does this retained program establish that forward my resolves an internal method?",
+      "tests": [
+        {
+          "test_id": "wiki-oo-6",
+          "title": "forward my resolves an internal method",
+          "input_lines": [
+            277,
+            287
+          ],
+          "expected_expression": "{1 internal}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-oo-6",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                30,
+                30
+              ],
+              "stdout_row": "++++ wiki-oo-6 SKIPPED: tcloo",
+              "expected_expression": "{1 internal}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-oo-6",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                30,
+                30
+              ],
+              "stdout_row": "++++ wiki-oo-6 SKIPPED: tcloo",
+              "expected_expression": "{1 internal}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-oo-6",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                30,
+                30
+              ],
+              "stdout_row": "++++ wiki-oo-6 PASSED",
+              "expected_expression": "{1 internal}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-oo-6",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                30,
+                30
+              ],
+              "stdout_row": "++++ wiki-oo-6 PASSED",
+              "expected_expression": "{1 internal}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-oo-6",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                30,
+                30
+              ],
+              "stdout_row": "++++ wiki-oo-6 PASSED",
+              "expected_expression": "{1 internal}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "naming.wiki.oo-7",
+      "question": "Does this retained program establish that method replacement resets explicit export?",
+      "tests": [
+        {
+          "test_id": "wiki-oo-7",
+          "title": "method replacement resets explicit export",
+          "input_lines": [
+            289,
+            297
+          ],
+          "expected_expression": "{old 1}"
+        }
+      ],
+      "providers": {
+        "tcl8.4": {
+          "receipt_pointer": "/records/0",
+          "cases": [
+            {
+              "test_id": "wiki-oo-7",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.4.20.stdout",
+              "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+              "stdout_lines": [
+                31,
+                31
+              ],
+              "stdout_row": "++++ wiki-oo-7 SKIPPED: tcloo",
+              "expected_expression": "{old 1}"
+            }
+          ]
+        },
+        "tcl8.5": {
+          "receipt_pointer": "/records/1",
+          "cases": [
+            {
+              "test_id": "wiki-oo-7",
+              "status": "not-tested",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.5.19.stdout",
+              "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+              "stdout_lines": [
+                31,
+                31
+              ],
+              "stdout_row": "++++ wiki-oo-7 SKIPPED: tcloo",
+              "expected_expression": "{old 1}"
+            }
+          ]
+        },
+        "tcl8.6": {
+          "receipt_pointer": "/records/2",
+          "cases": [
+            {
+              "test_id": "wiki-oo-7",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl8.6.18.stdout",
+              "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+              "stdout_lines": [
+                31,
+                31
+              ],
+              "stdout_row": "++++ wiki-oo-7 PASSED",
+              "expected_expression": "{old 1}"
+            }
+          ]
+        },
+        "tcl9.0": {
+          "receipt_pointer": "/records/3",
+          "cases": [
+            {
+              "test_id": "wiki-oo-7",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.0.4.stdout",
+              "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+              "stdout_lines": [
+                31,
+                31
+              ],
+              "stdout_row": "++++ wiki-oo-7 PASSED",
+              "expected_expression": "{old 1}"
+            }
+          ]
+        },
+        "tcl9.1": {
+          "receipt_pointer": "/records/4",
+          "cases": [
+            {
+              "test_id": "wiki-oo-7",
+              "status": "observed",
+              "stdout_path": "experiments/name-handling/patterns/wiki-results/tcl9.1.0.stdout",
+              "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+              "stdout_lines": [
+                31,
+                31
+              ],
+              "stdout_row": "++++ wiki-oo-7 PASSED",
+              "expected_expression": "{old 1}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

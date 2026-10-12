@@ -1,0 +1,56 @@
+{
+  "captured_at": "2026-10-12T11:45:45.897883+00:00",
+  "subject_commit": "84ae94c7f5e1b303312572a04a85cce74f464cb8",
+  "runner_sha256": "6064bf731fa1944ad46d5fd5fd957d1e9037e8bef8b3a947c4fa945116ea5a2f",
+  "references": [
+    {
+      "release": "8.4",
+      "patchlevel": "8.4.20",
+      "tag": "core-8-4-20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "source_names_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "release": "8.5",
+      "patchlevel": "8.5.19",
+      "tag": "core-8-5-19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "source_names_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "release": "8.6",
+      "patchlevel": "8.6.18",
+      "tag": "core-8-6-18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "source_names_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "release": "9.0",
+      "patchlevel": "9.0.4",
+      "tag": "core-9-0-4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "source_names_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "release": "9.1",
+      "patchlevel": "9.1.0",
+      "tag": "core-9-1-0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "source_names_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    }
+  ],
+  "case_count": 75,
+  "Jim": "pending",
+  "F5": "pending",
+  "semantics": "ASCII-only authored reductions, each fresh interpreter; final probe line is observed lookup, preceding lines are setup; tcltest invocation occurs during setup and retained numTests distinguishes harness failures"
+}

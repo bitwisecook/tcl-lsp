@@ -1,0 +1,44 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5m 50s
+     Running unittests src/lib.rs (tmp/name-target-static/debug/deps/tcl_compiler-78463101920c36d4)
+
+running 4 tests
+test optimiser::method_barrier::original_relation_tests::original_class_relation_keeps_protected_literal_punctuation_as_source_data ... ok
+
+thread 'optimiser::method_barrier::original_relation_tests::original_class_relation_uses_retained_allocations_without_same_tail_edges' (70274) panicked at rust/tcl-compiler/src/optimiser/method_barrier.rs:969:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test optimiser::method_barrier::original_relation_tests::original_class_relation_uses_retained_allocations_without_same_tail_edges ... FAILED
+
+thread 'optimiser::method_barrier::original_relation_tests::original_class_relation_unavailable_source_widens_before_empty_bad_class_shortcut' (70273) panicked at rust/tcl-compiler/src/optimiser/method_barrier.rs:992:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+test optimiser::method_barrier::original_relation_tests::original_class_relation_unavailable_source_widens_before_empty_bad_class_shortcut ... FAILED
+
+thread 'optimiser::method_barrier::original_relation_tests::original_class_relation_alias_and_external_obligations_do_not_become_empty_edges' (70271) panicked at rust/tcl-compiler/src/optimiser/method_barrier.rs:1030:13:
+assertion `left == right` failed
+  left: 0
+ right: 1
+test optimiser::method_barrier::original_relation_tests::original_class_relation_alias_and_external_obligations_do_not_become_empty_edges ... FAILED
+
+failures:
+
+failures:
+    optimiser::method_barrier::original_relation_tests::original_class_relation_alias_and_external_obligations_do_not_become_empty_edges
+    optimiser::method_barrier::original_relation_tests::original_class_relation_unavailable_source_widens_before_empty_bad_class_shortcut
+    optimiser::method_barrier::original_relation_tests::original_class_relation_uses_retained_allocations_without_same_tail_edges
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 9544 filtered out; finished in 0.94s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

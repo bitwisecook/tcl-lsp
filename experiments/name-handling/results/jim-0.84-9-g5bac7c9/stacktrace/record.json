@@ -1,0 +1,19 @@
+{
+  "suite": "stacktrace",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/stacktrace.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "6f5ef54e5a71e39eb278bd4d8f55144b263808327f5f623f0c087cc5c1aa6a44",
+  "stdout_sha256": "0cdcd3be92ea016049200cc39ba8e5f2bbdd0ed8fc0cd16179b63a922b10faea",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 45,
+    "passed": 45,
+    "skipped": 0,
+    "failed": 0
+  }
+}

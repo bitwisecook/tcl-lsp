@@ -1,0 +1,19 @@
+{
+  "suite": "infoframe",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/infoframe.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "023820148a5fe9f0c3a56ee0b770176c8f00f66d4061d442e500f10840408b4c",
+  "stdout_sha256": "d6801f7f007bf2a39bcc8e19292286a3d315a2d5793c8f75e48c3377f3e45ea8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 6,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "base_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "construction": "Interp::with_native_core",
+  "command": "cargo test --manifest-path runtime/rust/Cargo.toml --test library_bootstrap_oracle -- --nocapture",
+  "result": "4 passed, 0 failed",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-bootstrap",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "scope": "native runtime API regressions; does not establish real modern Tcltest startup or entire suite coverage; the shared worktree snapshot after execution is not an immutable binary/source attestation",
+  "source_snapshot_after_run": {
+    "runtime/rust/tests/library_bootstrap_oracle.rs": "97ff6633cf40aefbaa89fedb6c38fb19ad24bd5899eb83efc37efc8523160f7d",
+    "runtime/rust/src/cmd_string.rs": "e3d7329f2572cd0df74a1516d9481bfc378b159da8ee534c9393193e84018762",
+    "runtime/rust/src/cmd_alias.rs": "624e276e5b3626fb43c69f21da4e9aa07e550f32052f3ef971c6f4eb2273bcbf",
+    "runtime/rust/src/frame/retired_variable.rs": "605b4c3d2370054d5f5741592bc9921d606f0852f617f2e316202b21d996e223",
+    "runtime/rust/src/interp.rs": "2f2a05d54294fa72b8af08bad51525663d0c1ed872bbfa9aab75d4c3df1eb537",
+    "rust/tcl-cmd-core/src/platform.rs": "3df3521fcdb18694e5018575dd72b66781f541653848499ed63bc5550183a6f2",
+    "rust/tcl-cmd-core/src/string.rs": "fa503bdd2fdc6f97db326e54431f1412dc15ec8f2afa79e40b1c61f2c6270275",
+    "rust/tcl-platform/src/lib.rs": "d2b073540c119acea58db916c01e3b5e4fac9a280b53f6b441183d9b51a9625b",
+    "rust/tcl-registry/src/commands/tcl/interp.rs": "c308b788f9650c60c77649f17ae313b2b3d0ecdd0a9af41f39634eee76f2cbd0",
+    "rust/tcl-registry/src/commands/tcl/mod.rs": "e0dd5b4151a5455f86b8b147ea2264c8e25cc4cec660fe01a485da716701c447",
+    "rust/tcl-vm/src/cmd_string.rs": "35e41b7a75b4de5f07720640bd92e4594c19dd12075fb25945b82a1482413c34",
+    "rust/tcl-vm/src/command.rs": "d9b193dee3e39fe2e1334064561001993e118be8c2e804089cef84dc29574e17",
+    "rust/tcl-vm/src/interp.rs": "0faa8592344f568e9bba38ba1175ea71e3d713e9db68233bd4cb8ac8f78c9177"
+  }
+}

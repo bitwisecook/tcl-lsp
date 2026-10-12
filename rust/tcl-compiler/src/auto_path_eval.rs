@@ -400,18 +400,14 @@ fn is_plain_scalar_name(name: &str) -> bool {
     !name.is_empty() && !name.contains('$') && !name.contains('[') && !name.contains('(')
 }
 
-/// Root a written namespace spelling through the shared colon-run owner.
-fn canon(name: &str) -> String {
-    crate::naming::normalise_qualified_name(name)
+/// Preserve variable tails with the shared written-name grammar.
+fn rooted_variable_key(name: &str) -> String {
+    crate::naming::qualify("::", name)
 }
 
-/// The canonical key for `name` written or declared under `ns_prefix`
-/// (`""` at the top level): a bare global stays bare, everything else roots.
+/// Keep the compatibility map's bare spelling for unqualified global variables.
 fn qualified_key(ns_prefix: &str, name: &str) -> String {
-    if name.starts_with("::") {
-        return canon(name);
-    }
-    if ns_prefix.is_empty() && !name.contains("::") {
+    if ns_prefix.is_empty() && !crate::naming::is_qualified(name.as_bytes()) {
         return name.to_owned();
     }
     crate::naming::qualify(ns_prefix, name)
@@ -941,7 +937,7 @@ mod tests {
 
     #[test]
     fn written_inventory_names_preserve_constructed_namespace_segments() {
-        assert_eq!(canon("a:::b"), "::a::b");
+        assert_eq!(rooted_variable_key("a:::b"), "::a::b");
         assert_eq!(qualified_key("::a:::", "b:::c"), "::a:::::b::c");
         let writes = constant_path_assignments(
             "namespace eval : {variable dir /one; namespace eval x {variable dir /two}}",
@@ -1512,7 +1508,9 @@ mod tests {
             Some("/app/alited.tcl"),
         );
         assert_eq!(
-            constants.get("::e_menu_dir").map(String::as_str),
+            constants
+                .lookup_at("::e_menu_dir", u32::try_from(src.len()).unwrap())
+                .as_deref(),
             Some("/app/e_menu"),
             "{constants:?}",
         );
@@ -1553,17 +1551,24 @@ mod tests {
         assert!(!constants.contains_key("sub"), "{constants:?}");
     }
 
-    /// `upvar`/`global` bind a name to a variable another scope may write —
-    /// the registry marks them `CREATES_SCOPE_ALIAS`, and every listed name
-    /// poisons.
     #[test]
-    fn a_scope_alias_poisons_every_bound_name() {
-        let constants = constant_path_vars(
-            "set dir /a\nupvar 1 elsewhere dir\n",
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-            None,
+    fn a_scope_alias_withdraws_subsequent_lookups_and_exports() {
+        let source = "set dir /a\nupvar 1 elsewhere dir\n";
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let constants = constant_path_vars(source, profile, None);
+        let before_alias = u32::try_from(source.find("upvar").unwrap() - 1).unwrap();
+        assert_eq!(
+            constants.lookup_at("dir", before_alias).as_deref(),
+            Some("/a")
         );
-        assert!(!constants.contains_key("dir"), "{constants:?}");
+        assert_eq!(
+            constants.lookup_at("dir", u32::try_from(source.len()).unwrap()),
+            None
+        );
+        assert!(constants.exported().is_empty());
+        let next = constant_path_assignments("set inherited $dir", profile);
+        let imported = fold_constant_assignments_with_imports(&next, None, &constants);
+        assert!(imported.is_empty(), "{imported:?}");
     }
 
     /// A braced value is data: Tcl suppresses substitution when it is

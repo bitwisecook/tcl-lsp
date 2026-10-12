@@ -1,0 +1,97 @@
+{
+  "captured_utc": "2026-10-12T12:28:13.016644+00:00",
+  "binary_sha256": "0b307b541a182415c855da5bd80cd3ebb688336ebeb0d09f373c703bd4cda24f",
+  "records": [
+    {
+      "name": "cmd_namespace::tests::mutually_entangled_deletion_preserves_the_global_namespace",
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "--exact",
+        "cmd_namespace::tests::mutually_entangled_deletion_preserves_the_global_namespace",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 5.882,
+      "stdout": "cmd_namespace-tests-mutually_entangled_deletion_preserves_the_global_namespace.stdout",
+      "stderr": "cmd_namespace-tests-mutually_entangled_deletion_preserves_the_global_namespace.stderr"
+    },
+    {
+      "name": "cmd_namespace::tests::child_teardown_distinguishes_cached_names_from_fresh_lookup",
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "--exact",
+        "cmd_namespace::tests::child_teardown_distinguishes_cached_names_from_fresh_lookup",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 5.302,
+      "stdout": "cmd_namespace-tests-child_teardown_distinguishes_cached_names_from_fresh_lookup.stdout",
+      "stderr": "cmd_namespace-tests-child_teardown_distinguishes_cached_names_from_fresh_lookup.stderr"
+    },
+    {
+      "name": "cmd_namespace::tests::implicit_ensemble_targets_preserve_the_selected_namespace_context",
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "--exact",
+        "cmd_namespace::tests::implicit_ensemble_targets_preserve_the_selected_namespace_context",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 5.735,
+      "stdout": "cmd_namespace-tests-implicit_ensemble_targets_preserve_the_selected_namespace_context.stdout",
+      "stderr": "cmd_namespace-tests-implicit_ensemble_targets_preserve_the_selected_namespace_context.stderr"
+    },
+    {
+      "name": "cmd_trace::tests::parent_teardown_reaches_each_child_after_parent_commands",
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "--exact",
+        "cmd_trace::tests::parent_teardown_reaches_each_child_after_parent_commands",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 1.864,
+      "stdout": "cmd_trace-tests-parent_teardown_reaches_each_child_after_parent_commands.stdout",
+      "stderr": "cmd_trace-tests-parent_teardown_reaches_each_child_after_parent_commands.stderr"
+    },
+    {
+      "name": "interp::native_namespace_names::tests::namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks",
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "--exact",
+        "interp::native_namespace_names::tests::namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 11.435,
+      "stdout": "interp-native_namespace_names-tests-namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks.stdout",
+      "stderr": "interp-native_namespace_names-tests-namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks.stderr"
+    },
+    {
+      "name": "interp::native_namespace_names::tests::original_namespace_lifetime_survives_retirement_without_owning_the_interpreter",
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "--exact",
+        "interp::native_namespace_names::tests::original_namespace_lifetime_survives_retirement_without_owning_the_interpreter",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 4.111,
+      "stdout": "interp-native_namespace_names-tests-original_namespace_lifetime_survives_retirement_without_owning_the_interpreter.stdout",
+      "stderr": "interp-native_namespace_names-tests-original_namespace_lifetime_survives_retirement_without_owning_the_interpreter.stderr"
+    },
+    {
+      "name": "interp::native_namespace_names::tests::original_namespace_objects_match_100_native_c_producer_and_getter_windows",
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "--exact",
+        "interp::native_namespace_names::tests::original_namespace_objects_match_100_native_c_producer_and_getter_windows",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 10.634,
+      "stdout": "interp-native_namespace_names-tests-original_namespace_objects_match_100_native_c_producer_and_getter_windows.stdout",
+      "stderr": "interp-native_namespace_names-tests-original_namespace_objects_match_100_native_c_producer_and_getter_windows.stderr"
+    }
+  ]
+}

@@ -27,7 +27,7 @@
 
 use tcl_cmd_core::prefix::Resolution;
 
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
@@ -129,6 +129,7 @@ fn append_logical(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 // string ensemble
 
 const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+    (b"bytelength", stock_bytelength),
     (b"cat", stock_cat),
     (b"compare", stock_compare),
     (b"equal", stock_equal),
@@ -153,6 +154,10 @@ const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
     (b"wordend", stock_wordend),
     (b"wordstart", stock_wordstart),
 ];
+
+fn stock_bytelength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"bytelength"], string_cmd)
+}
 
 fn stock_cat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     interp.invoke_stock_worker(argv, &[b"string", b"cat"], string_cmd)
@@ -329,6 +334,7 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// The `string` ensemble subcommands, in the order used by the
 /// "unknown or ambiguous subcommand" diagnostic.
 const STRING_SUBCOMMANDS: &[&[u8]] = &[
+    b"bytelength",
     b"cat",
     b"compare",
     b"equal",

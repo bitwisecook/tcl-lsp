@@ -6718,7 +6718,120 @@ impl Interp {
         outcome
     }
 
+    pub(crate) fn init_auto_path(&mut self, argv: &[*mut TclObj]) -> Code {
+        if argv.len() != 1 {
+            return self.wrong_args_for_invocation(argv, b"");
+        }
+        let arguments = match native_arguments::OriginalArguments::enter(self, argv) {
+            Ok(arguments) => arguments,
+            Err(error) => return self.report_cmd_error(error),
+        };
+        let result = self.init_auto_path_entered(&arguments);
+        match arguments.check() {
+            Ok(()) => result,
+            Err(error) => self.report_cmd_error(error),
+        }
+    }
+
+    fn init_auto_path_entered(&mut self, arguments: &native_arguments::OriginalArguments) -> Code {
+        let existing = self.read_named_variable(b"::auto_path").ok();
+        if let Err(error) = arguments.check() {
+            return self.report_cmd_error(error);
+        }
+        if self.is_safe() {
+            if existing.is_none() {
+                let value = new_string(b"");
+                if let Err(error) = self.store_var_result(b"::auto_path", None, value) {
+                    return builtins::var_error(self, b"::auto_path", error);
+                }
+            }
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        let existing = match existing.map(|value| self.auto_path_list(value)).transpose() {
+            Ok(existing) => existing,
+            Err(error) => return error,
+        };
+        let mut environment = Vec::new();
+        if existing.is_none() {
+            if let Ok(value) = self.read_named_variable(b"::env(TCLLIBPATH)") {
+                environment = match self.auto_path_list(value) {
+                    Ok(environment) => environment,
+                    Err(error) => return error,
+                };
+                let home = self.host().env().get("HOME");
+                if let Err(error) = arguments.check() {
+                    return self.report_cmd_error(error);
+                }
+                environment = match tcl_cmd_core::platform::auto_path_environment(
+                    environment,
+                    home.as_deref().map(str::as_bytes),
+                ) {
+                    Ok(paths) => paths,
+                    Err(error) => return self.report_cmd_error(error),
+                };
+            }
+        }
+        let library = match self.read_named_variable(b"::tcl_library") {
+            Ok(value) => match self.native_object_string_bytes(value) {
+                Ok(bytes) => Some(bytes),
+                Err(error) => return self.report_cmd_error(error.into()),
+            },
+            Err(_) => None,
+        };
+        let executable = self.host().env().current_exe();
+        if let Err(error) = arguments.check() {
+            return self.report_cmd_error(error);
+        }
+        let installation = tcl_cmd_core::platform::auto_path_installation(
+            library.as_deref(),
+            executable.as_deref().map(str::as_bytes),
+        );
+        let packages = self
+            .read_named_variable(b"::tcl_pkgPath")
+            .ok()
+            .and_then(|value| self.auto_path_list(value).ok())
+            .unwrap_or_default();
+        if let Err(error) = arguments.check() {
+            return self.report_cmd_error(error);
+        }
+        let paths = tcl_platform::bootstrap::auto_path(
+            existing,
+            &environment,
+            &installation,
+            &packages,
+            false,
+        );
+        let elements = paths
+            .iter()
+            .map(|path| new_string(path))
+            .collect::<Vec<_>>();
+        let value = self.new_list_object(&elements);
+        match self.store_var_result(b"::auto_path", None, value) {
+            Ok(()) => Code::Ok,
+            Err(error) => builtins::var_error(self, b"::auto_path", error),
+        }
+    }
+
+    fn auto_path_list(&mut self, value: *mut TclObj) -> Result<Vec<Vec<u8>>, Code> {
+        let original = obj::Owned::retain(value);
+        let elements = tcl_syntax::value::ValueOps::list_elements(self, &original.as_ptr())
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        elements
+            .into_iter()
+            .map(|element| {
+                self.native_object_string_bytes(element)
+                    .map(|bytes| bytes.to_vec())
+                    .map_err(|error| self.report_cmd_error(error.into()))
+            })
+            .collect()
+    }
+
     pub fn init_library(&mut self) -> Code {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => return self.refuse_native_execution(first),
+        };
         let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.
@@ -6727,12 +6840,26 @@ impl Interp {
             .host()
             .filesystem()
             .and_then(|fs| fs.read(&init_path).ok());
+        if let Err(first) = scope.currency().ensure_current_or_refuse() {
+            return self.refuse_native_execution(first);
+        }
         match bytes {
             Some(bytes) => {
+                if let Err(code) = self.publish_host_bootstrap_value(
+                    scope.currency(),
+                    b"::tcl_library",
+                    None,
+                    lib.as_bytes(),
+                ) {
+                    return code;
+                }
                 let active = self.begin_package_initialization();
                 let code = self.eval_sourced(&bytes, init_path.as_bytes());
                 self.end_package_initialization(active);
-                code
+                match scope.currency().ensure_current_or_refuse() {
+                    Ok(()) => code,
+                    Err(first) => self.refuse_native_execution(first),
+                }
             }
             None => {
                 let mut m = b"can't find ".to_vec();
@@ -6741,6 +6868,19 @@ impl Interp {
                 self.error(&m)
             }
         }
+    }
+
+    /// Initialise the selected library while keeping host refusals separate.
+    ///
+    /// # Errors
+    /// Returns the original execution refusal before reading guest values.
+    pub fn init_library_completion(
+        &mut self,
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        let scope = native_operation_currency::NativeOperationScope::enter(self)?;
+        let code = self.init_library();
+        scope.currency().ensure_current_or_refuse()?;
+        crate::completion::capture_bytes(self, code)
     }
 
     /// Record `return -level L -code C` state (set by the `return` command).
@@ -15813,16 +15953,15 @@ impl Interp {
                     Command::Ensemble(token) => Some(Rc::clone(token)),
                     _ => None,
                 };
-                let restored = self.namespaces.borrow_mut().restore_with_original_key_checked(
-                    name,
-                    binding,
-                    original_key,
-                );
+                let restored = self
+                    .namespaces
+                    .borrow_mut()
+                    .restore_with_original_key_checked(name, binding, original_key);
                 if let Err(unpublished) = restored {
                     self.refuse_host_command("exposed command has no actual publication slot");
-                    if let Err(first) = unpublished.retire_checked(&|| {
-                        scope.currency().ensure_current_or_refuse()
-                    }) {
+                    if let Err(first) =
+                        unpublished.retire_checked(&|| scope.currency().ensure_current_or_refuse())
+                    {
                         self.refuse_native_execution(first);
                     }
                 }
@@ -17775,7 +17914,11 @@ impl Interp {
                 false,
             );
             let current = originals.check().and_then(|()| selected_words.check());
-            if current.is_ok() && code == Code::Error && default_target_was_missing {
+            if current.is_ok()
+                && code == Code::Error
+                && default_target_was_missing
+                && dispatch.use_ensemble_namespace
+            {
                 if let Some(name) = default_name {
                     let reached_head = selected_words.bytes(0);
                     if let Err(error) = originals
@@ -19103,7 +19246,9 @@ mod tests {
             2 => {
                 let original = interpreter.runtime_context();
                 let mut changed = original.clone();
-                changed.packages.push(("exposure-retirement".into(), "1.0".into()));
+                changed
+                    .packages
+                    .push(("exposure-retirement".into(), "1.0".into()));
                 interpreter.pin_context(&changed).unwrap();
                 interpreter.pin_context(&original).unwrap();
             }
@@ -19133,14 +19278,16 @@ mod tests {
             calls: calls.clone(),
             mode,
         });
-        interpreter.create_obj_command(
-            b"exposure_cleanup",
-            ObjCommand::new(
-                publication_noop,
-                Box::into_raw(state).cast(),
-                Some(exposure_retire),
-            ),
-        ).unwrap();
+        interpreter
+            .create_obj_command(
+                b"exposure_cleanup",
+                ObjCommand::new(
+                    publication_noop,
+                    Box::into_raw(state).cast(),
+                    Some(exposure_retire),
+                ),
+            )
+            .unwrap();
         // Use the real extracted slot's deferred cleanup door, before expose enters.
         interpreter.namespaces.borrow_mut().bind(
             GLOBAL,
@@ -19159,21 +19306,41 @@ mod tests {
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             ok(interpreter, b"proc kept {} {return VALUE}; namespace export kept; namespace eval imports {namespace import ::kept}; trace add command kept rename {list}");
-            let original = interpreter.namespaces().resolve_generation(GLOBAL, b"kept").unwrap();
-            assert_eq!(interpreter.hide_command(b"kept", b"hidden"), CommandVisibilityOutcome::Moved);
+            let original = interpreter
+                .namespaces()
+                .resolve_generation(GLOBAL, b"kept")
+                .unwrap();
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
             let calls = queue_exposure_retirement(interpreter, 0);
-            assert_eq!(interpreter.expose_command(b"hidden", b"destination"), CommandVisibilityOutcome::Moved);
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b"destination"),
+                CommandVisibilityOutcome::Moved
+            );
             assert_eq!(calls.get(), 1);
             assert_eq!(
-                interpreter.namespaces().command_fqn_by_generation(original).as_deref(),
+                interpreter
+                    .namespaces()
+                    .command_fqn_by_generation(original)
+                    .as_deref(),
                 Some(b"::other::moved".as_slice()),
             );
-            assert!(interpreter.traces.borrow().cmd_traces.iter().any(|trace| {
-                trace.token == Some(original) && trace.name == b"::other::moved"
-            }));
-            let imported = interpreter.namespaces().resolve(GLOBAL, b"imports::kept").unwrap();
-            assert!(matches!(imported, Command::Imported { source, source_generation, .. }
-                if source == b"::other::moved" && source_generation == original));
+            assert!(interpreter
+                .traces
+                .borrow()
+                .cmd_traces
+                .iter()
+                .any(|trace| { trace.token == Some(original) && trace.name == b"::other::moved" }));
+            let imported = interpreter
+                .namespaces()
+                .resolve(GLOBAL, b"imports::kept")
+                .unwrap();
+            assert!(
+                matches!(imported, Command::Imported { source, source_generation, .. }
+                if source == b"::other::moved" && source_generation == original)
+            );
             assert!(interpreter.native_execution_refusal().is_none());
             assert_eq!(ok(interpreter, b"imports::kept"), b"VALUE");
         });
@@ -19187,17 +19354,35 @@ mod tests {
         for mode in [1, 2] {
             leak_free(|interpreter| {
                 interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
-                ok(interpreter, b"proc kept {} {return VALUE}; trace add command kept rename {list}");
-                let original = interpreter.namespaces().resolve_generation(GLOBAL, b"kept").unwrap();
-                assert_eq!(interpreter.hide_command(b"kept", b"hidden"), CommandVisibilityOutcome::Moved);
+                ok(
+                    interpreter,
+                    b"proc kept {} {return VALUE}; trace add command kept rename {list}",
+                );
+                let original = interpreter
+                    .namespaces()
+                    .resolve_generation(GLOBAL, b"kept")
+                    .unwrap();
+                assert_eq!(
+                    interpreter.hide_command(b"kept", b"hidden"),
+                    CommandVisibilityOutcome::Moved
+                );
                 let calls = queue_exposure_retirement(interpreter, mode);
-                assert_eq!(interpreter.expose_command(b"hidden", b"destination"), CommandVisibilityOutcome::Missing);
+                assert_eq!(
+                    interpreter.expose_command(b"hidden", b"destination"),
+                    CommandVisibilityOutcome::Missing
+                );
                 assert_eq!(calls.get(), 1);
-                assert!(interpreter.traces.borrow().cmd_traces.iter().any(|trace| {
-                    trace.token == Some(original) && trace.name == b"::hidden"
-                }));
+                assert!(interpreter
+                    .traces
+                    .borrow()
+                    .cmd_traces
+                    .iter()
+                    .any(|trace| { trace.token == Some(original) && trace.name == b"::hidden" }));
                 if mode == 1 {
-                    assert_eq!(interpreter.host_command_refusal().as_deref(), Some("original exposure retirement refusal"));
+                    assert_eq!(
+                        interpreter.host_command_refusal().as_deref(),
+                        Some("original exposure retirement refusal")
+                    );
                 } else {
                     assert_eq!(interpreter.native_execution_refusal(), Some(
                         tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
@@ -19219,15 +19404,33 @@ mod tests {
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             ok(interpreter, b"proc kept {} {return VALUE}");
-            let original = interpreter.namespaces().resolve_generation(GLOBAL, b"kept").unwrap();
-            assert_eq!(interpreter.hide_command(b"kept", b"hidden"), CommandVisibilityOutcome::Moved);
+            let original = interpreter
+                .namespaces()
+                .resolve_generation(GLOBAL, b"kept")
+                .unwrap();
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
             let calls = queue_exposure_retirement(interpreter, 3);
-            assert_eq!(interpreter.expose_command(b"hidden", b"destination"), CommandVisibilityOutcome::Missing);
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b"destination"),
+                CommandVisibilityOutcome::Missing
+            );
             assert_eq!(calls.get(), 1);
-            assert!(interpreter.namespaces().command_fqn_by_generation(original).is_none());
-            let replacement = interpreter.namespaces().resolve_generation(GLOBAL, b"destination").unwrap();
+            assert!(interpreter
+                .namespaces()
+                .command_fqn_by_generation(original)
+                .is_none());
+            let replacement = interpreter
+                .namespaces()
+                .resolve_generation(GLOBAL, b"destination")
+                .unwrap();
             assert_ne!(replacement, original);
-            assert_eq!(interpreter.host_command_refusal().as_deref(), Some("exposed original command generation was retired"));
+            assert_eq!(
+                interpreter.host_command_refusal().as_deref(),
+                Some("exposed original command generation was retired")
+            );
         });
     }
 
@@ -19242,11 +19445,16 @@ mod tests {
         // SAFETY: the owning role passes its live original during final release.
         assert_eq!(unsafe { (*original).ref_count }, 0);
         let mut interpreter = EXPOSURE_CONFIG_OWNER.with(|owner| {
-            owner.borrow().as_ref().and_then(WeakInterp::upgrade).unwrap()
+            owner
+                .borrow()
+                .as_ref()
+                .and_then(WeakInterp::upgrade)
+                .unwrap()
         });
         assert!(interpreter.namespaces.try_borrow_mut().is_ok());
         assert!(interpreter.hidden.try_borrow_mut().is_ok());
-        EXPOSURE_CONFIG_FIRST.with(|first| *first.borrow_mut() = interpreter.native_execution_refusal());
+        EXPOSURE_CONFIG_FIRST
+            .with(|first| *first.borrow_mut() = interpreter.native_execution_refusal());
         interpreter.refuse_host_command("later unpublished ensemble configuration refusal");
     }
 
@@ -19271,21 +19479,36 @@ mod tests {
                 calls: calls.clone(),
                 mode: 4,
             });
-            interpreter.create_obj_command(b"kept", ObjCommand::new(
-                publication_noop,
-                Box::into_raw(state).cast(),
-                Some(exposure_retire),
-            )).unwrap();
-            assert_eq!(interpreter.hide_command(b"kept", b"hidden"), CommandVisibilityOutcome::Moved);
-            assert_eq!(interpreter.expose_command(b"hidden", b""), CommandVisibilityOutcome::Missing);
+            interpreter
+                .create_obj_command(
+                    b"kept",
+                    ObjCommand::new(
+                        publication_noop,
+                        Box::into_raw(state).cast(),
+                        Some(exposure_retire),
+                    ),
+                )
+                .unwrap();
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b""),
+                CommandVisibilityOutcome::Missing
+            );
             assert_eq!(calls.get(), 1);
             assert!(interpreter.hidden_names().is_empty());
-            assert_eq!(interpreter.host_command_refusal().as_deref(), Some("exposed command has no actual publication slot"));
+            assert_eq!(
+                interpreter.host_command_refusal().as_deref(),
+                Some("exposed command has no actual publication slot")
+            );
         });
     }
 
     #[test]
-    fn original_failed_exposure_retires_actual_ensemble_configuration_after_publication_first_cause() {
+    fn original_failed_exposure_retires_actual_ensemble_configuration_after_publication_first_cause(
+    ) {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // A genuine owning configured role supplies its existing +1; no protective Native hold.
@@ -19316,14 +19539,27 @@ mod tests {
                 tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
                 crate::ensemble::retire_configuration,
             );
-            interpreter.bind_command_replacement(GLOBAL, b"kept", Command::Ensemble(Rc::new(token)));
-            assert_eq!(interpreter.hide_command(b"kept", b"hidden"), CommandVisibilityOutcome::Moved);
-            assert_eq!(interpreter.expose_command(b"hidden", b""), CommandVisibilityOutcome::Missing);
+            interpreter.bind_command_replacement(
+                GLOBAL,
+                b"kept",
+                Command::Ensemble(Rc::new(token)),
+            );
+            assert_eq!(
+                interpreter.hide_command(b"kept", b"hidden"),
+                CommandVisibilityOutcome::Moved
+            );
+            assert_eq!(
+                interpreter.expose_command(b"hidden", b""),
+                CommandVisibilityOutcome::Missing
+            );
             assert_eq!(EXPOSURE_CONFIG_CALLS.with(std::cell::Cell::get), 1);
             let first = EXPOSURE_CONFIG_FIRST.with(|first| first.borrow().clone());
             assert!(first.is_some());
             assert_eq!(interpreter.native_execution_refusal(), first);
-            assert_eq!(interpreter.host_command_refusal().as_deref(), Some("exposed command has no actual publication slot"));
+            assert_eq!(
+                interpreter.host_command_refusal().as_deref(),
+                Some("exposed command has no actual publication slot")
+            );
             EXPOSURE_CONFIG_OWNER.with(|owner| owner.borrow_mut().take());
         });
     }
@@ -22297,8 +22533,12 @@ mod tests {
     fn a_planted_alias_cycle_errors_instead_of_exhausting_the_stack() {
         leak_free(|i| {
             let alias = |target: &[u8]| Command::Alias {
-                original_prefix: Rc::new(NativeAliasHeader::new(i.generated_alias_prefix(target, &[]))),
-                registration_name: Some(Rc::new(NativeAliasHeader::new(obj::Owned::fresh(new_string(target))))),
+                original_prefix: Rc::new(NativeAliasHeader::new(
+                    i.generated_alias_prefix(target, &[]),
+                )),
+                registration_name: Some(Rc::new(NativeAliasHeader::new(obj::Owned::fresh(
+                    new_string(target),
+                )))),
                 publication_name: target.to_vec(),
                 identity: Rc::new(()),
             };

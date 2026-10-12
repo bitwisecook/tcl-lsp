@@ -1,0 +1,13 @@
+{
+  "head": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "binary_sha256": "018ac8741cd251e32bb8786795e69310d72e5c1c06d5e5952b37a2fcc7593137",
+  "immutable_local_binary": "/tmp/name-native-run-test-018ac8741cd2",
+  "source_sha256": {
+    "rust/tcl-vm/examples/run_test.rs": "26d59f78ed728218f6780ad97e198625011211d0caaf53988de0fc388536dd60",
+    "rust/tcl-vm/src/interp/execution_name_policy.rs": "37a460fe5bb9bbb3de9f67af65360d03f12bba62382c2682ec4d9f5521c2eeec",
+    "rust/tcl-vm/src/interp.rs": "9378620b2f9a20a4c985cc41bfaf4f312323af50ac086f7089630a51817347ab",
+    "rust/tcl-compiler/src/compile_service.rs": "31b7615439a57c129b4ecdc948d324b6b612ba5635a3aeab13f06a87440c7d72"
+  },
+  "build_command": "source /tmp/name-env.sh; CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-vm CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo build -p tcl-vm --example run_test",
+  "note": "Modified worktree. Sources include independent compiler, bootstrap and VM lane changes; source hashes identify captured files. Mandatory native real init refused before upstream cases."
+}

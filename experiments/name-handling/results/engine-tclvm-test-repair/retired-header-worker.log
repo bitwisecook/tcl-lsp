@@ -1,0 +1,16 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+    Finished `test` profile [unoptimized] target(s) in 1m 36s
+     Running unittests src/lib.rs (/workspace/tcl-lsp/tmp/name-target-vm/debug/deps/tcl_engine_tclvm-3d3d699f2955fa52)
+
+running 1 test
+test original_projection_tests::original_engine_argument_worker_refuses_real_retired_first_header_before_later_getter ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 46 filtered out; finished in 2.53s
+
+     Running tests/doors.rs (/workspace/tcl-lsp/tmp/name-target-vm/debug/deps/doors-8d50e3705b6b7742)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+

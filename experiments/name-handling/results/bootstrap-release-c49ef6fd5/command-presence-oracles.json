@@ -1,0 +1,32 @@
+[
+  {
+    "release": "8.4.20",
+    "stdout": "\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "release": "8.5.19",
+    "stdout": "\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "release": "8.6.18",
+    "stdout": "\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "release": "9.0.4",
+    "stdout": "\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "release": "9.1.0",
+    "stdout": "::tcl::InitAutoPath\n",
+    "stderr": "",
+    "exit_code": 0
+  }
+]

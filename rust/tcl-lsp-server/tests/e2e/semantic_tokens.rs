@@ -1275,6 +1275,50 @@ fn test_imported_tcltest_test_structure_recognised() {
 }
 
 #[test]
+fn test_namespaced_imported_tcltest_test_structure_recognised() {
+    let mut lsp = Lsp::tcl();
+    let lg = legend(&lsp);
+    let src = concat!(
+        "package require tcltest\n",
+        "package require tclopt\n",
+        "namespace eval ::nativeTest {\n",
+        "    namespace path ::tclopt\n",
+        "    namespace import ::tcltest::*\n",
+        "    test native-empty {empty Euclidean norm} ",
+        "-body {mp_enorm {}} -result 0.0\n",
+        "    test native-input-preserved ",
+        "{C kernels modify private copies, not shared Tcl inputs} -body {\n",
+        "        set r {2 0 1 3}\n",
+        "        set alias $r\n",
+        "        set result [mp_covar 2 $r 2 {0 1} 1e-14]\n",
+        "        list $r $alias [expr {[dict get $result r] ne $r}]\n",
+        "    } -result {{2 0 1 3} {2 0 1 3} 1}\n",
+        "}\n",
+    );
+    let uri = open_doc(&mut lsp, src);
+    let tokens = typed(&mut lsp, &lg, &uri);
+    for option in ["-body", "-result"] {
+        let options = tokens
+            .iter()
+            .filter(|token| covered(src, token) == option)
+            .collect::<Vec<_>>();
+        assert_eq!(options.len(), 2, "both imported tests carry {option}");
+        assert!(
+            options.iter().all(|token| token.ttype == "decorator"),
+            "namespace-imported test option {option} must be classified: {options:?}",
+        );
+    }
+    for command in ["mp_enorm", "mp_covar", "set", "list", "expr", "dict"] {
+        assert!(
+            tokens
+                .iter()
+                .any(|token| covered(src, token) == command && token.ttype == "function"),
+            "test-body command {command} must be classified: {tokens:?}",
+        );
+    }
+}
+
+#[test]
 fn test_source_command_substitution_argument_is_tokenised() {
     // A command substitution in `source`'s argument is highlighted
     // as a command sequence.

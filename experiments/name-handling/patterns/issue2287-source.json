@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-10-12T12:02:13.082795+00:00",
+  "issue": "https://github.com/bitwisecook/tcl-lsp/issues/2287",
+  "repository": "https://github.com/georgtree/tclopt",
+  "revision": "8f97791d186f5a4e4c63799778e36b42fe5b8c59",
+  "git_blob_sha": "25b9bd134fcb617ff98a593e4662f611ac63694f",
+  "file": "test/native.test",
+  "file_sha256": "ccdc598b8eccb647fa67b93ac791588bfee535760a6a67ad2b49fbdfc8bfe995",
+  "selected_lines": [
+    8,
+    15
+  ],
+  "selected_range_sha256": "7b7cee2062f9e7ca3ad607f31ebfa435a6594d05521fd52ebb22c08b8f3f0628",
+  "source_url": "https://github.com/georgtree/tclopt/blob/8f97791d186f5a4e4c63799778e36b42fe5b8c59/test/native.test#L8",
+  "licence": "MIT, upstream georgtree/tclopt LICENSE; repository copyright George Yashin (Georgii Iashin)",
+  "benchmark_relationship": "File absent at existing benchmark pin; supplemental current source query only, no manifest pin changes",
+  "adaptation": "Retain package requirements, namespace path, test names/descriptions/body/result; move namespace import ::tcltest::* from root to ::nativeTest as the issue reports",
+  "consumer_test": "rust/tcl-lsp-server/tests/e2e/semantic_tokens.rs::test_namespaced_imported_tcltest_test_structure_recognised",
+  "execution": "Actual packaged-server semantic-token fixture executed and failed: -body tokens are string instead of decorator; tclopt kernels not executed",
+  "capture_retention": "Coordinates and whole/range hashes retained; third-party full source is not vendored",
+  "execution_records": "experiments/name-handling/results/issue-reproductions-2026-10-12/records.json"
+}

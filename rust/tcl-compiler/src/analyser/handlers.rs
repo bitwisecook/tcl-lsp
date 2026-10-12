@@ -42,7 +42,7 @@ use tcl_dialect::model::surface_admits;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
-use crate::alias::{command_table_transitions, is_current_interpreter, resolve_alias};
+use crate::alias::{command_table_transitions, is_current_interpreter};
 use crate::lowering::structured::{braced_word_flags, quoted_word_flags};
 use crate::parsing::syntax::descend::descend_token;
 use crate::parsing::syntax::segment::segments_from_tree;
@@ -7270,34 +7270,6 @@ impl Analyser {
                 conditional: self.conditional_depth > 0,
             },
         );
-    }
-
-    /// Resolve a command alias to `(target_cmd, effective_args)`.
-    ///
-    /// Returns `(cmd_name, args)` unchanged if no alias matches;
-    /// otherwise returns the target command and the prepended-args +
-    /// original args list. Delegates to `crate::alias::resolve_alias` for the
-    /// namespace-aware lookup.
-    #[must_use]
-    pub fn resolve_alias(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        scope_path: &[usize],
-    ) -> (String, Vec<String>) {
-        // An alias is looked up the way any unqualified command is, so the
-        // lookup namespace is the command-resolution one.
-        let ns = self.command_resolution_namespace(scope_path);
-        // `alias::resolve_alias` accepts `CommandAliasMap` (alias map
-        // keyed by qualified alias name) — the same shape as
-        // `self.command_aliases` already uses.
-        if let Some((target_cmd, prepended)) = resolve_alias(cmd_name, &self.command_aliases, &ns) {
-            let mut effective: Vec<String> = prepended;
-            effective.extend(args.iter().cloned());
-            (target_cmd, effective)
-        } else {
-            (cmd_name.to_string(), args.to_vec())
-        }
     }
 
     /// The definition-body grammar attached to `cmd_name`'s spec, if it is a
@@ -17439,28 +17411,6 @@ mod tests {
                 .map(|i| &i.name)
                 .collect::<Vec<_>>(),
         );
-    }
-
-    // resolve_alias
-
-    #[test]
-    fn resolve_alias_passthrough_for_non_alias() {
-        let mut a = Analyser::new();
-        let (target, args) = a.resolve_alias("puts", &["hello".to_string()], &[]);
-        assert_eq!(target, "puts");
-        assert_eq!(args, vec!["hello".to_string()]);
-    }
-
-    #[test]
-    fn resolve_alias_substitutes_target_and_prepended_args() {
-        let mut a = Analyser::new();
-        a.command_aliases.insert(
-            "::logerr".to_string(),
-            ("puts".to_string(), vec!["stderr".to_string()]),
-        );
-        let (target, args) = a.resolve_alias("logerr", &["hello".to_string()], &[]);
-        assert_eq!(target, "puts");
-        assert_eq!(args, vec!["stderr".to_string(), "hello".to_string()]);
     }
 
     // handle_oo_class_command

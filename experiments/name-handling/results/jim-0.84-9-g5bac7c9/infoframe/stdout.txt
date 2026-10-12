@@ -1,0 +1,1 @@
+  infoframe.test: Total     6   Passed     6  Skipped     0  Failed     0

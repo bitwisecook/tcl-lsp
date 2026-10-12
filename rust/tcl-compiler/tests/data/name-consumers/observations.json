@@ -1,0 +1,93 @@
+[
+  {
+    "patchlevel": "8.4.20",
+    "program": "aliases.tcl",
+    "stdout": "current\ncurrent\nempty\nordinary\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "8.4.20",
+    "program": "variables.tcl",
+    "stdout": "/colon-run\n/empty-tail\n0\n/colon-namespace\n/nested-colon-namespace\n0\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "8.5.19",
+    "program": "aliases.tcl",
+    "stdout": "current\ncurrent\nempty\nordinary\npath\nordinary_path\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "8.5.19",
+    "program": "variables.tcl",
+    "stdout": "/colon-run\n/empty-tail\n0\n/colon-namespace\n/nested-colon-namespace\n0\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "8.6.18",
+    "program": "aliases.tcl",
+    "stdout": "current\ncurrent\nempty\nordinary\npath\nordinary_path\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "8.6.18",
+    "program": "variables.tcl",
+    "stdout": "/colon-run\n/empty-tail\n0\n/colon-namespace\n/nested-colon-namespace\n0\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "8.6.18",
+    "program": "classes.tcl",
+    "stdout": "::ns::C\n::C\n::ns::C\n::ns::\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "9.0.4",
+    "program": "aliases.tcl",
+    "stdout": "current\ncurrent\nempty\nordinary\npath\nordinary_path\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "9.0.4",
+    "program": "variables.tcl",
+    "stdout": "/colon-run\n/empty-tail\n0\n/colon-namespace\n/nested-colon-namespace\n0\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "9.0.4",
+    "program": "classes.tcl",
+    "stdout": "::ns::C\n::C\n::ns::C\n::ns::\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "9.1.0",
+    "program": "aliases.tcl",
+    "stdout": "current\ncurrent\nempty\nordinary\npath\nordinary_path\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "9.1.0",
+    "program": "variables.tcl",
+    "stdout": "/colon-run\n/empty-tail\n0\n/colon-namespace\n/nested-colon-namespace\n0\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  {
+    "patchlevel": "9.1.0",
+    "program": "classes.tcl",
+    "stdout": "::ns::C\n::C\n::ns::C\n::ns::\n",
+    "stderr": "",
+    "exit_code": 0
+  }
+]

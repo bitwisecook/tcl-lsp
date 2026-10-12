@@ -1,0 +1,28 @@
+{
+  "engine": "runtime",
+  "subject_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "build_receipt": "experiments/name-handling/results/runtime-lifecycle-fix/post-merge-baseline/receipt.json",
+  "build_receipt_sha256": "8c9a615f1497992749b4c1d2698d15ef65ca617deab5572477948b2f7273732a",
+  "build_currency_note": "Post-build source snapshot includes coordinated uncommitted compile-recursion and string-owner repairs; binary is not claimed pristine HEAD.",
+  "input": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "input_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "command": [
+    "/tmp/name-runtime-c49-baseline",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "9.0",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl"
+  ],
+  "binary_sha256": "c565eb99d3441b9131c384ddfff8a881315dc17199f58358dd67e6daa6fb61c6",
+  "started_utc": "2026-10-12T11:56:09Z",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+  "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+  "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+  "backend_constraints_applied": false,
+  "timeout_seconds": 60,
+  "exit_code": 2,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "213fb79de27c6c4f4046c0a65036fee5a69c7b9667a55a9d9821ed6c8de9d3da",
+  "counts": null
+}

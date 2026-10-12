@@ -1,0 +1,4 @@
+LOAD 0 2.2.11
+HARNESS 8.4.20 2.2.11 ::tcltest::test
+TEST 0 {}
+COUNTERS 1 1 0 0

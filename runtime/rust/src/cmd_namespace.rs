@@ -2847,9 +2847,13 @@ namespace eval ::caller {
     }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
+        leak_free_with(Interp::new, body);
+    }
+
+    fn leak_free_with(create: impl FnOnce() -> Interp, body: impl FnOnce(&mut Interp)) {
         counters::reset();
         {
-            let mut interp = Interp::new();
+            let mut interp = create();
             body(&mut interp);
         }
         assert_eq!(
@@ -3617,6 +3621,123 @@ namespace eval ::caller {
                 b"unknown namespace \"::nope\" in namespace delete command"
             );
         });
+    }
+
+    #[test]
+    fn mutually_entangled_deletion_preserves_the_global_namespace() {
+        for version in tcl_dialect::TclVersion::ALL {
+            leak_free_with(
+                || native_namespace_interp(version),
+                |interp| {
+                    assert_eq!(
+                    interp.eval_str(
+                        br#"namespace eval ::testing {
+                            namespace eval abc {proc xyz {} {}}
+                            namespace eval def {proc xyz {} {}}
+                            trace add command abc::xyz delete "namespace delete ::testing::def {}; #"
+                            trace add command def::xyz delete "namespace delete ::testing::abc {}; #"
+                        }
+                        namespace delete ::testing
+                        list [namespace exists ::testing] [info commands set]"#,
+                    ),
+                    Code::Ok,
+                    "{version:?}: {:?}",
+                    interp.result_bytes(),
+                );
+                    assert_eq!(interp.result_bytes(), b"0 set", "{version:?}");
+                },
+            );
+        }
+    }
+
+    #[test]
+    fn child_teardown_distinguishes_cached_names_from_fresh_lookup() {
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version >= tcl_dialect::TclVersion::V8_5)
+        {
+            leak_free_with(
+                || native_namespace_interp(version),
+                |interp| {
+                    assert_eq!(
+                        interp.eval_str(
+                            br#"set seen {}
+                        proc observe {tag old new op} {
+                            set fresh ::P
+                            append fresh ::C
+                            lappend ::seen [list $tag [namespace exists ::P::C] \
+                                [namespace exists $fresh]]
+                        }
+                        namespace eval ::P {
+                            namespace ensemble create -command ::PE
+                            namespace eval C {namespace ensemble create -command ::CE}
+                        }
+                        trace add command ::PE delete [list observe parent]
+                        trace add command ::CE delete [list observe child]
+                        namespace delete ::P
+                        set seen"#,
+                        ),
+                        Code::Ok,
+                        "{version:?}: {:?}",
+                        interp.result_bytes(),
+                    );
+                    assert_eq!(
+                        interp.result_bytes(),
+                        b"{parent 1 1} {child 1 0}",
+                        "{version:?}",
+                    );
+                },
+            );
+        }
+    }
+
+    #[test]
+    fn implicit_ensemble_targets_preserve_the_selected_namespace_context() {
+        for version in tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter(|version| *version >= tcl_dialect::TclVersion::V8_5)
+        {
+            leak_free_with(
+                || native_namespace_interp(version),
+                |interp| {
+                    assert_eq!(
+                        interp.eval_str(br#"namespace eval ::M {
+                            namespace ensemble create -command path -subcommands {add remove}
+                            proc add {path} {return [list ADD [namespace current] $path]}
+                        }
+                        proc ::add {path} {return [list GLOBAL $path]}
+                        proc ::remove {path} {return [list GLOBAL_REMOVE $path]}
+                        namespace eval ::Caller {proc add {path} {return [list CALLER $path]}}
+                        list [::M::path add x] [namespace eval ::Caller {::M::path add y}] [::add z]"#),
+                        Code::Ok,
+                        "{version:?}: {:?}",
+                        interp.result_bytes(),
+                    );
+                    assert_eq!(
+                        interp.result_bytes(),
+                        b"{ADD ::M x} {ADD ::M y} {GLOBAL z}",
+                        "{version:?}"
+                    );
+                    assert_eq!(interp.eval_str(br#"set code [catch {namespace eval ::Caller {::M::path remove q}} result]; list $code $result"#), Code::Ok);
+                    let expected = if version == tcl_dialect::TclVersion::V8_5 {
+                        b"1 {invalid command name \"::M::remove\"}".as_slice()
+                    } else {
+                        b"0 {GLOBAL_REMOVE q}".as_slice()
+                    };
+                    assert_eq!(interp.result_bytes(), expected, "{version:?}");
+                    assert!(interp.native_execution_refusal().is_none());
+                },
+            );
+        }
+    }
+
+    fn native_namespace_interp(version: tcl_dialect::TclVersion) -> Interp {
+        Interp::with_native_core(
+            std::rc::Rc::new(tcl_host_native::NativeHost::new()),
+            tcl_registry::model::resolve_environment(version.dialect_profile_name()).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("selected native namespace core")
     }
 
     /// Run `sheet` and pin its result byte for byte. Every expectation below

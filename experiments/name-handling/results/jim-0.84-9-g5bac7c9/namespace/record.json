@@ -1,0 +1,19 @@
+{
+  "suite": "namespace",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/namespace.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "a3df226ea9ef35afa59bf82ad5187b6987e6ac4f00cdbbaf1e1c78bb52379dbd",
+  "stdout_sha256": "8f143f0ff7ff1090b66bd3d6ec51b459da13ce3b009ca0568f63b348b8d23902",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 79,
+    "passed": 79,
+    "skipped": 0,
+    "failed": 0
+  }
+}

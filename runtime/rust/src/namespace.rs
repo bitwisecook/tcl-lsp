@@ -3180,9 +3180,7 @@ impl Namespaces {
                 let command = command.clone();
                 (self.command_fqn(namespace, simple), command)
             },
-            |command, namespace, simple| {
-                (self.command_fqn(namespace, simple), command.clone())
-            },
+            |command, namespace, simple| (self.command_fqn(namespace, simple), command.clone()),
         )
     }
 
@@ -3587,9 +3585,16 @@ impl Namespaces {
         std::mem::take(&mut self.arena[ns].vars)
     }
 
-    /// Unlink native paths after this token's ordinary commands are deleted.
+    /// Unpublish this token and its resolution paths after its commands retire.
     pub(crate) fn finish_native_namespace_command_path(&mut self, ns: NsId) {
         self.note_guard_lookup_environment_mutation();
+        self.dying_children.retain(|_, child| *child != ns);
+        if self.arena[ns].parent.is_some() {
+            let fqn = self.qualified_name(ns);
+            self.arena[ns].parent = None;
+            self.arena[ns].retained_fqn = Some(fqn);
+            self.namespace_name_detach_parent(ns);
+        }
         self.arena[ns].path.clear();
         self.invalidate_native_path_dependents(ns);
         for node in &mut self.arena {
@@ -3798,11 +3803,16 @@ mod tests {
         assert!(namespaces.restore(b"other::moved", moved));
         let owned = namespaces.command_by_generation(original).unwrap();
         assert_eq!(owned.0, b"::other::moved");
-        assert_eq!(namespaces.command_fqn_by_generation(original), Some(owned.0));
+        assert_eq!(
+            namespaces.command_fqn_by_generation(original),
+            Some(owned.0)
+        );
         namespaces.register(b"other::moved", cmd());
         assert!(namespaces.command_fqn_by_generation(original).is_none());
         assert!(namespaces.command_by_generation(original).is_none());
-        let replacement = namespaces.resolve_generation(GLOBAL, b"other::moved").unwrap();
+        let replacement = namespaces
+            .resolve_generation(GLOBAL, b"other::moved")
+            .unwrap();
         assert_ne!(replacement, original);
         assert_eq!(
             namespaces.command_fqn_by_generation(replacement).as_deref(),
@@ -3821,8 +3831,14 @@ mod tests {
         let entry = namespaces.native_command_creation_entry(GLOBAL, b"kept");
         let top = namespaces.bind_jim_local(entry, b"kept", cmd());
         assert_ne!(original, top);
-        assert_eq!(namespaces.native_command_at_node(original).unwrap().1, b"::kept");
-        assert_eq!(namespaces.command_by_generation(original).unwrap().0, b"::kept");
+        assert_eq!(
+            namespaces.native_command_at_node(original).unwrap().1,
+            b"::kept"
+        );
+        assert_eq!(
+            namespaces.command_by_generation(original).unwrap().0,
+            b"::kept"
+        );
         assert!(namespaces.command_fqn_by_generation(original).is_none());
         assert_eq!(
             namespaces.command_fqn_by_generation(top).as_deref(),

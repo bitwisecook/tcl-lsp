@@ -47,6 +47,13 @@ pub fn install(interp: &mut Interp) {
     interp.register_stock_builtin(b"interp", interp_cmd);
     if interp
         .native_invocation_dialect()
+        .native_bootstrap_protocol()
+        .is_some_and(|protocol| protocol.registers_core_init_auto_path())
+    {
+        interp.register_stock_builtin(b"::tcl::InitAutoPath", Interp::init_auto_path);
+    }
+    if interp
+        .native_invocation_dialect()
         .native_jim_lookup_protocol()
         .is_some()
     {
@@ -1775,11 +1782,9 @@ mod tests {
                 assert_eq!(interp.result_obj(), result);
                 assert_eq!(interp.result_bytes(), b"PARENT RESULT");
                 assert!(!interp.child_exists(b"::interp.handle0"));
-                assert!(
-                    interp
-                        .find_command_id(crate::namespace::GLOBAL, b"::interp.handle0")
-                        .is_none()
-                );
+                assert!(interp
+                    .find_command_id(crate::namespace::GLOBAL, b"::interp.handle0")
+                    .is_none());
             }
             assert_eq!(counters::finalize(), 0);
             assert_eq!(counters::double_free_count(), 0);
@@ -1842,21 +1847,17 @@ mod tests {
                                 assert!(owner.host_refusal_pending());
                                 assert_eq!(owner.native_access_refusal(), refusal);
                                 assert!(!owner.child_exists(b"child"));
-                                assert!(
-                                    owner
-                                        .find_command_id(crate::namespace::GLOBAL, b"child")
-                                        .is_none()
-                                );
+                                assert!(owner
+                                    .find_command_id(crate::namespace::GLOBAL, b"child")
+                                    .is_none());
                             })
                             .unwrap();
                     } else {
                         let name = spelling.unwrap_or(b"interp0");
                         assert!(!interp.child_exists(name));
-                        assert!(
-                            interp
-                                .find_command_id(crate::namespace::GLOBAL, name)
-                                .is_none()
-                        );
+                        assert!(interp
+                            .find_command_id(crate::namespace::GLOBAL, name)
+                            .is_none());
                     }
                 }
                 assert_eq!(counters::finalize(), 0);
@@ -3701,11 +3702,9 @@ mod original_rename_operation_tests {
                     let prior = super::original_operand_tests::seed(&mut interp);
                     let code = super::rename(&mut interp, &argv);
                     assert_eq!(CALLS.with(Cell::get), 1);
-                    assert!(
-                        interp
-                            .resolve_cmd_token(b"original_rename_victim")
-                            .is_none()
-                    );
+                    assert!(interp
+                        .resolve_cmd_token(b"original_rename_victim")
+                        .is_none());
                     assert_eq!(
                         interp.resolve_cmd_token(b"original_rename_moved").is_some(),
                         !deleting
@@ -3974,8 +3973,7 @@ mod original_alias_storage_tests {
                 });
                 let jim = version == "jim";
                 let jim_words: &[&[u8]] = &[b"alias"];
-                let c_words: &[&[u8]] =
-                    &[b"interp", b"alias", if child { b"child" } else { b"" }];
+                let c_words: &[&[u8]] = &[b"interp", b"alias", if child { b"child" } else { b"" }];
                 let words =
                     super::original_operand_tests::words(if jim { jim_words } else { c_words });
                 let target_path = Owned::fresh(obj::new_string_bytes(b""));
@@ -4201,11 +4199,9 @@ mod original_alias_storage_tests {
             assert!(interp.delete_command(b"aliasProbe"));
             let members = ValueOps::list_elements(&mut interp, &second.as_ptr()).unwrap();
             assert_eq!(UPDATES.with(|v| v.borrow()[2..].to_vec()), vec![0, 0]);
-            assert!(
-                members[1..]
-                    .iter()
-                    .all(|&original| !obj::has_string_rep(original))
-            );
+            assert!(members[1..]
+                .iter()
+                .all(|&original| !obj::has_string_rep(original)));
             drop(first);
             assert_eq!(FREES.with(|v| v.borrow()[2..].to_vec()), vec![0, 0]);
             drop(second);
@@ -4553,7 +4549,8 @@ mod original_alias_key_tests {
                 assert_eq!(unsafe { (*originals[role].as_ptr()).ref_count }, 1);
             }
             assert_eq!(
-                tcl_syntax::value::ValueOps::list_elements(&mut interp, &first_query.as_ptr()).unwrap(),
+                tcl_syntax::value::ValueOps::list_elements(&mut interp, &first_query.as_ptr())
+                    .unwrap(),
                 members
             );
             assert!(interp.native_execution_refusal().is_none());

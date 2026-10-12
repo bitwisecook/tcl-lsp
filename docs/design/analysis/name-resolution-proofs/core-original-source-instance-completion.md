@@ -16,7 +16,7 @@ InstanceCompletionSource retains either the complete OriginalSourceClassInstance
 
 ## Scope
 
-Current Core source-instance candidate, cursor geometry, narrow source spelling completion, property-option, positive Logical compatibility and Native rename-hazard contracts. Seven fixed carrier controls and four consumer controls are linked independently of actual Rust execution results. All seven native providers are not tested.
+Current Core source-instance candidate, cursor geometry, narrow source spelling completion, property-option, positive Logical compatibility and Native rename-hazard contracts. Seven fixed carrier controls and four consumer controls are linked independently of actual Rust execution results. All seven native providers are not tested. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -94,6 +94,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `rename_safety::original_receiver_hazard_tests::original_receiver_hazards_cannot_be_narrowed_by_detached_source_class_reports` (linked): A contradictory donated reporting class cannot remove a hazard for an unproved actual Native receiver.
 - [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::configured_receiver_head_tests::configured_method_heads_require_the_whole_variable_operand` (linked): The configured method-head consumer keeps complete Unicode and array-reference geometry, refuses literal or substituted suffixes and malformed/bare Unicode heads, and distinguishes FirstClose literal braces from nesting and escaped-brace geometry. This syntax supplies no receiver identity or Native name/dispatch grant.
 - [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::configured_receiver_head_tests::actual_method_navigation_does_not_promote_compound_variable_syntax` (linked): The actual source navigation consumer under selected C8.6 and C9.1 analysis retains its independent original method owner: a complete braced Unicode receiver can select its source method, while appended literal or substituted source cannot borrow that receiver. These are software source definitions, not external native execution or callback chronology.
+- [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `actual_rename_hazard_keeps_a_compound_variable_receiver_untracked` (linked): Whole known scalar receivers avoid an untracked hazard; compound, array-element and unknown receiver reads remain untracked.
+- [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `actual_rename_receiver_names_keep_first_close_and_nested_source_currency` (linked): Rename hazard advice retains the selected variable brace grammar, current original source and resolved input rather than interpreting foreign/nested names through another grammar.
 
 A named test is a coverage binding, not a claim that it executed.
 

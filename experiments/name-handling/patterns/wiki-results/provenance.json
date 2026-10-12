@@ -1,0 +1,160 @@
+{
+  "retrieved_date": "2026-10-12",
+  "manifest": "rust/tcl-dialect/data/reference-toolchains.tsv",
+  "manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "probes": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "probes_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "runner_sha256": "132320f59cff66c477d020895e961918e6dabf950dff8a5b3d480deda54c0e63",
+  "records": [
+    {
+      "release": "8.4",
+      "patchlevel": "8.4.20",
+      "upstream_tag": "core-8-4-20",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.4",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl"
+      ],
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "startup_libraries": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+          "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+          "sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+        }
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "4622c191613f388df22260c35beeb7a735cc110f634b5f8dea0b4197e1d6574c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {
+        "total": 30,
+        "passed": 21,
+        "skipped": 9,
+        "failed": 0
+      }
+    },
+    {
+      "release": "8.5",
+      "patchlevel": "8.5.19",
+      "upstream_tag": "core-8-5-19",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.5",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl"
+      ],
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "startup_libraries": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+          "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+          "sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d"
+        }
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "0e2fca059e3b5e45ab09495052e39d676b8a468d9c3882ff6fadcfb8eafaaa3c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {
+        "total": 30,
+        "passed": 22,
+        "skipped": 8,
+        "failed": 0
+      }
+    },
+    {
+      "release": "8.6",
+      "patchlevel": "8.6.18",
+      "upstream_tag": "core-8-6-18",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl"
+      ],
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "startup_libraries": [
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+          "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+        },
+        {
+          "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+          "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+        }
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "30c8ebbde3cb5ea37fd3caabc028008e11af4c9950bb322e6f7fecc58c0ed0a9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {
+        "total": 30,
+        "passed": 29,
+        "skipped": 1,
+        "failed": 0
+      }
+    },
+    {
+      "release": "9.0",
+      "patchlevel": "9.0.4",
+      "upstream_tag": "core-9-0-4",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh9.0",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl"
+      ],
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "startup_libraries": [
+        {
+          "path": "//zipfs:/app/tcl_library/init.tcl",
+          "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+        },
+        {
+          "path": "//zipfs:/app/tcl_library/tcltest/tcltest.tcl",
+          "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+        }
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "2a63cbf6158fa0856205582d902ecf1c128d9547185531d9082129625efd0aad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {
+        "total": 30,
+        "passed": 29,
+        "skipped": 1,
+        "failed": 0
+      }
+    },
+    {
+      "release": "9.1",
+      "patchlevel": "9.1.0",
+      "upstream_tag": "core-9-1-0",
+      "invocation": [
+        "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh9.1",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl"
+      ],
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "startup_libraries": [
+        {
+          "path": "//zipfs:/app/tcl_library/init.tcl",
+          "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+        },
+        {
+          "path": "//zipfs:/app/tcl_library/tcltest/tcltest.tcl",
+          "sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+        }
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "96ff25228a4e55d6a19807f3d22250214b566018d5ee388336842cee02bc130f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {
+        "total": 30,
+        "passed": 29,
+        "skipped": 1,
+        "failed": 0
+      }
+    }
+  ]
+}

@@ -22,22 +22,7 @@
 //! and the compiler's bridge from **source words** to the registry's one
 //! command-table transition vocabulary.
 //!
-//! ## The one vocabulary (centralisation ledger C8)
-//!
-//! What a call did to the command table is registry data, stated once as
-//! [`tcl_registry::CommandBindingTransition`] facts and read through
-//! [`command_table_transitions`]. This module deliberately carries no second
-//! vocabulary of its own: `detect_interp_alias`, `detect_rename` and
-//! `detect_interp_alias_delete` re-destructured `interp alias`'s and
-//! `rename`'s argument layouts here, after each consumer had dispatched on
-//! the coarse `CommandTableEffect` word — a layout the registry's own
-//! resolvers already knew, and a dynamic-operand rule
-//! ([`is_dynamic_word`]) each consumer re-applied for itself. The layout
-//! now lives with the resolver
-//! (`tcl_registry::state_transition::command_binding`), and a dynamic
-//! operand arrives as a typed [`TransitionSubject::Unknown`] instead.
-//!
-//! [`TransitionSubject::Unknown`]: tcl_registry::TransitionSubject::Unknown
+//! Command-table transitions come from registry invocation facts.
 
 use std::collections::HashMap;
 
@@ -45,7 +30,7 @@ use tcl_registry::{
     CommandRegistry, InvocationWord, InvocationWords, StateTransitions, TransitionSubject,
 };
 
-use crate::naming::{is_dynamic_word, normalise_qualified_name};
+use crate::naming::{is_dynamic_word, resolve_command_with};
 
 /// Classify one reconstructed source word for the registry's structured
 /// invocation view.
@@ -53,9 +38,7 @@ use crate::naming::{is_dynamic_word, normalise_qualified_name};
 /// A word carrying a `$` substitution or a `[…]` command substitution has
 /// no statically known Tcl value, so it becomes
 /// [`InvocationWord::Dynamic`] and every subject the registry derives from
-/// it is a typed unknown. This is the compiler's **one** dynamic-word rule
-/// reaching the registry; before ledger C8 each command-table consumer
-/// applied its own copy of it after the fact.
+/// it is a typed unknown.
 #[must_use]
 pub fn source_word(text: &str) -> InvocationWord<'_> {
     if is_dynamic_word(text) {
@@ -126,31 +109,18 @@ pub fn subject_word<'a>(subject: &'a TransitionSubject, args: &'a [String]) -> O
 /// Alias store: qualified name → (target command, prepended args).
 pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
 
-/// Look up a command alias, namespace-aware.
-///
-/// Returns `(target_cmd, prepended_args)` or `None`.
-/// If `cmd_name` starts with `::`, looks up directly.
-/// Otherwise tries the current `namespace` first, then global.
+/// Compatibility lookup in an authored C alias table, without path or
+/// competing-command facts. Native callers use the retained source binding.
 #[must_use]
 pub fn resolve_alias(
     cmd_name: &str,
     aliases: &CommandAliasMap,
     namespace: &str,
 ) -> Option<(String, Vec<String>)> {
-    if cmd_name.starts_with("::") {
-        return aliases.get(&normalise_qualified_name(cmd_name)).cloned();
-    }
-
-    if namespace != "::" {
-        let candidate = crate::naming::qualify(namespace, cmd_name);
-        if let Some(entry) = aliases.get(&candidate) {
-            return Some(entry.clone());
-        }
-    }
-
-    aliases
-        .get(&crate::naming::qualify("::", cmd_name))
-        .cloned()
+    let selected = resolve_command_with::<&str, _>(namespace, &[], cmd_name, |candidate| {
+        aliases.contains_key(candidate)
+    })?;
+    aliases.get(&selected).cloned()
 }
 
 #[cfg(test)]

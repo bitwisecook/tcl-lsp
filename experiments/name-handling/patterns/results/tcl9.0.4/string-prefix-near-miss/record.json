@@ -1,0 +1,30 @@
+{
+  "case_id": "string-prefix-near-miss",
+  "release": "9.0",
+  "patchlevel": "9.0.4",
+  "probe": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+  "probe_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+  "input_sha256": "83d3900799cd1c2f7a5bbc6cc836884ba83eb3ec866556fa83bff2731eb280a8",
+  "process_exit_code": 0,
+  "stdout_sha256": "59239c77a45c977f116b81462426f61738da71fb1397672d4ad070392329b851",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl9.0.4/string-prefix-near-miss",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "1",
+  "setup_result": "::nh::two words",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "invalid command name \"::nh::two\"",
+  "lookup_options": "-errorcode {TCL LOOKUP COMMAND ::nh::two} -code 1 -level 0 -errorstack {INNER {invokeStk1 ::nh::two words {a b} {c d}}} -errorinfo {invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\"} -errorline 1",
+  "lookup_error_code": "TCL LOOKUP COMMAND ::nh::two",
+  "lookup_error_info": "invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\""
+}

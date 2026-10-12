@@ -16,7 +16,7 @@ C9.0.4/C9.1.0 return original completion code 0 with the single-index payload `0
 
 ## Scope
 
-Four exact original ASCII LF source controls run independently in fresh full Tcl_Init or Jim core/static initialisation under the unchanged counted Native202/210/222 C API driver, with no added outer source envelope. Each available source creates lseq9, catches its exact original lindex spelling, reads ::tcl::unsupported::representation and emits only the extracted public type word with caught result/code. Addresses and complete representation descriptions are not emitted. Complete original source/requests, driver, launch script, actual commands/receipts/stdout/stderr/ELFs and provider source/header/archive/build pins are preserved. Two full pinned tclListObj.c copies and exact TclLindexFlat excerpts are inspected independently; source text does not identify private state during the executed call.
+Four exact original ASCII LF source controls run independently in fresh full Tcl_Init or Jim core/static initialisation under the unchanged counted Native202/210/222 C API driver, with no added outer source envelope. Each available source creates lseq9, catches its exact original lindex spelling, reads ::tcl::unsupported::representation and emits only the extracted public type word with caught result/code. Addresses and complete representation descriptions are not emitted. Complete original source/requests, driver, launch script, actual commands/receipts/stdout/stderr/ELFs and provider source/header/archive/build pins are preserved. Two full pinned tclListObj.c copies and exact TclLindexFlat excerpts are inspected independently; source text does not identify private state during the executed call. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -405,6 +405,8 @@ TclLindexFlat(
 ## Consumer bindings
 
 - [runtime/rust/src/native_arithseries/tests.rs](../../../../runtime/rust/src/native_arithseries/tests.rs), `native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary` (linked): Four selected finite call fragments compare public results and the measured retained input type distinction: single arithseries, valid path/separate list, out-of-range arithseries. The Rust descriptor assertion grants no native refcount/member identity or huge operation behaviour.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `abstract_index_key_clones_keep_fresh_zero_role_without_native_references_or_element_cache` (linked): Software source definition checks abstract index key clones keep fresh zero role without native references or element cache.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `nested_selected_member_has_actual_hold_before_created_parent_cleanup_and_detached_result` (linked): Software source definition checks nested selected member has actual hold before created parent cleanup and detached result.
 
 A named test is a coverage binding, not a claim that it executed.
 

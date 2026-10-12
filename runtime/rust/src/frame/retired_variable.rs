@@ -78,7 +78,11 @@ impl RetiredVariableParts {
         self.0.append(&mut old.0);
     }
 
-    pub(crate) fn finish<E>(mut self, current: impl Fn() -> Result<(), E>) -> Result<(), E> {
+    pub(crate) fn finish<E>(self, current: impl Fn() -> Result<(), E>) -> Result<(), E> {
+        self.finish_with_check(&current)
+    }
+
+    fn finish_with_check<E>(mut self, current: &dyn Fn() -> Result<(), E>) -> Result<(), E> {
         let mut first = None;
         for old in std::mem::take(&mut self.0) {
             match old {
@@ -92,7 +96,7 @@ impl RetiredVariableParts {
                     }
                 }
                 RetiredPart::Value(Var::Link(link)) => {
-                    if let Err(error) = link.withdraw_stored_roles().finish(&current) {
+                    if let Err(error) = link.withdraw_stored_roles().finish_with_check(current) {
                         first.get_or_insert(error);
                     }
                     drop(link);
@@ -103,7 +107,7 @@ impl RetiredVariableParts {
                 RetiredPart::LinkMetadata { displaced, adopted } => {
                     if let Err(error) = displaced
                         .withdraw_unshared_roles(Some(&adopted))
-                        .finish(&current)
+                        .finish_with_check(current)
                     {
                         first.get_or_insert(error);
                     }

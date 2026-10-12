@@ -1,0 +1,10 @@
+{
+  "subject_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "captured_utc": "2026-10-12T12:26:30.745758+00:00",
+  "binary": "/tmp/name-runtime-native-ensemble-fixed",
+  "binary_sha256": "eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f",
+  "source_patch_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+  "build_log": "/tmp/name-runtime-native-ensemble-build.log",
+  "ingress": "Interp::with_native_core; init_library_completion; matching real TCL_LIBRARY",
+  "currency_note": "Current uncommitted source changes included; snapshot preserves exact executable. Patch captured immediately after build; concurrent lanes share source."
+}

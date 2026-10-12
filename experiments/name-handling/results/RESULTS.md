@@ -1,4 +1,61 @@
-# Current VM/runtime name conformance
+# Current name conformance measurements
+
+The actual native runtime has incomplete naming conformance. Its frozen
+executable uses the selected native core at allocation time and real matching
+upstream libraries. Completed assertion results, host refusals and unexecuted
+suite regions remain separate evidence.
+
+## Actual native runtime: Tcl 8.5.19
+
+[Current six-suite report](runtime-current-tcl8.5.19/RESULTS.md),
+[records](runtime-current-tcl8.5.19/records.json) and
+[provenance](runtime-current-tcl8.5.19/provenance.json) identify the immutable
+native binary, real 8.5.19 init/Tcltest, input hashes and exact commands.
+
+| File | C passed / skipped / failed | Runtime passed / skipped / failed |
+| --- | --- | --- |
+| namespace | 280 / 1 / 0 | Host refusal at `namespace-8.1`; later tests unmeasured |
+| var | 69 / 17 / 0 | 66 / 17 / 3 |
+| upvar | 52 / 7 / 0 | Host refusal at `upvar-1.1`; later tests unmeasured |
+| rename | 11 / 8 / 0 | 11 / 8 / 0 |
+| set | 63 / 1 / 0 | 63 / 1 / 0 |
+| proc | 25 / 8 / 0 | 25 / 8 / 0 |
+
+C completes all six files with 500 passes, 42 skips and 0 failures. The four
+completed runtime files record 165 passes, 34 skips and 3 assertion failures.
+Those failures are `var-7.16`, `var-7.17` (zero-argument `variable`) and
+`var-14.2` (`array names -glob`); all three execute and pass in C. They do not
+establish three independent defects. Namespace requires original local-alias
+table receipt policy and upvar requires original simple-variable-cell policy.
+Both terminate through explicit host refusals without complete totals.
+
+The [namespace/ensemble lifecycle report](runtime-lifecycle-fix/RESULTS.md)
+retains seven passing exact native regressions and matching C 8.5–9.1 ensemble
+controls. The exact upstream `namespace-56.2` body now passes with real 8.5
+init/Tcltest. A cached namespace reference after 8.5 initialization still differs
+from C. The retained lifecycle capture stops before that test on 8.4, 8.6, 9.0 and
+9.1 through explicit missing native-policy refusals; no whole-file suite result
+is claimed for those subjects.
+
+The immutable current runtime binary is
+`/tmp/name-runtime-native-ensemble-fixed`, SHA-256
+`eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f`.
+Its [build receipt](runtime-current-tcl8.5.19/runtime-build-receipt.json) and
+[source patch](runtime-lifecycle-fix/native-ensemble-fix/source.patch) identify
+commit `c49ef6fd5d147edd0cf473070dfaac2834c20dd7` plus captured uncommitted
+changes. Later source edits do not inherit these executable outcomes.
+
+## Separate frozen subjects
+
+The remaining report retains historical measurements of commit
+`b7ad30f1fcc1911f8e8744485d809f5348b9b850` and its recorded drivers. Its
+focused passes, startup observations, suite failures and totals belong only to
+that frozen subject. In particular, those runtime driver results used Logical
+construction and do not establish the current actual native core's behavior.
+Their existing input/raw/provenance captures remain useful oracle and
+reproduction evidence, without current VM or runtime conformance claims.
+
+# Frozen b7ad VM/runtime measurements
 
 The existing focused regressions pass, but the original upstream naming suites
 expose substantial remaining gaps. Neither engine has complete naming

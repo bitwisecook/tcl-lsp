@@ -6,7 +6,6 @@ use crate::{
     dict,
     ensemble::{EnsembleConfig, NativeEnsembleObjects, NativeEnsembleRoot},
     list,
-    namespace::GLOBAL,
     obj::{self, Owned, TclObj},
 };
 use tcl_cmd_core::ensemble::EnsembleObjectRole;
@@ -133,6 +132,12 @@ impl Interp {
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "ensemble member names",
             ))?;
+        let dispatch = self
+            .native_invocation_dialect()
+            .native_ensemble_dispatch_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "ensemble member lookup context",
+            ))?;
         let counted_keys = map
             .iter()
             .map(|&(key, _)| dict::native_object_bytes(key, protocol))
@@ -160,11 +165,14 @@ impl Interp {
             let prefix = if let Some(prefix) = mapped {
                 Owned::retain(prefix)
             } else {
-                let target = if cfg.subcommands.is_some() {
+                let target = if cfg.subcommands.is_some() && dispatch.use_ensemble_namespace {
                     name.clone()
                 } else {
-                    let mut qualified = self.namespaces.borrow().qualified_name(cfg.ns);
-                    if cfg.ns != GLOBAL {
+                    let namespace = self.native_namespace_token_at(cfg.ns).ok_or(
+                        ValueError::CommandProtocolUnavailable("ensemble namespace incarnation"),
+                    )?;
+                    let mut qualified = namespace.full_name().as_bytes().to_vec();
+                    if namespace.parent().is_some() {
                         qualified.extend_from_slice(b"::");
                     }
                     qualified.extend_from_slice(&name);

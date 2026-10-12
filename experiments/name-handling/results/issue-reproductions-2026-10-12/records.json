@@ -1,0 +1,192 @@
+{
+  "captured_at": "2026-10-12T12:47:09.413807+00:00",
+  "kind": "executed Rust consumer validation, not native-provider observation",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "environment_setup": "source scripts/dev/agent-build-env.sh; source /tmp/name-env.sh",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-issues",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "2"
+  },
+  "source_scope": "Tracked Rust/runtime source, config and fixture files with .rs/.toml/.lock/.json/.tcl/.tclspec suffixes; exact byte snapshots were not frozen during the earlier builds",
+  "frozen_source_changes": [],
+  "frozen_source_stable": true,
+  "precompilation_failures": [
+    {
+      "exit": 127,
+      "reason": "cargo absent from default PATH; zero assertions"
+    },
+    {
+      "exit": 101,
+      "reason": "nonexistent rust/Cargo.toml; zero assertions"
+    },
+    {
+      "exit": 101,
+      "reason": "default Rust1.98.1 below1.99 MSRV; zero assertions"
+    }
+  ],
+  "runs": [
+    {
+      "id": "shared-frame",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "tcltest_shared_frame_",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "actual_counts": {
+        "passed": 1,
+        "failed": 1,
+        "ignored": 0,
+        "selected": 2,
+        "seconds": 110.54
+      },
+      "log_path": "experiments/name-handling/results/issue-reproductions-2026-10-12/shared-frame.log",
+      "log_sha256": "9d5c4923056fa2a65015b478ea222d7b95d7144e774b3952a374489c1dd9ef32",
+      "scope_limit": "Mixed source: dependency/compiler files changed during build; positive test runs all five profiles, negative stops at first Tcl8.4 assertion"
+    },
+    {
+      "id": "aliases",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "tcltest_aliases_",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "actual_counts": {
+        "passed": 1,
+        "failed": 1,
+        "ignored": 0,
+        "selected": 2,
+        "seconds": 132.76
+      },
+      "log_path": "experiments/name-handling/results/issue-reproductions-2026-10-12/aliases.log",
+      "log_sha256": "23da555a2af07659f0f966374e4b939ec79df4a804ff269f0446b4b9ce73252e",
+      "scope_limit": "Compiled source run following dependency edits; positive covers five profiles/captured-prefix variants, negative stops at first direct-alias Tcl8.4 assertion"
+    },
+    {
+      "id": "namespace-import",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "tcltest_import_is_namespace_scoped",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "actual_counts": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "selected": 1,
+        "seconds": 5.09
+      },
+      "log_path": "experiments/name-handling/results/issue-reproductions-2026-10-12/namespace-import.log",
+      "log_sha256": "629821f2fef3d97f3266c79c680a6624467893b544b5efb34d1defa61b3d2dd8",
+      "scope_limit": "Namespace-scoped W100/body traversal fixture; not a semantic-token result"
+    },
+    {
+      "id": "namespaced-semantic",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-lsp-server",
+        "--test",
+        "e2e",
+        "semantic_tokens::test_namespaced_imported_tcltest_test_structure_recognised",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "actual_counts": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "selected": 1,
+        "seconds": 7.4
+      },
+      "log_path": "experiments/name-handling/results/issue-reproductions-2026-10-12/namespaced-semantic.log",
+      "log_sha256": "14b0445cf104046dc495407974dfb68c382e2d9664b45c87f6dbd743c8d26f1c",
+      "scope_limit": "Actual packaged-server source highlighting; both -body tokens are string rather than decorator; no tclopt kernel execution"
+    },
+    {
+      "id": "top-import-semantic",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-lsp-server",
+        "--test",
+        "e2e",
+        "semantic_tokens::test_imported_tcltest_test_structure_recognised",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "actual_counts": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "selected": 1,
+        "seconds": 1.88
+      },
+      "log_path": "experiments/name-handling/results/issue-reproductions-2026-10-12/top-import-semantic.log",
+      "log_sha256": "f6c2f109e39e9ea502d786f205c3ef81961d0ebbee33db90857d89a1817de442",
+      "scope_limit": "Existing top-level imported test control also paints -body as string; not only a namespaced defect"
+    },
+    {
+      "id": "genuine-read-negatives-frozen",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "genuine_undefined_reads",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "actual_counts": {
+        "passed": 0,
+        "failed": 2,
+        "ignored": 0,
+        "selected": 2,
+        "seconds": 2.74
+      },
+      "log_path": "experiments/name-handling/results/issue-reproductions-2026-10-12/genuine-read-negatives-frozen.log",
+      "log_sha256": "b9a49aeee3d206590c0ca7d5eb52fd64a48e1763cc344406c20d0eb11588ea17",
+      "scope_limit": "Post-freeze compiler controls: both stop at first Tcl8.4 assertion; no negative result for later profiles or captured alias variants"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+    Blocking waiting for file lock on build directory
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 2m 46s
+     Running unittests examples/run_test.rs (tmp/name-target-vm/debug/examples/run_test-c3eb204f3b73e6c8)
+
+running 3 tests
+test tests::default_release_and_match_spelling_are_preserved ... ok
+test tests::invalid_release_selection_fails_without_a_fallback ... ok
+test tests::selected_release_controls_the_actual_core ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.21s
+

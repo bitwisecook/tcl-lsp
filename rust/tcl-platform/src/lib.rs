@@ -489,6 +489,37 @@ pub trait Host {
 pub mod bootstrap {
     use super::{Host, backend};
 
+    /// Compose Tcl's library search path from already-parsed path lists.
+    /// Existing entries retain their order and multiplicity; additions are unique.
+    #[must_use]
+    pub fn auto_path(
+        existing: Option<Vec<Vec<u8>>>,
+        environment_paths: &[Vec<u8>],
+        installation_paths: &[Vec<u8>],
+        package_paths: &[Vec<u8>],
+        safe: bool,
+    ) -> Vec<Vec<u8>> {
+        if safe {
+            return existing.unwrap_or_default();
+        }
+        let mut paths = existing.unwrap_or_else(|| {
+            let mut paths = Vec::new();
+            append_unique_paths(&mut paths, environment_paths);
+            paths
+        });
+        append_unique_paths(&mut paths, installation_paths);
+        append_unique_paths(&mut paths, package_paths);
+        paths
+    }
+
+    fn append_unique_paths(paths: &mut Vec<Vec<u8>>, additions: &[Vec<u8>]) {
+        for path in additions {
+            if !paths.contains(path) {
+                paths.push(path.clone());
+            }
+        }
+    }
+
     /// Arrays whose complete contents come from the selected host bootstrap.
     pub const HOST_ARRAYS: &[&str] = &["tcl_platform", "env"];
 

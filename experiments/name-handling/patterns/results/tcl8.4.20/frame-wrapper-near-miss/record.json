@@ -1,0 +1,30 @@
+{
+  "case_id": "frame-wrapper-near-miss",
+  "release": "8.4",
+  "patchlevel": "8.4.20",
+  "probe": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+  "probe_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+  "input_sha256": "6cd8677d88dc84ca842b9a4a457ca5b36c881f4720161a6fd061881d910961c2",
+  "process_exit_code": 0,
+  "stdout_sha256": "1288ce273912eeb843d5805ec5ff8be598f2fa541ad24cd2be36f7ecb3b854f2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.4.20/frame-wrapper-near-miss",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "",
+  "setup_options": "",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "original",
+  "lookup_options": "",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

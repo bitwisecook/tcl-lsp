@@ -1,0 +1,1 @@
+      alias.test: Total    34   Passed    34  Skipped     0  Failed     0

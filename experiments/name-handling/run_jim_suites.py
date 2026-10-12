@@ -1,0 +1,148 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""Capture original upstream Jim naming suites with its own tcltest wrapper."""
+
+import argparse
+import datetime
+import hashlib
+import json
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tree", type=Path, required=True)
+    parser.add_argument("--dest", type=Path, required=True)
+    parser.add_argument("--timeout", type=float, default=60)
+    parser.add_argument(
+        "--suites",
+        nargs="+",
+        default=[
+            "namespace",
+            "proc",
+            "proc-new",
+            "procstatic",
+            "procref",
+            "rename",
+            "alias",
+            "upvar",
+            "jiminterp",
+            "infoframe",
+            "xtrace",
+            "stacktrace",
+        ],
+    )
+    args = parser.parse_args()
+    tree, dest = args.tree.resolve(), args.dest.resolve()
+    if dest.exists() and any(dest.iterdir()):
+        parser.error("destination must be new or empty")
+    dest.mkdir(parents=True, exist_ok=True)
+    binary = tree / "jimsh"
+    version = (
+        subprocess.run(
+            [str(binary), "-e", "puts [info patchlevel]"],
+            check=True,
+            capture_output=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    revision = subprocess.check_output(
+        ["git", "-C", str(tree), "rev-parse", "HEAD"], text=True
+    ).strip()
+    rows = []
+    for stem in args.suites:
+        source = tree / "tests" / (stem + ".test")
+        out = dest / stem
+        out.mkdir()
+        command = [str(binary), str(source)]
+        with tempfile.TemporaryDirectory(prefix="jim-naming-") as cwd:
+            try:
+                run = subprocess.run(
+                    command,
+                    cwd=cwd,
+                    capture_output=True,
+                    timeout=args.timeout,
+                    check=False,
+                )
+                stdout, stderr, status, timed_out = (
+                    run.stdout,
+                    run.stderr,
+                    run.returncode,
+                    False,
+                )
+            except subprocess.TimeoutExpired as error:
+                stdout, stderr, status, timed_out = (
+                    error.stdout or b"",
+                    error.stderr or b"",
+                    None,
+                    True,
+                )
+        (out / "stdout.txt").write_bytes(stdout)
+        (out / "stderr.txt").write_bytes(stderr)
+        counts = re.findall(
+            rb"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)",
+            stdout,
+        )
+        row = {
+            "suite": stem,
+            "command": command,
+            "timeout_seconds": args.timeout,
+            "process_exit_code": status,
+            "timed_out": timed_out,
+            "source_sha256": digest(source),
+            "stdout_sha256": digest(out / "stdout.txt"),
+            "stderr_sha256": digest(out / "stderr.txt"),
+            "counts": dict(
+                zip(("total", "passed", "skipped", "failed"), map(int, counts[-1]))
+            )
+            if counts
+            else None,
+        }
+        (out / "record.json").write_text(json.dumps(row, indent=2) + "\n")
+        rows.append(row)
+    provenance = {
+        "captured_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "provider": "Jim",
+        "patchlevel": version,
+        "revision": revision,
+        "binary_sha256": digest(binary),
+        "harnesses": {
+            str(p.relative_to(tree)): digest(p)
+            for p in [tree / "tcltest.tcl", tree / "tests/testing.tcl"]
+        },
+        "runner_sha256": digest(Path(__file__)),
+        "subject": "upstream Jim only; these captures do not execute the VM/runtime",
+        "startup": "extension-initialised upstream jimsh; original tests source their own testing.tcl and tcltest.tcl",
+    }
+    (dest / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
+    (dest / "records.json").write_text(json.dumps(rows, indent=2) + "\n")
+    for row in rows:
+        print(row["suite"], row["counts"], "exit", row["process_exit_code"])
+
+
+if __name__ == "__main__":
+    main()

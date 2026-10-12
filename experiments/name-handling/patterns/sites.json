@@ -1,0 +1,450 @@
+{
+  "method": "rg candidate search followed by manual execution-context review of 19 selected contexts; no complete lexical or semantic census",
+  "reviewed_context_count": 19,
+  "eligible_reviewed_context_count": 18,
+  "independent_repositories": 12,
+  "sites": [
+    {
+      "id": "corpus-tcltest",
+      "repository": "https://github.com/georgtree/tclopt",
+      "revision": "ff9a56074272327f3d5f7a3d589e50d9c2da24a0",
+      "file": "test/test.test",
+      "start_line": 188,
+      "end_line": 209,
+      "file_sha256": "cdae101446c57955f1b1a78767d53473f04466f489d162926bf9dab636703628",
+      "selected_range_sha256": "47fad56cfa2d02c8b46ec51f133f3582174f8681702694ccafa7697da050ef10",
+      "source_url": "https://github.com/georgtree/tclopt/blob/ff9a56074272327f3d5f7a3d589e50d9c2da24a0/test/test.test#L188",
+      "family": "shared-body-lifecycle",
+      "eligibility": "eligible",
+      "context": "Imported test executes setup/body/cleanup with variable continuity; optimiser handle is used as command head.",
+      "reduction": "tcltest-shared-lifecycle",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "48a917e18d91b7819e6da22b1b4d7847c4260aacb5fdfc15df7e3f467b708d89"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-current-alias",
+      "repository": "https://github.com/georgtree/ruff",
+      "revision": "b63da69eed625bc544d1f4da76371e8bd6b02d29",
+      "file": "src/diagram.tcl",
+      "start_line": 75,
+      "end_line": 101,
+      "file_sha256": "c988f3f4f472cc94d989b84e3c44356b6e75bcff8d72162ab68c459628171d0a",
+      "selected_range_sha256": "bb87ee788de1d8199f7f976aa9b7baddb2d7e0bda46addd7f4311860da79f205",
+      "source_url": "https://github.com/georgtree/ruff/blob/b63da69eed625bc544d1f4da76371e8bd6b02d29/src/diagram.tcl#L75",
+      "family": "alias-binding",
+      "eligibility": "eligible",
+      "context": "Alternative initialisation branches install qualified alias from namespace current; external executable/packages select branch.",
+      "reduction": "alias-prefix-lifetime",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "da28762a647b1ff0ec5776faa9b06dd96412cc897754914e4e9e926092f33529"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-alias-prefix",
+      "repository": "https://github.com/georgtree/ruff",
+      "revision": "b63da69eed625bc544d1f4da76371e8bd6b02d29",
+      "file": "src/doctools_formatter.tcl",
+      "start_line": 510,
+      "end_line": 520,
+      "file_sha256": "88f30ee8a18ab06f621c5b57047a63026db074760144c44b29fbbe2c283bc89a",
+      "selected_range_sha256": "4253820b342e8ef085bc24ea855d5379ec401548cafe7da0cb0ba371efea0283",
+      "source_url": "https://github.com/georgtree/ruff/blob/b63da69eed625bc544d1f4da76371e8bd6b02d29/src/doctools_formatter.tcl#L510",
+      "family": "alias-binding",
+      "eligibility": "eligible",
+      "context": "Literal aliases share implementation but retain distinct fixed prefix arguments.",
+      "reduction": "alias-prefix-lifetime",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "da28762a647b1ff0ec5776faa9b06dd96412cc897754914e4e9e926092f33529"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-state-upvar",
+      "repository": "https://github.com/georgtree/ruff",
+      "revision": "b63da69eed625bc544d1f4da76371e8bd6b02d29",
+      "file": "src/ruff.tcl",
+      "start_line": 1137,
+      "end_line": 1150,
+      "file_sha256": "1c901fe9764e8ba0511485064514e589c081f57b5255f86c1b2059acda2eb2f2",
+      "selected_range_sha256": "30c37063940be2f4ac28cb1efa9415d658254ddbc90dfad2aa3760895b64df9a",
+      "source_url": "https://github.com/georgtree/ruff/blob/b63da69eed625bc544d1f4da76371e8bd6b02d29/src/ruff.tcl#L1137",
+      "family": "frame-place",
+      "eligibility": "eligible",
+      "context": "Caller-supplied name parameter aliases caller array through upvar 1.",
+      "reduction": "frame-wrapper",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "da28762a647b1ff0ec5776faa9b06dd96412cc897754914e4e9e926092f33529"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-self-callback",
+      "repository": "https://github.com/aplsimple/pave",
+      "revision": "875de1f1539d62e46e48e206f34f82848bca1736",
+      "file": "apavebase.tcl",
+      "start_line": 1552,
+      "end_line": 1566,
+      "file_sha256": "5c6f2bba4f80a88c772cf7a7b6bf56efa458084ee98bd338b2fef14d022cf0ac",
+      "selected_range_sha256": "cebcc26be0e40bb5d0970881d34fb3f2bf1fd4ff34eb736b9057412664aa3f08",
+      "source_url": "https://github.com/aplsimple/pave/blob/875de1f1539d62e46e48e206f34f82848bca1736/apavebase.tcl#L1552",
+      "family": "oo-callback",
+      "eligibility": "eligible",
+      "context": "TclOO self fills command-prefix receiver; Tk bind, after, execution trace have separate invocation contexts.",
+      "reduction": "oo-self-prefix",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "500f8e2e6dd5b3cfe3d3a316f6af04c1c704987abd24a0ee3e5842efbecfc691"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-frame-forward",
+      "repository": "https://github.com/aplsimple/pave",
+      "revision": "875de1f1539d62e46e48e206f34f82848bca1736",
+      "file": "apavebase.tcl",
+      "start_line": 3673,
+      "end_line": 3678,
+      "file_sha256": "5c6f2bba4f80a88c772cf7a7b6bf56efa458084ee98bd338b2fef14d022cf0ac",
+      "selected_range_sha256": "f8689fb65e2ad8a614678a1dc3bcf7ae8bc4d114553e9e61db1cab35971630e9",
+      "source_url": "https://github.com/aplsimple/pave/blob/875de1f1539d62e46e48e206f34f82848bca1736/apavebase.tcl#L3673",
+      "family": "frame-place",
+      "eligibility": "eligible",
+      "context": "Method forwards through uplevel 1 with list-built self receiver and expansion.",
+      "reduction": "frame-wrapper",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "500f8e2e6dd5b3cfe3d3a316f6af04c1c704987abd24a0ee3e5842efbecfc691"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-keyed-tk-state",
+      "repository": "https://github.com/tcltk/tk",
+      "revision": "7005f92520a03c7bec78ea521f96258d3365e4aa",
+      "file": "library/xmfbox.tcl",
+      "start_line": 144,
+      "end_line": 165,
+      "file_sha256": "8051bca4e346a27eb1d0e361bbfa10ff5aff9a4c8c7ef14f283a050656da1624",
+      "selected_range_sha256": "489fd8f49d7007ab48b41736dab402bb70137c44c7a01a48940de1684da44742",
+      "source_url": "https://github.com/tcltk/tk/blob/7005f92520a03c7bec78ea521f96258d3365e4aa/library/xmfbox.tcl#L144",
+      "family": "frame-place",
+      "eligibility": "eligible",
+      "context": "Widget-derived qualified state array and caller-configured typevariable name; requires Tk widget identity.",
+      "reduction": "keyed-variable-link",
+      "licence_inspected": [
+        {
+          "path": "license.terms",
+          "sha256": "2cde822b93ca16ae535c954b7dfe658b4ad10df2a193628d1b358f1765e8b198"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-eda-ensemble",
+      "repository": "https://github.com/OSVVM/OSVVM-Scripts",
+      "revision": "60a2751c1d2087e6e58671585d3649cd5eb0b93d",
+      "file": "tee.tcl",
+      "start_line": 22,
+      "end_line": 36,
+      "file_sha256": "ed3290fbdfaae7eb714d72321fec21dbde75af2365342f659670d07e57de8417",
+      "selected_range_sha256": "bf95753aeb84e383ce52d1b6f966231f6ab42068f21c7dd71e5aa28c3bafc5fb",
+      "source_url": "https://github.com/OSVVM/OSVVM-Scripts/blob/60a2751c1d2087e6e58671585d3649cd5eb0b93d/tee.tcl#L22",
+      "family": "ensemble-prefix",
+      "eligibility": "eligible",
+      "context": "Ensemble unknown returns a prefix; nested ensemble has fd parameters and namespace-which prefix for channel transform.",
+      "reduction": "ensemble-prefix-map",
+      "licence_inspected": [
+        {
+          "path": "tee.tcl:1-20",
+          "sha256": "cc8a96b7f426348cb343b9e536614021c3e82db93d355c474fee958cf4ba4d2a",
+          "terms": "Apache-2.0 header"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-finite-factory",
+      "repository": "https://github.com/tcltk/tcllib",
+      "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+      "file": "modules/math/statistics.tcl",
+      "start_line": 101,
+      "end_line": 108,
+      "file_sha256": "2e32f1e9a5ce634f731ef83a14afa4eeee0cb767413b4f51b0211fc199edf7a5",
+      "selected_range_sha256": "c0786059a9377d6069469038b4bb84824aea85bac9469599c320dda18780111f",
+      "source_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/math/statistics.tcl#L101",
+      "family": "definition-factory",
+      "eligibility": "eligible",
+      "context": "Eight literal procedure names generated by finite foreach; body interpolates type now and values later.",
+      "reduction": "finite-factory",
+      "licence_inspected": [
+        {
+          "path": "license.terms",
+          "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-open-factory",
+      "repository": "https://github.com/tcltk/tcllib",
+      "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+      "file": "modules/math/polynomials.tcl",
+      "start_line": 58,
+      "end_line": 67,
+      "file_sha256": "239418dd9a7ebc5b9e5b783037660bc8a14cc87d70ea01d03b8c21aa8e701c54",
+      "selected_range_sha256": "4c613be05e0cc1bbe45ed804000bb7415fab64864132cab196288576d45ed158",
+      "source_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/math/polynomials.tcl#L58",
+      "family": "definition-factory",
+      "eligibility": "eligible",
+      "context": "Runtime counter creates unbounded command family with generated expression body; not finite literal enumeration.",
+      "reduction": "finite-factory",
+      "licence_inspected": [
+        {
+          "path": "license.terms",
+          "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-framework-definer",
+      "repository": "https://github.com/tcltk/tcllib",
+      "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+      "file": "modules/clay/build/dialect.tcl",
+      "start_line": 67,
+      "end_line": 90,
+      "file_sha256": "cb27f37c68814fbc590763825eece40fb872cfb30b39683077deab43ec8ce2ef",
+      "selected_range_sha256": "f77ea5287fddaa78ba197e27650fbd2052bb2ed0d088fc75823df9e80c66126e",
+      "source_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/clay/build/dialect.tcl#L67",
+      "family": "framework-definer",
+      "eligibility": "eligible",
+      "context": "Caller namespace capture, dynamic namespace creation, aliases from runtime oo::define enumeration and prefixed definer commands.",
+      "reduction": "computed-qualified",
+      "licence_inspected": [
+        {
+          "path": "license.terms",
+          "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-snit-alias",
+      "repository": "https://github.com/tcltk/tcllib",
+      "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+      "file": "modules/interp/interp.tcl",
+      "start_line": 66,
+      "end_line": 81,
+      "file_sha256": "7a3674edfcdce654c9dc248eedd8670c61084aabde4074ce6c4edcdd4e8e2fea",
+      "selected_range_sha256": "39a9199f577cf90552b63317b0f3df46a662206f8559515072bea2b5a0b5a157",
+      "source_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/interp/interp.tcl#L66",
+      "family": "interpreter-prefix",
+      "eligibility": "eligible",
+      "context": "Caller-frame mymethod resolves prefix; linsert constructs child-interpreter alias and eval executes list; preserve interpreter identity.",
+      "reduction": "list-prefix",
+      "licence_inspected": [
+        {
+          "path": "license.terms",
+          "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-captured-my",
+      "repository": "https://github.com/tcltk/tcllib",
+      "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+      "file": "modules/httpd/build/server.tcl",
+      "start_line": 361,
+      "end_line": 385,
+      "file_sha256": "228463a3ec5f688f490f64fc017534e658c763c41572108cbf6b41bb9ad8f3d8",
+      "selected_range_sha256": "3550a5cdc420c0b3b8c2ccd7b4410f5636a33ea6b86ed8ad9c89bcaf79619888",
+      "source_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/httpd/build/server.tcl#L361",
+      "family": "oo-callback",
+      "eligibility": "eligible",
+      "context": "socket server callback and cron task capture object namespace for my; plugin and generated amalgamation copies deduplicated.",
+      "reduction": "namespace-captured-prefix",
+      "licence_inspected": [
+        {
+          "path": "license.terms",
+          "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-computed-head",
+      "repository": "https://github.com/nico-robert/ticklecharts",
+      "revision": "b49f014cb6c2412a7e661e805a37eaebcd625c59",
+      "file": "dataset.tcl",
+      "start_line": 25,
+      "end_line": 39,
+      "file_sha256": "d564d1623b0a18301560c490ce62c2d60ef5508a65a05820ff3f9aac990ed51e",
+      "selected_range_sha256": "5fcd2e3b943e09fc6d94db9f7b153bdd967eddcaadb772cc0ee058179903d8bb",
+      "source_url": "https://github.com/nico-robert/ticklecharts/blob/b49f014cb6c2412a7e661e805a37eaebcd625c59/dataset.tcl#L25",
+      "family": "computed-name",
+      "eligibility": "eligible",
+      "context": "self class -> namespace qualifiers -> ns interpolation drives setdef; class identity needed, not just bareword recognition.",
+      "reduction": "computed-qualified",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "b4d4f2fc2bcbd9383e54a7cac74d784d8ec5c70eb0c7fba388c464a185ec3724"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-snit-definition",
+      "repository": "https://github.com/tcltk/tklib",
+      "revision": "627bfe1e8dcc17b718dfafba26478c3e08501b2f",
+      "file": "modules/diagrams/core.tcl",
+      "start_line": 37,
+      "end_line": 68,
+      "file_sha256": "8bf5cad9e422ddbe0c53fcb28c3db166d5d15770c19fb2cb21ddd7a2b3a4a874",
+      "selected_range_sha256": "46ae1e2f64b76550913e9399a084c0b92b242518aa1d3a5db75ba86cadaa3b81",
+      "source_url": "https://github.com/tcltk/tklib/blob/627bfe1e8dcc17b718dfafba26478c3e08501b2f/modules/diagrams/core.tcl#L37",
+      "family": "framework-definer",
+      "eligibility": "eligible",
+      "context": "snit type declares multiword methods, command-prefix aliases, and computed namespace procedure factory; needs grammar/summary.",
+      "reduction": "finite-factory",
+      "licence_inspected": [
+        {
+          "path": "license.terms",
+          "sha256": "530ec70eb11a455bd582d86b6d74c2dd7cc367d90b8bbdd59fcb43ae02f95a4b"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-f5-partition-call",
+      "repository": "https://github.com/JuergenMang/f5-irules-json",
+      "revision": "a8d9e0ffa7f4227f8696523f1551e304025b467a",
+      "file": "test-json.irule",
+      "start_line": 16,
+      "end_line": 23,
+      "file_sha256": "24976c8c6c0a7f32029dd2baa25b8549c0b01c069a3c146146a8cbe315d71ade",
+      "selected_range_sha256": "5b807185d10955bd66d17353abee590c8d5c3109b3ea89454fb3091bdca168b1",
+      "source_url": "https://github.com/JuergenMang/f5-irules-json/blob/a8d9e0ffa7f4227f8696523f1551e304025b467a/test-json.irule#L16",
+      "family": "f5-rule-call",
+      "eligibility": "eligible",
+      "context": "call argument contains BIG-IP partition/object path and procedure suffix; not ordinary namespace FQN.",
+      "reduction": "F5 pending",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-f5-sideband-call",
+      "repository": "https://github.com/pwhitef5/simple-sideband",
+      "revision": "95b13e0e323919330cabe1dcbba7bb966173b9cd",
+      "file": "simple_sideband.irul",
+      "start_line": 177,
+      "end_line": 184,
+      "file_sha256": "758aa35acc8e11defb54adec57c1f01d221972b413bf5d17935d520501ccd225",
+      "selected_range_sha256": "6d17b54f829cd2f203372f1cebe744bb909f62d472095ce49a5c4a9dc102be52",
+      "source_url": "https://github.com/pwhitef5/simple-sideband/blob/95b13e0e323919330cabe1dcbba7bb966173b9cd/simple_sideband.irul#L177",
+      "family": "f5-rule-call",
+      "eligibility": "eligible",
+      "context": "Same partition-qualified call idiom in independent source; .irul not selected by benchmark source suffix count.",
+      "reduction": "F5 pending",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-mock-frame",
+      "repository": "https://github.com/landro/TesTcl",
+      "revision": "e31743809b976ba39da39138aeebf36f8d264fd9",
+      "file": "src/onirule.tcl",
+      "start_line": 59,
+      "end_line": 80,
+      "file_sha256": "42dce4aa03fbfa6ab0057d5fe45419ee774d4b0463138d3dea0409d0b977bf05",
+      "selected_range_sha256": "3e530c9e9724eca392907b2cc1547809547c87ccf4458546c17c70e839dfeb6a",
+      "source_url": "https://github.com/landro/TesTcl/blob/e31743809b976ba39da39138aeebf36f8d264fd9/src/onirule.tcl#L59",
+      "family": "frame-place",
+      "eligibility": "eligible",
+      "context": "Mock when injects variables through uplevel 0 and catches dynamic event body; Tcl harness is not evidence of TMM runtime semantics.",
+      "reduction": "frame-wrapper",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "3ba2b681235f13312ae7fd6482e63500ca46cfb39b0bc3ed5bb7de7f50785933"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    },
+    {
+      "id": "corpus-keyword-data",
+      "repository": "https://github.com/georgtree/argparse",
+      "revision": "139d695c9012ebd79e21798b5c8041fef64e8358",
+      "file": "test/syntaxdb.tcl",
+      "start_line": 860,
+      "end_line": 865,
+      "file_sha256": "8ddd3be65fc0b50a5f7f4a2ea3720de7b653af755895ae970bfcd9805378896b",
+      "selected_range_sha256": "dbe1d4a64b1a50c52f0bc64b2e733639dff33e49c98de6ce61063168e86c7320",
+      "source_url": "https://github.com/georgtree/argparse/blob/139d695c9012ebd79e21798b5c8041fef64e8358/test/syntaxdb.tcl#L860",
+      "family": "data-near-miss",
+      "eligibility": "ineligible",
+      "context": "set stores namespace-code text as array metadata; name operation is not executed here.",
+      "reduction": "none",
+      "licence_inspected": [
+        {
+          "path": "LICENSE",
+          "sha256": "48a917e18d91b7819e6da22b1b4d7847c4260aacb5fdfc15df7e3f467b708d89"
+        }
+      ],
+      "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+      "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+    }
+  ],
+  "held_out": "tklib diagrams and F5 simple-sideband selected as independent shape checks; no automated resolver evaluation has run",
+  "false_target_count": "unmeasured",
+  "missed_provable_target_count": "unmeasured",
+  "coverage_denominator": "19 manually reviewed contexts; not corpus-wide eligible sites"
+}

@@ -1,0 +1,107 @@
+{
+  "subject_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "currency_note": "Modified shared worktree. Owned source snapshots captured after the requested runs; complete dependency build-input and pre/post source inventories were not captured. Compiler changed and was rebuilt between the first and latter two selectors. These receipts establish the exact observed software test results only, not pristine HEAD, full workspace conformance or native provider behaviour.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-vm",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "owned_sources": [
+    {
+      "path": "rust/tcl-engine-tclvm/src/lib.rs",
+      "sha256": "93a9d7e47b1f45a2f8b2278902c9a484d3f1fb5c7469481c70648ef0c4433f0b",
+      "retained_snapshot": "experiments/name-handling/results/engine-tclvm-test-repair/lib.rs.txt"
+    },
+    {
+      "path": "rust/tcl-engine-tclvm/src/c84_wide_transport_tests.rs",
+      "sha256": "b036c013612eb030271099d83553c989893e1a15d78c4b1ab7192fc54c86c496",
+      "retained_snapshot": "experiments/name-handling/results/engine-tclvm-test-repair/c84_wide_transport_tests.rs.txt"
+    },
+    {
+      "path": "rust/tcl-engine-tclvm/src/original_projection_tests.rs",
+      "sha256": "49c516909ad7e8c83d76e0d43e67efcab19a55d814448cccd4447fcf08a1bc31",
+      "retained_snapshot": "experiments/name-handling/results/engine-tclvm-test-repair/original_projection_tests.rs.txt"
+    }
+  ],
+  "source_patch_sha256": "d41be99c92d4ee95bc0891cdd40959254cb48d6cb5877ec43a1f9c86a1a432b4",
+  "latest_test_binary": "/workspace/tcl-lsp/tmp/name-target-vm/debug/deps/tcl_engine_tclvm-3d3d699f2955fa52",
+  "latest_test_binary_sha256": "d770147a32ffd0b9050883e05eff435f7b652e18ff6de0316e5a404cff0d0ce0",
+  "binary_limit": "Latest executable hash belongs to the latter two runs. First-run executable hash was not captured; its original Cargo output and exact selected test result are retained.",
+  "runs": [
+    {
+      "selector": "original_engine_typed_callback_failure_stops_guest_continuation_and_allows_next_entry",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-engine-tclvm",
+        "original_engine_typed_callback_failure_stops_guest_continuation_and_allows_next_entry",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/tcl-lsp/rust",
+      "process_exit_code": 0,
+      "unit_tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      },
+      "doors_integration_tests_selected": 0,
+      "log": "experiments/name-handling/results/engine-tclvm-test-repair/typed-callback.log",
+      "log_sha256": "aab8a81d6e9a83f4267788a1dac4ed28440d2872121c4d0147fcc13369e65127"
+    },
+    {
+      "selector": "original_engine_argument_worker_refuses_real_retired_first_header_before_later_getter",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-engine-tclvm",
+        "original_engine_argument_worker_refuses_real_retired_first_header_before_later_getter",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/tcl-lsp/rust",
+      "process_exit_code": 0,
+      "unit_tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      },
+      "doors_integration_tests_selected": 0,
+      "log": "experiments/name-handling/results/engine-tclvm-test-repair/retired-header-worker.log",
+      "log_sha256": "ebbe97b1968a31870927f291c1779d2a1778ba09b4eb86648511b452c6bae750"
+    },
+    {
+      "selector": "original_engine_returned_option_header_refusal_precedes_original_result_getter",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-engine-tclvm",
+        "original_engine_returned_option_header_refusal_precedes_original_result_getter",
+        "--",
+        "--nocapture"
+      ],
+      "cwd": "/workspace/tcl-lsp/rust",
+      "process_exit_code": 0,
+      "unit_tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      },
+      "doors_integration_tests_selected": 0,
+      "log": "experiments/name-handling/results/engine-tclvm-test-repair/returned-option-header.log",
+      "log_sha256": "fd59e88d02dc15f4ef3aefed77cb74e4a2180002635564d1bbea821b3a858c56"
+    }
+  ],
+  "unmatched_filter": {
+    "selector": "host_callback",
+    "log": "experiments/name-handling/results/engine-tclvm-test-repair/unmatched-filter.log",
+    "log_sha256": "29e59d36440621a7ed9005331f161a7b1fe3b9b4f350ef751ac2d3929dc49acd",
+    "unit_tests_selected": 0,
+    "validation_claim": false
+  },
+  "semantics": "Three genuine existing software regressions. Typed EngineError causes, retired-header-before-later-getter and return-option-before-result ordering remain asserted. Public actual NativeHost and Rc storage are used; no Display fallback, broad Value PartialEq, ignored test or manufactured native authority."
+}

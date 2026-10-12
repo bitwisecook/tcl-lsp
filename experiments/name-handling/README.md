@@ -14,8 +14,11 @@ Existing command/variable/namespace vectors live in
 | [cases.tcl](cases.tcl) | Portable C Tcl 8.4-compatible observation suite; executable measurements, no manufactured expected answers |
 | [case-catalogue.md](case-catalogue.md) | Exact case IDs, semantic questions and consumer coverage |
 | [pattern-sources.md](pattern-sources.md) | Maintained corpus and Tcl Wiki discovery, provenance and held-out validation |
+| [patterns/corpus-findings.md](patterns/corpus-findings.md) | Pinned corpus sites, reduced observations and bounded recogniser requirements |
+| [patterns/wiki-findings.md](patterns/wiki-findings.md) | Actually read Wiki sources, positive/adversarial probes and existing owner mappings |
 | [results/RESULTS.md](results/RESULTS.md) | Current VM/runtime original-suite comparison and measured gaps |
 | [run_suites.py](run_suites.py) | Reusable original-suite capture across real C/VM/runtime; retains outputs and provenance |
+| [run_jim_suites.py](run_jim_suites.py) | Original upstream Jim naming suites using Jim's actual test wrapper |
 | [results/README.md](results/README.md) | Provenance and record format; records distinguish measured, pending and unsupported |
 | [f5/REQUEST.md](f5/REQUEST.md) | Appliance-chat questions, execution contexts and return protocol |
 | [f5/ANSWER-TEMPLATE.md](f5/ANSWER-TEMPLATE.md) | Answer document template |
@@ -40,9 +43,10 @@ The current C pins are 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0. Do not copy
 these into another runtime manifest. Use shared test-support discovery,
 `TCL_LSP_TCLSH84` through `TCL_LSP_TCLSH91`, and
 `TCL_LSP_REQUIRE_TCLSH=1` for witness-based callers. Current shared syntax
-vector runners use `available_tclshs()`, which skips missing/invalid binaries
-and does not honour that variable. Explicitly preflight/assert all five
-validated references until those runners use complete-matrix discovery.
+vector runners use `available_tclshs()`. Set
+`TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1` to require the complete validated matrix,
+or select `required_tclshs(TclVersion::ALL)` explicitly. Invalid configured
+references fail rather than being skipped.
 A locally installed unvalidated interpreter may provide a clearly labelled exploratory measurement,
 not a completed reference gate.
 

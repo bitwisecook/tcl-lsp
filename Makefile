@@ -665,6 +665,7 @@ PY_FILES = $(shell git -C $(ROOT) ls-files '*.py' \
 	':(exclude,glob)runtime/rust/tests/data/authored*/**/*.py' \
 	':(exclude,glob)scripts/dev/bigip-probes/resolution-2286/evidence/**/*.py' \
 	':(exclude)scripts/dev/replay-namespace-delete-callback-events.py' \
+	':(exclude,glob)experiments/name-handling/patterns/wiki-subject-results/**/capture.py' \
 	':(exclude,glob)docs/design/analysis/name-resolution-proofs/evidence/**/*.py')
 
 .PHONY: lint-py format-py typecheck-py test-py-engine py-venv python-engine-source-hash

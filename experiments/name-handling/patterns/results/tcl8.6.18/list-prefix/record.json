@@ -1,0 +1,30 @@
+{
+  "case_id": "list-prefix",
+  "release": "8.6",
+  "patchlevel": "8.6.18",
+  "probe": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+  "probe_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+  "input_sha256": "588912fc12d8dc7aa46705f6bd854f1e0b20148cb8531727cfa552f62421bf53",
+  "process_exit_code": 0,
+  "stdout_sha256": "34dfb4b59c1a073e8fb0b2f0d8e16dc95281e800769d7370d83d728088adf714",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.6.18/list-prefix",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "{::nh::two words} {a b}",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "{a b} {c d}",
+  "lookup_options": "-code 0 -level 0",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

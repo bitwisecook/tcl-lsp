@@ -67,6 +67,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
 }
 
 const STRING_MEMBERS: &[(&str, crate::command::BuiltinFn)] = &[
+    ("bytelength", |vm, args| string_op(vm, "bytelength", args)),
     ("cat", |vm, args| string_op(vm, "cat", args)),
     ("compare", |vm, args| string_op(vm, "compare", args)),
     ("equal", |vm, args| string_op(vm, "equal", args)),
@@ -109,6 +110,7 @@ pub(crate) fn physical_string_length(vm: &mut Vm, args: &[Value]) -> Completion<
 /// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
 /// resolution and the error message.
 const STRING_SUBS: &[&str] = &[
+    "bytelength",
     "cat",
     "compare",
     "equal",

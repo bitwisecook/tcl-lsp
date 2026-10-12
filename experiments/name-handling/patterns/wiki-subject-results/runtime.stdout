@@ -1,0 +1,119 @@
+oracle 9.0.4 library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcltest 2.5.11
+++++ wiki-prefix-1 PASSED
+++++ wiki-prefix-2 PASSED
+++++ wiki-prefix-3 PASSED
+++++ wiki-code-1 PASSED
+++++ wiki-code-2 PASSED
+++++ wiki-code-3 PASSED
+++++ wiki-code-4 PASSED
+++++ wiki-code-5 PASSED
+++++ wiki-code-6 SKIPPED: aunt
+++++ wiki-code-7 PASSED
+++++ wiki-factory-1 PASSED
+++++ wiki-factory-2 PASSED
+++++ wiki-alias-1 PASSED
+
+
+==== wiki-alias-2 alias target interpreter owns lookup FAILED
+==== Contents of test case:
+
+    isolated {
+        proc take {} {return main}
+        interp create helper
+        interp eval helper {proc take {} {return helper}}
+        interp alias {} alias helper take
+        alias
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"isolated {
+        proc take {} {return main}
+        interp create helper
+        interp eval helper {proc take {} {return helper}}
+        interp al..."
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== wiki-alias-2 FAILED
+
+++++ wiki-rename-1 PASSED
+++++ wiki-upvar-1 PASSED
+++++ wiki-upvar-2 PASSED
+++++ wiki-upvar-3 PASSED
+++++ wiki-upvar-4 PASSED
+++++ wiki-variable-1 PASSED
+++++ wiki-global-1 PASSED
+
+
+==== wiki-autoload-1 a missing command may load from auto_index FAILED
+==== Contents of test case:
+
+    isolated {
+        set auto_index(::late) {proc ::late {} {return loaded}}
+        list [info commands ::late] [::late] [info commands ::late]
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "::late"
+    while executing
+"isolated {
+        set auto_index(::late) {proc ::late {} {return loaded}}
+        list [info commands ::late] [::late] [info commands ::late]
+    }"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== wiki-autoload-1 FAILED
+
+++++ wiki-unknown-1 PASSED
+++++ wiki-oo-1 PASSED
+++++ wiki-oo-2 PASSED
+++++ wiki-oo-3 PASSED
+++++ wiki-oo-4 PASSED
+
+
+==== wiki-oo-5 metaclass can override new to return a non-object FAILED
+==== Contents of test case:
+
+    isolated {
+        oo::class create Meta {superclass oo::class; method new args {return ordinary}}
+        Meta create C
+        set value [C new]
+        list $value [info object isa object $value]
+    }
+
+---- Result was:
+::oo::Obj0 1
+---- Result should have been (exact matching):
+ordinary 0
+==== wiki-oo-5 FAILED
+
+++++ wiki-oo-6 PASSED
+
+
+==== wiki-oo-7 method replacement resets explicit export FAILED
+==== Contents of test case:
+
+    isolated {
+        oo::class create C {method .send {} {return old}; export .send}
+        set obj [C new]
+        set before [$obj .send]
+        oo::define C method .send {} {return replacement}
+        list $before [catch {$obj .send}]
+    }
+
+---- Result was:
+old 0
+---- Result should have been (exact matching):
+old 1
+==== wiki-oo-7 FAILED
+
+wiki-probes.tcl:	Total	30	Passed	25	Skipped	1	Failed	4
+Number of tests skipped for each constraint:
+	1	aunt

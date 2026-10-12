@@ -1,0 +1,66 @@
+[
+  {
+    "case": "upstream-namespace-56.2",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-c49-baseline",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 2,
+    "seconds": 3.742
+  },
+  {
+    "case": "cached-fresh-namespace-probe",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-c49-baseline",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 0,
+    "seconds": 3.524
+  },
+  {
+    "case": "parent-child-observation",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-c49-baseline",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 0,
+    "seconds": 3.167
+  },
+  {
+    "case": "context-probe",
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/tmp/name-runtime-c49-baseline",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit_code": 2,
+    "seconds": 3.623
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "subject_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "captured_utc": "2026-10-12T11:54:12Z",
+  "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+  "immutable_local_copy": "/tmp/name-runtime-c49-baseline",
+  "binary_sha256": "c565eb99d3441b9131c384ddfff8a881315dc17199f58358dd67e6daa6fb61c6",
+  "source_patch_sha256": "ed75eb8c1b1e2944e602d5866aeabcbbee953b29f89d7e06a34c190bc60f00ae",
+  "source_manifest_sha256": "878d596b018482968de32629797d617af051ac9f38ed33b7af949c4e706faf0f",
+  "build_log": "/tmp/name-runtime-merged-build-after-repair.log",
+  "CARGO_INCREMENTAL": "0",
+  "CARGO_PROFILE_DEV_DEBUG": "0",
+  "CARGO_BUILD_JOBS": "2",
+  "TCL_TOMMATH_DIR": "/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+  "currency_note": "Post-build source snapshot includes coordinated uncommitted compile-recursion and string-owner repairs; binary is not claimed pristine HEAD."
+}

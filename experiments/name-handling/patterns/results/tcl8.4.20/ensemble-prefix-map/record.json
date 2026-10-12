@@ -1,0 +1,30 @@
+{
+  "case_id": "ensemble-prefix-map",
+  "release": "8.4",
+  "patchlevel": "8.4.20",
+  "probe": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+  "probe_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+  "input_sha256": "d78484166e6595a518dee495a58f9bb8c1a6bbf7ee858900cc0a8714a691e086",
+  "process_exit_code": 0,
+  "stdout_sha256": "1e7ac74e973ef3d94a3056f4202adbc05d45f3d6f29b84f8d12904a9d28020c6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.4.20/ensemble-prefix-map",
+  "setup_and_lookup_separate": true,
+  "setup_code": "1",
+  "lookup_code": "not-run",
+  "setup_result": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which",
+  "setup_options": "",
+  "setup_error_code": "NONE",
+  "setup_error_info": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n    while executing\n\"namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]\"\n    (in namespace eval \"::nh\" script line 3)\n    invoked from within\n\"namespace eval ::nh {\n    proc emit {fixed value} {list $fixed $value}\n    namespace ensemble create -command facade -map [list send [list ::nh::emit ...\"",
+  "lookup_result": "",
+  "lookup_options": "",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

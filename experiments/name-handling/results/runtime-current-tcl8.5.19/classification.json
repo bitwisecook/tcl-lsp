@@ -1,0 +1,70 @@
+[
+  {
+    "stem": "namespace",
+    "category": "host-refusal",
+    "reported_status": "process-error",
+    "completed_summary": false,
+    "failed_ids": [],
+    "c_executed_failed_ids": [],
+    "last_started_id": "namespace-8.1",
+    "stderr": "run_script: execution refused: original local alias table receipt native handler policy is not selected"
+  },
+  {
+    "stem": "proc",
+    "category": "completed",
+    "reported_status": "pass",
+    "completed_summary": true,
+    "failed_ids": [],
+    "c_executed_failed_ids": [],
+    "last_started_id": "proc-7.4",
+    "stderr": ""
+  },
+  {
+    "stem": "rename",
+    "category": "completed",
+    "reported_status": "pass",
+    "completed_summary": true,
+    "failed_ids": [],
+    "c_executed_failed_ids": [],
+    "last_started_id": "rename-6.1",
+    "stderr": ""
+  },
+  {
+    "stem": "set",
+    "category": "completed",
+    "reported_status": "pass",
+    "completed_summary": true,
+    "failed_ids": [],
+    "c_executed_failed_ids": [],
+    "last_started_id": "set-5.2",
+    "stderr": ""
+  },
+  {
+    "stem": "upvar",
+    "category": "host-refusal",
+    "reported_status": "process-error",
+    "completed_summary": false,
+    "failed_ids": [],
+    "c_executed_failed_ids": [],
+    "last_started_id": "upvar-1.1",
+    "stderr": "run_script: execution refused: original simple variable cell native handler policy is not selected"
+  },
+  {
+    "stem": "var",
+    "category": "assertion-failure",
+    "reported_status": "fail",
+    "completed_summary": true,
+    "failed_ids": [
+      "var-14.2",
+      "var-7.16",
+      "var-7.17"
+    ],
+    "c_executed_failed_ids": [
+      "var-14.2",
+      "var-7.16",
+      "var-7.17"
+    ],
+    "last_started_id": "var-19.1",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,3 @@
+---- lifecycle-context start
+:	Total	1	Passed	1	Skipped	0	Failed	0
+CONTEXTS {{CB abc :: 0 0} {CB def :: 0 0}}

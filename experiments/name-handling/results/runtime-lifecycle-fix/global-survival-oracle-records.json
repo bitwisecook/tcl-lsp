@@ -1,0 +1,32 @@
+[
+  {
+    "patchlevel": "8.4.20",
+    "exit_code": 0,
+    "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  {
+    "patchlevel": "8.5.19",
+    "exit_code": 0,
+    "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+  },
+  {
+    "patchlevel": "8.6.18",
+    "exit_code": 0,
+    "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  {
+    "patchlevel": "9.0.4",
+    "exit_code": 0,
+    "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  {
+    "patchlevel": "9.1.0",
+    "exit_code": 0,
+    "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  }
+]

@@ -80,10 +80,7 @@ impl Vm {
         match self.try_register_child_native_command(child, name, command) {
             Ok(registered) => registered,
             Err(error) => {
-                match error {
-                    crate::TclError::Host(failure) => { let _ = self.refuse_tcl_host_failure(failure); }
-                    guest => { let _ = self.refuse_host_command(guest.to_string()); }
-                }
+                let _ = crate::command::completion_from_tcl_error(self, error);
                 false
             }
         }
@@ -103,8 +100,15 @@ impl Vm {
         let Some(id) = self.child_id(child) else {
             return Ok(false);
         };
-        self.in_interp(id, |vm| vm.try_register_native_command(name, command))
-            .map(|()| true)
+        self.in_interp(id, |vm| {
+            vm.try_register_native_command(name, command)
+                .map(|()| true)
+                .map_err(|error| {
+                    crate::TclError::from_execution_failure(
+                        vm.retain_host_command_refusal(error.to_string()),
+                    )
+                })
+        })
     }
 
     pub(crate) fn with_original_observed_event_inputs_using(

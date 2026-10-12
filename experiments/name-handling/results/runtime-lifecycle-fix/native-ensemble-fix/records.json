@@ -1,0 +1,380 @@
+{
+  "captured_utc": "2026-10-12T12:27:33.601349+00:00",
+  "binary_sha256": "eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f",
+  "records": [
+    {
+      "case": "upstream-namespace-56.2",
+      "release": "8.4",
+      "patchlevel": "8.4.20",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.4",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 2,
+      "timeout": false,
+      "seconds": 0.807,
+      "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.4.20/upstream-namespace-56.2.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.4.20/upstream-namespace-56.2.stderr"
+    },
+    {
+      "case": "deletion-global-survival-probe",
+      "release": "8.4",
+      "patchlevel": "8.4.20",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.4",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 0.794,
+      "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.4.20/deletion-global-survival-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.4.20/deletion-global-survival-probe.stderr"
+    },
+    {
+      "case": "upstream-namespace-56.2",
+      "release": "8.5",
+      "patchlevel": "8.5.19",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.5",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 2.728,
+      "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+      "test_started": true,
+      "test_summary": true,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/upstream-namespace-56.2.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/upstream-namespace-56.2.stderr"
+    },
+    {
+      "case": "deletion-global-survival-probe",
+      "release": "8.5",
+      "patchlevel": "8.5.19",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.5",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 0.944,
+      "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/deletion-global-survival-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/deletion-global-survival-probe.stderr"
+    },
+    {
+      "case": "cached-fresh-namespace-probe",
+      "release": "8.5",
+      "patchlevel": "8.5.19",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.5",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.062,
+      "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/cached-fresh-namespace-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/cached-fresh-namespace-probe.stderr"
+    },
+    {
+      "case": "ensemble-shadow",
+      "release": "8.5",
+      "patchlevel": "8.5.19",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.5"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.003,
+      "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/ensemble-shadow.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/ensemble-shadow.stderr"
+    },
+    {
+      "case": "upstream-namespace-56.2",
+      "release": "8.6",
+      "patchlevel": "8.6.18",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "timeout": false,
+      "seconds": 1.74,
+      "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/upstream-namespace-56.2.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/upstream-namespace-56.2.stderr"
+    },
+    {
+      "case": "deletion-global-survival-probe",
+      "release": "8.6",
+      "patchlevel": "8.6.18",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "timeout": false,
+      "seconds": 1.881,
+      "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/deletion-global-survival-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/deletion-global-survival-probe.stderr"
+    },
+    {
+      "case": "cached-fresh-namespace-probe",
+      "release": "8.6",
+      "patchlevel": "8.6.18",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "timeout": false,
+      "seconds": 1.638,
+      "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/cached-fresh-namespace-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/cached-fresh-namespace-probe.stderr"
+    },
+    {
+      "case": "ensemble-shadow",
+      "release": "8.6",
+      "patchlevel": "8.6.18",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "8.6"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.632,
+      "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/ensemble-shadow.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/ensemble-shadow.stderr"
+    },
+    {
+      "case": "upstream-namespace-56.2",
+      "release": "9.0",
+      "patchlevel": "9.0.4",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.0",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 2,
+      "timeout": false,
+      "seconds": 1.658,
+      "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/upstream-namespace-56.2.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/upstream-namespace-56.2.stderr"
+    },
+    {
+      "case": "deletion-global-survival-probe",
+      "release": "9.0",
+      "patchlevel": "9.0.4",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.0",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.618,
+      "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/deletion-global-survival-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/deletion-global-survival-probe.stderr"
+    },
+    {
+      "case": "cached-fresh-namespace-probe",
+      "release": "9.0",
+      "patchlevel": "9.0.4",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.0",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.671,
+      "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/cached-fresh-namespace-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/cached-fresh-namespace-probe.stderr"
+    },
+    {
+      "case": "ensemble-shadow",
+      "release": "9.0",
+      "patchlevel": "9.0.4",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.0"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.589,
+      "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/ensemble-shadow.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/ensemble-shadow.stderr"
+    },
+    {
+      "case": "upstream-namespace-56.2",
+      "release": "9.1",
+      "patchlevel": "9.1.0",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.1",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 2,
+      "timeout": false,
+      "seconds": 1.433,
+      "input_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/upstream-namespace-56.2.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/upstream-namespace-56.2.stderr"
+    },
+    {
+      "case": "deletion-global-survival-probe",
+      "release": "9.1",
+      "patchlevel": "9.1.0",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.1",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.546,
+      "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/deletion-global-survival-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/deletion-global-survival-probe.stderr"
+    },
+    {
+      "case": "cached-fresh-namespace-probe",
+      "release": "9.1",
+      "patchlevel": "9.1.0",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.1",
+        "--init"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.398,
+      "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/cached-fresh-namespace-probe.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/cached-fresh-namespace-probe.stderr"
+    },
+    {
+      "case": "ensemble-shadow",
+      "release": "9.1",
+      "patchlevel": "9.1.0",
+      "command": [
+        "/tmp/name-runtime-native-ensemble-fixed",
+        "--quiet",
+        "--tcl-version",
+        "9.1"
+      ],
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "timeout": false,
+      "seconds": 1.412,
+      "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+      "test_started": false,
+      "test_summary": false,
+      "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/ensemble-shadow.stdout",
+      "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/ensemble-shadow.stderr"
+    }
+  ]
+}

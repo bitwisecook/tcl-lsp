@@ -1,0 +1,82 @@
+[
+  {
+    "version": "8.4.20",
+    "construction": "Vm::with_native_core",
+    "engine": "vm",
+    "probe": "startup.tcl",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+      "/workspace/tcl-lsp/experiments/name-handling/results/bootstrap-release-c49ef6fd5/startup.tcl",
+      "--tcl-version",
+      "8.4"
+    ],
+    "exit_code": 1,
+    "binary_sha256": "7f0b87a72e1bade6493066ef2c2d3cd5e631734d8e21099e13a0f0dc1ccdae3b",
+    "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+    "tcltest_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+  },
+  {
+    "version": "8.5.19",
+    "construction": "Vm::with_native_core",
+    "engine": "vm",
+    "probe": "startup.tcl",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+      "/workspace/tcl-lsp/experiments/name-handling/results/bootstrap-release-c49ef6fd5/startup.tcl",
+      "--tcl-version",
+      "8.5"
+    ],
+    "exit_code": 1,
+    "binary_sha256": "7f0b87a72e1bade6493066ef2c2d3cd5e631734d8e21099e13a0f0dc1ccdae3b",
+    "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+    "tcltest_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d"
+  },
+  {
+    "version": "8.6.18",
+    "construction": "Vm::with_native_core",
+    "engine": "vm",
+    "probe": "startup.tcl",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+      "/workspace/tcl-lsp/experiments/name-handling/results/bootstrap-release-c49ef6fd5/startup.tcl",
+      "--tcl-version",
+      "8.6"
+    ],
+    "exit_code": 1,
+    "binary_sha256": "7f0b87a72e1bade6493066ef2c2d3cd5e631734d8e21099e13a0f0dc1ccdae3b",
+    "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+  },
+  {
+    "version": "9.0.4",
+    "construction": "Vm::with_native_core",
+    "engine": "vm",
+    "probe": "startup.tcl",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+      "/workspace/tcl-lsp/experiments/name-handling/results/bootstrap-release-c49ef6fd5/startup.tcl",
+      "--tcl-version",
+      "9.0"
+    ],
+    "exit_code": 1,
+    "binary_sha256": "7f0b87a72e1bade6493066ef2c2d3cd5e631734d8e21099e13a0f0dc1ccdae3b",
+    "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+  },
+  {
+    "version": "9.1.0",
+    "construction": "Vm::with_native_core",
+    "engine": "vm",
+    "probe": "startup.tcl",
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+      "/workspace/tcl-lsp/experiments/name-handling/results/bootstrap-release-c49ef6fd5/startup.tcl",
+      "--tcl-version",
+      "9.1"
+    ],
+    "exit_code": 1,
+    "binary_sha256": "7f0b87a72e1bade6493066ef2c2d3cd5e631734d8e21099e13a0f0dc1ccdae3b",
+    "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+    "tcltest_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+  }
+]

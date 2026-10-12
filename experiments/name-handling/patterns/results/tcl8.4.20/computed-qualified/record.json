@@ -1,0 +1,30 @@
+{
+  "case_id": "computed-qualified",
+  "release": "8.4",
+  "patchlevel": "8.4.20",
+  "probe": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+  "probe_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+  "input_sha256": "08b7e3e0f2cf962b9659b8187ea34486490cbe6b02b1a022186df0f12538427f",
+  "process_exit_code": 0,
+  "stdout_sha256": "a83dfe3d7770e162b74c53fd2c56881d4c6f4a838ccc70fe4621787c06612022",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.4.20/computed-qualified",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "::nh::emit",
+  "setup_options": "",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "first",
+  "lookup_options": "",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

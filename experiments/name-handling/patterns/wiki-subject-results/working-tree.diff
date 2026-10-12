@@ -1,0 +1,967 @@
+diff --git a/runtime/rust/src/cmd_alias.rs b/runtime/rust/src/cmd_alias.rs
+index f95f1202f..ac0bab6d6 100644
+--- a/runtime/rust/src/cmd_alias.rs
++++ b/runtime/rust/src/cmd_alias.rs
+@@ -43,6 +43,7 @@ use crate::obj::{self, TclObj};
+ pub fn install(interp: &mut Interp) {
+     interp.register_builtin(b"rename", rename);
+     interp.register_builtin(b"interp", interp_cmd);
++    interp.register_builtin(b"::tcl::InitAutoPath", Interp::init_auto_path);
+     // `update` is registered by `cmd_event` (the real event loop).
+ }
+ 
+diff --git a/runtime/rust/src/cmd_package.rs b/runtime/rust/src/cmd_package.rs
+index 6db48df73..e6dfa8d5a 100644
+--- a/runtime/rust/src/cmd_package.rs
++++ b/runtime/rust/src/cmd_package.rs
+@@ -30,7 +30,7 @@
+ use std::collections::BTreeMap;
+ 
+ use tcl_dialect::{
+-    compare_versions_for, exact_requirement, select_package_version_exact_for,
++    compare_versions_for, package_unknown_requirements_for, select_package_version_exact_for,
+     select_package_version_for, validate_requirement_for, validate_version_for,
+     version_matches_exact_for, version_satisfies_for, PackagePrefer, TclVersion,
+ };
+@@ -304,18 +304,10 @@ fn package_lookup(interp: &mut Interp, argv: &[*mut TclObj], load: bool) -> Code
+             let mut script = handler;
+             script.push(b' ');
+             tcl_syntax::list::append_list_element(&mut script, &name, false);
+-            for requirement in &requirements {
++            let requirement_words = requirements.iter().map(|word| version_text(word)).collect::<Vec<_>>();
++            for requirement in package_unknown_requirements_for(&requirement_words, exact, release) {
+                 script.push(b' ');
+-                if exact {
+-                    let exact_requirement = exact_requirement(&version_text(requirement));
+-                    tcl_syntax::list::append_list_element(
+-                        &mut script,
+-                        exact_requirement.as_bytes(),
+-                        false,
+-                    );
+-                } else {
+-                    tcl_syntax::list::append_list_element(&mut script, requirement, false);
+-                }
++                tcl_syntax::list::append_list_element(&mut script, requirement.as_bytes(), false);
+             }
+             if interp.eval_uplevel(0, &script) == Code::Error {
+                 return Code::Error;
+diff --git a/runtime/rust/src/cmd_string.rs b/runtime/rust/src/cmd_string.rs
+index 1c28f1190..9277ca81a 100644
+--- a/runtime/rust/src/cmd_string.rs
++++ b/runtime/rust/src/cmd_string.rs
+@@ -196,6 +196,7 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+ /// The `string` ensemble subcommands, in the order used by the
+ /// "unknown or ambiguous subcommand" diagnostic.
+ const STRING_SUBCOMMANDS: &[&[u8]] = &[
++    b"bytelength",
+     b"cat",
+     b"compare",
+     b"equal",
+diff --git a/runtime/rust/src/interp.rs b/runtime/rust/src/interp.rs
+index dc83be6cd..a3cd2e3ce 100644
+--- a/runtime/rust/src/interp.rs
++++ b/runtime/rust/src/interp.rs
+@@ -3457,6 +3457,80 @@ impl Interp {
+         }
+     }
+ 
++    pub(crate) fn init_auto_path(&mut self, argv: &[*mut TclObj]) -> Code {
++        if argv.len() != 1 {
++            return self.wrong_args(b"tcl::InitAutoPath");
++        }
++        let existing = self.bootstrap_scalar(b"::auto_path");
++        if self.is_safe() {
++            if existing.is_none() {
++                let value = new_string(b"");
++                if let Err(error) = self.store_var_result(b"::auto_path", None, value) {
++                    return builtins::var_error(self, b"::auto_path", error);
++                }
++            }
++            self.set_result_bytes(b"");
++            return Code::Ok;
++        }
++        let existing = match existing {
++            Some(value) => match crate::list::list_elements(value) {
++                Ok(elements) => Some(elements.into_iter().map(obj_bytes).collect()),
++                Err(error) => return self.error(&error.message()),
++            },
++            None => None,
++        };
++        let mut environment = Vec::new();
++        if existing.is_none() {
++            let environment_value = if self.fire_read_trace(b"::env", Some(b"TCLLIBPATH")).is_none() {
++                self.var_get_elem(b"::env", b"TCLLIBPATH")
++            } else {
++                None
++            };
++            if let Some(value) = environment_value {
++                environment = match crate::list::list_elements(value) {
++                    Ok(elements) => elements.into_iter().map(obj_bytes).collect(),
++                    Err(error) => return self.error(&error.message()),
++                };
++                let home = self.host().env().get("HOME");
++                environment = tcl_cmd_core::platform::auto_path_environment(
++                    environment,
++                    home.as_deref().map(str::as_bytes),
++                );
++            }
++        }
++        let library = self.bootstrap_scalar(b"::tcl_library").map(obj_bytes);
++        let executable = self.host().env().current_exe();
++        let installation = tcl_cmd_core::platform::auto_path_installation(
++            library.as_deref(),
++            executable.as_deref().map(str::as_bytes),
++        );
++        let packages = self
++            .bootstrap_scalar(b"::tcl_pkgPath")
++            .and_then(|value| crate::list::list_elements(value).ok())
++            .map(|elements| elements.into_iter().map(obj_bytes).collect::<Vec<_>>())
++            .unwrap_or_default();
++        let paths = tcl_platform::bootstrap::auto_path(
++            existing,
++            &environment,
++            &installation,
++            &packages,
++            false,
++        );
++        let elements = paths.iter().map(|path| new_string(path)).collect::<Vec<_>>();
++        let value = crate::list::new_list_obj(&elements);
++        match self.store_var_result(b"::auto_path", None, value) {
++            Ok(()) => Code::Ok,
++            Err(error) => builtins::var_error(self, b"::auto_path", error),
++        }
++    }
++
++    fn bootstrap_scalar(&mut self, name: &[u8]) -> Option<*mut TclObj> {
++        self.fire_read_trace(name, None)
++            .is_none()
++            .then(|| self.var_get(name))
++            .flatten()
++    }
++
+     pub fn init_library(&mut self) -> Code {
+         let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
+         // Source init.tcl, which sets up unknown/auto-load/package + appends
+@@ -5642,6 +5716,7 @@ impl Interp {
+         self.namespaces.borrow_mut().clear_namespace_token(ns);
+         self.fire_unset_callbacks(victims);
+         self.tear_down_command_table(ns);
++        self.namespaces.borrow_mut().unlink_dying_namespace(ns);
+ 
+         // Tcl snapshots and recursively deletes children only after this
+         // token's ordinary command callbacks have completed. A callback may
+diff --git a/runtime/rust/src/namespace.rs b/runtime/rust/src/namespace.rs
+index 0b52517fa..0eb2aa13a 100644
+--- a/runtime/rust/src/namespace.rs
++++ b/runtime/rust/src/namespace.rs
+@@ -1549,6 +1549,11 @@ impl Namespaces {
+         self.dying_children.retain(|_, id| !victim_set.contains(id));
+     }
+ 
++    /// Unpublish the retained lookup edge before this token's children retire.
++    pub(crate) fn unlink_dying_namespace(&mut self, ns: NsId) {
++        self.dying_children.retain(|_, child| *child != ns);
++    }
++
+     /// If `qualified` names a detached dying namespace, return its retained
+     /// arena identity. Public lookup may traverse the same retained edge to a
+     /// still-live child, but checks the final token's liveness; this helper
+diff --git a/rust/tcl-cmd-core/src/platform.rs b/rust/tcl-cmd-core/src/platform.rs
+index 99324cd36..d7817cfe1 100644
+--- a/rust/tcl-cmd-core/src/platform.rs
++++ b/rust/tcl-cmd-core/src/platform.rs
+@@ -31,6 +31,41 @@ use tcl_syntax::value::ValueOps;
+ 
+ use crate::error::CmdError;
+ 
++/// Installation directories appended to `auto_path`, in Tcl lookup order.
++#[must_use]
++pub fn auto_path_installation(library: Option<&[u8]>, executable: Option<&[u8]>) -> Vec<Vec<u8>> {
++    let mut paths = Vec::new();
++    if let Some(library) = library {
++        paths.push(library.to_vec());
++        paths.push(crate::path::dirname(library).into_owned());
++    }
++    if let Some(executable) = executable {
++        let directory = crate::path::dirname(executable);
++        let parent = crate::path::dirname(&directory);
++        paths.push(crate::path::join(&[parent.as_ref(), b"lib"]));
++    }
++    paths
++}
++
++/// Expand the host home directory in `TCLLIBPATH`, omitting unresolved homes.
++#[must_use]
++pub fn auto_path_environment(paths: Vec<Vec<u8>>, home: Option<&[u8]>) -> Vec<Vec<u8>> {
++    paths
++        .into_iter()
++        .filter_map(|path| {
++            if path == b"~" {
++                home.map(<[u8]>::to_vec)
++            } else if path.starts_with(b"~/") {
++                home.map(|home| crate::path::join(&[home, &path[2..]]))
++            } else if path.starts_with(b"~") {
++                None
++            } else {
++                Some(path)
++            }
++        })
++        .collect()
++}
++
+ /// `exec arg ?arg ...?` — run a command and capture its standard output (with
+ /// trailing newlines trimmed).
+ ///
+diff --git a/rust/tcl-cmd-core/src/string.rs b/rust/tcl-cmd-core/src/string.rs
+index cd9705020..04d58659f 100644
+--- a/rust/tcl-cmd-core/src/string.rs
++++ b/rust/tcl-cmd-core/src/string.rs
+@@ -41,6 +41,20 @@ pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
+     ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
+ }
+ 
++/// `string bytelength str` — the Tcl 8 modified UTF-8 representation size.
++pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
++    let n = ops
++        .as_str(s)
++        .encode_utf16()
++        .map(|unit| match unit {
++            1..=0x7f => 1_i64,
++            0..=0x7ff => 2,
++            _ => 3,
++        })
++        .sum();
++    ops.new_int(n)
++}
++
+ /// `string index str charIndex` — the one-character string at `idx`, or empty
+ /// when out of range.
+ pub fn index<O: ValueOps>(ops: &mut O, s: &O::Value, idx: &O::Value) -> Result<O::Value, CmdError> {
+@@ -762,6 +776,8 @@ pub fn dispatch_canon<O: ValueOps>(
+         }
+     };
+     match sub {
++        "bytelength" => arity(1, "string bytelength string")
++            .or_else(|| Some(Ok(bytelength(ops, &rest[0])))),
+         "length" => arity(1, "string length string").or_else(|| Some(Ok(length(ops, &rest[0])))),
+         "index" => arity(2, "string index string charIndex")
+             .or_else(|| Some(index(ops, &rest[0], &rest[1]))),
+diff --git a/rust/tcl-compiler/src/alias.rs b/rust/tcl-compiler/src/alias.rs
+index af6e1e1b6..fe9db4206 100644
+--- a/rust/tcl-compiler/src/alias.rs
++++ b/rust/tcl-compiler/src/alias.rs
+@@ -22,22 +22,7 @@
+ //! and the compiler's bridge from **source words** to the registry's one
+ //! command-table transition vocabulary.
+ //!
+-//! ## The one vocabulary (centralisation ledger C8)
+-//!
+-//! What a call did to the command table is registry data, stated once as
+-//! [`tcl_registry::CommandBindingTransition`] facts and read through
+-//! [`command_table_transitions`]. This module deliberately carries no second
+-//! vocabulary of its own: `detect_interp_alias`, `detect_rename` and
+-//! `detect_interp_alias_delete` re-destructured `interp alias`'s and
+-//! `rename`'s argument layouts here, after each consumer had dispatched on
+-//! the coarse `CommandTableEffect` word — a layout the registry's own
+-//! resolvers already knew, and a dynamic-operand rule
+-//! ([`is_dynamic_word`]) each consumer re-applied for itself. The layout
+-//! now lives with the resolver
+-//! (`tcl_registry::state_transition::command_binding`), and a dynamic
+-//! operand arrives as a typed [`TransitionSubject::Unknown`] instead.
+-//!
+-//! [`TransitionSubject::Unknown`]: tcl_registry::TransitionSubject::Unknown
++//! Command-table transitions come from registry invocation facts.
+ 
+ use std::collections::HashMap;
+ 
+@@ -45,17 +30,9 @@ use tcl_registry::{
+     CommandRegistry, InvocationWord, InvocationWords, StateTransitions, TransitionSubject,
+ };
+ 
+-use crate::naming::{is_dynamic_word, normalise_qualified_name};
++use crate::naming::{is_dynamic_word, resolve_command_with};
+ 
+-/// Classify one reconstructed source word for the registry's structured
+-/// invocation view.
+-///
+-/// A word carrying a `$` substitution or a `[…]` command substitution has
+-/// no statically known Tcl value, so it becomes
+-/// [`InvocationWord::Dynamic`] and every subject the registry derives from
+-/// it is a typed unknown. This is the compiler's **one** dynamic-word rule
+-/// reaching the registry; before ledger C8 each command-table consumer
+-/// applied its own copy of it after the fact.
++/// Convert reconstructed source text to a literal or dynamic invocation word.
+ #[must_use]
+ pub fn source_word(text: &str) -> InvocationWord<'_> {
+     if is_dynamic_word(text) {
+@@ -118,31 +95,33 @@ pub fn subject_word<'a>(subject: &'a TransitionSubject, args: &'a [String]) -> O
+ /// Alias store: qualified name → (target command, prepended args).
+ pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
+ 
+-/// Look up a command alias, namespace-aware.
++/// Look up an alias with shared written-name grammar and current/global order.
+ ///
+-/// Returns `(target_cmd, prepended_args)` or `None`.
+-/// If `cmd_name` starts with `::`, looks up directly.
+-/// Otherwise tries the current `namespace` first, then global.
++/// The alias-only table provides no namespace path or non-alias shadowing facts.
+ #[must_use]
+ pub fn resolve_alias(
+     cmd_name: &str,
+     aliases: &CommandAliasMap,
+     namespace: &str,
+ ) -> Option<(String, Vec<String>)> {
+-    if cmd_name.starts_with("::") {
+-        return aliases.get(&normalise_qualified_name(cmd_name)).cloned();
+-    }
+-
+-    if namespace != "::" {
+-        let candidate = normalise_qualified_name(&format!("{namespace}::{cmd_name}"));
+-        if let Some(entry) = aliases.get(&candidate) {
+-            return Some(entry.clone());
+-        }
+-    }
++    resolve_alias_with::<&str, _>(cmd_name, aliases, namespace, &[], |_| false)
++}
+ 
+-    aliases
+-        .get(&normalise_qualified_name(&format!("::{cmd_name}")))
+-        .cloned()
++/// Select the first command in context, then inspect whether it is an alias.
++/// The caller must establish competing bindings and path at the invocation;
++/// unknown binding state requires abstention before this lookup.
++#[must_use]
++pub fn resolve_alias_with<S: AsRef<str>, F: FnMut(&str) -> bool>(
++    cmd_name: &str,
++    aliases: &CommandAliasMap,
++    namespace: &str,
++    path: &[S],
++    mut command_exists: F,
++) -> Option<(String, Vec<String>)> {
++    let selected = resolve_command_with(namespace, path, cmd_name, |candidate| {
++        aliases.contains_key(candidate) || command_exists(candidate)
++    })?;
++    aliases.get(&selected).cloned()
+ }
+ 
+ #[cfg(test)]
+diff --git a/rust/tcl-compiler/src/auto_path_eval.rs b/rust/tcl-compiler/src/auto_path_eval.rs
+index e515aac2f..2bf57140c 100644
+--- a/rust/tcl-compiler/src/auto_path_eval.rs
++++ b/rust/tcl-compiler/src/auto_path_eval.rs
+@@ -474,29 +474,17 @@ fn is_plain_scalar_name(name: &str) -> bool {
+     !name.is_empty() && !name.contains('$') && !name.contains('[') && !name.contains('(')
+ }
+ 
+-/// Canonical `::`-rooted form of a qualified name: split on `::`, drop empty
+-/// segments (absorbing leading `::` and trailing-colon spellings like
+-/// `::snit::`), re-root.  `canon("snit::")` and `canon("::snit")` are both
+-/// `::snit`.
+-fn canon(name: &str) -> String {
+-    let mut out = String::new();
+-    for segment in name.split("::").filter(|s| !s.is_empty()) {
+-        out.push_str("::");
+-        out.push_str(segment);
+-    }
+-    out
++/// Preserve variable empty tails with the shared written-name grammar.
++fn rooted_variable_key(name: &str) -> String {
++    crate::naming::qualify("::", name)
+ }
+ 
+-/// The canonical key for `name` written or declared under `ns_prefix`
+-/// (`""` at the top level): a bare global stays bare, everything else roots.
++/// Keep the compatibility map's bare spelling for unqualified global variables.
+ fn qualified_key(ns_prefix: &str, name: &str) -> String {
+-    if name.starts_with("::") {
+-        return canon(name);
+-    }
+-    if ns_prefix.is_empty() && !name.contains("::") {
++    if ns_prefix.is_empty() && !crate::naming::is_qualified(name.as_bytes()) {
+         return name.to_owned();
+     }
+-    canon(&format!("{ns_prefix}::{name}"))
++    crate::naming::qualify(ns_prefix, name)
+ }
+ 
+ /// Walk one command stream under `ns_prefix`, appending facts to `out`.
+@@ -699,13 +687,11 @@ fn descend_namespace_body(
+     if !body_is_braced {
+         return;
+     }
+-    // Always `::`-rooted, unlike a variable key (whose bare global spelling
+-    // `qualified_key` preserves): this is a namespace name, and `::alited` is
+-    // its only canonical form.
+     let child_prefix = if name.starts_with("::") {
+-        canon(name)
++        crate::naming::normalise_qualified_name(name)
+     } else {
+-        canon(&format!("{ns_prefix}::{name}"))
++        let relative = crate::naming::qualifier_segments_owned(name).join("::");
++        crate::naming::qualify(ns_prefix, &relative)
+     };
+     let body_base = base_offset
+         + seg
+@@ -799,11 +785,11 @@ fn collect_set_write(
+     };
+     let raw = raw_value(seg, value_word);
+     if name.starts_with("::") {
+-        push(out, canon(name), raw);
++        push(out, rooted_variable_key(name), raw);
+     } else if name.contains("::") {
+         // Relative-qualified: current-ns-first, global fallback —
+         // unattributable, kill both candidates.
+-        for key in [qualified_key(ns_prefix, name), canon(&format!("::{name}"))] {
++        for key in [qualified_key(ns_prefix, name), rooted_variable_key(name)] {
+             push(out, key, PathConstantValue::Poisoned);
+         }
+     } else if ns_prefix.is_empty() {
+@@ -885,10 +871,10 @@ fn poison_mutated_variables(
+         // the keys must be the keys the fold counts (a bare global's key is
+         // the bare name).
+         if name.starts_with("::") {
+-            poison(out, canon(name));
++            poison(out, rooted_variable_key(name));
+         } else if name.contains("::") {
+             poison(out, qualified_key(ns_prefix, name));
+-            poison(out, canon(&format!("::{name}")));
++            poison(out, rooted_variable_key(name));
+         } else if ns_prefix.is_empty() {
+             poison(out, name.to_owned());
+         } else {
+@@ -910,7 +896,7 @@ fn lookup_constant<S: std::hash::BuildHasher>(
+         return Some(v.clone());
+     }
+     if name.contains("::") {
+-        let rooted = canon(name);
++        let rooted = rooted_variable_key(name);
+         if let Some(v) = constants.get(&rooted) {
+             return Some(v.clone());
+         }
+@@ -1026,7 +1012,7 @@ pub fn fold_constant_assignments_with_imports<S: std::hash::BuildHasher>(
+                 return Some(v);
+             }
+             if name.contains("::") {
+-                let rooted = canon(name);
++                let rooted = rooted_variable_key(name);
+                 if blocked.contains_key(rooted.as_str()) {
+                     return None;
+                 }
+diff --git a/rust/tcl-compiler/src/type_infer.rs b/rust/tcl-compiler/src/type_infer.rs
+index 4795c66cc..ed5e4e596 100644
+--- a/rust/tcl-compiler/src/type_infer.rs
++++ b/rust/tcl-compiler/src/type_infer.rs
+@@ -194,23 +194,10 @@ fn function_namespace(qname: &str) -> String {
+     }
+ }
+ 
+-/// Type a registry-declared class constructor call as `OBJECT(class)` when
+-/// its head resolves
+-/// to a known class, else `OVERDEFINED`.  The relative head is resolved as-is,
+-/// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
+-/// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
++/// Classify a possible constructor using the shared current/global lookup order.
+ ///
+-/// `known_classes` carries **no deletion or lifetime information** — it is
+-/// the raw signature-scan class set, and this module (a flow-insensitive
+-/// per-symbol type inference reached from three internal sites, none of
+-/// which has a call-site offset to hand) has nowhere to put one. A class
+-/// this file later `rename`s away therefore still types its constructor
+-/// result here. Consumers that turn an `OBJECT(class)` into a *diagnostic*
+-/// must apply the liveness gate themselves — `var_command.rs`'s
+-/// `aggregate_object_types` does, at file-end granularity, for W308.
+-/// Consumers that only use the type internally (SCCP shape
+-/// selection, codegen hints) are unaffected: a dead class's constructor
+-/// raises at runtime, so no correct program reaches them.
++/// The signature-scan class set has no command-shadowing, path or lifetime facts.
++/// This is a type hint; diagnostic consumers must establish binding and liveness.
+ fn constructor_object_type<S: std::hash::BuildHasher>(
+     registry: &CommandRegistry,
+     command: &str,
+@@ -221,27 +208,14 @@ fn constructor_object_type<S: std::hash::BuildHasher>(
+     let is_ctor_spelling = args
+         .first()
+         .is_some_and(|word| registry.is_possible_class_construction_word(word));
+-    if is_ctor_spelling && !known_classes.is_empty() {
+-        if known_classes.contains(command) {
+-            return TypeLattice::object_of(command);
+-        }
+-        let qualified = if command.starts_with("::") {
+-            command.to_string()
+-        } else {
+-            format!("::{command}")
+-        };
+-        if known_classes.contains(&qualified) {
+-            return TypeLattice::object_of(qualified);
+-        }
+-        if namespace != "::" && !command.starts_with("::") {
+-            let ns_qualified =
+-                crate::naming::normalise_qualified_name(&format!("{namespace}::{command}"));
+-            if known_classes.contains(&ns_qualified) {
+-                return TypeLattice::object_of(ns_qualified);
+-            }
+-        }
++    if is_ctor_spelling
++        && let Some(class) =
++            crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |candidate| {
++                known_classes.contains(candidate)
++            })
++    {
++        return TypeLattice::object_of(class);
+     }
+-    // Do not infer `object_of` from the `new` spelling alone.
+     TypeLattice::overdefined()
+ }
+ 
+@@ -2041,6 +2015,51 @@ mod tests {
+     use std::collections::HashSet;
+     use tcl_lexer::Span;
+ 
++    #[test]
++    fn constructor_types_follow_current_namespace_and_written_name_grammar() {
++        let registry = registry();
++        let classes = HashSet::from(["::C".to_owned(), "::ns::C".to_owned(), "::ns::".to_owned()]);
++        for (command, namespace, expected) in [
++            ("C", "::ns", "::ns::C"),
++            ("::C", "::ns", "::C"),
++            ("::ns:::C", "::", "::ns::C"),
++            ("::ns:::", "::", "::ns::"),
++        ] {
++            assert_eq!(
++                constructor_object_type(&registry, command, &["new"], &classes, namespace),
++                TypeLattice::object_of(expected),
++            );
++        }
++        assert_eq!(
++            constructor_object_type(&registry, "unknown", &["new"], &classes, "::ns"),
++            TypeLattice::overdefined(),
++        );
++        assert_eq!(
++            constructor_object_type(&registry, "C", &["unrecognised"], &classes, "::ns"),
++            TypeLattice::overdefined(),
++        );
++        for version in tcl_dialect::TclVersion::ALL {
++            if version < tcl_dialect::TclVersion::V8_6 {
++                continue;
++            }
++            let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
++                continue;
++            };
++            let result = tcl_test_support::run_script(
++                &tclsh.path,
++                include_bytes!("../tests/data/name-consumers/classes.tcl"),
++            )
++            .expect("run the C Tcl constructor oracle")
++            .strict_text()
++            .expect("constructor oracle succeeds");
++            assert_eq!(
++                result, "::ns::C\n::C\n::ns::C\n::ns::",
++                "{}",
++                tclsh.patchlevel
++            );
++        }
++    }
++
+     fn registry() -> CommandRegistry {
+         CommandRegistry::build_default()
+     }
+diff --git a/rust/tcl-dialect/src/lib.rs b/rust/tcl-dialect/src/lib.rs
+index 6cda208ef..b9835ecbd 100644
+--- a/rust/tcl-dialect/src/lib.rs
++++ b/rust/tcl-dialect/src/lib.rs
+@@ -66,7 +66,7 @@ pub use profile::{DialectFileExtension, DialectProfile, EvaluationEvidence};
+ pub use version::{
+     ByteStringEncoding, CorePackage, PackagePrefer, RequirementValidationError,
+     StringCharacterModel, TclVersion, Ternary, compare_versions, compare_versions_for,
+-    exact_requirement, select_package_version, select_package_version_exact_for,
++    exact_requirement, package_unknown_requirements_for, select_package_version, select_package_version_exact_for,
+     select_package_version_for, validate_requirement, validate_requirement_for, validate_version,
+     validate_version_for, version_in_any_window, version_is_stable, version_is_stable_for,
+     version_matches_exact_for, version_satisfies, version_satisfies_for,
+diff --git a/rust/tcl-dialect/src/version.rs b/rust/tcl-dialect/src/version.rs
+index a2f64e195..11529aeaf 100644
+--- a/rust/tcl-dialect/src/version.rs
++++ b/rust/tcl-dialect/src/version.rs
+@@ -1183,6 +1183,28 @@ pub fn exact_requirement(version: &str) -> String {
+     format!("{version}-{version}")
+ }
+ 
++/// Requirement words passed to a `package unknown` command prefix.
++#[must_use]
++pub fn package_unknown_requirements_for(
++    requirements: &[String],
++    exact: bool,
++    release: TclVersion,
++) -> Vec<String> {
++    if release == TclVersion::V8_4 {
++        let mut arguments = vec![requirements.first().cloned().unwrap_or_default()];
++        if exact {
++            arguments.push("-exact".to_owned());
++        }
++        arguments
++    } else if requirements.is_empty() {
++        vec!["0-".to_owned()]
++    } else if exact {
++        requirements.iter().map(|version| exact_requirement(version)).collect()
++    } else {
++        requirements.to_vec()
++    }
++}
++
+ /// Which of the two best candidates `package require` takes — C Tcl's
+ /// `package prefer` interpreter state.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+diff --git a/rust/tcl-platform/src/lib.rs b/rust/tcl-platform/src/lib.rs
+index 6cea3ce91..cd0b4961a 100644
+--- a/rust/tcl-platform/src/lib.rs
++++ b/rust/tcl-platform/src/lib.rs
+@@ -386,6 +386,37 @@ pub trait Host {
+ pub mod bootstrap {
+     use super::{Host, backend};
+ 
++    /// Compose Tcl's library search path from already-parsed path lists.
++    /// Existing entries retain their order and multiplicity; additions are unique.
++    #[must_use]
++    pub fn auto_path(
++        existing: Option<Vec<Vec<u8>>>,
++        environment_paths: &[Vec<u8>],
++        installation_paths: &[Vec<u8>],
++        package_paths: &[Vec<u8>],
++        safe: bool,
++    ) -> Vec<Vec<u8>> {
++        if safe {
++            return existing.unwrap_or_default();
++        }
++        let mut paths = existing.unwrap_or_else(|| {
++            let mut paths = Vec::new();
++            append_unique_paths(&mut paths, environment_paths);
++            paths
++        });
++        append_unique_paths(&mut paths, installation_paths);
++        append_unique_paths(&mut paths, package_paths);
++        paths
++    }
++
++    fn append_unique_paths(paths: &mut Vec<Vec<u8>>, additions: &[Vec<u8>]) {
++        for path in additions {
++            if !paths.contains(path) {
++                paths.push(path.clone());
++            }
++        }
++    }
++
+     /// Arrays whose complete contents come from the selected host bootstrap.
+     pub const HOST_ARRAYS: &[&str] = &["tcl_platform", "env"];
+ 
+diff --git a/rust/tcl-vm/src/cmd_namespace.rs b/rust/tcl-vm/src/cmd_namespace.rs
+index deb8e10df..8795439dd 100644
+--- a/rust/tcl-vm/src/cmd_namespace.rs
++++ b/rust/tcl-vm/src/cmd_namespace.rs
+@@ -243,18 +243,25 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+         }
+         "export" => ns_export(vm, rest),
+         "import" => ns_import(vm, rest),
+-        // `namespace delete ?ns ...?` — destroy each namespace (and its
+-        // descendants, commands, and variables). An unknown namespace errors,
+-        // after deleting any that preceded it (matching tclsh).
+         "delete" => {
++            // Validate every operand before callbacks can delete another target.
+             for n in rest {
+-                if !vm.delete_namespace_written(&n.to_str()) {
+-                    return err(format!(
++                let name = n.to_str();
++                if !vm.namespace_deletion_is_valid(&name) {
++                    let message = format!(
+                         "unknown namespace \"{}\" in namespace delete command",
+-                        n.to_str()
+-                    ));
++                        name
++                    );
++                    return if vm.runtime_version() < tcl_dialect::TclVersion::V8_5 {
++                        err(message)
++                    } else {
++                        lookup_error(message, "NAMESPACE", &name)
++                    };
+                 }
+             }
++            for n in rest {
++                vm.delete_namespace_written(&n.to_str());
++            }
+             ok(Value::empty())
+         }
+         // `namespace path ?nsList?` — get/set the current namespace's command
+diff --git a/rust/tcl-vm/src/cmd_string.rs b/rust/tcl-vm/src/cmd_string.rs
+index 4ec650286..3c734135e 100644
+--- a/rust/tcl-vm/src/cmd_string.rs
++++ b/rust/tcl-vm/src/cmd_string.rs
+@@ -32,6 +32,9 @@ pub(crate) fn register(vm: &mut Vm) {
+     // the `string` dispatcher. `BuiltinFn` is a plain `fn`, so each closure must
+     // be non-capturing (a literal subcommand name).
+     vm.register("::tcl::string::cat", |vm, a| string_op(vm, "cat", a));
++    vm.register("::tcl::string::bytelength", |vm, a| {
++        string_op(vm, "bytelength", a)
++    });
+     vm.register("::tcl::string::compare", |vm, a| {
+         string_op(vm, "compare", a)
+     });
+@@ -84,9 +87,9 @@ fn ilen(n: usize) -> i64 {
+     i64::try_from(n).unwrap_or(i64::MAX)
+ }
+ 
+-/// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
+-/// resolution and the error message.
++/// Implemented `string` subcommands, filtered by the registry's release surface.
+ const STRING_SUBS: &[&str] = &[
++    "bytelength",
+     "cat",
+     "compare",
+     "equal",
+diff --git a/rust/tcl-vm/src/command.rs b/rust/tcl-vm/src/command.rs
+index 2ef831b0b..9cc6516b2 100644
+--- a/rust/tcl-vm/src/command.rs
++++ b/rust/tcl-vm/src/command.rs
+@@ -183,6 +183,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
+     vm.register("source", cmd_source);
+     vm.register("tcl::build-info", cmd_build_info);
+     vm.register("interp", cmd_interp);
++    vm.register("::tcl::InitAutoPath", |vm, args| vm.init_auto_path(args));
+     vm.register("rename", cmd_rename);
+     vm.register("eval", cmd_eval);
+     vm.register("apply", cmd_apply);
+diff --git a/rust/tcl-vm/src/interp.rs b/rust/tcl-vm/src/interp.rs
+index caa8c6ca5..e6894350a 100644
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -2589,6 +2589,90 @@ impl Vm {
+         }
+     }
+ 
++    pub(crate) fn init_auto_path(&mut self, args: &[Value]) -> Completion<Value> {
++        if !args.is_empty() {
++            return err_wrong_args("tcl::InitAutoPath");
++        }
++        let existing = match self.read_var_traced("::auto_path") {
++            Ok(value) => value,
++            Err(error) => return error,
++        };
++        if self.is_safe() {
++            if existing.is_none()
++                && let Err(error) = self.store_var_result("::auto_path", Value::empty())
++            {
++                return error;
++            }
++            return ok(Value::empty());
++        }
++        let existing = match existing {
++            Some(value) => match value.as_list() {
++                Ok(values) => Some(
++                    values
++                        .iter()
++                        .map(|value| value.to_str().as_bytes().to_vec())
++                        .collect(),
++                ),
++                Err(error) => {
++                    return err_with_code(error.message, error.error_code.as_deref().unwrap_or("NONE"));
++                }
++            },
++            None => None,
++        };
++        let mut environment = Vec::new();
++        if existing.is_none()
++            && let Some(value) = self.get_array_elem("::env", "TCLLIBPATH")
++        {
++            environment = match value.as_list() {
++                Ok(values) => values
++                    .iter()
++                    .map(|value| value.to_str().as_bytes().to_vec())
++                    .collect(),
++                Err(error) => {
++                    return err_with_code(error.message, error.error_code.as_deref().unwrap_or("NONE"));
++                }
++            };
++            let home = self.host().env().get("HOME");
++            environment = tcl_cmd_core::platform::auto_path_environment(
++                environment,
++                home.as_deref().map(str::as_bytes),
++            );
++        }
++        let library = self.get_var("::tcl_library").map(|value| value.to_str());
++        let executable = self.host().env().current_exe();
++        let installation = tcl_cmd_core::platform::auto_path_installation(
++            library.as_deref().map(str::as_bytes),
++            executable.as_deref().map(str::as_bytes),
++        );
++        let packages = self
++            .get_var("::tcl_pkgPath")
++            .and_then(|value| value.as_list().ok())
++            .map(|values| {
++                values
++                    .iter()
++                    .map(|value| value.to_str().as_bytes().to_vec())
++                    .collect::<Vec<_>>()
++            })
++            .unwrap_or_default();
++        let paths = tcl_platform::bootstrap::auto_path(
++            existing,
++            &environment,
++            &installation,
++            &packages,
++            false,
++        );
++        let value = Value::list(
++            paths
++                .iter()
++                .map(|path| Value::string(String::from_utf8_lossy(path)))
++                .collect(),
++        );
++        match self.store_var_result("::auto_path", value) {
++            Ok(value) => ok(value),
++            Err(error) => error,
++        }
++    }
++
+     /// Install a debug hook fired once per source command (the execution-control
+     /// seam a step debugger drives). Pass `None` to detach.
+     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
+@@ -6029,7 +6113,9 @@ impl Vm {
+         if !absolute && let Some(id) = self.retained_token_at_path(path) {
+             return Some(id);
+         }
+-        self.ns_intern.get(path).copied()
++        path.iter().try_fold(ROOT_NS, |parent, simple| {
++            self.ns_children.get(&(parent, simple.clone())).copied()
++        })
+     }
+ 
+     fn definition_namespace_token_at_path(&mut self, path: &[String], absolute: bool) -> NsId {
+@@ -7764,6 +7850,11 @@ impl Vm {
+         }
+     }
+ 
++    pub(crate) fn namespace_deletion_is_valid(&self, written: &str) -> bool {
++        self.namespace_token_for_written(written)
++            .is_some_and(|id| !self.dying_namespaces.contains(&id))
++    }
++
+     pub(crate) fn delete_namespace_written(&mut self, written: &str) -> bool {
+         let path = self.namespace_path_from_written(self.current_ns_id(), written);
+         self.delete_namespace_path(&path)
+@@ -7847,6 +7938,9 @@ impl Vm {
+     /// parent must not bulk-mark descendants dead before their own ensemble
+     /// callbacks run.
+     fn delete_namespace_token(&mut self, id: NsId, deleting_root: bool) {
++        if self.dying_namespaces.contains(&id) {
++            return;
++        }
+         let path = self.ns_path(id);
+         let canonical = path.join("::");
+         // `Tcl_CreateEnsemble` pushes a new config at the live list head. Pop
+@@ -7868,19 +7962,6 @@ impl Vm {
+         if id != ROOT_NS {
+             self.dead_namespaces.insert(id);
+         }
+-        if !deleting_root {
+-            self.namespaces.remove(&path);
+-            let mut parent_path = path.clone();
+-            let tail = parent_path.pop().expect("non-root namespace has a tail");
+-            let parent = self.ns_intern.get(&parent_path).copied().unwrap_or(ROOT_NS);
+-            if self.ns_children.get(&(parent, tail.clone())) == Some(&id) {
+-                self.ns_children.remove(&(parent, tail.clone()));
+-            }
+-            if let Some(order) = self.ns_child_order.get_mut(&parent) {
+-                order.remove(tail.as_bytes());
+-            }
+-        }
+-
+         // Tcl destroys the variable table before the command table. Variable
+         // unset callbacks see this namespace as dying but can still address
+         // its cells; each cell is removed separately so later variables remain
+@@ -7916,6 +7997,21 @@ impl Vm {
+             self.invalidate_compiled_command_semantics();
+         }
+ 
++        // Own delete callbacks can still resolve the token; child callbacks
++        // cannot reach it through its parent's namespace table.
++        if !deleting_root {
++            self.namespaces.remove(&path);
++            let mut parent_path = path.clone();
++            let tail = parent_path.pop().expect("non-root namespace has a tail");
++            let parent = self.ns_intern.get(&parent_path).copied().unwrap_or(ROOT_NS);
++            if self.ns_children.get(&(parent, tail.clone())) == Some(&id) {
++                self.ns_children.remove(&(parent, tail.clone()));
++            }
++            if let Some(order) = self.ns_child_order.get_mut(&parent) {
++                order.remove(tail.as_bytes());
++            }
++        }
++
+         // Parent commands have finished while children were still live. Now
+         // each child gets its own full ensemble-before-dying lifecycle.
+         let children = self.child_namespace_ids_hash_order(id);
+diff --git a/rust/tcl-vm/tests/namespace_surface_e2e.rs b/rust/tcl-vm/tests/namespace_surface_e2e.rs
+index 9b892d2b7..3562fdfd2 100644
+--- a/rust/tcl-vm/tests/namespace_surface_e2e.rs
++++ b/rust/tcl-vm/tests/namespace_surface_e2e.rs
+@@ -1081,6 +1081,62 @@ fn namespace_delete_accepts_the_global_root() {
+     );
+ }
+ 
++#[test]
++fn namespace_delete_validates_all_operands_before_mutating() {
++    let source = "namespace eval N {}\n\
++                  set code [catch {namespace delete N missing} message]\n\
++                  list $code [namespace exists N] $message";
++    for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++        assert_eq!(
++            run_at(source, release),
++            "1 1 {unknown namespace \"missing\" in namespace delete command}",
++            "{release}"
++        );
++    }
++}
++
++#[test]
++fn namespace_delete_ignores_a_later_operand_deleted_by_an_earlier_one() {
++    let source = "namespace eval N {namespace eval child {}}\n\
++                  set code [catch {namespace delete N N::child} message]\n\
++                  list $code [namespace exists N] $message";
++    for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++        assert_eq!(run_at(source, release), "0 0 {}", "{release}");
++    }
++}
++
++#[test]
++fn namespace_delete_rejects_teardown_operands_before_global_deletion() {
++    let source = "set errors {}\n\
++                  proc callback {old new op} {\n\
++                      lappend ::errors [catch {namespace delete ::N {}} message] $message\n\
++                  }\n\
++                  namespace eval N {proc p {} {}}\n\
++                  trace add command N::p delete callback\n\
++                  namespace delete N\n\
++                  list $errors [info commands list] [namespace exists N]";
++    for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++        assert_eq!(
++            run_at(source, release),
++            "{1 {unknown namespace \"::N\" in namespace delete command}} list 0",
++            "{release}"
++        );
++    }
++}
++
++#[test]
++fn namespace_delete_handles_mutually_entangled_child_delete_traces() {
++    let source = "namespace eval ::testing {\n\
++                      namespace eval abc {proc xyz {} {}}\n\
++                      namespace eval def {proc xyz {} {}}\n\
++                      trace add command abc::xyz delete {namespace delete ::testing::def {}; #}\n\
++                      trace add command def::xyz delete {namespace delete ::testing::abc {}; #}\n\
++                  }\n\
++                  namespace delete ::testing\n\
++                  list [namespace exists ::testing] [info commands list]";
++    assert_eq!(run(source), "0 list");
++}
++
+ #[test]
+ fn namespace_origin_reports_its_own_usage_for_both_bad_arities() {
+     let usage = "wrong # args: should be \"namespace origin name\"";

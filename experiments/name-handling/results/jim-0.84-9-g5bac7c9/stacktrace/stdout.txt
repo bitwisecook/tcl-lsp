@@ -1,0 +1,1 @@
+ stacktrace.test: Total    45   Passed    45  Skipped     0  Failed     0

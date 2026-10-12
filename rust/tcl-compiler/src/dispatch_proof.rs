@@ -1181,7 +1181,7 @@ fn original_ledger_subject(
         Some(metadata),
         &tokens,
     )?;
-    if &selected.facts != facts {
+    if selected.facts.as_ref() != facts {
         return None;
     }
     let reference = binding.evaluated_command_reference()?;
@@ -3077,7 +3077,7 @@ mod original_ledger_tests {
         assert!(
             original_ledger_subject(invoke, &changed_facts, &registry, Some(metadata)).is_none()
         );
-        let mut foreign = registry.clone();
+        let mut foreign = tcl_registry::CommandRegistry::build_default();
         foreign.insert(tcl_registry::CommandSpec {
             name: "llength",
             ..tcl_registry::CommandSpec::DEFAULT

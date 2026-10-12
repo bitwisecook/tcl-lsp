@@ -1,0 +1,19 @@
+{
+  "suite": "procref",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/procref.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "700b25a4fa6cb3ad364c01faf8508a08e89fc325d96be3ccc6c200198ea3ae61",
+  "stdout_sha256": "6c61c0631e6d75402e573c21249c3b1b524a5068205971d6437175daa364c79c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 6,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0
+  }
+}

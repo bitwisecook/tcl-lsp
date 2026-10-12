@@ -21,7 +21,9 @@ fn trace_body_inventory(stage: &str, offset: Option<u32>, passed: bool, count: u
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_none() {
         return;
     }
-    eprintln!("ORIGINAL_BODY_INVENTORY stage={stage} offset={offset:?} passed={passed} count={count}");
+    eprintln!(
+        "ORIGINAL_BODY_INVENTORY stage={stage} offset={offset:?} passed={passed} count={count}"
+    );
 }
 
 pub(super) struct BodyEffectProjection {
@@ -119,14 +121,24 @@ impl AdviceInvocationContext<'_> {
         };
         #[cfg(test)]
         trace_body_inventory(
-            "immediate.inventory", advice.original_words().first().map(|word| word.span().start()),
-            walk.inventory.is_some(), advice.original_words().len(),
+            "immediate.inventory",
+            advice
+                .original_words()
+                .first()
+                .map(|word| word.span().start()),
+            walk.inventory.is_some(),
+            advice.original_words().len(),
         );
         let expressions_complete = walk.expressions(graph, advice, schema, 0).is_some();
         #[cfg(test)]
         trace_body_inventory(
-            "immediate.expressions", advice.original_words().first().map(|word| word.span().start()),
-            expressions_complete, walk.visited,
+            "immediate.expressions",
+            advice
+                .original_words()
+                .first()
+                .map(|word| word.span().start()),
+            expressions_complete,
+            walk.visited,
         );
         if !expressions_complete && walk.inventory.is_some() {
             // The conditional source question survives unavailable effects;
@@ -137,11 +149,24 @@ impl AdviceInvocationContext<'_> {
             && walk.regions(graph, advice, schema, 0).is_some();
         #[cfg(test)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-            let offset = advice.original_words().first().map(|word| word.span().start());
+            let offset = advice
+                .original_words()
+                .first()
+                .map(|word| word.span().start());
             trace_body_inventory("immediate.regions", offset, regions_complete, walk.visited);
             if let Some(inventory) = &walk.inventory {
-                trace_body_inventory("immediate.retained_advice", offset, regions_complete, inventory.advice.len());
-                trace_body_inventory("immediate.represented", offset, regions_complete, inventory.represented.len());
+                trace_body_inventory(
+                    "immediate.retained_advice",
+                    offset,
+                    regions_complete,
+                    inventory.advice.len(),
+                );
+                trace_body_inventory(
+                    "immediate.represented",
+                    offset,
+                    regions_complete,
+                    inventory.represented.len(),
+                );
             }
         }
         let mut inventory = if regions_complete {
@@ -178,8 +203,13 @@ impl BodyWalk<'_, '_> {
             );
         #[cfg(test)]
         trace_body_inventory(
-            "regions.original_vector", advice.original_words().first().map(|word| word.span().start()),
-            words.is_some(), advice.original_words().len(),
+            "regions.original_vector",
+            advice
+                .original_words()
+                .first()
+                .map(|word| word.span().start()),
+            words.is_some(),
+            advice.original_words().len(),
         );
         let words = words?;
         let interpreter = schema.semantics.body_interpreter.resolve_with(|ordinal| {
@@ -191,8 +221,13 @@ impl BodyWalk<'_, '_> {
         let regions = words.source_script_bodies_for_mutation_coverage(self.context.context);
         #[cfg(test)]
         trace_body_inventory(
-            "regions.coverage", advice.original_words().first().map(|word| word.span().start()),
-            regions.is_some(), regions.as_ref().map_or(0, Vec::len),
+            "regions.coverage",
+            advice
+                .original_words()
+                .first()
+                .map(|word| word.span().start()),
+            regions.is_some(),
+            regions.as_ref().map_or(0, Vec::len),
         );
         let regions = regions?;
         // Checked empty coverage supplies no evaluated child mutation and remains
@@ -273,8 +308,13 @@ impl BodyWalk<'_, '_> {
         let (roles, complete) = schema.authored_source_argument_roles();
         #[cfg(test)]
         trace_body_inventory(
-            "expressions.roles", advice.original_words().first().map(|word| word.span().start()),
-            complete, roles.len(),
+            "expressions.roles",
+            advice
+                .original_words()
+                .first()
+                .map(|word| word.span().start()),
+            complete,
+            roles.len(),
         );
         if !complete {
             return None;
@@ -306,8 +346,10 @@ impl BodyWalk<'_, '_> {
             #[cfg(test)]
             if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
                 trace_body_inventory(
-                    "expressions.original_value", Some(expression_span.start()),
-                    argument.value.as_deref() == Some(source.as_bytes()), source.len(),
+                    "expressions.original_value",
+                    Some(expression_span.start()),
+                    argument.value.as_deref() == Some(source.as_bytes()),
+                    source.len(),
                 );
             }
             if argument.value.as_deref() != Some(source.as_bytes()) {
@@ -329,8 +371,12 @@ impl BodyWalk<'_, '_> {
             };
             #[cfg(test)]
             trace_body_inventory(
-                "expressions.checked", Some(expression_span.start()),
-                substitutions.is_some(), substitutions.as_ref().map_or(0, |parts| parts.commands.len()),
+                "expressions.checked",
+                Some(expression_span.start()),
+                substitutions.is_some(),
+                substitutions
+                    .as_ref()
+                    .map_or(0, |parts| parts.commands.len()),
             );
             let substitutions = substitutions?;
             if !substitutions.variables.is_empty() || !substitutions.commands.is_empty() {
@@ -351,7 +397,12 @@ impl BodyWalk<'_, '_> {
                 let mut branch = original.clone();
                 let walked = self.script(&mut branch, Span::new(start, end), depth.checked_add(1)?);
                 #[cfg(test)]
-                trace_body_inventory("expressions.child", Some(start), walked.is_some(), (end - start) as usize);
+                trace_body_inventory(
+                    "expressions.child",
+                    Some(start),
+                    walked.is_some(),
+                    (end - start) as usize,
+                );
                 walked?;
                 Self::retain_possible_effects(graph, &original, branch, advice.original_words());
             }
@@ -371,10 +422,20 @@ impl BodyWalk<'_, '_> {
         )
         .ok();
         #[cfg(test)]
-        trace_body_inventory("script.plan", Some(span.start()), plan.is_some(), plan.as_ref().map_or(0, |plan| plan.commands.len()));
+        trace_body_inventory(
+            "script.plan",
+            Some(span.start()),
+            plan.is_some(),
+            plan.as_ref().map_or(0, |plan| plan.commands.len()),
+        );
         let plan = plan?;
         #[cfg(test)]
-        trace_body_inventory("script.complete", Some(span.start()), plan.fatal_tail.is_none(), plan.commands.len());
+        trace_body_inventory(
+            "script.complete",
+            Some(span.start()),
+            plan.fatal_tail.is_none(),
+            plan.commands.len(),
+        );
         if plan.fatal_tail.is_some() {
             return None;
         }
@@ -1036,11 +1097,14 @@ mod original_empty_coverage_tests {
 #[cfg(test)]
 mod original_source_expression_topology_tests {
     use crate::analyser::ResolvedAnalysisInput;
-    use crate::registry_invocation::source_structure::{OriginalRegistrySource, OriginalSourceRegistryContext};
+    use crate::registry_invocation::source_structure::{
+        OriginalRegistrySource, OriginalSourceRegistryContext,
+    };
 
     fn input() -> ResolvedAnalysisInput {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let context = crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
         let config = tcl_lexer::LexerConfig {
             leading_bom: tcl_lexer::LeadingBom::Skip,
             strict_quoting: true,
@@ -1062,17 +1126,29 @@ mod original_source_expression_topology_tests {
         let start = u32::try_from(source.find("\u{feff}match λ").unwrap()).unwrap();
         let end = u32::try_from(source.find("]}").unwrap()).unwrap();
         let children = crate::segmenter::segment_commands_with_offset_and_config(
-            &source[start as usize..end as usize], start, input.lexer_config().nested(),
+            &source[start as usize..end as usize],
+            start,
+            input.lexer_config().nested(),
         );
-        let [child] = children.as_slice() else { panic!("complete single original command child") };
+        let [child] = children.as_slice() else {
+            panic!("complete single original command child")
+        };
         let words = syntax.words(child).unwrap();
         assert_eq!(words.command(), "regexp");
-        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else { panic!("original transition advice") };
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("original transition advice")
+        };
         assert_eq!(advice.logical_source_input(), Some(&input));
         assert!(advice.original_head().native_input().is_none());
         assert_eq!(advice.original_head().bytes(), "\u{feff}match".as_bytes());
         assert_eq!(advice.original_words()[0].span().start(), start);
-        assert!(advice.original_words().iter().all(|word| word.config() == input.lexer_config() && word.image().bytes() == source.as_bytes()));
+        assert!(
+            advice
+                .original_words()
+                .iter()
+                .all(|word| word.config() == input.lexer_config()
+                    && word.image().bytes() == source.as_bytes())
+        );
         let foreign_source = format!("{source} ");
         let foreign = tcl_lexer::SourceImage::document(&foreign_source);
         assert!(!advice.matches_source(&foreign, input.lexer_config()));
@@ -1080,7 +1156,9 @@ mod original_source_expression_topology_tests {
         changed.strict_quoting = !changed.strict_quoting;
         assert!(!advice.matches_source(&tcl_lexer::SourceImage::document(source), changed));
         let shifted = crate::segmenter::segment_commands_with_offset_and_config(
-            &source[start as usize..end as usize], start + 1, input.lexer_config().nested(),
+            &source[start as usize..end as usize],
+            start + 1,
+            input.lexer_config().nested(),
         );
         assert!(syntax.words(&shifted[0]).is_none());
     }
@@ -1088,8 +1166,8 @@ mod original_source_expression_topology_tests {
 
 #[cfg(test)]
 mod original_expression_purpose_frontier_tests {
-    use super::*;
     use super::super::AdviceTapeInputs;
+    use super::*;
 
     #[test]
     fn original_logical_expression_topology_cannot_supply_missing_native_parser_purpose() {
@@ -1097,38 +1175,111 @@ mod original_expression_purpose_frontier_tests {
         // docs/design/analysis/name-resolution-proofs/authored-command-transition-advice.md
         // Descriptive source/name/parser axes only, without a Native invocation.
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let context = crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
-        let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
         let source = "if {![regexp x y out]} {puts $out}";
-        let analysis = crate::analyser::Analyser::new().with_resolved_input(input.clone()).analyse(source, "presentation");
-        let bindings = analysis.retained_command_realm().unwrap().source_bindings_ref();
-        let AdviceTapeInputs { origin, config, policy, dialect, plan } = bindings.prepare_source_advice_tape(&context).unwrap();
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "presentation");
+        let bindings = analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let AdviceTapeInputs {
+            origin,
+            config,
+            policy,
+            dialect,
+            plan,
+        } = bindings.prepare_source_advice_tape(&context).unwrap();
         assert!(matches!(policy, AdviceNamingPolicy::Logical(_)));
-        let mut graph = bindings.initial_source_advice_graph(&context, &policy).unwrap();
+        let mut graph = bindings
+            .initial_source_advice_graph(&context, &policy)
+            .unwrap();
         let invocation = &plan.commands[0];
         let written = original_words(&invocation.words, &policy).unwrap();
         let head = written[0].input.as_ref().unwrap();
         let (command, mut arguments, lineage) = graph.resolve(head).unwrap();
         arguments.extend(written.iter().skip(1).cloned());
         let words = registry_words(&arguments);
-        let resolution = tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
-            context.commands(), Some(context.context()),
-            tcl_registry::InvocationWords::structured(tcl_registry::InvocationWord::Literal(&command), &words).with_dialect(dialect),
-            tcl_dialect::model::InvocationRealm::RuleLoader,
-        );
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                tcl_registry::InvocationWords::structured(
+                    tcl_registry::InvocationWord::Literal(&command),
+                    &words,
+                )
+                .with_dialect(dialect),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            );
         let schema = resolution.resolved().unwrap();
-        let owner = AdviceInvocationContext { origin, context: &context, config, dialect, policy: &policy };
-        let advice = owner.schema_advice(AdviceInvocation { native: &invocation.words, head, arguments: &arguments, lineage: &lineage }, &graph, &schema).unwrap();
+        let owner = AdviceInvocationContext {
+            origin,
+            context: &context,
+            config,
+            dialect,
+            policy: &policy,
+        };
+        let advice = owner
+            .schema_advice(
+                AdviceInvocation {
+                    native: &invocation.words,
+                    head,
+                    arguments: &arguments,
+                    lineage: &lineage,
+                },
+                &graph,
+                &schema,
+            )
+            .unwrap();
         assert_eq!(advice.logical_source_input(), Some(&input));
-        assert_eq!(dialect.expression_parse_context(context.commands().profile()).native_syntax, tcl_syntax::expr::parser::NativeExprSyntax::Unknown);
-        let mut logical = BodyWalk { context: &owner, visited: 0, inventory: Some(OriginalSourceTransitionAdviceTape::default()), authored_prefixes: OriginalSourceTransitionAdviceTape::default(), source_body: None };
-        assert!(logical.expressions(&mut graph, &advice, &schema, 0).is_some());
+        assert_eq!(
+            dialect
+                .expression_parse_context(context.commands().profile())
+                .native_syntax,
+            tcl_syntax::expr::parser::NativeExprSyntax::Unknown
+        );
+        let mut logical = BodyWalk {
+            context: &owner,
+            visited: 0,
+            inventory: Some(OriginalSourceTransitionAdviceTape::default()),
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+        };
+        assert!(
+            logical
+                .expressions(&mut graph, &advice, &schema, 0)
+                .is_some()
+        );
         assert_eq!(logical.visited, 1);
-        let native_policy = AdviceNamingPolicy::Native(tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6).authored_name_policy().unwrap());
-        let native_owner = AdviceInvocationContext { origin, context: &context, config, dialect, policy: &native_policy };
-        let mut native = BodyWalk { context: &native_owner, visited: 0, inventory: None, authored_prefixes: OriginalSourceTransitionAdviceTape::default(), source_body: None };
-        assert!(native.expressions(&mut graph, &advice, &schema, 0).is_none());
+        let native_policy = AdviceNamingPolicy::Native(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+                .authored_name_policy()
+                .unwrap(),
+        );
+        let native_owner = AdviceInvocationContext {
+            origin,
+            context: &context,
+            config,
+            dialect,
+            policy: &native_policy,
+        };
+        let mut native = BodyWalk {
+            context: &native_owner,
+            visited: 0,
+            inventory: None,
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+        };
+        assert!(
+            native
+                .expressions(&mut graph, &advice, &schema, 0)
+                .is_none()
+        );
         assert_eq!(native.visited, 0);
         assert!(advice.original_head().native_input().is_none());
         assert_eq!(advice.logical_source_input(), Some(&input));

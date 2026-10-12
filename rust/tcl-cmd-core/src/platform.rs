@@ -31,6 +31,50 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
+/// Installation directories appended to `auto_path`, in Tcl lookup order.
+#[must_use]
+pub fn auto_path_installation(library: Option<&[u8]>, executable: Option<&[u8]>) -> Vec<Vec<u8>> {
+    let mut paths = Vec::new();
+    if let Some(library) = library {
+        paths.push(library.to_vec());
+        paths.push(crate::path::dirname(library).into_owned());
+    }
+    if let Some(executable) = executable {
+        let directory = crate::path::dirname(executable);
+        let parent = crate::path::dirname(&directory);
+        paths.push(crate::path::join(&[parent.as_ref(), b"lib"]));
+    }
+    paths
+}
+
+/// Expand the supplied host home directory without guessing named user homes.
+pub fn auto_path_environment(
+    paths: Vec<Vec<u8>>,
+    home: Option<&[u8]>,
+) -> Result<Vec<Vec<u8>>, CmdError> {
+    let mut expanded = Vec::new();
+    for path in paths {
+        let selected = {
+            if path == b"~" {
+                home.map(<[u8]>::to_vec)
+            } else if path.starts_with(b"~/") {
+                home.map(|home| crate::path::join(&[home, &path[2..]]))
+            } else if path.starts_with(b"~") {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "named home directory lookup",
+                )
+                .into());
+            } else {
+                Some(path)
+            }
+        };
+        if let Some(path) = selected {
+            expanded.push(path);
+        }
+    }
+    Ok(expanded)
+}
+
 /// `exec arg ?arg ...?` — run a command and capture its standard output (with
 /// trailing newlines trimmed).
 ///

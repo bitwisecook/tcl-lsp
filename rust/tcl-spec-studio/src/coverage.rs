@@ -226,6 +226,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         result_stability: _,
         native_result: _,
         literal_argument_validator: _,
+        source_index_bounds: _,
         inferred_storage_type: _,
         required_package: _, tk_geometry: _,
         excluded_events: _,
@@ -408,6 +409,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         "literal_argument_validator",
         Surface::Key("literal_argument_validator"),
     ),
+    f("source_index_bounds", Surface::Key("source_index_bounds")),
     f(
         "inferred_storage_type",
         Surface::Key("inferred_storage_type"),
@@ -637,6 +639,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         result_stability: _,
         native_result: _,
         literal_argument_validator: _,
+        source_index_bounds: _,
         destructive: _,
         returns_path: _,
         source_path_operation: _,
@@ -790,6 +793,7 @@ pub const SUB_COMMAND: &[Field] = &[
         "literal_argument_validator",
         Surface::Key("literal_argument_validator"),
     ),
+    f("source_index_bounds", Surface::Key("source_index_bounds")),
     f("destructive", Surface::Key("destructive")),
     f("returns_path", Surface::Key("returns_path")),
     f(

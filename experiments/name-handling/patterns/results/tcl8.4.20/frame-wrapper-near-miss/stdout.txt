@@ -1,0 +1,10 @@
+OBSERVATION setup_code 0 lookup_code 0
+FIELD setup_result {}
+FIELD setup_options {}
+FIELD setup_error_code {}
+FIELD setup_error_info {}
+FIELD lookup_result 6f726967696e616c
+FIELD lookup_options {}
+FIELD lookup_error_code {}
+FIELD lookup_error_info {}
+TCLTEST {}

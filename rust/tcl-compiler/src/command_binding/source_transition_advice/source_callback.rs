@@ -820,10 +820,7 @@ mod tests {
             assert!(row.prefix().lookup().is_none());
             let builder = row.registration().source_builder().unwrap();
             assert_eq!(builder.command(), "list");
-            assert_eq!(
-                row.registration().original_words()[0].bytes(),
-                b"lsort"
-            );
+            assert_eq!(row.registration().original_words()[0].bytes(), b"lsort");
             assert!(builder.original_words()[0].span().start() > row.registration().site().offset);
             assert!(row.target().unwrap().source_procedure(&analysis).is_some());
             assert!(

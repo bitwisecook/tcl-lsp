@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-10-12T11:57:00.931605+00:00",
+  "provider": "Jim",
+  "patchlevel": "0.84-9-g5bac7c9",
+  "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "harnesses": {
+    "tcltest.tcl": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+    "tests/testing.tcl": "67f42fd0f5447622b03eecefa445e5c878faa827b960e1ea1ed48bf81beb2bc3"
+  },
+  "runner_sha256": "d4bd5b1b6014441d9145f5d2f979fe422145872b17c3f5d402dd055e30dab310",
+  "subject": "upstream Jim only; these captures do not execute the VM/runtime",
+  "startup": "extension-initialised upstream jimsh; original tests source their own testing.tcl and tcltest.tcl",
+  "runner_snapshot": "capture-runner-original.txt"
+}

@@ -1,0 +1,30 @@
+{
+  "case_id": "oo-self-prefix",
+  "release": "8.4",
+  "patchlevel": "8.4.20",
+  "probe": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+  "probe_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+  "input_sha256": "5cf05e068f96e57e5429a5e90013ad1d3a4872648caac689c29655df23d674ad",
+  "process_exit_code": 0,
+  "stdout_sha256": "6cd891d48d16a78a5047273b59719513322360c11988dca5c46ce9d2950959a8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.4.20/oo-self-prefix",
+  "setup_and_lookup_separate": true,
+  "setup_code": "1",
+  "lookup_code": "not-run",
+  "setup_result": "invalid command name \"oo::class\"",
+  "setup_options": "",
+  "setup_error_code": "NONE",
+  "setup_error_info": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"",
+  "lookup_result": "",
+  "lookup_options": "",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

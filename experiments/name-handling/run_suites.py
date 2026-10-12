@@ -105,8 +105,6 @@ def main():
     library = source / "library"
     assert (library / "init.tcl").is_file()
     assert (library / "tcltest/tcltest.tcl").is_file()
-    if args.vm and args.version != "9.0":
-        parser.error("the existing VM run_test runner is fixed to Tcl 9.0")
     engines = {"c": [str(args.tclsh.resolve())]}
     if args.vm:
         engines["vm"] = [str(args.vm.resolve())]
@@ -170,6 +168,7 @@ def main():
         stdin = wrapper.read_bytes()
         if engine == "vm":
             command.append(str(testfile))
+            command.extend(["--tcl-version", args.version])
             if args.match:
                 command.extend(["--match", args.match])
             stdin = None

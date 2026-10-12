@@ -1105,6 +1105,27 @@ pub fn spec() -> CommandSpec {
     }
 }
 
+pub fn init_auto_path_spec() -> CommandSpec {
+    CommandSpec {
+        name: "tcl::InitAutoPath",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        runtime_backing: RuntimeBacking::shipped("tcl::InitAutoPath"),
+        surface: Some(SpecSurface::TCL91),
+        arity: Arity::exact(0),
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Variable,
+            reads: true,
+            writes: true,
+            ..SideEffect::DEFAULT
+        }],
+        ..CommandSpec::DEFAULT
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};

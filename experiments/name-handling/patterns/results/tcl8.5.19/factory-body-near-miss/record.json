@@ -1,0 +1,30 @@
+{
+  "case_id": "factory-body-near-miss",
+  "release": "8.5",
+  "patchlevel": "8.5.19",
+  "probe": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+  "probe_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+  "input_sha256": "99a596b03893b7fa3f4cbda4be918cec9f5cd69e2ac010b5bdebe69252dcaa2a",
+  "process_exit_code": 0,
+  "stdout_sha256": "58d9ee8d381f8a49774774984299337132ca06b394799fd05147f46bd01cf8e3",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.5.19/factory-body-near-miss",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "1",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "can't read \"name\": no such variable",
+  "lookup_options": "-code 1 -level 0 -errorcode NONE -errorinfo {can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\"} -errorline 1",
+  "lookup_error_code": "NONE",
+  "lookup_error_info": "can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\""
+}

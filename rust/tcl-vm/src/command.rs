@@ -308,6 +308,13 @@ pub(crate) fn register_builtins_with_native_core(
     vm.register_stock_builtin("source", cmd_source);
     vm.register_stock_builtin("tcl::build-info", cmd_build_info);
     vm.register_stock_builtin("interp", cmd_interp);
+    if vm
+        .actual_native_invocation_dialect()
+        .native_bootstrap_protocol()
+        .is_some_and(|protocol| protocol.registers_core_init_auto_path())
+    {
+        vm.register_stock_builtin("::tcl::InitAutoPath", Vm::init_auto_path);
+    }
     vm.register_stock_builtin("alias", cmd_alias);
     vm.register_stock_builtin("rename", cmd_rename);
     vm.register_stock_builtin("eval", cmd_eval);

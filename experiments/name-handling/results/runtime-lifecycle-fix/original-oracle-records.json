@@ -1,0 +1,62 @@
+[
+  {
+    "patchlevel": "8.4.20",
+    "command": [
+      "timeout",
+      "--kill-after=2",
+      "15",
+      "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.4"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "exit": 0,
+    "script_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be"
+  },
+  {
+    "patchlevel": "8.5.19",
+    "command": [
+      "timeout",
+      "--kill-after=2",
+      "15",
+      "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.5"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "exit": 0,
+    "script_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be"
+  },
+  {
+    "patchlevel": "8.6.18",
+    "command": [
+      "timeout",
+      "--kill-after=2",
+      "15",
+      "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.6"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "exit": 0,
+    "script_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be"
+  },
+  {
+    "patchlevel": "9.0.4",
+    "command": [
+      "timeout",
+      "--kill-after=2",
+      "15",
+      "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh9.0"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit": 0,
+    "script_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be"
+  },
+  {
+    "patchlevel": "9.1.0",
+    "command": [
+      "timeout",
+      "--kill-after=2",
+      "15",
+      "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh9.1"
+    ],
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "exit": 0,
+    "script_sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be"
+  }
+]

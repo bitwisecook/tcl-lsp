@@ -238,23 +238,8 @@ fn function_namespace(qname: &str) -> String {
     )
 }
 
-/// Type a registry-declared class constructor call as `OBJECT(class)` when
-/// its head resolves
-/// to a known class, else `OVERDEFINED`.  The relative head is resolved as-is,
-/// `::`-prefixed, and against the call-site `namespace` (so `[Foo new]` inside
-/// `namespace eval ns` types as `OBJECT(::ns::Foo)`).
-///
-/// `known_classes` carries **no deletion or lifetime information** — it is
-/// the raw signature-scan class set, and this module (a flow-insensitive
-/// per-symbol type inference reached from three internal sites, none of
-/// which has a call-site offset to hand) has nowhere to put one. A class
-/// this file later `rename`s away therefore still types its constructor
-/// result here. Consumers that turn an `OBJECT(class)` into a *diagnostic*
-/// must apply the liveness gate themselves — `var_command.rs`'s
-/// `aggregate_object_types` does, at file-end granularity, for W308.
-/// Consumers that only use the type internally (SCCP shape
-/// selection, codegen hints) are unaffected: a dead class's constructor
-/// raises at runtime, so no correct program reaches them.
+/// Compatibility constructor advice in shared current/global candidate order.
+/// The class roster supplies no competing-command, path or lifetime proof.
 fn constructor_object_type<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
     command: &str,
@@ -265,27 +250,14 @@ fn constructor_object_type<S: std::hash::BuildHasher>(
     let is_ctor_spelling = args
         .first()
         .is_some_and(|word| registry.is_possible_class_construction_word(word));
-    if is_ctor_spelling && !known_classes.is_empty() {
-        if known_classes.contains(command) {
-            return TypeLattice::object_of(command);
-        }
-        let qualified = if command.starts_with("::") {
-            command.to_string()
-        } else {
-            format!("::{command}")
-        };
-        if known_classes.contains(&qualified) {
-            return TypeLattice::object_of(qualified);
-        }
-        if namespace != "::" && !command.starts_with("::") {
-            let ns_qualified =
-                crate::naming::normalise_qualified_name(&format!("{namespace}::{command}"));
-            if known_classes.contains(&ns_qualified) {
-                return TypeLattice::object_of(ns_qualified);
-            }
-        }
+    if is_ctor_spelling
+        && let Some(class) =
+            crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |candidate| {
+                known_classes.contains(candidate)
+            })
+    {
+        return TypeLattice::object_of(class);
     }
-    // Do not infer `object_of` from the `new` spelling alone.
     TypeLattice::overdefined()
 }
 
@@ -3580,6 +3552,51 @@ mod tests {
         assert_eq!(facts.get(&replacement), None);
         assert_eq!(facts.get(&original.compatibility_name()), None);
         assert_eq!(facts.get("x"), None);
+    }
+
+    #[test]
+    fn constructor_types_follow_current_namespace_and_written_name_grammar() {
+        let registry = registry();
+        let classes = HashSet::from(["::C".to_owned(), "::ns::C".to_owned(), "::ns::".to_owned()]);
+        for (command, namespace, expected) in [
+            ("C", "::ns", "::ns::C"),
+            ("::C", "::ns", "::C"),
+            ("::ns:::C", "::", "::ns::C"),
+            ("::ns:::", "::", "::ns::"),
+        ] {
+            assert_eq!(
+                constructor_object_type(&registry, command, &["new"], &classes, namespace),
+                TypeLattice::object_of(expected),
+            );
+        }
+        assert_eq!(
+            constructor_object_type(&registry, "unknown", &["new"], &classes, "::ns"),
+            TypeLattice::overdefined(),
+        );
+        assert_eq!(
+            constructor_object_type(&registry, "C", &["unrecognised"], &classes, "::ns"),
+            TypeLattice::overdefined(),
+        );
+        for version in tcl_dialect::TclVersion::ALL {
+            if version < tcl_dialect::TclVersion::V8_6 {
+                continue;
+            }
+            let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
+                continue;
+            };
+            let result = tcl_test_support::run_script(
+                &tclsh.path,
+                include_bytes!("../tests/data/name-consumers/classes.tcl"),
+            )
+            .expect("run the C Tcl constructor oracle")
+            .strict_text()
+            .expect("constructor oracle succeeds");
+            assert_eq!(
+                result, "::ns::C\n::C\n::ns::C\n::ns::",
+                "{}",
+                tclsh.patchlevel
+            );
+        }
     }
 
     fn registry() -> CommandRegistry {

@@ -1,0 +1,19 @@
+{
+  "suite": "upvar",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/upvar.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "f150ac135ae0c8e42490ea96fd8b44061ba7994ef67aa202132202eb507b3799",
+  "stdout_sha256": "2c8bcdd9eef42a61112aa595263ac34b904e1829e78326bed4c40625e43dec37",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 42,
+    "passed": 42,
+    "skipped": 0,
+    "failed": 0
+  }
+}

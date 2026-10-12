@@ -16,7 +16,7 @@ All six providers return the exact original subject for the four unchanged cases
 
 ## Scope
 
-126 fresh native case processes,21 per library, with process exit0 and original streams retained even when the command completion code is1. All unique original input objects have one caller reference; alias roles reuse that header. Snapshots are taken before EvalObjv, after EvalObjv but before result String materialisation, and after result materialisation. Jim charLength is sampled only for actual String primary; C public headers do not expose that cache. Earlier CLI patchlevel and an independent same-static-library diagnostic supply separate version evidence. ASCII C source uses explicit hex/NUL escapes to construct counted objects, without Tcl source decoding. Software assertions, arbitrary backend/build configurations, C private cache/teardown chronology and BIG-IP remain unmeasured.
+126 fresh native case processes,21 per library, with process exit0 and original streams retained even when the command completion code is1. All unique original input objects have one caller reference; alias roles reuse that header. Snapshots are taken before EvalObjv, after EvalObjv but before result String materialisation, and after result materialisation. Jim charLength is sampled only for actual String primary; C public headers do not expose that cache. Earlier CLI patchlevel and an independent same-static-library diagnostic supply separate version evidence. ASCII C source uses explicit hex/NUL escapes to construct counted objects, without Tcl source decoding. Software assertions, arbitrary backend/build configurations, C private cache/teardown chronology and BIG-IP remain unmeasured. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -176,7 +176,10 @@ tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-syntax/src/native_tcl_utf.rs), `legacy_storage_plain_char_promotion_is_separate_from_public_unit_decoding` (linked): Software source definition checks legacy storage plain char promotion is separate from public unit decoding.
+- [rust/tcl-syntax/src/raw_string.rs](../../../../rust/tcl-syntax/src/raw_string.rs), `original_jim_after_part_uses_the_measured_character_derived_byte_extent` (linked): Software source definition checks jim after part uses the measured character derived byte extent.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_replacement_matches_every_native_observed_projection` (linked): Software source definition checks replacement matches every native observed projection.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_replacement_matches_every_native_observed_projection` (linked): Software source definition checks replacement matches every native observed projection.
 
 A named test is a coverage binding, not a claim that it executed.
 

@@ -16,7 +16,7 @@ Both seventeen-case sources remain separately pinned. The physical extension add
 
 ## Scope
 
-Only the original retained programs, capture windows and provider labels in the attached artifacts are covered. Version labels are original receipt metadata, not a fresh patchlevel query. Missing command/API doors and aborted processes stay distinct from successful guest completion. Source files/probes explain the observer protocol; no pinned engine implementation excerpt or executed Rust assertion is claimed. Different attempts and sources are retained separately, never treated as byte-identical duplicates.
+Only the original retained programs, capture windows and provider labels in the attached artifacts are covered. Version labels are original receipt metadata, not a fresh patchlevel query. Missing command/API doors and aborted processes stay distinct from successful guest completion. Source files/probes explain the observer protocol; no pinned engine implementation excerpt or executed Rust assertion is claimed. Different attempts and sources are retained separately, never treated as byte-identical duplicates. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -304,7 +304,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_jim_container_indices_reuse_the_original_safe_expression_primary` (linked): Software source definition checks jim container indices reuse the original safe expression primary.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_jim_integer_bypass_is_distinct_from_first_string_index_conversion` (linked): Software source definition checks jim integer bypass is distinct from first string index conversion.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_jim_list_and_string_consumers_publish_the_reached_safe_expression_result` (linked): Software source definition checks jim list and string consumers publish the reached safe expression result.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_jim_container_and_regex_indices_share_one_original_expression_cache` (linked): Software source definition checks jim container and regex indices share one original expression cache.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_jim_index_integer_bypass_and_bad_string_preserve_primary_and_error_code_stage` (linked): Software source definition checks jim index integer bypass and bad string preserve primary and error code stage.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_jim_list_indices_precede_list_getters_but_string_range_gets_its_subject_first` (linked): Software source definition checks jim list indices precede list getters but string range gets its subject first.
 
 A named test is a coverage binding, not a claim that it executed.
 

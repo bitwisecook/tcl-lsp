@@ -176,7 +176,7 @@ fn provider(module: &WasmModule, failed: i32, status: i32, host: bool, entry: bo
 }
 
 fn execute(
-    module: &WasmModule,
+    module: &mut WasmModule,
     failed: i32,
     status: i32,
     host: bool,
@@ -235,9 +235,16 @@ fn original_analysed_binding_nonzero_status_retires_unbound_parameters_before_bo
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Actual production emission with a software ABI status/transfer observer; no Native callback or refcount claim.
-    let module = original_module();
+    let mut module = original_module();
     for (failed, expected) in [(0, "aABCp"), (1, "abBCpA"), (2, "abcCpAB")] {
-        let reached = execute(&module, failed, 1, false, false, &format!("guest_{failed}"));
+        let reached = execute(
+            &mut module,
+            failed,
+            1,
+            false,
+            false,
+            &format!("guest_{failed}"),
+        );
         assert_eq!(reached, expected);
     }
 }
@@ -247,14 +254,14 @@ fn original_analysed_binding_host_and_entry_failures_finish_parameter_cleanup() 
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // The existing Host owner remains independent of the ABI status; software provider cause only.
-    let module = original_module();
+    let mut module = original_module();
     for (failed, entry, expected) in [
         (0, false, "aABCp"),
         (1, false, "abBCpA"),
         (-1, true, "ABCp"),
     ] {
         let reached = execute(
-            &module,
+            &mut module,
             failed,
             -6,
             true,
@@ -270,7 +277,7 @@ fn original_analysed_binding_success_reaches_expression_and_retires_bound_cells(
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Positive original source/slot admission reaches the same actual expression emitter.
-    let module = original_module();
-    let reached = execute(&module, -1, 0, false, false, "success");
+    let mut module = original_module();
+    let reached = execute(&mut module, -1, 0, false, false, "success");
     assert_eq!(reached, "abcggxgxpABC");
 }

@@ -1,14 +1,51 @@
 # Related issues and prior work
 
-Verified GitHub metadata on 2026-10-12 for bitwisecook/tcl-lsp. This report distinguishes GitHub status from branch implementation; it does not claim fresh oracle executions.
+GitHub metadata refreshed on 2026-10-12 across all 1,050 returned issues.
+Source comparison basis: merged `work` HEAD
+`c49ef6fd5d147edd0cf473070dfaac2834c20dd7`; the published `work` ref was
+`bcaf88c12400c1a0a529a54ba8a73dacb216da41` when checked. The earlier
+`127dba9d9` audit is a prior baseline, not evidence about current residuals.
+An OPEN state supplies an acceptance target; it does not prove its witness
+still fails on the refreshed tree. No fresh current-head Rust execution is
+claimed here.
+
+The durable authorities are the [name model](../../design/analysis/name-resolution.md),
+[command owner contract](../../design/contracts/command-resolution.md),
+[canonical proof index](../../design/analysis/name-resolution-proofs/README.md)
+and [consumer integration contracts](../../design/analysis/name-resolution-proofs/consumer-integrations.md).
+Native observations, source anchors, implementation contracts and executed
+Rust receipts retain separate authority.
 
 ## Starting user reports
 
 - [#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286), OPEN: W210 false positives across tcltest setup/body/cleanup, including optimiser/object variables, pdata, and pars built in a loop. This requires invocation identity plus registry body sequencing/frame semantics and definition/read tracking. It is not merely canonical spelling.
 - [#2287](https://github.com/bitwisecook/tcl-lsp/issues/2287), OPEN: tcltest import inside namespace eval loses highlighting. Closely paired consumer acceptance witness for the same namespace-aware invocation resolution.
-- Current branch contains tcltest body/import coverage (rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12702, 12800; SSA registry body-role coverage ssa.rs:4051; LSP symbols, hover, semantic-token tests). These are partial baseline witnesses; they do not demonstrate the full #2286 user reproducer is fixed. resolve_symbol_definer in analyser/handlers.rs:1593 still performs its own namespace-import fallback.
+- The refreshed tree includes all four reported #2286 source fixtures in
+  `rust/tcl-compiler/tests/data/diagnostics/tcltest-shared-frame/`, five-profile
+  W210 regressions, direct/captured-prefix alias controls, genuine-undefined-read
+  negatives and namespace-scoped import controls. The earlier claim about
+  `resolve_symbol_definer` is superseded; that helper is absent from this tree.
+- [The retained native lifecycle question](../../design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md)
+  measures all five C packages and Jim's distinct global-test protocol. It does
+  not execute the full tclopt constructors or assert Rust diagnostics.
+- Frozen334's retained exact consumer log reports the shared-frame, alias and
+  namespace-import tests passing. Its source hashes differ from current source,
+  so its passing results cannot certify the merged tree. New compiled runs
+  pass the four reported fixtures but fail genuine-undefined-read controls
+  under Tcl 8.4, including the direct alias. Source changed during those
+  builds. The final post-freeze negative-only command confirms both first
+  Tcl 8.4 assertions fail under an unchanged selected source inventory. The
+  [current GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6124201808)
+  keeps #2286 open.
+- #2287 now has a namespaced semantic-token regression alongside the existing
+  top-level import test. Its authored source retains the first two actual
+  `georgtree/tclopt/test/native.test` tests and moves the import into
+  `::nativeTest` as reported. It now executes and fails, as does the existing top-level companion:
+  `-body` is string instead of decorator. The
+  [current GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2287#issuecomment-6124559399)
+  keeps #2287 open. See [issue-actions.md](issue-actions.md) and the retained raw consumer results.
 
-## Direct unresolved centralisation and consumers
+## Open centralisation acceptance targets
 
 | Issue | GitHub state | Relationship and acceptance |
 |---|---|---|
@@ -19,7 +56,7 @@ Verified GitHub metadata on 2026-10-12 for bitwisecook/tcl-lsp. This report dist
 | [#2260](https://github.com/bitwisecook/tcl-lsp/issues/2260) | OPEN | Empty variable name is a legal identity; never conflate empty literal name and unresolved name in SSA and O126. |
 | [#2305](https://github.com/bitwisecook/tcl-lsp/issues/2305), [#2370](https://github.com/bitwisecook/tcl-lsp/issues/2370) | OPEN | Global-frame bare and absolute-qualified spellings address one place; SSA/value lattice, read/write tracking and every write kind must agree. |
 | [#2306](https://github.com/bitwisecook/tcl-lsp/issues/2306) | OPEN | Same-frame upvar 0 writes must reach target identity and invalidate values/loop verdicts. |
-| [#2410](https://github.com/bitwisecook/tcl-lsp/issues/2410) | OPEN | Qualified or alias-passed upvar name arguments must become actual global writes at callers. Branch d875c7c00 improves transfer-summary globals but explicitly states top-level g remains this issue; do not call whole issue fixed. |
+| [#2410](https://github.com/bitwisecook/tcl-lsp/issues/2410) | OPEN | Qualified or alias-passed upvar name arguments must become actual global writes at callers. The prior baseline had a transfer-summary improvement with a remaining top-level witness; the refreshed source must be tested independently before retaining that conclusion. |
 | [#2414](https://github.com/bitwisecook/tcl-lsp/issues/2414) | OPEN | Namespace variable writes must not overwrite an unrelated same-spelled caller local in W220 tracking. |
 | [#2412](https://github.com/bitwisecook/tcl-lsp/issues/2412) | OPEN | variable ::cfg2 links local tail cfg2 to global cell; escaping/SSA/O126/W211 must retain that identity. |
 | [#2297](https://github.com/bitwisecook/tcl-lsp/issues/2297), [#2415](https://github.com/bitwisecook/tcl-lsp/issues/2415) | OPEN | Caller reads through upvar and nested condition invocations must be tracked, preserving stores and avoiding W220. |
@@ -37,9 +74,9 @@ Verified GitHub metadata on 2026-10-12 for bitwisecook/tcl-lsp. This report dist
 | [#2292](https://github.com/bitwisecook/tcl-lsp/issues/2292) | OPEN | Namespace/UnknownHandling guard invalidation ABI and engine event parity; do not base future lookup shortcuts on stale guards. |
 | [#2300](https://github.com/bitwisecook/tcl-lsp/issues/2300) | OPEN | Namespace forget global-origin pattern joins ::::name; replace consumer's ad hoc assembly with owner. |
 | [#2311](https://github.com/bitwisecook/tcl-lsp/issues/2311) | OPEN | Runtime upvar 1 must resolve target through caller namespace-eval frame, not nonexistent frame slot. |
-| [#2210](https://github.com/bitwisecook/tcl-lsp/issues/2210) | OPEN | EXIST_STK must consume resolved name exactly once; audit sibling LOAD/STORE/ARRAY stack forms. Current exec.rs:2801 passes popped name to exists_var_traced directly; full downstream ingress must be probed before stating fixed. |
+| [#2210](https://github.com/bitwisecook/tcl-lsp/issues/2210) | OPEN | EXIST_STK must consume resolved name exactly once; audit sibling LOAD/STORE/ARRAY stack forms. The refreshed Original ingress and downstream lookup owners must be tested with the exact resolved-name witness before stating fixed. |
 | [#2342](https://github.com/bitwisecook/tcl-lsp/issues/2342), [#2343](https://github.com/bitwisecook/tcl-lsp/issues/2343) | OPEN | Adjacent lookup-result conformance: VM variable and runtime command errorCode fields. Name owner/resolution result must allow exact failures; not proof whole runtime error taxonomy is in scope. |
-| [#2450](https://github.com/bitwisecook/tcl-lsp/issues/2450) | OPEN | Direct documentation cleanup requirement: W210 note's obsolete Before this was registry-driven paragraph. That paragraph and #2117 mention are absent on inspected work branch; remote OPEN does not mean the stale paragraph remains. Verify final docs then reconcile issue explicitly. |
+| [#2450](https://github.com/bitwisecook/tcl-lsp/issues/2450) | CLOSED | Direct documentation cleanup requirement: W210 note's obsolete Before this was registry-driven paragraph. That paragraph and #2117 mention are absent at the refreshed HEAD. Published removal commit `47c00bbad` is in PR #2457. GitHub readback confirms closure on 2026-10-12 with the published removal linked; repository-wide documentation cleanup remains separate. |
 
 ## Closed issues / merged prior work to preserve
 
@@ -56,7 +93,7 @@ Verified GitHub metadata on 2026-10-12 for bitwisecook/tcl-lsp. This report dist
 | [#1763](https://github.com/bitwisecook/tcl-lsp/issues/1763), [#1764](https://github.com/bitwisecook/tcl-lsp/issues/1764) | CLOSED | Runtime command traces and TclOO class/object state keyed by incarnation tokens. |
 | [#1648](https://github.com/bitwisecook/tcl-lsp/issues/1648) | CLOSED | Mutation visibility across compilation units and folded AssignExpr; compiled dispatch must share live binding trust. |
 | [#1772](https://github.com/bitwisecook/tcl-lsp/issues/1772), [PR #1879](https://github.com/bitwisecook/tcl-lsp/pull/1879) | CLOSED / MERGED | One compiler cell-word owner in native_lowering::cells; compatibility text cannot be reparsed as a single variable reference. PR explicitly excludes full restructuring of direct native lowering. |
-| [#2065](https://github.com/bitwisecook/tcl-lsp/issues/2065), [#2159](https://github.com/bitwisecook/tcl-lsp/issues/2159) | CLOSED | Namespace-local command realm shadows and fully-qualified expr shadow trust. Current branch contains aeb3a3be6 for #2065. |
+| [#2065](https://github.com/bitwisecook/tcl-lsp/issues/2065), [#2159](https://github.com/bitwisecook/tcl-lsp/issues/2159) | CLOSED | Namespace-local command realm shadows and fully-qualified expr shadow trust. The branch retains the namespace-local shadow fix; exact current consumer results remain independent of issue closure. |
 | [#2134](https://github.com/bitwisecook/tcl-lsp/issues/2134) | CLOSED | Open-world procedure name parameters must not be globally specialised to one caller's alias target. |
 | [#2166](https://github.com/bitwisecook/tcl-lsp/issues/2166) | CLOSED | Jim dialect/editor/CLI surface supports proc statics and two-word method names; comments reference jimsh 0.76–0.84. This does not fulfil latest-Jim oracle rerun requirement. |
 

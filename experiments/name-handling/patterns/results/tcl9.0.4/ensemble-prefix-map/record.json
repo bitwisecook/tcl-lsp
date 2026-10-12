@@ -1,0 +1,30 @@
+{
+  "case_id": "ensemble-prefix-map",
+  "release": "9.0",
+  "patchlevel": "9.0.4",
+  "probe": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+  "probe_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+  "input_sha256": "d78484166e6595a518dee495a58f9bb8c1a6bbf7ee858900cc0a8714a691e086",
+  "process_exit_code": 0,
+  "stdout_sha256": "5753e04fd13b905e10a4cfb65fd0aace06c81c3c2860b1e5950ca1b8be3b8887",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl9.0.4/ensemble-prefix-map",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "::nh::facade",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "{a b} {c d}",
+  "lookup_options": "-code 0 -level 0",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

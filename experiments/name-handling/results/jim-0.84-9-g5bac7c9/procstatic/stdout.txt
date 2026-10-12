@@ -1,0 +1,1 @@
+ procstatic.test: Total    12   Passed    12  Skipped     0  Failed     0

@@ -6,11 +6,19 @@ C Tcl 8.4–9.1, latest JimTcl and F5 oracle evidence. The starting report is
 across `tcltest` setup/body/cleanup execution. Its reproduction must be covered
 alongside the broader command, namespace, variable and object identity work.
 
+Current source basis: merged HEAD `c49ef6fd5`, 12 October 2026. Earlier
+source audits and retained execution receipts remain separate baselines;
+current execution must be recorded before calling their gaps resolved.
+
 | Document | Purpose |
 | --- | --- |
 | [Shared contract](../../design/contracts/name-handling.md) | Durable entry point for agents and all consumers; existing APIs and representation rules |
 | [Current state](current-state.md) | Verified source audit, gaps and misleading claims |
 | [Issues](issues.md) | Related open/closed issues, dependencies and branch evidence rules |
+| [Issue action proposals](issue-actions.md) | Exact closure/update text and current validation requirements |
+| [Canonical naming proofs](../../design/analysis/name-resolution-proofs/README.md) | Sole question/evidence index and provider-specific proof authority |
+| [Consumer integration contracts](../../design/analysis/name-resolution-proofs/consumer-integrations.md) | Purpose-specific source, lookup, runtime and edit obligations |
+| [Corpus findings](../../../experiments/name-handling/patterns/corpus-findings.md) | Pinned idioms, authored probes, exact observations and limits |
 | [Completion plan](plan.md) | Every consumer group, ordered work and acceptance criteria |
 | [Continuation prompt](continue-prompt.md) | Complete prompt for a coordinating agent using subagents |
 | [Measured engine gaps](../../../experiments/name-handling/results/RESULTS.md) | Real upstream suite outcomes and prioritised live-engine work |

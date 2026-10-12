@@ -1,0 +1,22 @@
+[
+  {
+    "version": "8.5.19",
+    "exit_code": 0,
+    "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+  },
+  {
+    "version": "8.6.18",
+    "exit_code": 0,
+    "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+  },
+  {
+    "version": "9.0.4",
+    "exit_code": 0,
+    "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+  },
+  {
+    "version": "9.1.0",
+    "exit_code": 0,
+    "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+  }
+]

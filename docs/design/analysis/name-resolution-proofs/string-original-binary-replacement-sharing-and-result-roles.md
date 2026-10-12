@@ -16,7 +16,7 @@ C8 converts these original ByteArrays through its Unicode path. C9 preserves Byt
 
 ## Scope
 
-55 fresh case processes and five independent same-static-library version diagnostics, with complete original streams/receipts and whole selected input bytes. Before-command, reached-before-result-getter and materialised snapshots remain distinct. Public object headers do not expose private ByteArray internals or entered EvalObjv temporary references. Direct parsed-index helper behavior, arbitrary build/allocator configurations, adverse callback chronology, Rust assertions, Jim binary equivalence and BIG-IP are not established.
+55 fresh case processes and five independent same-static-library version diagnostics, with complete original streams/receipts and whole selected input bytes. Before-command, reached-before-result-getter and materialised snapshots remain distinct. Public object headers do not expose private ByteArray internals or entered EvalObjv temporary references. Direct parsed-index helper behavior, arbitrary build/allocator configurations, adverse callback chronology, Rust assertions, Jim binary equivalence and BIG-IP are not established. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -702,7 +702,8 @@ Tcl_SetByteArrayObj(
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_indexed_binary_inputs_match_supported_native_public_projections` (linked): Software source definition checks indexed binary inputs match supported native public projections.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_indexed_binary_inputs_match_supported_native_public_projections` (linked): Software source definition checks indexed binary inputs match supported native public projections.
 
 A named test is a coverage binding, not a claim that it executed.
 

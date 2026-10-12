@@ -1,0 +1,26 @@
+{
+  "engine": "vm",
+  "subject_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "build_receipt": "experiments/name-handling/results/vm-native-post-merge-baseline/build-receipt.json",
+  "build_receipt_sha256": "09bd36bdd94f87b77588b01d3702bebcc06e7bb4b13958aeb76f75649a8537b0",
+  "build_currency_note": "Actual native-bootstrap driver and release selector; complete build source receipt retained separately. No pristine HEAD claim.",
+  "input": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "input_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "command": [
+    "/tmp/name-native-run-test-018ac8741cd2",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/wiki-probes.tcl",
+    "--tcl-version",
+    "9.0"
+  ],
+  "binary_sha256": "018ac8741cd251e32bb8786795e69310d72e5c1c06d5e5952b37a2fcc7593137",
+  "started_utc": "2026-10-12T12:14:47Z",
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+  "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+  "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+  "backend_constraints_applied": false,
+  "timeout_seconds": 60,
+  "exit_code": 1,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "015e2e929817881f66e3628867596a2c2fd06a7395bbfac8c4f34b9d25802af3",
+  "counts": null
+}

@@ -1,0 +1,19 @@
+{
+  "suite": "procstatic",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/procstatic.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "d5435a13279f74e456c3eaf7eaa3613b521a850e65e7219487612cd993d3df7e",
+  "stdout_sha256": "b0ed68c9c116ad10481dd5bcf792085f6791ab9ac701a98b64fb4960319c87a3",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 12,
+    "passed": 12,
+    "skipped": 0,
+    "failed": 0
+  }
+}

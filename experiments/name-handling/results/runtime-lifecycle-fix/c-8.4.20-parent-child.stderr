@@ -1,0 +1,4 @@
+bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which
+unknown command "::PE"
+unknown command "::P::p"
+unknown command "::CE"

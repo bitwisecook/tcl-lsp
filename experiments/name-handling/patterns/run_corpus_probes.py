@@ -1,0 +1,193 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""Capture corpus reductions on the pinned C Tcl source/build pairs."""
+
+import argparse
+import datetime
+import hashlib
+import json
+import os
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+HERE = Path(__file__).resolve().parent
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def wrapper(source):
+    setup, operation = source.rstrip().rsplit("\n", 1)
+
+    def literal(value):
+        return value.encode().hex()
+
+    return """
+set setup [binary format H* __SETUP_HEX__]
+set operation [binary format H* __OPERATION_HEX__]
+set catch_command catch
+set modern [expr {[package vcompare [info patchlevel] 8.5] >= 0}]
+set setup_options {}
+if {$modern} {
+    set setup_code [$catch_command $setup setup_result setup_options]
+} else {
+    set setup_code [$catch_command $setup setup_result]
+}
+set setup_error_code {}
+set setup_error_info {}
+if {$setup_code && [info exists ::errorCode]} {set setup_error_code $::errorCode; set setup_error_info $::errorInfo}
+if {$setup_code} {
+    set lookup_code not-run
+    set lookup_result {}
+    set lookup_options {}
+} elseif {$modern} {
+    set lookup_code [$catch_command $operation lookup_result lookup_options]
+} else {
+    set lookup_code [$catch_command $operation lookup_result]
+    set lookup_options {}
+}
+set lookup_error_code {}
+set lookup_error_info {}
+if {$lookup_code eq "1" && [info exists ::errorCode]} {set lookup_error_code $::errorCode; set lookup_error_info $::errorInfo}
+puts [list OBSERVATION setup_code $setup_code lookup_code $lookup_code]
+foreach field {setup_result setup_options setup_error_code setup_error_info lookup_result lookup_options lookup_error_code lookup_error_info} {
+    binary scan [set $field] H* bytes
+    puts [list FIELD $field $bytes]
+}
+puts [list TCLTEST [expr {[info exists ::tcltest::numTests] ? [array get ::tcltest::numTests] : {}}]]
+""".replace("__SETUP_HEX__", literal(setup)).replace(
+        "__OPERATION_HEX__", literal(operation)
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dest", type=Path, default=HERE / "results")
+    args = parser.parse_args()
+    args.dest = args.dest.resolve()
+    args.dest.mkdir(parents=True, exist_ok=True)
+    rows = []
+    references = []
+    for line in (
+        (ROOT / "rust/tcl-dialect/data/reference-toolchains.tsv")
+        .read_text()
+        .splitlines()
+    ):
+        if not line or line.startswith("#"):
+            continue
+        release, patchlevel, tag = line.split("\t")
+        tree = ROOT / "tmp" / ("tcl" + patchlevel)
+        binary = tree / "unix/tclsh"
+        env = dict(os.environ, TCL_LIBRARY=str(tree / "library"), LC_ALL="C")
+        check = subprocess.run(
+            [str(binary)],
+            input="puts [info patchlevel]\n",
+            text=True,
+            capture_output=True,
+            env=env,
+            check=True,
+        )
+        if check.stdout.strip() != patchlevel:
+            raise RuntimeError(f"wrong C reference for {release}: {check.stdout!r}")
+        references.append(
+            {
+                "release": release,
+                "patchlevel": patchlevel,
+                "tag": tag,
+                "binary": str(binary),
+                "binary_sha256": digest(binary),
+                "source_names_sha256": digest(tree / "generic/tclNamesp.c"),
+                "init_sha256": digest(tree / "library/init.tcl"),
+            }
+        )
+        for probe in sorted((HERE / "probes").glob("*.tcl")):
+            source = probe.read_text()
+            script = wrapper(source)
+            dest = args.dest / ("tcl" + patchlevel) / probe.stem
+            dest.mkdir(parents=True, exist_ok=True)
+            (dest / "input.tcl").write_text(script)
+            result = subprocess.run(
+                [str(binary)],
+                input=script,
+                text=True,
+                capture_output=True,
+                env=env,
+                timeout=20,
+                check=False,
+            )
+            (dest / "stdout.txt").write_text(result.stdout)
+            (dest / "stderr.txt").write_text(result.stderr)
+            row = {
+                "case_id": probe.stem,
+                "release": release,
+                "patchlevel": patchlevel,
+                "probe": str(probe.relative_to(ROOT)),
+                "probe_sha256": digest(probe),
+                "input_sha256": digest(dest / "input.tcl"),
+                "process_exit_code": result.returncode,
+                "stdout_sha256": digest(dest / "stdout.txt"),
+                "stderr_sha256": digest(dest / "stderr.txt"),
+                "command": [str(binary)],
+                "environment": {
+                    "TCL_LIBRARY": env["TCL_LIBRARY"],
+                    "LC_ALL": env["LC_ALL"],
+                },
+                "capture": str(dest.relative_to(ROOT))
+                if dest.is_relative_to(ROOT)
+                else str(dest),
+                "setup_and_lookup_separate": True,
+            }
+            for raw in result.stdout.splitlines():
+                if raw.startswith("OBSERVATION "):
+                    words = raw.split()
+                    row.update(setup_code=words[2], lookup_code=words[4])
+                elif raw.startswith("FIELD "):
+                    words = raw.split(" ", 2)
+                    row[words[1]] = (
+                        bytes.fromhex(words[2]).decode("ascii")
+                        if len(words) == 3 and words[2] != "{}"
+                        else ""
+                    )
+            if result.returncode or result.stderr or "setup_code" not in row:
+                raise RuntimeError(
+                    f"capture failed for {patchlevel}/{probe.stem}; inspect {dest}"
+                )
+            (dest / "record.json").write_text(json.dumps(row, indent=2) + "\n")
+            rows.append(row)
+    (args.dest / "records.json").write_text(json.dumps(rows, indent=2) + "\n")
+    provenance = {
+        "captured_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "subject_commit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
+        "runner_sha256": digest(Path(__file__)),
+        "references": references,
+        "case_count": len(rows),
+        "Jim": "pending",
+        "F5": "pending",
+        "semantics": "ASCII-only authored reductions, each fresh interpreter; final probe line is observed lookup, preceding lines are setup; tcltest invocation occurs during setup and retained numTests distinguishes harness failures",
+    }
+    (args.dest / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
+    print(f"Captured {len(rows)} observations")
+
+
+if __name__ == "__main__":
+    main()

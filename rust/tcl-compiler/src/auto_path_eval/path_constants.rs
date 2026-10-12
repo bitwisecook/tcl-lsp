@@ -398,10 +398,7 @@ impl PathConstantLookup for FoldedPathConstants {
 impl<S: std::hash::BuildHasher> PathConstantLookup for HashMap<String, String, S> {
     fn path_constant(&self, name: &str) -> Option<String> {
         // Plain maps are an authored C abstraction, never native Jim inventories.
-        if let Some(value) = self.get(name) {
-            return Some(value.clone());
-        }
-        let rooted = super::canon(name);
+        let rooted = super::rooted_variable_key(name);
         self.get(&rooted)
             .or_else(|| {
                 tcl_syntax::naming::unroot_rooted_key(&rooted)
@@ -420,7 +417,7 @@ pub trait PathConstantImports {
 impl PathConstantImports for FoldedPathConstants {
     fn path_imports(&self, policy: NamePolicyProtocol) -> Option<HashMap<String, String>> {
         if self.policy == Some(policy) || (self.policy.is_none() && self.globals.is_empty()) {
-            Some(self.globals.clone())
+            Some(self.exported().globals)
         } else {
             None
         }

@@ -16,7 +16,7 @@ Index and range are distinct native purposes: index may encode a selected storag
 
 ## Scope
 
-120 fresh case processes (20 per selected library), all process exit 0: 116 actual command outcomes (108 code 0, eight code 1) and four explicit Jim constructor skips. Before-command, reached-before-result-getter, materialised-result and materialised-subject observations remain separate. Probe byte inputs are counted C arrays, not Tcl source decoding. Original reference fields and alias identities are snapshots under this exact EvalObjv schedule. The proof does not expose C private Unicode/ByteArray caches, private cache epochs, callback or teardown chronology, general lifetime ownership, arbitrary platforms/builds, direct-helper sharing, replacement semantics, Rust assertions or BIG-IP. Earlier CLI and six independent same-library version processes are separate evidence.
+120 fresh case processes (20 per selected library), all process exit 0: 116 actual command outcomes (108 code 0, eight code 1) and four explicit Jim constructor skips. Before-command, reached-before-result-getter, materialised-result and materialised-subject observations remain separate. Probe byte inputs are counted C arrays, not Tcl source decoding. Original reference fields and alias identities are snapshots under this exact EvalObjv schedule. The proof does not expose C private Unicode/ByteArray caches, private cache epochs, callback or teardown chronology, general lifetime ownership, arbitrary platforms/builds, direct-helper sharing, replacement semantics, Rust assertions or BIG-IP. Earlier CLI and six independent same-library version processes are separate evidence. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -2943,7 +2943,11 @@ int utf8_tounicode(const char *str, int *uc)
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-registry/src/native_string_length.rs](../../../../rust/tcl-registry/src/native_string_length.rs), `actual_length_conversion_retains_release_specific_bytearray_rules` (linked): Software source definition checks actual length conversion retains release specific bytearray rules.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_index_and_range_project_exact_measured_public_predicates` (linked): Software source definition checks index and range project exact measured public predicates.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_c_count_retains_source_backed_eager_and_lazy_unicode_caches` (linked): Software source definition checks c count retains source backed eager and lazy unicode caches.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_index_and_range_project_exact_measured_public_predicates` (linked): Software source definition checks index and range project exact measured public predicates.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_c_binary_pointer_and_reread_stages_use_actual_header_and_no_protective_reference` (linked): Software source definition checks c binary pointer and reread stages use actual header and no protective reference.
 
 A named test is a coverage binding, not a claim that it executed.
 

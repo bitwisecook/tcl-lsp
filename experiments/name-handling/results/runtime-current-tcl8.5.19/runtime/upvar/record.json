@@ -1,0 +1,23 @@
+{
+  "engine": "runtime",
+  "stem": "upvar",
+  "exit_code": 2,
+  "seconds": 2.664,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/tmp/name-runtime-native-ensemble-fixed",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.5"
+  ],
+  "input_sha256": "e9e806f03e7ce63c642f53d255df84ca139e704427607f10ec2a1514b74e6ec9",
+  "test_sha256": "c14906dd167015bd6dab0658064b263563a6005e998e248a87ac388891026933",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [],
+  "last_started_id": "upvar-1.1",
+  "status": "process-error"
+}

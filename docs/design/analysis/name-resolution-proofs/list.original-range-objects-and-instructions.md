@@ -16,7 +16,7 @@ The six retained native programs supply exact result/header pairs for the select
 
 ## Scope
 
-ASCII source installed through C Tcl_EvalEx(length=-1, GLOBAL) or Jim_Eval, then original {A} B C object passed to p by public object-vector evaluation. R fields are captured before obtaining result bytes; O fields follow the result getter and precede their own getter; H fields precede their own getter. Cases 0,1,2,3,4,24. These rows do not contain opaque names, raw NUL or a general read/normal/world-effect guarantee.
+ASCII source installed through C Tcl_EvalEx(length=-1, GLOBAL) or Jim_Eval, then original {A} B C object passed to p by public object-vector evaluation. R fields are captured before obtaining result bytes; O fields follow the result getter and precede their own getter; H fields precede their own getter. Cases 0,1,2,3,4,24. These rows do not contain opaque names, raw NUL or a general read/normal/world-effect guarantee. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -74,6 +74,7 @@ No appliance observation for this question.
 - `e7` (observation): [rust/tcl-registry/tests/data/native_list_operations/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/9.0.4.txt). SHA-256 `12fa60819a0b3ec0d2800826b14622815b7a3d798dc5485d9be77de14c23dfd1`. Selected cases [0, 1, 2, 3, 4, 24] within exact full original stream; other operation rows belong to independent questions.
 - `e8` (observation): [rust/tcl-registry/tests/data/native_list_operations/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/9.1.0.txt). SHA-256 `8ea8571ca185c5c6879a8398b3e4516174b67227a2b860e71ef34efc27b7599f`. Selected cases [0, 1, 2, 3, 4, 24] within exact full original stream; other operation rows belong to independent questions.
 - `e9` (observation): [rust/tcl-registry/tests/data/native_list_operations/jim.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/jim.txt). SHA-256 `c6d78db36f9a442da2b02d3fe2ea86512765ef332732d16774d1c536d26ca528`. Selected cases [0, 1, 2, 3, 4, 24] within exact full original stream; other operation rows belong to independent questions.
+- `own-source349-runtime-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json). SHA-256 `bda632ff8693f94ebd34fe00d0a73a7c184b00f546fc7dbee81b85ff93e90d7f`. JSON pointer `/by_question/naming.list.original-range-objects-and-instructions`. Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.
 
 ## Source inspection
 
@@ -147,6 +148,8 @@ int main(void){Jim_Interp*i=Jim_CreateInterp();Jim_RegisterCoreCommands(i);Jim_C
 - [rust/tcl-cmd-core/src/native_list_storage.rs](../../../../rust/tcl-cmd-core/src/native_list_storage.rs), `native_list_storage::tests::command_empty_range_keeps_c90_list_birth_separate_from_c91_and_opcode_empty` (linked): The unchanged original C9.0/C9.1 R3 rows have list|0|1 versus none|1|1 and neither has listRangeImm. Selected command actions keep C9.0 EmptyList versus C9.1 FreshEmpty separate from the independent opcode FreshEmpty action; no private allocation/lifetime or Native admission is inferred.
 - [runtime/rust/src/list/native_list_storage.rs](../../../../runtime/rust/src/list/native_list_storage.rs), `list::native_list_storage::tests::command_range_empty_result_has_actual_list_store_only_in_c90` (linked): Genuine selected command/index/list purposes retain a software List store only in C9.0; C9.1 and earlier empty-command results have no donated List store. Independent opcode-empty action and original public header rows remain separate.
 - [rust/tcl-vm/src/value/native_list_storage.rs](../../../../rust/tcl-vm/src/value/native_list_storage.rs), `value::native_list_storage::tests::command_range_empty_result_has_actual_list_store_only_in_c90` (linked): VM consumes the shared reached-command result action: C9.0 has an empty List store while C9.1 selects a fresh plain empty result; opcode-empty production stays independent. No native allocator/member/lifetime identity is inferred.
+- [runtime/rust/src/value_ops/native_list_index.rs](../../../../runtime/rust/src/value_ops/native_list_index.rs), `c_returned_member_transport_preserves_original_member_reference_and_actual_result_hold` (linked): Software source definition checks c returned member transport preserves original member reference and actual result hold.
+- [runtime/rust/src/value_ops/native_list_index.rs](../../../../runtime/rust/src/value_ops/native_list_index.rs), `c_fresh_empty_returned_transport_has_zero_count_and_exact_fresh_cleanup` (linked): Software source definition checks c fresh empty returned transport has zero count and exact fresh cleanup.
 
 A named test is a coverage binding, not a claim that it executed.
 
@@ -170,15 +173,3 @@ Recorded argument vector:
 ```
 
 Requires exact original probe and library hashes; independently provision the matching C release or Jim static build. The runner records its fresh compiler arguments, executable hash, process status and streams and compares stdout byte for byte. Original stderr is absent from these manifests; the current replay separately requires empty stderr and does not claim retained stderr equality. Private C instruction probes require matching tclInt.h/tclCompile.h ABI. Missing originals and mismatched libraries are adapter refusals, not native guest answers. C library callbacks require the matching Tcl library directory. Every process has a60-second budget; run serially or obey a global maximum of two native processes. Reconfirmation of the oracle does not establish Rust parity or a native capability.
-
-
-## Exact original-source349 software outcomes
-
-These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
-
-| Original selection | Passed | Failed | Aborted or incomplete | Not started |
-| --- | ---: | ---: | ---: | ---: |
-| `grouped` | 0 | 1 | 0 | 1 |
-| `isolated` | 1 | 1 | 0 | 0 |
-
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

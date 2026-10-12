@@ -1,113 +1,114 @@
 # Current state
 
-Audit basis: `work` at `127dba9d9`, 12 October 2026. This is a source inspection,
-not a claim that all tests passed or the oracle matrix ran. Refresh the basis
-when changing this document. GitHub issue status is recorded separately.
+Source basis: merged `work` HEAD
+`c49ef6fd5d147edd0cf473070dfaac2834c20dd7`, 12 October 2026.
+The published `work` ref was
+`bcaf88c12400c1a0a529a54ba8a73dacb216da41` when checked.
+Earlier `127dba9d9` source audits and `b7ad30f1f` engine captures are
+prior baselines, not fresh execution of the merged source.
 
-## Measured VM/runtime readiness
+## Current semantic authorities
 
-[The retained suite report](../../../experiments/name-handling/results/RESULTS.md)
-records current engine execution at `b7ad30f1f`: 21 original Tcl 9.0.4 files on
-C/VM/runtime, six-file runtime matrices on the other four C releases, and seven
-independent upstream case selections. Both engines use real `init.tcl` and
-`tcltest.tcl`. Focused regressions pass (442 VM tests, 350 distinct runtime tests),
-but whole upstream suites expose variable/link/frame, namespace lifecycle,
-trace/rename, TclOO and introspection gaps. Runtime 8.4 Tcltest loading and 9.1
-initialisation block whole-suite coverage. The VM suite driver is fixed to 9.0.
-Use the report's completed/partial/skipped classifications and exact C-passing
-IDs; do not treat regression passes or aggregate failure counts as conformance.
+The refreshed tree's [name model](../../design/analysis/name-resolution.md)
+separates genuine Original C/Jim inputs, hosted policy and explicit Logical
+reporting. Source advice retains complete source/channel/lexer/Registry
+currency, actual lookup scope and declaration allocations.
+[The command owner contract](../../design/contracts/command-resolution.md)
+defines source/table receipts, independently selected Jim/hosted inputs,
+candidate policy and bounded reporting compatibility.
 
-## What exists
+[Canonical proof records](../../design/analysis/name-resolution-proofs/README.md)
+bind exact questions to original evidence, provider answers and channels.
+Their manifest/schema/checker are the proof authority.
+[Consumer integration contracts](../../design/analysis/name-resolution-proofs/consumer-integrations.md)
+bind every purpose to independently manufactured facts. Native observation,
+source lookup, physical native object, completed world and edit geometry
+retain distinct authority.
 
-- `tcl-core-types` provides command/namespace IDs, `CommandSlot` and the
-  low-level variable scanner. `tcl-runtime-api::command_identity` provides
-  static slot types, display projections and an injective encoding.
-- `tcl-syntax::naming` owns written-name grammar, colon-run handling,
-  variable/array source helpers and static command candidate order.
-- `tcl-cmd-core::namespace` owns generic namespace operations over runtime
-  adapters. The runtimes have token/tree storage and live lifetime handling.
-- Compiler binding facts, registry resolved invocation facts, analyser
-  indirection, LSP definition selection and workspace settlement provide
-  common semantic layers for many consumers.
-- Command/variable/namespace-op vector tables and C Tcl runners exist;
-  command vectors also reach analyser, VM and WASM dispatch tests.
-- Owner-resolution and resolution-drift gates exist, with limited coverage.
+[Executed Rust receipts](../../design/analysis/name-resolution-proofs/rust-validation/README.md)
+apply to their exact source inventories; matching test names cannot certify
+later changed source. New pattern/corpus documents supply discovery evidence
+and measured inputs, not another resolver or proof system. The general
+[name-handling entry point](../../design/contracts/name-handling.md) must
+remain consistent with these owners.
 
-Static compiler/LSP adoption is incomplete: the static slot type exists, but
-these crates still expose and compare flat `qualified_name` records. Do not
-claim the records derive from an authoritative slot without inspecting the
-producer and each use. Token-based runtime adoption does not fix static maps.
+## Starting issue coverage
 
-## Concrete residuals
+The merged source contains all four #2286 source fixtures, five-profile
+shared-frame W210 controls, genuine-undefined-read/data negatives,
+direct/captured-prefix alias variants and namespace-scoped import controls.
+[The native Tcltest question](../../design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md)
+measures caller-visible setup/body/cleanup on all five C packages and Jim's
+separate global-test protocol. It does not execute full tclopt constructors
+or prove Rust diagnostics.
 
-Each entry is a verified code shape to resolve or justify. An absolute-name
-predicate or display formatter may be legitimate; classify its inputs and
-purpose before replacing it.
+Frozen334's retained consumer log records the shared-frame, alias and
+namespace-import controls passing. Relevant compiler source hashes differ
+from that receipt. New compiled runs pass the reported examples across all
+five profiles but fail the genuine-undefined-read controls at Tcl 8.4 (zero
+W210 instead of one), including the direct alias. Source changed during
+those builds; the final post-freeze run separately confirms both negative
+controls fail at their first Tcl 8.4 assertion. Its selected 12,887-file source
+inventory is unchanged before/after execution. The
+[GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6124201808)
+records the result and keeps #2286 open.
 
-| File / function | Obligation |
+#2287 has a new namespaced server semantic-token regression retaining the
+actual first two upstream native tests and moving the import into
+`::nativeTest`. It covers both body/result option pairs and nested command
+roles. Both that new regression and the existing top-level semantic-token
+companion execute and fail: `-body` is painted as string instead of decorator.
+The namespace-scoped compiler W100 traversal control passes independently.
+Exact provenance, commands and retained results are in
+[issue-actions.md](issue-actions.md).
+
+#2450's obsolete W210 paragraph and #2117 reference are absent. Removal
+commit `47c00bbad` is published through PR #2457. GitHub readback confirms that narrow defect is closed; repository-wide
+documentation/comment cleanup is separate.
+
+## Earlier source-audit claims superseded by the refreshed tree
+
+| Earlier claim | Current source inspection |
 | --- | --- |
-| `tcl-compiler/src/var_resolve.rs::bind_scalar` | Leading-`::` qualification test, namespace normalisation and `rfind("::")`; relative-qualified `n::x` otherwise becomes local. Audit empty/lone-colon names and top-level plain/rooted aliasing. |
-| `tcl-compiler/src/codegen/values.rs::is_qualified` | Leading-`::` test feeds stack/slot loads/stores, statements, control flow and substitutions. Distinguish qualified from absolute semantics at every caller. |
-| `tcl-compiler/src/type_infer.rs::constructor_object_type` | Private candidates try global before current namespace and normalise a joined name. |
-| `tcl-compiler/src/alias.rs::resolve_alias` | Private absolute/current/global selection without the path tier. |
-| `tcl-compiler/src/auto_path_eval.rs::{canon, qualified_key}` | Private `split("::")` canonicalisation throughout load-time lookup. |
-| `tcl-compiler/src/optimiser/helpers/naming.rs::namespace_from_qualified` | Reparses qualified strings; establish whether they are source, encoding or display. |
-| `tcl-compiler/src/command_binding.rs`, `dynamic_names.rs` | Private import/forget/name-tail splits; preserve grammar and identity. |
-| `tcl-lsp-core/src/signature_help.rs::resolve_alias_chain` | Private alias walk with its own eight-hop bound and FQN construction. |
-| `tcl-lsp-core/src/{namespace_symbol, namespace_rename}.rs` | `split("::")` and two-byte separator assumptions reconstruct source spans incorrectly for colon runs. |
-| `tcl-lsp-core/src/workspace_index.rs` | Repeated root trimming in identity/link keys and comparisons; preserve literal colon segments and interpreter/context identity. |
-| `tcl-lsp-core/src/minify.rs::find_proc_call_sites` | Unresolved calls can fall back to literal name equality. |
-| `tcl-lsp-core/src/type_definition.rs::find_class` | Manual rooted/unrooted adapter needs the common identity contract. |
-| `tcl-mcp/src/tools.rs::generate_docstring` | Private FQN resolution and waived lexicographic simple-name fallback. |
-| `tcl-lsp-server/src/lib.rs` | Private command-tail sets and stripped-name matching in workspace consumers. |
-| `tcl-vm/src/interp.rs::resolve_command_fqn_uncached` | Token-aware current/path/global algorithm is independently implemented. Extract policy through a state adapter without losing retained/dead namespace rules. |
-| `runtime/rust/src/namespace.rs::home_of` | Independent byte/tree candidate selection; preserve byte exactness and dying namespace edges. |
-| VM `command.rs`, `cmd_math.rs`, `cmd_mathop.rs`, `cmd_oo.rs` | Tail/root splitting and qualification tests need representation-by-representation review. |
-| Runtime `engine.rs`, `interp.rs`; WASM `backend.rs` | Root trimming and qualification checks need equivalent review. |
-| `tcl-runtime-api::Namespaces` byte defaults | Lossy fallback conversions require an explicit supported representation and byte-exact overrides where supported. |
+| `resolve_symbol_definer` privately resolves imports | That helper is absent; Original symbol-declaration advice and selected Registry words now have canonical contracts. |
+| Codegen `is_qualified` tests only leading `::` | It splits the array base with `split_element_ref_bytes` and delegates qualification to the syntax owner. |
+| `alias::resolve_alias` privately constructs candidates | Its documented compatibility branch delegates to `resolve_command_with` over an alias-only authored table; Native callers use retained source binding. |
+| `var_resolve::bind_scalar` is a textual root/tail heuristic | It delegates to a receiver resolver reading observed-storage availability, raw bindings, namespace-slot aliases and original ownership facts. |
+| Providers infer identity from flat reporting maps | The model now distinguishes reporting maps from retained Original lookup/declaration/source owners. Audit each actual producer/consumer against that contract. |
 
-The complete search scope and consumer acceptance table are in [plan.md](plan.md).
-These examples are the beginning of the per-call-site ledger, not an exhaustive
-claim about every line in the repository.
+These are source inspections, not test passes or assertions of complete
+adoption. The coordinator owns the [implementation ledger](implementation-ledger.md)
+for per-surface obligations and actual current validation. Re-audit the old
+residual table before retaining any entry as a current defect.
 
-## Oracle coverage gaps
+## Oracle coverage and unanswered questions
 
-The authoritative C pins are 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 in
-`rust/tcl-dialect/data/reference-toolchains.tsv`. Require all five for final
-conformance evidence. Partial available-interpreter tests cannot prove the matrix.
+Canonical evidence includes native observations, source anchors,
+implementation contracts, environment observations and explicit failed native
+attempts. `not-tested` supplies no provider answer. In particular,
+[the frame array-trace attempt](../../design/analysis/name-resolution-proofs/variable-original-frame-array-trace-retirement-horizon.md)
+never reaches its intended retirement horizon. Its setup errors cannot answer
+teardown semantics.
 
-The shared name runners have no latest-Jim discovery/pin leg. Existing Jim
-syntax/surface measurements do not prove all name semantics. Variable and
-namespace-op shared renderers do not yet have uniform consumer coverage in
-both runtimes. Some runtime tests conditionally skip unavailable C binaries. Shared syntax
-vector runners call `available_tclshs()`, which also skips missing/invalid
-references and does not honour `TCL_LSP_REQUIRE_TCLSH`; only witness-based
-callers enforce that variable. A full-matrix preflight/assertion is required.
+The resolution-2286 appliance bundle under
+`scripts/dev/bigip-probes/resolution-2286/` contains actual BIG-IP reports.
+Their build, accepted rule, reached event and CLI/iApp/TMM context remain
+specific. They are not universally pending and cannot answer new unexecuted
+corpus questions.
 
-BIG-IP has retained parser/context experiments under
-`scripts/dev/bigip-probes/`; they are evidence for their exact appliance and
-context. New name questions require explicit acceptance and execution records,
-returned through [the F5 request](../../../experiments/name-handling/f5/REQUEST.md).
+[The corpus findings](../../../experiments/name-handling/patterns/corpus-findings.md)
+verify 35 public pins and retain 75 reduced C observations, including capability
+absences and near misses. Jim/F5 remain pending for those exact inputs.
+Canonical answers to other inputs are separate. Static recogniser accuracy
+and held-out target-selection coverage remain unmeasured by this lane.
 
-## Documentation contradictions to resolve
+[The earlier VM/runtime report](../../../experiments/name-handling/results/RESULTS.md)
+retains evidence for its recorded source. Re-run its failures on the new
+owners before reporting current gaps. Likewise, an OPEN issue supplies an
+acceptance target, not a demonstrated current failure.
+[The refreshed issue inventory](issues.md) separates those states.
 
-- `analysis/name-resolution.md` claims authoritative static slots and universal
-  MCP provider adoption beyond the inspected implementation.
-- `contracts/command-resolution.md` describes direct VM string-helper dispatch,
-  clone-model imports and universally unbound codegen; verify current token
-  and direct/native code paths before rewriting these statements.
-- `compiler/namespace-resolution.md` mandates universal namespace normalisation
-  for command keys and claims none of its static consumers model namespace path.
-- `contracts/command-binding-and-aliasing.md` separates relative-qualified
-  names from path lookup, contradicting the command resolution contract.
-- C source citations use 8.6.16 and 9.1b0 while the current pins differ.
-  Preserve old measurements as evidence; refresh current-source citations.
-- `var_conformance.rs`, vector headers and runtime variable comments attribute
-  fallback removal to TIP 278; the C reference document disputes that attribution.
-- Runtime API docs say several implemented adapter APIs are not implemented;
-  vector comments exclude lifecycle states now represented by runtimes.
-- Long prior-bug narratives, milestone labels, banners and migration language
-  remain in comments and documents.
-
-Use source and real oracle observations to settle these disagreements. Do not
-edit a test expectation merely to agree with the current implementation.
+The complete proof checker validates index/evidence/consumer bindings but
+executes neither native programs nor Rust assertions. Run appropriate current
+consumer tests independently and retain source/results. Never alter oracle
+expectations just to make an implementation pass.

@@ -151,9 +151,11 @@ latest upstream Jim revision/build, and returned F5 results for each supported
 context. Unsupported features have measured capability results and tested
 refusal; unavailable experiments remain pending. Set
 `TCL_LSP_REQUIRE_TCLSH=1` for witness-based C callers and explicitly
-validate all five releases for available-interpreter runners; the variable
-alone does not enforce their matrix today. Jim needs its own validated
-discovery contract.
+require all five releases for available-interpreter runners with
+`TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1`, or use `required_tclshs(TclVersion::ALL)`.
+Jim discovery validates its revision-bearing patchlevel through the shared
+reference manifest and `require_jimsh`; actual build capabilities still need
+operation probes.
 
 Use existing suites first: syntax command/variable/namespace conformance;
 matching upstream C Tcl `tcltest` suites and Jim's equivalent oracle suite;
@@ -173,6 +175,54 @@ policy, no semantic display-name keys, correct context/invalidation, no unsafe
 rewrite on uncertain identity, complete supported oracle evidence and green
 required gates. Review open and closed related issues with their regressions;
 GitHub status alone is not a completion gate or proof of a branch fix.
+
+## Conditional source advice for imports and paths
+
+The current server regressions expose a shared owner gap: both the existing
+top-level Tcltest import control and the new namespace-scoped #2287 fixture
+paint `-body` as string. Their actual compiled-run results are in
+[issue-actions.md](issue-actions.md). This does not justify a Tcltest matcher
+in semantic tokens or manufacturing an installed command/Normal completion.
+
+The consumer already delegates to Compiler
+`registry_invocation::source_structure::source_registry_words` and retains
+conditional `OriginalRegistryWords`. Review the producer path through
+`command_binding::source_catalogue_advice`, the original command-world
+candidate paths and `source_transition_advice::AdviceGraph`. That graph has
+command cells and namespace geometry but currently lacks import/export and
+namespace-path state for independent readonly catalogue assistance. Actual
+execution-backed import facts and conditional source applicability are separate
+authorities; missing one cannot silently become the other.
+
+Extend the existing owner generically where the source can support assistance:
+
+- Retain exact original import/path/export operands, their source scope,
+  order, Registry generation, selected release/policy and applicability
+  obligations. Preserve per-site export snapshots and actual imported-token
+  semantics separately from a possible source-schema candidate.
+- Use registry-authored export/role/provider facts with explicit availability
+  conditions. A package requirement alone proves neither installation nor
+  body entry. Unknown provider/version/effects retain uncertainty; known
+  absence, disabled release, shadowing or deletion must refuse that schema.
+- Model current/path/root candidate order for the selected policy. C Tcl 8.4
+  lacks namespace path; Jim's independently selected namespace helper and
+  flat-name recipe require their own evidence. Do not inherit C rules merely
+  because source words look alike.
+- Invalidate or widen affected advice for forget, force import, rename,
+  replacement, export changes, namespace deletion/recreation, unknown package
+  effects and source/configuration changes. Preserve unaffected scopes.
+- Keep original geometry/candidate obligations through every consumer. A
+  conditional option/body role supplies no Native identity, entered frame,
+  completed world, references/rename completeness or optimiser permission.
+
+Acceptance includes the two server import controls, genuine W210 negatives,
+known user-command shadows, forgotten/replaced imports, conditional exports,
+namespace path alternatives, same-tail siblings, package/provider absence and
+release-specific unsupported operations. Include directives appearing as
+braced data, copied/stale source and dynamic inputs that must remain unknown.
+Where current evidence cannot support a safe source schema, retain the reason
+and bounded candidates; do not achieve a green test by weakening assertions
+or switching the entire source to Logical compatibility.
 
 ## Documentation/comment cleanup checklist
 

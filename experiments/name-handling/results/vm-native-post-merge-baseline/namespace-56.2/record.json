@@ -1,0 +1,20 @@
+{
+  "case": "namespace-56.2",
+  "release": "9.0",
+  "reference_distribution": "9.0.4",
+  "engine": "vm-native-core",
+  "command": [
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/namespace.test",
+    "--match",
+    "namespace-56.2",
+    "--tcl-version",
+    "9.0"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 8.278,
+  "test_sha256": "7a4bc600f9e1c03052e685377addb564e0854127af926a57f9bd1692c3543e7f",
+  "binary_sha256": "018ac8741cd251e32bb8786795e69310d72e5c1c06d5e5952b37a2fcc7593137",
+  "head": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "classification": "host-refusal-before-upstream-case"
+}

@@ -52,6 +52,12 @@ pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdErr
     Ok(ops.new_int(i64::try_from(n).unwrap_or(i64::MAX)))
 }
 
+/// `string bytelength str` counts the original Tcl string representation.
+pub fn bytelength<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdError> {
+    let length = ops.native_string_bytes(s)?.len();
+    Ok(ops.new_int(i64::try_from(length).unwrap_or(i64::MAX)))
+}
+
 /// `string index str charIndex` — the one-character string at `idx`, or empty
 /// when out of range.
 pub fn index<O: NativeIndexOps>(
@@ -1303,6 +1309,9 @@ pub fn dispatch_canon<O: NativeIndexOps>(
         }
     };
     match sub {
+        "bytelength" => {
+            arity(1, "string bytelength string").or_else(|| Some(bytelength(ops, &rest[0])))
+        }
         "length" => arity(1, "string length string").or_else(|| Some(length(ops, &rest[0]))),
         "index" => arity(2, "string index string charIndex")
             .or_else(|| Some(index(ops, &rest[0], &rest[1]))),

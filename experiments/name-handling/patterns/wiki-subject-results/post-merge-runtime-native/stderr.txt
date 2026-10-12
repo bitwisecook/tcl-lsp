@@ -1,0 +1,1 @@
+run_script: execution refused: original local alias table receipt native handler policy is not selected

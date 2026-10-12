@@ -1,0 +1,30 @@
+{
+  "case_id": "oo-prefix-deleted-near-miss",
+  "release": "8.6",
+  "patchlevel": "8.6.18",
+  "probe": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+  "probe_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+  "input_sha256": "e4d7c27999fb38f73da2a2607add631fcb563362bbb0eb942b41a5e56dd4780a",
+  "process_exit_code": 0,
+  "stdout_sha256": "c90a0148729c48b304eda32869272dc89bd6afe48d058717d02cbd7a07898427",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.6.18/oo-prefix-deleted-near-miss",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "1",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "1",
+  "lookup_options": "-code 0 -level 0",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

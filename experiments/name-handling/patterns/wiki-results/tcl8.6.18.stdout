@@ -1,0 +1,34 @@
+oracle 8.6.18 library /workspace/tcl-lsp/tmp/tcl8.6.18/library tcltest 2.5.11
+++++ wiki-prefix-1 PASSED
+++++ wiki-prefix-2 PASSED
+++++ wiki-prefix-3 PASSED
+++++ wiki-code-1 PASSED
+++++ wiki-code-2 PASSED
+++++ wiki-code-3 PASSED
+++++ wiki-code-4 PASSED
+++++ wiki-code-5 PASSED
+++++ wiki-code-6 SKIPPED: aunt
+++++ wiki-code-7 PASSED
+++++ wiki-factory-1 PASSED
+++++ wiki-factory-2 PASSED
+++++ wiki-alias-1 PASSED
+++++ wiki-alias-2 PASSED
+++++ wiki-rename-1 PASSED
+++++ wiki-upvar-1 PASSED
+++++ wiki-upvar-2 PASSED
+++++ wiki-upvar-3 PASSED
+++++ wiki-upvar-4 PASSED
+++++ wiki-variable-1 PASSED
+++++ wiki-global-1 PASSED
+++++ wiki-autoload-1 PASSED
+++++ wiki-unknown-1 PASSED
+++++ wiki-oo-1 PASSED
+++++ wiki-oo-2 PASSED
+++++ wiki-oo-3 PASSED
+++++ wiki-oo-4 PASSED
+++++ wiki-oo-5 PASSED
+++++ wiki-oo-6 PASSED
+++++ wiki-oo-7 PASSED
+wiki-probes.tcl:	Total	30	Passed	29	Skipped	1	Failed	0
+Number of tests skipped for each constraint:
+	1	aunt

@@ -1,0 +1,16 @@
+{
+  "head": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "source_sha256": {
+    "rust/tcl-vm/src/command.rs": "eaf1145b67eb07340b180beed13a8569c4e8d4f1c71a03b059f9653250baefd3",
+    "runtime/rust/src/cmd_alias.rs": "8c487caae90d8b9df686baaa9c5c99d3ccf7884ecef730ec1e133ed1a4e4fd5d",
+    "rust/tcl-registry/src/special_vars.rs": "b01d24efab53f9b167d726a47eed82fff55995fcaf6b40f7386e43f6f10cb371",
+    "rust/tcl-vm/tests/library_bootstrap_presence.rs": "58205ff6da098211a2cd75d974886fd1a4f55b7f1b4cc5c904c8b1331ef45c09",
+    "runtime/rust/tests/library_bootstrap_oracle.rs": "68bc324c1b31ca208300021e21ac5f175db27e4b183e610f3143a48c188cda54"
+  },
+  "vm_command": "source /tmp/name-env.sh; CARGO_TARGET_DIR=tmp/name-target-vm CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 TCL_LSP_JIMSH=tmp/jimtcl-oracle/jimsh cargo test -p tcl-vm --test library_bootstrap_presence -- --nocapture",
+  "runtime_command": "source /tmp/name-env.sh; cd runtime/rust; CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-bootstrap CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 TCL_LSP_JIMSH=/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh cargo test --offline --test library_bootstrap_oracle init_auto_path_presence_matches_each_native_core -- --exact --nocapture",
+  "result": {
+    "vm": "1passed,0failed",
+    "runtime": "1passed,0failed"
+  }
+}

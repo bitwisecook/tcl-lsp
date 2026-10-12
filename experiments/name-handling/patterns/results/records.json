@@ -1,0 +1,2252 @@
+[
+  {
+    "case_id": "alias-prefix-lifetime",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+    "probe_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+    "input_sha256": "0a3d6794066082ff0d02a66eee8f4d535707f0e40d0b075d62ca03e1400a0bc8",
+    "process_exit_code": 0,
+    "stdout_sha256": "39e65e84a86bad11ab5df235f963f854a81f713b0af829914c714457e7869071",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/alias-prefix-lifetime",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit {a b}",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{::nh::emit {a b}} {{a b} {c d}}",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-binding-mutation",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+    "probe_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+    "input_sha256": "c5e6e8b8aac19b126705d1abe1d5e4ea0d50f6ca29f20987da239a80c51ac550",
+    "process_exit_code": 0,
+    "stdout_sha256": "119fe26b96b2adcf4cc41ea42615422b7302d0c1f20ed71766edae2d89edf3d0",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/computed-binding-mutation",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "replacement",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-qualified",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+    "probe_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+    "input_sha256": "08b7e3e0f2cf962b9659b8187ea34486490cbe6b02b1a022186df0f12538427f",
+    "process_exit_code": 0,
+    "stdout_sha256": "a83dfe3d7770e162b74c53fd2c56881d4c6f4a838ccc70fe4621787c06612022",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/computed-qualified",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "first",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "ensemble-prefix-map",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+    "probe_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+    "input_sha256": "d78484166e6595a518dee495a58f9bb8c1a6bbf7ee858900cc0a8714a691e086",
+    "process_exit_code": 0,
+    "stdout_sha256": "1e7ac74e973ef3d94a3056f4202adbc05d45f3d6f29b84f8d12904a9d28020c6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/ensemble-prefix-map",
+    "setup_and_lookup_separate": true,
+    "setup_code": "1",
+    "lookup_code": "not-run",
+    "setup_result": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which",
+    "setup_options": "",
+    "setup_error_code": "NONE",
+    "setup_error_info": "bad option \"ensemble\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n    while executing\n\"namespace ensemble create -command facade -map [list send [list ::nh::emit {a b}]]\"\n    (in namespace eval \"::nh\" script line 3)\n    invoked from within\n\"namespace eval ::nh {\n    proc emit {fixed value} {list $fixed $value}\n    namespace ensemble create -command facade -map [list send [list ::nh::emit ...\"",
+    "lookup_result": "",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "factory-body-near-miss",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+    "probe_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+    "input_sha256": "99a596b03893b7fa3f4cbda4be918cec9f5cd69e2ac010b5bdebe69252dcaa2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "500d2bcb1cb097674a20539a91bbacb2572f5b8a039da7c3fb4004cea4a8193b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/factory-body-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "can't read \"name\": no such variable",
+    "lookup_options": "",
+    "lookup_error_code": "NONE",
+    "lookup_error_info": "can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\""
+  },
+  {
+    "case_id": "finite-factory",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+    "probe_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+    "input_sha256": "c4624c955d8cc0aa83897d2dec783cbc8771729326115eeefa3961f29a4af12d",
+    "process_exit_code": 0,
+    "stdout_sha256": "d8ee885e19e39e7b1c9d4c9a3b65398ac453be6c1c8a732c966e7454c77711b7",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/finite-factory",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "red blue",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper-near-miss",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+    "probe_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+    "input_sha256": "6cd8677d88dc84ca842b9a4a457ca5b36c881f4720161a6fd061881d910961c2",
+    "process_exit_code": 0,
+    "stdout_sha256": "1288ce273912eeb843d5805ec5ff8be598f2fa541ad24cd2be36f7ecb3b854f2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/frame-wrapper-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "original",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+    "probe_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+    "input_sha256": "792d49459a438c490f92518f03b8049423f3c186b3625a4604fa0e7939112d2f",
+    "process_exit_code": 0,
+    "stdout_sha256": "cdfe71b3c2ca6740bc1fa19bd94007469a7908c0f333d3092c82990ef124b4e4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/frame-wrapper",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "keyed-variable-link",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+    "probe_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+    "input_sha256": "8803c722425580e6367aa88141bbd23d0e8c301b2c8023bf1ab85b6b604c2fac",
+    "process_exit_code": 0,
+    "stdout_sha256": "66cebfd553756404707a7991d1837bfc72d3118665109bf1738ca415a193c668",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/keyed-variable-link",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "changed",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "list-prefix",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+    "probe_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+    "input_sha256": "588912fc12d8dc7aa46705f6bd854f1e0b20148cb8531727cfa552f62421bf53",
+    "process_exit_code": 0,
+    "stdout_sha256": "464ce90fdba48feffa03984c7ac23cfbdd2ffd129a421dfa54623327a8767b6e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/list-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "{::nh::two words} {a b}",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "namespace-captured-prefix",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+    "probe_sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+    "input_sha256": "081b4f1fea06845d1f227d859cd6974b0e038e6c38b4039d4187804dbfe04239",
+    "process_exit_code": 0,
+    "stdout_sha256": "d660cebc9f07a34197b6ab4b30b1fec06d7aabf3c66e40d6fd1a92aab28ff4d2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/namespace-captured-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "local {a b} {{c d}}",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-prefix-deleted-near-miss",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+    "probe_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+    "input_sha256": "e4d7c27999fb38f73da2a2607add631fcb563362bbb0eb942b41a5e56dd4780a",
+    "process_exit_code": 0,
+    "stdout_sha256": "6cd891d48d16a78a5047273b59719513322360c11988dca5c46ce9d2950959a8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/oo-prefix-deleted-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "1",
+    "lookup_code": "not-run",
+    "setup_result": "invalid command name \"oo::class\"",
+    "setup_options": "",
+    "setup_error_code": "NONE",
+    "setup_error_info": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"",
+    "lookup_result": "",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-self-prefix",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+    "probe_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+    "input_sha256": "5cf05e068f96e57e5429a5e90013ad1d3a4872648caac689c29655df23d674ad",
+    "process_exit_code": 0,
+    "stdout_sha256": "6cd891d48d16a78a5047273b59719513322360c11988dca5c46ce9d2950959a8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/oo-self-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "1",
+    "lookup_code": "not-run",
+    "setup_result": "invalid command name \"oo::class\"",
+    "setup_options": "",
+    "setup_error_code": "NONE",
+    "setup_error_info": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"",
+    "lookup_result": "",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "string-prefix-near-miss",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+    "probe_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+    "input_sha256": "83d3900799cd1c2f7a5bbc6cc836884ba83eb3ec866556fa83bff2731eb280a8",
+    "process_exit_code": 0,
+    "stdout_sha256": "064d681b8d86d9bd388e225e0f10cbcf66d5bc06e0b89b1779a6db4b89facb55",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/string-prefix-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "::nh::two words",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "invalid command name \"::nh::two\"",
+    "lookup_options": "",
+    "lookup_error_code": "NONE",
+    "lookup_error_info": "invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\""
+  },
+  {
+    "case_id": "tcltest-shared-lifecycle",
+    "release": "8.4",
+    "patchlevel": "8.4.20",
+    "probe": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+    "probe_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+    "input_sha256": "e41c82a0bc621188631b92fd7511ee8248adb3072cee908e01e2c61af6054d2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "a462955e703839ea6ea8d3d47228368ef3471dc39084c97882300222e77ace49",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.4.20/tcltest-shared-lifecycle",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{{a b} {a b}} 0",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "alias-prefix-lifetime",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+    "probe_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+    "input_sha256": "0a3d6794066082ff0d02a66eee8f4d535707f0e40d0b075d62ca03e1400a0bc8",
+    "process_exit_code": 0,
+    "stdout_sha256": "875ef0a10e77cedcee1c32630ec561828e3098383bf8a8a4502a30f27de4315e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/alias-prefix-lifetime",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{::nh::emit {a b}} {{a b} {c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-binding-mutation",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+    "probe_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+    "input_sha256": "c5e6e8b8aac19b126705d1abe1d5e4ea0d50f6ca29f20987da239a80c51ac550",
+    "process_exit_code": 0,
+    "stdout_sha256": "52633225c32ed4ed3109c0492fbf607c26cf99cd340c3c7b1e8e2267e27d6ada",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/computed-binding-mutation",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "replacement",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-qualified",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+    "probe_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+    "input_sha256": "08b7e3e0f2cf962b9659b8187ea34486490cbe6b02b1a022186df0f12538427f",
+    "process_exit_code": 0,
+    "stdout_sha256": "3cb1303aa906066faa22db39db7820cf8c1fdff208adebf2576685281bfbbf53",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/computed-qualified",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "first",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "ensemble-prefix-map",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+    "probe_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+    "input_sha256": "d78484166e6595a518dee495a58f9bb8c1a6bbf7ee858900cc0a8714a691e086",
+    "process_exit_code": 0,
+    "stdout_sha256": "5753e04fd13b905e10a4cfb65fd0aace06c81c3c2860b1e5950ca1b8be3b8887",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/ensemble-prefix-map",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::facade",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "factory-body-near-miss",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+    "probe_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+    "input_sha256": "99a596b03893b7fa3f4cbda4be918cec9f5cd69e2ac010b5bdebe69252dcaa2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "58d9ee8d381f8a49774774984299337132ca06b394799fd05147f46bd01cf8e3",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/factory-body-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "can't read \"name\": no such variable",
+    "lookup_options": "-code 1 -level 0 -errorcode NONE -errorinfo {can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\"} -errorline 1",
+    "lookup_error_code": "NONE",
+    "lookup_error_info": "can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\""
+  },
+  {
+    "case_id": "finite-factory",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+    "probe_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+    "input_sha256": "c4624c955d8cc0aa83897d2dec783cbc8771729326115eeefa3961f29a4af12d",
+    "process_exit_code": 0,
+    "stdout_sha256": "6524b819edcad2c0a856b933118b298f17762706c618f27cf8f4a4b3d64b0ad5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/finite-factory",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "red blue",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper-near-miss",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+    "probe_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+    "input_sha256": "6cd8677d88dc84ca842b9a4a457ca5b36c881f4720161a6fd061881d910961c2",
+    "process_exit_code": 0,
+    "stdout_sha256": "19174e9bd30f5e598c5447faa78f8d0dcb9d778f0d487b159bca36a0a59149c6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/frame-wrapper-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "original",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+    "probe_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+    "input_sha256": "792d49459a438c490f92518f03b8049423f3c186b3625a4604fa0e7939112d2f",
+    "process_exit_code": 0,
+    "stdout_sha256": "0135f3ff8b14c28eb81c8fbef555f4527fa0acd567d1cc027b1b7acae3f58500",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/frame-wrapper",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "keyed-variable-link",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+    "probe_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+    "input_sha256": "8803c722425580e6367aa88141bbd23d0e8c301b2c8023bf1ab85b6b604c2fac",
+    "process_exit_code": 0,
+    "stdout_sha256": "2962bd4b556b1407444e4a3338af36d830c39a8dabfe9c413c6bdd8af0e5adf2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/keyed-variable-link",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "changed",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "list-prefix",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+    "probe_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+    "input_sha256": "588912fc12d8dc7aa46705f6bd854f1e0b20148cb8531727cfa552f62421bf53",
+    "process_exit_code": 0,
+    "stdout_sha256": "34dfb4b59c1a073e8fb0b2f0d8e16dc95281e800769d7370d83d728088adf714",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/list-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "{::nh::two words} {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "namespace-captured-prefix",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+    "probe_sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+    "input_sha256": "081b4f1fea06845d1f227d859cd6974b0e038e6c38b4039d4187804dbfe04239",
+    "process_exit_code": 0,
+    "stdout_sha256": "b493b370996483f490737907fe3bd5c2f29fbeab00c29c1adbccdbbe331ab882",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/namespace-captured-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "local {a b} {{c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-prefix-deleted-near-miss",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+    "probe_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+    "input_sha256": "e4d7c27999fb38f73da2a2607add631fcb563362bbb0eb942b41a5e56dd4780a",
+    "process_exit_code": 0,
+    "stdout_sha256": "5b262417285981462060e2e85485e19ea1266d638c1fad95433aba95206263af",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/oo-prefix-deleted-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "1",
+    "lookup_code": "not-run",
+    "setup_result": "invalid command name \"oo::class\"",
+    "setup_options": "-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"} -errorline 1",
+    "setup_error_code": "NONE",
+    "setup_error_info": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"",
+    "lookup_result": "",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-self-prefix",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+    "probe_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+    "input_sha256": "5cf05e068f96e57e5429a5e90013ad1d3a4872648caac689c29655df23d674ad",
+    "process_exit_code": 0,
+    "stdout_sha256": "5b262417285981462060e2e85485e19ea1266d638c1fad95433aba95206263af",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/oo-self-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "1",
+    "lookup_code": "not-run",
+    "setup_result": "invalid command name \"oo::class\"",
+    "setup_options": "-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"} -errorline 1",
+    "setup_error_code": "NONE",
+    "setup_error_info": "invalid command name \"oo::class\"\n    while executing\n\"oo::class create ::nhclass {\n    method emit {value} {list ok $value}\n    method prefix {} {list [self] emit {a b}}\n}\"",
+    "lookup_result": "",
+    "lookup_options": "",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "string-prefix-near-miss",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+    "probe_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+    "input_sha256": "83d3900799cd1c2f7a5bbc6cc836884ba83eb3ec866556fa83bff2731eb280a8",
+    "process_exit_code": 0,
+    "stdout_sha256": "09b7df7022a556628e852b044cdd1f2b4b3935d6b0c72c74494e6278f41364f3",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/string-prefix-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "::nh::two words",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "invalid command name \"::nh::two\"",
+    "lookup_options": "-code 1 -level 0 -errorcode NONE -errorinfo {invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\"} -errorline 1",
+    "lookup_error_code": "NONE",
+    "lookup_error_info": "invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\""
+  },
+  {
+    "case_id": "tcltest-shared-lifecycle",
+    "release": "8.5",
+    "patchlevel": "8.5.19",
+    "probe": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+    "probe_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+    "input_sha256": "e41c82a0bc621188631b92fd7511ee8248adb3072cee908e01e2c61af6054d2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "1b757452b652ec869ba1ca5a7712caff7a0cf84b47e3857d3b2497f08f0ba8e6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.5.19/tcltest-shared-lifecycle",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{{a b} {a b}} 0",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "alias-prefix-lifetime",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+    "probe_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+    "input_sha256": "0a3d6794066082ff0d02a66eee8f4d535707f0e40d0b075d62ca03e1400a0bc8",
+    "process_exit_code": 0,
+    "stdout_sha256": "875ef0a10e77cedcee1c32630ec561828e3098383bf8a8a4502a30f27de4315e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/alias-prefix-lifetime",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{::nh::emit {a b}} {{a b} {c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-binding-mutation",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+    "probe_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+    "input_sha256": "c5e6e8b8aac19b126705d1abe1d5e4ea0d50f6ca29f20987da239a80c51ac550",
+    "process_exit_code": 0,
+    "stdout_sha256": "52633225c32ed4ed3109c0492fbf607c26cf99cd340c3c7b1e8e2267e27d6ada",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/computed-binding-mutation",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "replacement",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-qualified",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+    "probe_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+    "input_sha256": "08b7e3e0f2cf962b9659b8187ea34486490cbe6b02b1a022186df0f12538427f",
+    "process_exit_code": 0,
+    "stdout_sha256": "3cb1303aa906066faa22db39db7820cf8c1fdff208adebf2576685281bfbbf53",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/computed-qualified",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "first",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "ensemble-prefix-map",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+    "probe_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+    "input_sha256": "d78484166e6595a518dee495a58f9bb8c1a6bbf7ee858900cc0a8714a691e086",
+    "process_exit_code": 0,
+    "stdout_sha256": "5753e04fd13b905e10a4cfb65fd0aace06c81c3c2860b1e5950ca1b8be3b8887",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/ensemble-prefix-map",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::facade",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "factory-body-near-miss",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+    "probe_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+    "input_sha256": "99a596b03893b7fa3f4cbda4be918cec9f5cd69e2ac010b5bdebe69252dcaa2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "372bcfbb60cfbed7a7a73ba272aedd4a5ccad3283c2d8bbbbee2f1297c421ca2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/factory-body-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "can't read \"name\": no such variable",
+    "lookup_options": "-code 1 -level 0 -errorstack {INNER loadScalar1 CALL ::nh::red} -errorcode {TCL READ VARNAME} -errorinfo {can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\"} -errorline 1",
+    "lookup_error_code": "TCL READ VARNAME",
+    "lookup_error_info": "can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\""
+  },
+  {
+    "case_id": "finite-factory",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+    "probe_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+    "input_sha256": "c4624c955d8cc0aa83897d2dec783cbc8771729326115eeefa3961f29a4af12d",
+    "process_exit_code": 0,
+    "stdout_sha256": "6524b819edcad2c0a856b933118b298f17762706c618f27cf8f4a4b3d64b0ad5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/finite-factory",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "red blue",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper-near-miss",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+    "probe_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+    "input_sha256": "6cd8677d88dc84ca842b9a4a457ca5b36c881f4720161a6fd061881d910961c2",
+    "process_exit_code": 0,
+    "stdout_sha256": "19174e9bd30f5e598c5447faa78f8d0dcb9d778f0d487b159bca36a0a59149c6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/frame-wrapper-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "original",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+    "probe_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+    "input_sha256": "792d49459a438c490f92518f03b8049423f3c186b3625a4604fa0e7939112d2f",
+    "process_exit_code": 0,
+    "stdout_sha256": "0135f3ff8b14c28eb81c8fbef555f4527fa0acd567d1cc027b1b7acae3f58500",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/frame-wrapper",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "keyed-variable-link",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+    "probe_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+    "input_sha256": "8803c722425580e6367aa88141bbd23d0e8c301b2c8023bf1ab85b6b604c2fac",
+    "process_exit_code": 0,
+    "stdout_sha256": "2962bd4b556b1407444e4a3338af36d830c39a8dabfe9c413c6bdd8af0e5adf2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/keyed-variable-link",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "changed",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "list-prefix",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+    "probe_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+    "input_sha256": "588912fc12d8dc7aa46705f6bd854f1e0b20148cb8531727cfa552f62421bf53",
+    "process_exit_code": 0,
+    "stdout_sha256": "34dfb4b59c1a073e8fb0b2f0d8e16dc95281e800769d7370d83d728088adf714",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/list-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "{::nh::two words} {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "namespace-captured-prefix",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+    "probe_sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+    "input_sha256": "081b4f1fea06845d1f227d859cd6974b0e038e6c38b4039d4187804dbfe04239",
+    "process_exit_code": 0,
+    "stdout_sha256": "b493b370996483f490737907fe3bd5c2f29fbeab00c29c1adbccdbbe331ab882",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/namespace-captured-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "local {a b} {{c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-prefix-deleted-near-miss",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+    "probe_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+    "input_sha256": "e4d7c27999fb38f73da2a2607add631fcb563362bbb0eb942b41a5e56dd4780a",
+    "process_exit_code": 0,
+    "stdout_sha256": "c90a0148729c48b304eda32869272dc89bd6afe48d058717d02cbd7a07898427",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/oo-prefix-deleted-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "1",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "1",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-self-prefix",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+    "probe_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+    "input_sha256": "5cf05e068f96e57e5429a5e90013ad1d3a4872648caac689c29655df23d674ad",
+    "process_exit_code": 0,
+    "stdout_sha256": "1e6c24a1a1afa45050a7b95aa626307c13866c1ea6ec9dc1f0fb743b649ec656",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/oo-self-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::oo::Obj12",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "ok {a b}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "string-prefix-near-miss",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+    "probe_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+    "input_sha256": "83d3900799cd1c2f7a5bbc6cc836884ba83eb3ec866556fa83bff2731eb280a8",
+    "process_exit_code": 0,
+    "stdout_sha256": "59239c77a45c977f116b81462426f61738da71fb1397672d4ad070392329b851",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/string-prefix-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "::nh::two words",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "invalid command name \"::nh::two\"",
+    "lookup_options": "-errorcode {TCL LOOKUP COMMAND ::nh::two} -code 1 -level 0 -errorstack {INNER {invokeStk1 ::nh::two words {a b} {c d}}} -errorinfo {invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\"} -errorline 1",
+    "lookup_error_code": "TCL LOOKUP COMMAND ::nh::two",
+    "lookup_error_info": "invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\""
+  },
+  {
+    "case_id": "tcltest-shared-lifecycle",
+    "release": "8.6",
+    "patchlevel": "8.6.18",
+    "probe": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+    "probe_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+    "input_sha256": "e41c82a0bc621188631b92fd7511ee8248adb3072cee908e01e2c61af6054d2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "1b757452b652ec869ba1ca5a7712caff7a0cf84b47e3857d3b2497f08f0ba8e6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl8.6.18/tcltest-shared-lifecycle",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{{a b} {a b}} 0",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "alias-prefix-lifetime",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+    "probe_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+    "input_sha256": "0a3d6794066082ff0d02a66eee8f4d535707f0e40d0b075d62ca03e1400a0bc8",
+    "process_exit_code": 0,
+    "stdout_sha256": "875ef0a10e77cedcee1c32630ec561828e3098383bf8a8a4502a30f27de4315e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/alias-prefix-lifetime",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{::nh::emit {a b}} {{a b} {c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-binding-mutation",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+    "probe_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+    "input_sha256": "c5e6e8b8aac19b126705d1abe1d5e4ea0d50f6ca29f20987da239a80c51ac550",
+    "process_exit_code": 0,
+    "stdout_sha256": "52633225c32ed4ed3109c0492fbf607c26cf99cd340c3c7b1e8e2267e27d6ada",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/computed-binding-mutation",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "replacement",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-qualified",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+    "probe_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+    "input_sha256": "08b7e3e0f2cf962b9659b8187ea34486490cbe6b02b1a022186df0f12538427f",
+    "process_exit_code": 0,
+    "stdout_sha256": "3cb1303aa906066faa22db39db7820cf8c1fdff208adebf2576685281bfbbf53",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/computed-qualified",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "first",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "ensemble-prefix-map",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+    "probe_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+    "input_sha256": "d78484166e6595a518dee495a58f9bb8c1a6bbf7ee858900cc0a8714a691e086",
+    "process_exit_code": 0,
+    "stdout_sha256": "5753e04fd13b905e10a4cfb65fd0aace06c81c3c2860b1e5950ca1b8be3b8887",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/ensemble-prefix-map",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::facade",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "factory-body-near-miss",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+    "probe_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+    "input_sha256": "99a596b03893b7fa3f4cbda4be918cec9f5cd69e2ac010b5bdebe69252dcaa2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "372bcfbb60cfbed7a7a73ba272aedd4a5ccad3283c2d8bbbbee2f1297c421ca2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/factory-body-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "can't read \"name\": no such variable",
+    "lookup_options": "-code 1 -level 0 -errorstack {INNER loadScalar1 CALL ::nh::red} -errorcode {TCL READ VARNAME} -errorinfo {can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\"} -errorline 1",
+    "lookup_error_code": "TCL READ VARNAME",
+    "lookup_error_info": "can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\""
+  },
+  {
+    "case_id": "finite-factory",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+    "probe_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+    "input_sha256": "c4624c955d8cc0aa83897d2dec783cbc8771729326115eeefa3961f29a4af12d",
+    "process_exit_code": 0,
+    "stdout_sha256": "6524b819edcad2c0a856b933118b298f17762706c618f27cf8f4a4b3d64b0ad5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/finite-factory",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "red blue",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper-near-miss",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+    "probe_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+    "input_sha256": "6cd8677d88dc84ca842b9a4a457ca5b36c881f4720161a6fd061881d910961c2",
+    "process_exit_code": 0,
+    "stdout_sha256": "19174e9bd30f5e598c5447faa78f8d0dcb9d778f0d487b159bca36a0a59149c6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/frame-wrapper-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "original",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+    "probe_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+    "input_sha256": "792d49459a438c490f92518f03b8049423f3c186b3625a4604fa0e7939112d2f",
+    "process_exit_code": 0,
+    "stdout_sha256": "0135f3ff8b14c28eb81c8fbef555f4527fa0acd567d1cc027b1b7acae3f58500",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/frame-wrapper",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "keyed-variable-link",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+    "probe_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+    "input_sha256": "8803c722425580e6367aa88141bbd23d0e8c301b2c8023bf1ab85b6b604c2fac",
+    "process_exit_code": 0,
+    "stdout_sha256": "2962bd4b556b1407444e4a3338af36d830c39a8dabfe9c413c6bdd8af0e5adf2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/keyed-variable-link",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "changed",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "list-prefix",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+    "probe_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+    "input_sha256": "588912fc12d8dc7aa46705f6bd854f1e0b20148cb8531727cfa552f62421bf53",
+    "process_exit_code": 0,
+    "stdout_sha256": "34dfb4b59c1a073e8fb0b2f0d8e16dc95281e800769d7370d83d728088adf714",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/list-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "{::nh::two words} {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "namespace-captured-prefix",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+    "probe_sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+    "input_sha256": "081b4f1fea06845d1f227d859cd6974b0e038e6c38b4039d4187804dbfe04239",
+    "process_exit_code": 0,
+    "stdout_sha256": "b493b370996483f490737907fe3bd5c2f29fbeab00c29c1adbccdbbe331ab882",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/namespace-captured-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "local {a b} {{c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-prefix-deleted-near-miss",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+    "probe_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+    "input_sha256": "e4d7c27999fb38f73da2a2607add631fcb563362bbb0eb942b41a5e56dd4780a",
+    "process_exit_code": 0,
+    "stdout_sha256": "c90a0148729c48b304eda32869272dc89bd6afe48d058717d02cbd7a07898427",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/oo-prefix-deleted-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "1",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "1",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-self-prefix",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+    "probe_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+    "input_sha256": "5cf05e068f96e57e5429a5e90013ad1d3a4872648caac689c29655df23d674ad",
+    "process_exit_code": 0,
+    "stdout_sha256": "72142951a87c4a20d30dad09060367caf7d93d694972a02d4967848c69a64298",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/oo-self-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::oo::Obj22",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "ok {a b}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "string-prefix-near-miss",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+    "probe_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+    "input_sha256": "83d3900799cd1c2f7a5bbc6cc836884ba83eb3ec866556fa83bff2731eb280a8",
+    "process_exit_code": 0,
+    "stdout_sha256": "59239c77a45c977f116b81462426f61738da71fb1397672d4ad070392329b851",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/string-prefix-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "::nh::two words",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "invalid command name \"::nh::two\"",
+    "lookup_options": "-errorcode {TCL LOOKUP COMMAND ::nh::two} -code 1 -level 0 -errorstack {INNER {invokeStk1 ::nh::two words {a b} {c d}}} -errorinfo {invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\"} -errorline 1",
+    "lookup_error_code": "TCL LOOKUP COMMAND ::nh::two",
+    "lookup_error_info": "invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\""
+  },
+  {
+    "case_id": "tcltest-shared-lifecycle",
+    "release": "9.0",
+    "patchlevel": "9.0.4",
+    "probe": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+    "probe_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+    "input_sha256": "e41c82a0bc621188631b92fd7511ee8248adb3072cee908e01e2c61af6054d2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "1b757452b652ec869ba1ca5a7712caff7a0cf84b47e3857d3b2497f08f0ba8e6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.0.4/tcltest-shared-lifecycle",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{{a b} {a b}} 0",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "alias-prefix-lifetime",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+    "probe_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+    "input_sha256": "0a3d6794066082ff0d02a66eee8f4d535707f0e40d0b075d62ca03e1400a0bc8",
+    "process_exit_code": 0,
+    "stdout_sha256": "875ef0a10e77cedcee1c32630ec561828e3098383bf8a8a4502a30f27de4315e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/alias-prefix-lifetime",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{::nh::emit {a b}} {{a b} {c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-binding-mutation",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+    "probe_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+    "input_sha256": "c5e6e8b8aac19b126705d1abe1d5e4ea0d50f6ca29f20987da239a80c51ac550",
+    "process_exit_code": 0,
+    "stdout_sha256": "52633225c32ed4ed3109c0492fbf607c26cf99cd340c3c7b1e8e2267e27d6ada",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/computed-binding-mutation",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "replacement",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "computed-qualified",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+    "probe_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+    "input_sha256": "08b7e3e0f2cf962b9659b8187ea34486490cbe6b02b1a022186df0f12538427f",
+    "process_exit_code": 0,
+    "stdout_sha256": "3cb1303aa906066faa22db39db7820cf8c1fdff208adebf2576685281bfbbf53",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/computed-qualified",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::emit",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "first",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "ensemble-prefix-map",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+    "probe_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+    "input_sha256": "d78484166e6595a518dee495a58f9bb8c1a6bbf7ee858900cc0a8714a691e086",
+    "process_exit_code": 0,
+    "stdout_sha256": "5753e04fd13b905e10a4cfb65fd0aace06c81c3c2860b1e5950ca1b8be3b8887",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/ensemble-prefix-map",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::nh::facade",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "factory-body-near-miss",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+    "probe_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+    "input_sha256": "99a596b03893b7fa3f4cbda4be918cec9f5cd69e2ac010b5bdebe69252dcaa2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "db203e6d3bbdeaaacb029cf44a4d412875a00c1a1aff4acf2947fbbbeb427553",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/factory-body-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "can't read \"name\": no such variable",
+    "lookup_options": "-code 1 -level 0 -errorstack {INNER loadScalar CALL ::nh::red} -errorcode {TCL READ VARNAME} -errorinfo {can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\"} -errorline 1",
+    "lookup_error_code": "TCL READ VARNAME",
+    "lookup_error_info": "can't read \"name\": no such variable\n    while executing\n\"return $name\"\n    (procedure \"::nh::red\" line 1)\n    invoked from within\n\"::nh::red\""
+  },
+  {
+    "case_id": "finite-factory",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+    "probe_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+    "input_sha256": "c4624c955d8cc0aa83897d2dec783cbc8771729326115eeefa3961f29a4af12d",
+    "process_exit_code": 0,
+    "stdout_sha256": "6524b819edcad2c0a856b933118b298f17762706c618f27cf8f4a4b3d64b0ad5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/finite-factory",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "red blue",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper-near-miss",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+    "probe_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+    "input_sha256": "6cd8677d88dc84ca842b9a4a457ca5b36c881f4720161a6fd061881d910961c2",
+    "process_exit_code": 0,
+    "stdout_sha256": "19174e9bd30f5e598c5447faa78f8d0dcb9d778f0d487b159bca36a0a59149c6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/frame-wrapper-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "original",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "frame-wrapper",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+    "probe_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+    "input_sha256": "792d49459a438c490f92518f03b8049423f3c186b3625a4604fa0e7939112d2f",
+    "process_exit_code": 0,
+    "stdout_sha256": "0135f3ff8b14c28eb81c8fbef555f4527fa0acd567d1cc027b1b7acae3f58500",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/frame-wrapper",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "keyed-variable-link",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+    "probe_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+    "input_sha256": "8803c722425580e6367aa88141bbd23d0e8c301b2c8023bf1ab85b6b604c2fac",
+    "process_exit_code": 0,
+    "stdout_sha256": "2962bd4b556b1407444e4a3338af36d830c39a8dabfe9c413c6bdd8af0e5adf2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/keyed-variable-link",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "changed",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "changed",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "list-prefix",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+    "probe_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+    "input_sha256": "588912fc12d8dc7aa46705f6bd854f1e0b20148cb8531727cfa552f62421bf53",
+    "process_exit_code": 0,
+    "stdout_sha256": "34dfb4b59c1a073e8fb0b2f0d8e16dc95281e800769d7370d83d728088adf714",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/list-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "{::nh::two words} {a b}",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{a b} {c d}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "namespace-captured-prefix",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+    "probe_sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+    "input_sha256": "081b4f1fea06845d1f227d859cd6974b0e038e6c38b4039d4187804dbfe04239",
+    "process_exit_code": 0,
+    "stdout_sha256": "b493b370996483f490737907fe3bd5c2f29fbeab00c29c1adbccdbbe331ab882",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/namespace-captured-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "local {a b} {{c d}}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-prefix-deleted-near-miss",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+    "probe_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+    "input_sha256": "e4d7c27999fb38f73da2a2607add631fcb563362bbb0eb942b41a5e56dd4780a",
+    "process_exit_code": 0,
+    "stdout_sha256": "c90a0148729c48b304eda32869272dc89bd6afe48d058717d02cbd7a07898427",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/oo-prefix-deleted-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "1",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "1",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "oo-self-prefix",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+    "probe_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+    "input_sha256": "5cf05e068f96e57e5429a5e90013ad1d3a4872648caac689c29655df23d674ad",
+    "process_exit_code": 0,
+    "stdout_sha256": "72142951a87c4a20d30dad09060367caf7d93d694972a02d4967848c69a64298",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/oo-self-prefix",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "::oo::Obj22",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "ok {a b}",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  },
+  {
+    "case_id": "string-prefix-near-miss",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+    "probe_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+    "input_sha256": "83d3900799cd1c2f7a5bbc6cc836884ba83eb3ec866556fa83bff2731eb280a8",
+    "process_exit_code": 0,
+    "stdout_sha256": "a44c5495b23aef3c5c1e5d4d486a0890d69c9993ab313b3c254dd3fad7aeb511",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/string-prefix-near-miss",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "1",
+    "setup_result": "::nh::two words",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "invalid command name \"::nh::two\"",
+    "lookup_options": "-errorcode {TCL LOOKUP COMMAND ::nh::two} -code 1 -level 0 -errorstack {INNER {invokeStk ::nh::two words {a b} {c d}}} -errorinfo {invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\"} -errorline 1",
+    "lookup_error_code": "TCL LOOKUP COMMAND ::nh::two",
+    "lookup_error_info": "invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\""
+  },
+  {
+    "case_id": "tcltest-shared-lifecycle",
+    "release": "9.1",
+    "patchlevel": "9.1.0",
+    "probe": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+    "probe_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+    "input_sha256": "e41c82a0bc621188631b92fd7511ee8248adb3072cee908e01e2c61af6054d2a",
+    "process_exit_code": 0,
+    "stdout_sha256": "1b757452b652ec869ba1ca5a7712caff7a0cf84b47e3857d3b2497f08f0ba8e6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LC_ALL": "C"
+    },
+    "capture": "experiments/name-handling/patterns/results/tcl9.1.0/tcltest-shared-lifecycle",
+    "setup_and_lookup_separate": true,
+    "setup_code": "0",
+    "lookup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "setup_error_code": "",
+    "setup_error_info": "",
+    "lookup_result": "{{a b} {a b}} 0",
+    "lookup_options": "-code 0 -level 0",
+    "lookup_error_code": "",
+    "lookup_error_info": ""
+  }
+]

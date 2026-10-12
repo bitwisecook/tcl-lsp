@@ -1,0 +1,30 @@
+{
+  "case_id": "tcltest-shared-lifecycle",
+  "release": "8.5",
+  "patchlevel": "8.5.19",
+  "probe": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+  "probe_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+  "input_sha256": "e41c82a0bc621188631b92fd7511ee8248adb3072cee908e01e2c61af6054d2a",
+  "process_exit_code": 0,
+  "stdout_sha256": "1b757452b652ec869ba1ca5a7712caff7a0cf84b47e3857d3b2497f08f0ba8e6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.5.19/tcltest-shared-lifecycle",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "{{a b} {a b}} 0",
+  "lookup_options": "-code 0 -level 0",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

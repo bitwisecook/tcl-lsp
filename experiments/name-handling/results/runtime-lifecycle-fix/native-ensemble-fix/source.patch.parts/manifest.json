@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "original_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/source.patch",
+  "original_bytes": 115244463,
+  "original_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+  "chunk_bytes": 4194304,
+  "parts": [
+    {
+      "path": "0001",
+      "bytes": 4194304,
+      "sha256": "7bc8cad4d4c3ab61deafe0eb3bc9bfc64341cd1704494fd6a387b33c93701499"
+    },
+    {
+      "path": "0002",
+      "bytes": 4194304,
+      "sha256": "4f1a5a6238fe7290946a2d970d5d9330108bea6f9cdec7b3688aeb8d73fe28b0"
+    },
+    {
+      "path": "0003",
+      "bytes": 4194304,
+      "sha256": "239baff52eef09cbf7ef5def2262120bca648a4ae2d5c4d016a901f4d1bd8707"
+    },
+    {
+      "path": "0004",
+      "bytes": 4194304,
+      "sha256": "dc4e54f494238c3314968b8f487bd25f349f427a3ed4b2c9b0ffe291931f045b"
+    },
+    {
+      "path": "0005",
+      "bytes": 4194304,
+      "sha256": "db8c29fee88421e02a5d02b4c17fb03f17480bf97d4537b6108f987e2d108899"
+    },
+    {
+      "path": "0006",
+      "bytes": 4194304,
+      "sha256": "e20a8f711fad9165372f3689f01afbe3350c4ff6f7f15f6f057acbfccac2fdf7"
+    },
+    {
+      "path": "0007",
+      "bytes": 4194304,
+      "sha256": "e0229bc01e576bf7f02f3eafda97d4f2e8ea9642fee3cfc8b3c253e80cc82bd8"
+    },
+    {
+      "path": "0008",
+      "bytes": 4194304,
+      "sha256": "e782387f77a49c0d932d578173ae4d3d2543989a819e0233a33f99739c61268a"
+    },
+    {
+      "path": "0009",
+      "bytes": 4194304,
+      "sha256": "7a0ab0a1d99278912e0fcf14906f61e1b9edf1d96e83745f0afef2040874f10c"
+    },
+    {
+      "path": "0010",
+      "bytes": 4194304,
+      "sha256": "c3f63eca807dd91011ae2b59376520747404b542b47df7db50589a63b1da79d1"
+    },
+    {
+      "path": "0011",
+      "bytes": 4194304,
+      "sha256": "f9c466c301fad9d5aa5b16f37dce833dc87d0c2ea35aaa71c98aad563a7c8cf0"
+    },
+    {
+      "path": "0012",
+      "bytes": 4194304,
+      "sha256": "489d0a1e35e671fd04fd07c756cd5db2e6a59f08dce74b07c6383bf1b698cee8"
+    },
+    {
+      "path": "0013",
+      "bytes": 4194304,
+      "sha256": "30855d885c74d89aa049864e8aab50de88925f797e315d3290b529a4e7cc34a4"
+    },
+    {
+      "path": "0014",
+      "bytes": 4194304,
+      "sha256": "d6a93d949df309e5b5685d02455be4a7355c66b5ed598189bacd1204e29fca5e"
+    },
+    {
+      "path": "0015",
+      "bytes": 4194304,
+      "sha256": "30a60f829395ca2f0e66775a88a607bfd5f10688324a93d5678f66d270b2edba"
+    },
+    {
+      "path": "0016",
+      "bytes": 4194304,
+      "sha256": "594be5060bbecbbe15671e648b222797efb39afee9a474613a21f5f71cc185f7"
+    },
+    {
+      "path": "0017",
+      "bytes": 4194304,
+      "sha256": "505633c091f36ac8e55f17b058844147e79b9c2191cbda1601d9e1c8ce98d777"
+    },
+    {
+      "path": "0018",
+      "bytes": 4194304,
+      "sha256": "4fb15bf6010cbeeb12fa1090168596943015fade3f7037817dd4f76f6359347e"
+    },
+    {
+      "path": "0019",
+      "bytes": 4194304,
+      "sha256": "3acc0c4cae120289bb495e3f48d968dac00a7c6aca80980da2e04c33f8ff2d49"
+    },
+    {
+      "path": "0020",
+      "bytes": 4194304,
+      "sha256": "19b8f82995a3983380a1fb0af409e19ea4331891bc564705ebe00c7086392e61"
+    },
+    {
+      "path": "0021",
+      "bytes": 4194304,
+      "sha256": "d34f9481326ceffab060252a2c032d4479d5429e1cc0542576a3234b63455ce1"
+    },
+    {
+      "path": "0022",
+      "bytes": 4194304,
+      "sha256": "23c3f0b44793de48341840101166db031c0ad1639945673736dae85fdb84064b"
+    },
+    {
+      "path": "0023",
+      "bytes": 4194304,
+      "sha256": "50f0605c87cd9721308acd105fe37a8a7569dc16deb54f823ba4df8977578400"
+    },
+    {
+      "path": "0024",
+      "bytes": 4194304,
+      "sha256": "b8c51ef1630ad70907e885c9fb55496f38e25793e83000c5bfcfd88640fed2ce"
+    },
+    {
+      "path": "0025",
+      "bytes": 4194304,
+      "sha256": "7723e961ebe74c17254910f35313769a62679c1aefa4a0be4f4f4812b76e9974"
+    },
+    {
+      "path": "0026",
+      "bytes": 4194304,
+      "sha256": "22093a78c642bbe33eb49843be427251a90b6ae96fa87108e95940a0dfb13a19"
+    },
+    {
+      "path": "0027",
+      "bytes": 4194304,
+      "sha256": "1037b5c2fdb33e8a9207813438734ff8522cbc62a13e0139f7f2c965c7997882"
+    },
+    {
+      "path": "0028",
+      "bytes": 1998255,
+      "sha256": "8c929e067fda9440189e68eb28fb4d1dcf71d3a78e95c14ab8b0e804419112f4"
+    }
+  ]
+}

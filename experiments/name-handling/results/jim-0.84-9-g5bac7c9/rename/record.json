@@ -1,0 +1,19 @@
+{
+  "suite": "rename",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/rename.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "fe470e9e032cbe5fa24ed930b8154a90636c25e0addffc7097923e7e044f6255",
+  "stdout_sha256": "aa94bb07c5bf02a61bd49bd2a788bb8fe8b72987ce1923fcfcf2fd645189dda0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 10,
+    "passed": 10,
+    "skipped": 0,
+    "failed": 0
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "case": "rename-6.1",
+  "release": "9.0",
+  "reference_distribution": "9.0.4",
+  "engine": "vm-native-core",
+  "command": [
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/rename.test",
+    "--match",
+    "rename-6.1",
+    "--tcl-version",
+    "9.0"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 5.185,
+  "test_sha256": "013432012255b06e47a31b0630546280736cec20560a66ad6b6318d49d8f10f8",
+  "binary_sha256": "018ac8741cd251e32bb8786795e69310d72e5c1c06d5e5952b37a2fcc7593137",
+  "head": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "classification": "host-refusal-before-upstream-case"
+}

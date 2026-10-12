@@ -1,0 +1,30 @@
+{
+  "case_id": "frame-wrapper",
+  "release": "8.6",
+  "patchlevel": "8.6.18",
+  "probe": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+  "probe_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+  "input_sha256": "792d49459a438c490f92518f03b8049423f3c186b3625a4604fa0e7939112d2f",
+  "process_exit_code": 0,
+  "stdout_sha256": "0135f3ff8b14c28eb81c8fbef555f4527fa0acd567d1cc027b1b7acae3f58500",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.6.18/frame-wrapper",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "changed",
+  "lookup_options": "-code 0 -level 0",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

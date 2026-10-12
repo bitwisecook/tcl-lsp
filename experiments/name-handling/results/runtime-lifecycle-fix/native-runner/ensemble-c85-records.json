@@ -1,0 +1,33 @@
+[
+  {
+    "engine": "c",
+    "init": true,
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.5"
+    ],
+    "exit_code": 0
+  },
+  {
+    "engine": "runtime",
+    "init": false,
+    "command": [
+      "/tmp/name-runtime-native-lifecycle",
+      "--quiet",
+      "--tcl-version",
+      "8.5"
+    ],
+    "exit_code": 1
+  },
+  {
+    "engine": "runtime",
+    "init": true,
+    "command": [
+      "/tmp/name-runtime-native-lifecycle",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.5"
+    ],
+    "exit_code": 1
+  }
+]

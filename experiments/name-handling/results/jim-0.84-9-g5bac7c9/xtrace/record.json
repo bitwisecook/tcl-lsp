@@ -1,0 +1,19 @@
+{
+  "suite": "xtrace",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/tests/xtrace.test"
+  ],
+  "timeout_seconds": 60,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "source_sha256": "44ea231ef7c24bfabf12386df22dd6b4c22e8689a17537b504733a71cb178299",
+  "stdout_sha256": "5e764c08cfdfa57baa25a6ff30d6efaad010acd30bd7c9fe242fba4803b53798",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "counts": {
+    "total": 4,
+    "passed": 4,
+    "skipped": 0,
+    "failed": 0
+  }
+}

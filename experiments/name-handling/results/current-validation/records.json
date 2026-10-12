@@ -1,0 +1,25 @@
+{
+  "scope": "Executed commands during the recorded integrated worktree; these logs do not assert a pristine commit or unexecuted gates. Exact engine receipts are retained in their separate result directories.",
+  "records": [
+    {
+      "path": "shared-syntax-oracles.txt",
+      "sha256": "2370d4dac1abf8716b2d8dae4f3388f8d1c248ccc19fc3602452f7374879deb8"
+    },
+    {
+      "path": "rust-check.txt",
+      "sha256": "89283fc3f133fca8621d34fa56d8805adf6d4c44463a577ed15dc430d119171c"
+    },
+    {
+      "path": "proof-audit.txt",
+      "sha256": "ce264121643953ae7c5ce5605bd919e0ef36a5b613136f5e0c2cbc807a161dc8"
+    },
+    {
+      "path": "static-consumers.txt",
+      "sha256": "d1a78916a7b79d90c46c64f297a1410c9b8831d3cef878b59261c597ea8d57dd"
+    },
+    {
+      "path": "static-class-relations.txt",
+      "sha256": "b5b2d15c69c1a00ca954109e649e797ad55f83922b20dca378f051b430055b2d"
+    }
+  ]
+}

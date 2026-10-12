@@ -2590,15 +2590,9 @@ mod tests {
         );
         assert!(syntax.words(&changed[0]).is_none());
         let foreign_source = format!("{source} ");
-        let foreign =
-            crate::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(
-                &foreign_source,
-                input.clone(),
-            );
         assert!(!advice.matches_source(
             &tcl_lexer::SourceImage::document(&foreign_source),
             input.lexer_config()
         ));
     }
-
 }

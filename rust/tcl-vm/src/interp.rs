@@ -4120,32 +4120,176 @@ impl Vm {
         }
     }
 
+    pub(crate) fn init_auto_path(&mut self, args: &[Value]) -> Completion<Value> {
+        if !args.is_empty() {
+            return err_wrong_args(self, "tcl::InitAutoPath");
+        }
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+        };
+        let result = self.init_auto_path_entered(&scope);
+        if let Err(error) = scope.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
+        match result {
+            Ok(value) => ok(value),
+            Err(error) => error,
+        }
+    }
+
+    fn init_auto_path_entered(
+        &mut self,
+        scope: &native_operation_currency::NativeOperationScope,
+    ) -> Result<Value, Completion<Value>> {
+        let existing = self.read_var_traced("::auto_path").unwrap_or_default();
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        if self.is_safe() {
+            if existing.is_none() {
+                self.store_var_result("::auto_path", Value::empty())?;
+            }
+            return Ok(Value::empty());
+        }
+        let existing = existing
+            .as_ref()
+            .map(|value| self.auto_path_list(value))
+            .transpose()?;
+        let mut environment = Vec::new();
+        if existing.is_none() {
+            if let Some(value) = self
+                .read_var_traced("::env(TCLLIBPATH)")
+                .unwrap_or_default()
+            {
+                environment = self.auto_path_list(&value)?;
+                let home = self.host_rc().env().get("HOME");
+                scope
+                    .check(self)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                environment = tcl_cmd_core::platform::auto_path_environment(
+                    environment,
+                    home.as_deref().map(str::as_bytes),
+                )
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            }
+        }
+        let library = self.read_var_traced("::tcl_library").unwrap_or_default();
+        let library = library
+            .as_ref()
+            .map(|value| {
+                tcl_syntax::value::ValueOps::native_string_bytes(self, value)
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))
+            })
+            .transpose()?;
+        let executable = self.host_rc().env().current_exe();
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let installation = tcl_cmd_core::platform::auto_path_installation(
+            library.as_deref(),
+            executable.as_deref().map(str::as_bytes),
+        );
+        let packages = self
+            .read_var_traced("::tcl_pkgPath")
+            .unwrap_or_default()
+            .as_ref()
+            .and_then(|value| self.auto_path_list(value).ok())
+            .unwrap_or_default();
+        scope
+            .check(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let paths = tcl_platform::bootstrap::auto_path(
+            existing,
+            &environment,
+            &installation,
+            &packages,
+            false,
+        );
+        let elements = paths
+            .into_iter()
+            .map(Value::new_native_string_bytes)
+            .collect();
+        let value = tcl_syntax::value::ValueOps::new_list(self, elements);
+        self.store_var_result("::auto_path", value)
+    }
+
+    fn auto_path_list(&mut self, value: &Value) -> Result<Vec<Vec<u8>>, Completion<Value>> {
+        let elements = tcl_syntax::value::ValueOps::list_elements(self, value)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+        elements
+            .iter()
+            .map(|element| {
+                tcl_syntax::value::ValueOps::native_string_bytes(self, element)
+                    .map(|bytes| bytes.to_vec())
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))
+            })
+            .collect()
+    }
+
     /// Initialise the selected Tcl script library through the same compiler and
     /// evaluator used by `eval`, command substitutions, and ordinary `source`.
     ///
-    /// The caller selects the exact library through `::tcl_library` (normally
-    /// published from `TCL_LIBRARY` by [`Self::bootstrap_globals`]). This method
-    /// deliberately sources the library's real `init.tcl` rather than
-    /// reproducing any of its startup procedures in Rust. A compiler must have
-    /// been installed with [`Self::set_compiler`].
+    /// The host selects the exact library through `TCL_LIBRARY`. A compiler
+    /// must have been installed with [`Self::set_compiler`].
     pub fn init_library(&mut self) -> Completion<Value> {
-        let Some(library) = self.get_var("::tcl_library") else {
-            return err("can't find Tcl library: tcl_library is not set");
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
-        let library = library.to_str();
+        let library = self.host_rc().env().get("TCL_LIBRARY").unwrap_or_default();
+        if let Err(error) = scope.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
         if library.is_empty() {
             return err("can't find Tcl library: TCL_LIBRARY is empty");
         }
-        let init_path = std::path::Path::new(&*library).join("init.tcl");
-        let init_path = init_path.to_string_lossy();
+        let init_path = format!("{library}/init.tcl");
+        let exists = self
+            .host_rc()
+            .filesystem()
+            .and_then(|fs| fs.read(&init_path).ok())
+            .is_some();
+        if let Err(error) = scope.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
+        if !exists {
+            return err(format!("can't find {init_path} (set TCL_LIBRARY)"));
+        }
+        if let Err(completion) = self.set_var_bytes(
+            b"::tcl_library",
+            Value::new_native_string_bytes(library.as_bytes()),
+        ) {
+            return completion;
+        }
+        if let Err(error) = scope.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
         let script = format!("source {}", tcl_syntax::list::list_element(&init_path));
-        let scope = self.begin_package_initialization();
+        let initialization = self.begin_package_initialization();
         let completion = match self.eval_source(&script) {
             Ok(completion) => completion,
             Err(error) => crate::command::completion_from_tcl_error(self, error),
         };
-        self.end_package_initialization(scope);
+        self.end_package_initialization(initialization);
+        if let Err(error) = scope.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
         completion
+    }
+
+    /// Source the selected real Tcl library while retaining operational
+    /// compiler and value-access refusals outside guest completion.
+    ///
+    /// # Errors
+    /// Returns the reached host refusal after restoring the execution boundary.
+    pub fn try_init_library(
+        &mut self,
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        self.host_execution_depth += 1;
+        let completion = self.init_library();
+        self.host_execution_depth -= 1;
+        self.finish_host_execution(completion)
     }
 
     /// Install a debug hook fired once per source command (the execution-control

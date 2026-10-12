@@ -1,0 +1,43 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 21s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+running 2 tests
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (79058) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13293:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... FAILED
+
+thread 'analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque' (79057) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13445:13:
+assertion `left == right` failed: tcl8.4/package require tcltest
+namespace import -force ::tcltest::*
+interp alias {} report_test {} ::tcltest::test
+proc exercise {} {report_test t shared -setup {set prepared 1} -body {puts $prepared; puts $absent} -cleanup {puts $prepared} -result {[puts $data_only]}}
+exercise
+
+[]
+  left: 0
+ right: 1
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque ... FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque
+    analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 9546 filtered out; finished in 2.74s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

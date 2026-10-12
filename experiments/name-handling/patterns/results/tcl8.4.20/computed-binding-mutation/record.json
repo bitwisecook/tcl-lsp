@@ -1,0 +1,30 @@
+{
+  "case_id": "computed-binding-mutation",
+  "release": "8.4",
+  "patchlevel": "8.4.20",
+  "probe": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+  "probe_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+  "input_sha256": "c5e6e8b8aac19b126705d1abe1d5e4ea0d50f6ca29f20987da239a80c51ac550",
+  "process_exit_code": 0,
+  "stdout_sha256": "119fe26b96b2adcf4cc41ea42615422b7302d0c1f20ed71766edae2d89edf3d0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.4.20/computed-binding-mutation",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "",
+  "setup_options": "",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "replacement",
+  "lookup_options": "",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

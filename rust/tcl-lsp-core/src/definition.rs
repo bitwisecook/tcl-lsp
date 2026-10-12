@@ -59,6 +59,7 @@ use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::indirection;
 use tcl_lexer::{LineIndex, Utf16Col};
+use tcl_registry::CommandRegistry;
 use tcl_registry::definer::DeclaredMemberVisibility;
 
 use crate::hover::find_word_span_at_position;

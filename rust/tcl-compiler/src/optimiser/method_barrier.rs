@@ -997,10 +997,10 @@ oo::class create Derived {superclass Base; method safe {} {return DERIVED}}";
                 0 => module.retained_source_bindings = None,
                 1 => module.source_metadata_input = None,
                 2 => {
-                    module.source = tcl_lexer::SourceImage::from_string(format!(
-                        "{source}
-# changed"
-                    ))
+                    module.source = tcl_lexer::SourceImage::from_bytes(
+                        format!("{source}\n# changed").into_bytes(),
+                        module.source.channel(),
+                    );
                 }
                 3 => {
                     std::sync::Arc::make_mut(&mut module.class_relations[0].definer).argv_texts[0] =

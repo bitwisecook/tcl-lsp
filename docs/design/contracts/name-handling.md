@@ -2,8 +2,20 @@
 
 This is the entry point for consumers of Tcl names across the analyser,
 compiler, LSP, middleware, runtimes, code generation, tooling and AI surfaces.
-The implementation owners are listed in
-[shared-utility-contracts-rust.md](shared-utility-contracts-rust.md).
+Use the [implementer guide](../compiler/name-resolution-implementer-guide.md)
+for purpose-specific entry points, the
+[consumer matrix](naming-consumer-matrix.md) for actual integrations and
+[shared-utility-contracts-rust.md](shared-utility-contracts-rust.md) for ownership.
+The [proof index](../analysis/name-resolution-proofs/README.md) owns semantic
+questions and their provider-specific evidence. An experiment capture does not
+establish an unexecuted implementation result.
+
+Original C and Jim inputs, hosted F5 inputs and explicit Logical reporting have
+different owners. Original queries retain the complete image/channel, lexer
+configuration, Registry, actual input purpose and positioned binding receipts.
+Missing ownership is terminal for definite identity or mutation. Logical
+candidate helpers provide bounded assistance; their strings cannot manufacture
+native objects, command entries, completed worlds or editable occurrences.
 
 ## Representations
 
@@ -17,17 +29,19 @@ A name's spelling, identity and presentation are different values:
 | Command identity | A live command object, distinct from its table slot | Use `CommandId` and the runtime's generation/lifetime checks. Imports and traces can retain identity across renames. |
 | Variable place/cell | Frame or namespace plus scalar/array identity and links | Resolve under the actual frame context; follow links through the variable owner. |
 | Display name | Tcl-facing or user-facing rendered text | Render at output. Never parse it back into identity. |
-| Compatibility key | Injective encoding for an adapter requiring string keys | Derive from authoritative identity; do not expose it as Tcl text. |
+| Compatibility key | Encoding for an explicitly selected reporting adapter | Keep it separate from Original bytes and allocations; do not expose it as Tcl text or infer a native identity from it. |
 
 Distinct slots can render as the same FQN: namespace segment `a:` with
 simple name `p`, and segment `a` with simple name `:p`, both render
 `::a:::p`. No string normaliser can recover which slot produced that text.
 The same applies to caches, workspace aggregation and editing identities.
 
-Runtime stores retain structured slots. Compiler and LSP records still use
-flat compatibility strings in several paths; their use requires a
-representation audit. The existence of `StaticCommandSlot` does not establish
-that a static consumer carries it.
+`NameBytes`, `ByteNamespacePath` and `ByteCommandSlot` retain exact bytes and
+constructed geometry. They do not identify an interpreter allocation. Native
+objects additionally retain their issuer, selected purpose, physical storage,
+cache and lifetime. Static Original consumers use authentic source allocations
+and lookup receipts. Flat strings remain explicit reporting projections; the
+existence of a structured type does not establish a consumer's ownership.
 
 ## Choose the semantic owner
 
@@ -37,9 +51,10 @@ that a static consumer carries it.
 | Parse colon runs and written command names | `tcl_syntax::naming::{qualifier_segments, canonical_written_command, written_command_tail}` |
 | UTF-8 compatibility qualification | `naming::qualify`; only with its documented constructed-prefix precondition |
 | Namespace-name canonicalisation | `naming::normalise_qualified_name`; unsuitable as a universal command/variable identity normaliser |
-| Static command candidate order | `naming::{command_resolution_candidates, resolve_command_with}`; path-free wrapper only when the path is proven absent |
+| Logical command candidate order | `naming::{command_resolution_candidates, resolve_command_with}`; results are reporting candidates, with a path-free wrapper only when the path is proven absent |
 | Shared static slot projection | `tcl_runtime_api::command_identity::{StaticCommandSlot, display_namespace, display_command, encode_command_slot}` |
-| Runtime namespace and command lookup | `tcl_runtime_api::Namespaces::{find_namespace, find_namespace_bytes, find_command, find_command_bytes}` through the runtime adapter |
+| Original name recipes | `NativeNameProtocol` and the selected operation's checked object/input facade; C, Jim and hosted issuers remain independent |
+| Runtime namespace and command lookup | Checked `tcl_runtime_api::Namespaces` interfaces through actual runtime object/table/lifetime adapters; reporting lookup cannot replace original-object lookup |
 | Namespace command semantics | `tcl_cmd_core::namespace`: which, origin, import patterns, variable FQNs, qualifiers/tail, parent/children/exists |
 | Binding facts and safe specialisation | Compiler `command_binding`, registry `resolved_invocation`, dispatch proofs and site claims |
 | Internal single-document target selection | `tcl_lsp_core::definition::{resolve_called_proc, resolve_proc_target_at, resolve_class_target_at}` (`pub(crate)` provider helpers; external crates use public providers/analysis facts) |
@@ -51,6 +66,9 @@ Runtime lookup currently has separate structural implementations over token
 arenas and byte-valued namespace trees. The shared string candidate helper
 is not their direct implementation. Preserve storage adapters and identity
 when consolidating policy; flattening a tree into display FQNs loses semantics.
+Namespace deletion uses the shared `NamespaceDeleteBackend::delete_original`
+two-pass operation over original operands. Fresh written lookup and a retained
+namespace object's cached live token have distinct semantics during teardown.
 
 ## Context and observable semantics
 

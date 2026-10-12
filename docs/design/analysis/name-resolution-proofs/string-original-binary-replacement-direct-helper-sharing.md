@@ -16,7 +16,7 @@ Both selected C9 helpers return the original subject for an unshared equal-size 
 
 ## Scope
 
-16 fresh direct-helper processes and two independent identical-static-library version diagnostics. Original public snapshots precede result String materialisation; actual fresh results are retired afterward with BounceRefCount. Private cache internals, parsed index conversion, command dispatch, interpreter result publication, arbitrary allocator configurations, Rust assertions, C8, Jim and BIG-IP are not measured.
+16 fresh direct-helper processes and two independent identical-static-library version diagnostics. Original public snapshots precede result String materialisation; actual fresh results are retired afterward with BounceRefCount. Private cache internals, parsed index conversion, command dispatch, interpreter result publication, arbitrary allocator configurations, Rust assertions, C8, Jim and BIG-IP are not measured. Linked Rust definitions are software coverage obligations. Their source assertions require independent execution receipts; they add no provider observation, feature availability, native object/frame or edit authority.
 
 ## Provider answers
 
@@ -397,7 +397,10 @@ Tcl_SetByteArrayObj(
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_direct_c9_binary_replacement_matches_deterministic_native_roles` (linked): Software source definition checks direct c9 binary replacement matches deterministic native roles.
+- [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `omitted_zero_count_without_in_place_uses_original_duplicate_constructor` (linked): Software source definition checks omitted zero count without in place uses original duplicate constructor.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_direct_c9_binary_replacement_matches_deterministic_native_roles` (linked): Software source definition checks direct c9 binary replacement matches deterministic native roles.
+- [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `omitted_zero_count_without_in_place_uses_original_duplicate_constructor` (linked): Software source definition checks omitted zero count without in place uses original duplicate constructor.
 
 A named test is a coverage binding, not a claim that it executed.
 

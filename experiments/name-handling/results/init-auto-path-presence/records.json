@@ -1,0 +1,63 @@
+[
+  {
+    "release": "8.4.20",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+    ],
+    "exit": 0,
+    "stdout": "8.4.20 {}\n",
+    "stderr": "",
+    "script_sha256": "665ff7ac50049af834342aa0db6613c94d5d0ef5744f3cab831b56246eea8f04"
+  },
+  {
+    "release": "8.5.19",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "exit": 0,
+    "stdout": "8.5.19 {}\n",
+    "stderr": "",
+    "script_sha256": "665ff7ac50049af834342aa0db6613c94d5d0ef5744f3cab831b56246eea8f04"
+  },
+  {
+    "release": "8.6.18",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "exit": 0,
+    "stdout": "8.6.18 {}\n",
+    "stderr": "",
+    "script_sha256": "665ff7ac50049af834342aa0db6613c94d5d0ef5744f3cab831b56246eea8f04"
+  },
+  {
+    "release": "9.0.4",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "exit": 0,
+    "stdout": "9.0.4 {}\n",
+    "stderr": "",
+    "script_sha256": "665ff7ac50049af834342aa0db6613c94d5d0ef5744f3cab831b56246eea8f04"
+  },
+  {
+    "release": "9.1.0",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+    ],
+    "exit": 0,
+    "stdout": "9.1.0 ::tcl::InitAutoPath\n",
+    "stderr": "",
+    "script_sha256": "665ff7ac50049af834342aa0db6613c94d5d0ef5744f3cab831b56246eea8f04"
+  },
+  {
+    "release": "Jim",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh"
+    ],
+    "exit": 0,
+    "stdout": "0.84-9-g5bac7c9 {}\n",
+    "stderr": "",
+    "script_sha256": "665ff7ac50049af834342aa0db6613c94d5d0ef5744f3cab831b56246eea8f04",
+    "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891"
+  }
+]

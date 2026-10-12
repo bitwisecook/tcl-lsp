@@ -1,0 +1,719 @@
+{
+  "schema_version": 1,
+  "capture_records": {
+    "path": "experiments/name-handling/patterns/results/records.json",
+    "sha256": "84fc3dd78e482d7a3d828f80a2196e4f80d998d42010ed9f74c68077e96c0538"
+  },
+  "capture_receipt": {
+    "path": "experiments/name-handling/patterns/results/provenance.json",
+    "sha256": "b7b436b6418b8a560b14243c4b20d8324bead93dea6e9c61c115f1060b9f0281"
+  },
+  "scope": "Exact authored corpus reductions; 75 retained records. Setup code nonzero leaves lookup unexecuted and supplies no answer to the intended lookup question. Lookup errors after successful setup are actual observations, not skipped tests. Source prevalence and Rust implementation equivalence remain separate.",
+  "questions": [
+    {
+      "id": "naming.corpus-pattern.alias-prefix-lifetime",
+      "case_id": "alias-prefix-lifetime",
+      "question": "What lookup completion and result does the exact alias-prefix-lifetime reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/0",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/alias-prefix-lifetime/record.json",
+          "retained_record_sha256": "ba6071980ab7ad66ff87dfa570297c53a0b438534dc9efb99aadb9219800662d",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/15",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/alias-prefix-lifetime/record.json",
+          "retained_record_sha256": "358a6d5831281567988cbd96ed2de02ea587b0d0f697f4c876195bea9594e6ae",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/30",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/alias-prefix-lifetime/record.json",
+          "retained_record_sha256": "25b5a0da6b3c9f0dc53952094aea9b00bd7015a26c8a19f2679c146a82a93c8a",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/45",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/alias-prefix-lifetime/record.json",
+          "retained_record_sha256": "71da619300ad6a955d59f6181bd8e191042c76d0b2cbc8bd054b4195b33c5e0b",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/60",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/alias-prefix-lifetime/record.json",
+          "retained_record_sha256": "8d59cc269fde0ead92f1da7fa1e6a4fa4ae943979889d5b8422c90cd996b01bb",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.computed-binding-mutation",
+      "case_id": "computed-binding-mutation",
+      "question": "What lookup completion and result does the exact computed-binding-mutation reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/1",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/computed-binding-mutation/record.json",
+          "retained_record_sha256": "4171802eabe450efbe2780392f62e2edfe1c8bfa321c96b0c1c28781f8e1ab4f",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/16",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/computed-binding-mutation/record.json",
+          "retained_record_sha256": "7817bedbf2025fba74f08096632716a64c640f860cb3c3b9104d1e3c8a000a66",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/31",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/computed-binding-mutation/record.json",
+          "retained_record_sha256": "a86ca7bda4d6345c8d0f18275ffa782210de01d7366d215f16c8e08b41a19420",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/46",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/computed-binding-mutation/record.json",
+          "retained_record_sha256": "efcef8bba338403ffdfa20846d8b9215d70e1569d235192686a8e3ceb62ff332",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/61",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/computed-binding-mutation/record.json",
+          "retained_record_sha256": "8de0b1f20c66db404cda559c22d06f792d15bf8787830fdc738ac1447baf7af0",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.computed-qualified",
+      "case_id": "computed-qualified",
+      "question": "What lookup completion and result does the exact computed-qualified reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/2",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/computed-qualified/record.json",
+          "retained_record_sha256": "2e26a7c9b6d9c7a762b0c3ede997eb9fd216415b71b8794f079043fa1cb999a4",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/17",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/computed-qualified/record.json",
+          "retained_record_sha256": "8796617b9512fa72abb9c2d7cbe21652946003109b1f464fcedd04b449290210",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/32",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/computed-qualified/record.json",
+          "retained_record_sha256": "1d135d563eeffda35edb507ee183552d60fb45f2a0fb48649d91835839bb332a",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/47",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/computed-qualified/record.json",
+          "retained_record_sha256": "37674fec5a1a4ab2f433b39f3ba76d6e7a59adee57100c03f2c9c35a21a66cbb",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/62",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/computed-qualified/record.json",
+          "retained_record_sha256": "bfce1b72ce648cd586a0447094b5e4c48c0202630cd3802d696629fea6c0cb46",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.ensemble-prefix-map",
+      "case_id": "ensemble-prefix-map",
+      "question": "What lookup completion and result does the exact ensemble-prefix-map reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "not-tested",
+          "record_pointer": "/3",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/ensemble-prefix-map/record.json",
+          "retained_record_sha256": "4e19891f2ca7965dd9e2cf49d5a230b6bd1ad709831e7507841c66167a7deea5",
+          "intended_lookup_reached": false
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/18",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/ensemble-prefix-map/record.json",
+          "retained_record_sha256": "9c6236013b5879d21ebe10f247a56fd9545b355e6533b6903856399904f6f84f",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/33",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/ensemble-prefix-map/record.json",
+          "retained_record_sha256": "bc9c5c0b219b78fac0c85eba4e51e398c812541f94a6f28f89511943b0ea7f9b",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/48",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/ensemble-prefix-map/record.json",
+          "retained_record_sha256": "fd0c5fd5f7a244e6d921c18575d5d38e1f549fc34d071485aaad6d98040c2a19",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/63",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/ensemble-prefix-map/record.json",
+          "retained_record_sha256": "8616a82527293c982cecc3542dadaac938119aa9f2f91a06e9b416a9aac2d0ea",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.factory-body-near-miss",
+      "case_id": "factory-body-near-miss",
+      "question": "What lookup completion and result does the exact factory-body-near-miss reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/4",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/factory-body-near-miss/record.json",
+          "retained_record_sha256": "2f386cfcfd40f961474b2be274852ad128cc246a759e8826fcaa862cf3e60459",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/19",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/factory-body-near-miss/record.json",
+          "retained_record_sha256": "94b7341b7660c0693e8f20d4abf9ff522c5764b6326283c463b3c25029862718",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/34",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/factory-body-near-miss/record.json",
+          "retained_record_sha256": "91e764633cb1e23c36104b56deef030faaea139b855c89cabb9d21ec0443c8a2",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/49",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/factory-body-near-miss/record.json",
+          "retained_record_sha256": "09150769d06d7ca4f76423522738a86c114c230cb6d071d6604a7ac7a521fd26",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/64",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/factory-body-near-miss/record.json",
+          "retained_record_sha256": "a5c2ae9d3b3d59a3019e640f0ce091edacc7573763ba6979640bce4d01bd9aa7",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.finite-factory",
+      "case_id": "finite-factory",
+      "question": "What lookup completion and result does the exact finite-factory reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/5",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/finite-factory/record.json",
+          "retained_record_sha256": "f97246e1e7b5a238875d2ff00a82be7a468d8b63bd5cdd4a1cb10e4eb2f14737",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/20",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/finite-factory/record.json",
+          "retained_record_sha256": "4330e283f7c3da60b71669851b603dc0cb90a5c7784c3d4bd77ebfac634ad867",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/35",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/finite-factory/record.json",
+          "retained_record_sha256": "f506aa3e1998ed0fe26bbed4ee8f6d1280f25a0c5a03cb14fb2eff9aab142577",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/50",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/finite-factory/record.json",
+          "retained_record_sha256": "c0eb297f2605ee59e3fdb0e8f677dd1c704aa5113e9872ee8ec527e0258dd256",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/65",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/finite-factory/record.json",
+          "retained_record_sha256": "2f34663fcf3e4be0cd20b7d23ee0c1eb1f1fedd20d2a326338ce847395d9a72d",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.frame-wrapper",
+      "case_id": "frame-wrapper",
+      "question": "What lookup completion and result does the exact frame-wrapper reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/7",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/frame-wrapper/record.json",
+          "retained_record_sha256": "9d6995ea55b6d904307dadd1a588c584f23c81733ba74209aba3ad4bf687a4ce",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/22",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/frame-wrapper/record.json",
+          "retained_record_sha256": "d9743a41351c2ad1fe729fc2aaca20c80315a70d9351ce7773d4ed1412a20110",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/37",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/frame-wrapper/record.json",
+          "retained_record_sha256": "c1c3a971b9184dcc020da8a92f29165cc12196a0979bcd4e2ffb220fa37ccc8c",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/52",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/frame-wrapper/record.json",
+          "retained_record_sha256": "e48590c003a67297105765197e6bb8b1d052e82ee237810eece9eb92d38324ed",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/67",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/frame-wrapper/record.json",
+          "retained_record_sha256": "959ea6f87c44d313171e56e4035863177d27c87c2138e071331038f60628077d",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.frame-wrapper-near-miss",
+      "case_id": "frame-wrapper-near-miss",
+      "question": "What lookup completion and result does the exact frame-wrapper-near-miss reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/6",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/frame-wrapper-near-miss/record.json",
+          "retained_record_sha256": "a70e4b1f01382a231ca269efc52d6f6e4ac21fe1285eaf71d13479cd06811895",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/21",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/frame-wrapper-near-miss/record.json",
+          "retained_record_sha256": "92c0d4899eb2b4652be8bb3a284c6d8a81e96db16366dafa4fd0039fc28c3819",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/36",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/frame-wrapper-near-miss/record.json",
+          "retained_record_sha256": "1bc2e2bef73dde57bda2dd982215b8a10d06de155d5b87ea43588162ff9a3bc9",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/51",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/frame-wrapper-near-miss/record.json",
+          "retained_record_sha256": "d64cabf27abd54128a616b5608d6fc7e72641b33b076afd7a67aef716446e307",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/66",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/frame-wrapper-near-miss/record.json",
+          "retained_record_sha256": "8b5ecaef505ef3a6bf7418700f689d488c7b01c6a5af0f36c0b0f18096f51cd2",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.keyed-variable-link",
+      "case_id": "keyed-variable-link",
+      "question": "What lookup completion and result does the exact keyed-variable-link reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/8",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/keyed-variable-link/record.json",
+          "retained_record_sha256": "47b48e3f1eab80815b7d06cdc7bf7ec9ed8f7a42dfd79753e77cf95b75516252",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/23",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/keyed-variable-link/record.json",
+          "retained_record_sha256": "1817ee05d201db3763e8c71134fada92329077ef37848ad26c962ca1d39182e6",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/38",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/keyed-variable-link/record.json",
+          "retained_record_sha256": "410dabee79b65b75639b66d804585ef1f31af9742f60ed01ff91f7c78e408322",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/53",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/keyed-variable-link/record.json",
+          "retained_record_sha256": "9524c128d262e0a7d3509a6fc2acfe498f4c2fa61e06f971ea06036ead596681",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/68",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/keyed-variable-link/record.json",
+          "retained_record_sha256": "a075008de2f3afec5c77ffe37835f1bf3963d6a362a7fab757e6233e6e912b2e",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.list-prefix",
+      "case_id": "list-prefix",
+      "question": "What lookup completion and result does the exact list-prefix reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/9",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/list-prefix/record.json",
+          "retained_record_sha256": "b01371c24adfc920ba9b5827f062e7411172e13a90b824830543bc1afdaf8b87",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/24",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/list-prefix/record.json",
+          "retained_record_sha256": "6ef449675e527261c5141eb92bae087939cc77d29e6142884cc769b4d90dc6d7",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/39",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/list-prefix/record.json",
+          "retained_record_sha256": "d08b8eb290959d91fc68157c60c2c2803d9c8e2a8a59b48a18f379585770b2a3",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/54",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/list-prefix/record.json",
+          "retained_record_sha256": "3f45a9ac293c944aca4d7f95c8fd9e8926698555304a1a191dacb5e8e2377032",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/69",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/list-prefix/record.json",
+          "retained_record_sha256": "6e8dee388ab64e10af61e36d308fabfe483ab7e35e176e90c79e3a80f5621fab",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.namespace-captured-prefix",
+      "case_id": "namespace-captured-prefix",
+      "question": "What lookup completion and result does the exact namespace-captured-prefix reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/10",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/namespace-captured-prefix/record.json",
+          "retained_record_sha256": "c97712cfeb8ba4da602a15a10be131008f4dd78f01ab44ec45752d5474659e38",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/25",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/namespace-captured-prefix/record.json",
+          "retained_record_sha256": "ecc4e50ed8173c99c93925637065af98f0e66066c1177f52ff388f4921b84695",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/40",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/namespace-captured-prefix/record.json",
+          "retained_record_sha256": "b72b0fb1f375b8d08b71898e7346351f8eb74d1ecf8b204ed1107d3513a5d89a",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/55",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/namespace-captured-prefix/record.json",
+          "retained_record_sha256": "6705370da2df5d202831a0ea3b6c4bdf5fc459637cac00a9427022aca4650e3f",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/70",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/namespace-captured-prefix/record.json",
+          "retained_record_sha256": "1856511d15c444f0d5b4cee6f9ff038d0f7b6ede5dad2931e00d7f3c5d965edd",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.oo-prefix-deleted-near-miss",
+      "case_id": "oo-prefix-deleted-near-miss",
+      "question": "What lookup completion and result does the exact oo-prefix-deleted-near-miss reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "not-tested",
+          "record_pointer": "/11",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/oo-prefix-deleted-near-miss/record.json",
+          "retained_record_sha256": "e107f1d5c04842b614c721f8c2a9417551767cec4853607079aa6202e371f396",
+          "intended_lookup_reached": false
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "not-tested",
+          "record_pointer": "/26",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/oo-prefix-deleted-near-miss/record.json",
+          "retained_record_sha256": "ff040e35052fae1d6c9fbdded6242caee303fff1c91d1a09ff6dd12463847b84",
+          "intended_lookup_reached": false
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/41",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/oo-prefix-deleted-near-miss/record.json",
+          "retained_record_sha256": "d81098fb5ef0cb5d50652884168b75d832f10996c728611eab1d2b7d1059c220",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/56",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/oo-prefix-deleted-near-miss/record.json",
+          "retained_record_sha256": "4f90e87a084ed45154bbe05ba9f6ed2d0f422e9e771adf8a431377ddb4774dfd",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/71",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/oo-prefix-deleted-near-miss/record.json",
+          "retained_record_sha256": "4f93b2d56f9b0708afc535f2d865c20ab4d2458a71652144d46a62e81c05a7c6",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.oo-self-prefix",
+      "case_id": "oo-self-prefix",
+      "question": "What lookup completion and result does the exact oo-self-prefix reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "not-tested",
+          "record_pointer": "/12",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/oo-self-prefix/record.json",
+          "retained_record_sha256": "c361bb061fd0cb3623ca4500a4770e93fb8c421d45c6ebe61c9e083127d63e47",
+          "intended_lookup_reached": false
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "not-tested",
+          "record_pointer": "/27",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/oo-self-prefix/record.json",
+          "retained_record_sha256": "3ef31745a1c4b8e22273832fd99df3eb89abeac09976b0123dab8001d8e1d784",
+          "intended_lookup_reached": false
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/42",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/oo-self-prefix/record.json",
+          "retained_record_sha256": "475610ed01dd780b9cf62be83859038be125bca292fc422b2a1dbab7205580ca",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/57",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/oo-self-prefix/record.json",
+          "retained_record_sha256": "cc7158404e5a79171eba4a1580d2a789b366c6bb8ff8b70689fa8138f2e4d6f6",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/72",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/oo-self-prefix/record.json",
+          "retained_record_sha256": "e5b9c212d91064ad354dc072b7c0382a0f79a4a84fa77b20acac12060e649a45",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.string-prefix-near-miss",
+      "case_id": "string-prefix-near-miss",
+      "question": "What lookup completion and result does the exact string-prefix-near-miss reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/13",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/string-prefix-near-miss/record.json",
+          "retained_record_sha256": "b6c73db1c67da63c55580904f9b96264571bd258516bfe5df7ced7a15b57ab2f",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/28",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/string-prefix-near-miss/record.json",
+          "retained_record_sha256": "82b65350bd125fa7cf7ea2b60e025219e46f8d46ea40cbe09c08465076763207",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/43",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/string-prefix-near-miss/record.json",
+          "retained_record_sha256": "424058731c7351ae4466ce5e0ca2bb9956e53c475e2364a029e89c902952e717",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/58",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/string-prefix-near-miss/record.json",
+          "retained_record_sha256": "295a71fe676bf36449e15d76e0969f1986b9dc2445ece87a2caf57dcac1c09f2",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/73",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/string-prefix-near-miss/record.json",
+          "retained_record_sha256": "ee166558cbf3c9500e1691ae696c9860324fa9045ca96565f67ff24eb05f2425",
+          "intended_lookup_reached": true
+        }
+      ]
+    },
+    {
+      "id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "case_id": "tcltest-shared-lifecycle",
+      "question": "What lookup completion and result does the exact tcltest-shared-lifecycle reduction produce after successful setup on each recorded provider?",
+      "providers": [
+        {
+          "provider": "tcl8.4",
+          "status": "observed",
+          "record_pointer": "/14",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.4.20/tcltest-shared-lifecycle/record.json",
+          "retained_record_sha256": "e400c9f59bf8262454ecee936f07f9e55eb5488632832ab5dfb213bad0e88a57",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.5",
+          "status": "observed",
+          "record_pointer": "/29",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.5.19/tcltest-shared-lifecycle/record.json",
+          "retained_record_sha256": "c04109f4cee4969fe81a2dbd8ed435745d1f0a35b31c3895ef7f85fd62e97643",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl8.6",
+          "status": "observed",
+          "record_pointer": "/44",
+          "retained_record": "experiments/name-handling/patterns/results/tcl8.6.18/tcltest-shared-lifecycle/record.json",
+          "retained_record_sha256": "4a12913170ae107d4143cd265be62f8255a47a7aa522a5bf92a717c701272d97",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.0",
+          "status": "observed",
+          "record_pointer": "/59",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.0.4/tcltest-shared-lifecycle/record.json",
+          "retained_record_sha256": "0b5b7e0b87214a820c70727356e968b24294e4c1a4570482e72e080b33e2931c",
+          "intended_lookup_reached": true
+        },
+        {
+          "provider": "tcl9.1",
+          "status": "observed",
+          "record_pointer": "/74",
+          "retained_record": "experiments/name-handling/patterns/results/tcl9.1.0/tcltest-shared-lifecycle/record.json",
+          "retained_record_sha256": "be94eb892d80f5d0f78ebf13396eb734690140df3d4eb79a540cf08785a03086",
+          "intended_lookup_reached": true
+        }
+      ]
+    }
+  ]
+}

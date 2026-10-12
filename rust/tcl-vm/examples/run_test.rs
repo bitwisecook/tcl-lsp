@@ -21,7 +21,7 @@
 //! pass/fail/skip performance between the two runtimes.
 //!
 //! Usage: `TCL_LIBRARY=.../library cargo run -p tcl-vm --example run_test --
-//! <file.test> [--match <test-glob-list>]`
+//! <file.test> [--match <test-glob-list>] [--tcl-version <release>]`
 //!
 //! The VM sources the selected library's real `init.tcl`, then obtains tcltest
 //! through normal `package require` discovery. Runs on a large-stack worker
@@ -29,10 +29,11 @@
 //! overflow (matching the `run_script` driver).
 
 use std::io::Write;
+use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::{Vm, host_native::NativeHost};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution:
 /// the real Rust compiler pipeline (lower → CFG → bytecode).
@@ -67,7 +68,9 @@ fn run() -> i32 {
     let arguments = match Arguments::parse(std::env::args().skip(1)) {
         Ok(arguments) => arguments,
         Err(message) => {
-            eprintln!("{message}\nusage: run_test <file.test> [--match <test-glob-list>]");
+            eprintln!(
+                "{message}\nusage: run_test <file.test> [--match <test-glob-list>] [--tcl-version <release>]"
+            );
             return 2;
         }
     };
@@ -98,48 +101,105 @@ fn run() -> i32 {
         "package require tcltest\nnamespace import -force ::tcltest::*\n{verbose}{match_config}{overlay}source {}\n",
         tcl_syntax::list::list_element(&arguments.testfile)
     );
-    let profile = DialectProfile::find("tcl9.0").expect("Tcl 9.0 profile exists");
-    let compiler = Svc::for_profile(profile);
-    let asm = match compiler.compile(&src) {
-        Ok(module) => module,
+    let profile = DialectProfile::find(arguments.version.dialect_profile_name())
+        .expect("selected Tcl release profile exists");
+    let Some(mut vm) = native_vm(profile, Box::new(Stdout)) else {
+        eprintln!("VM host refusal: selected Tcl release has no native core bootstrap issuer");
+        return 1;
+    };
+    vm.set_compiler(Box::new(Svc::for_profile(profile)));
+    match vm.try_init_library() {
+        Ok(completion) if completion.code.is_ok() => {}
+        Ok(completion) => {
+            return report_guest_failure(&mut vm, "Tcl library initialisation error", completion);
+        }
         Err(error) => {
-            eprintln!("compile error: {error}");
+            eprintln!("VM host refusal during Tcl library initialisation: {error}");
+            return 1;
+        }
+    }
+    match vm.try_eval_source_bytes(src.as_bytes()) {
+        Ok(completion) if completion.code.is_ok() => 0,
+        Ok(completion) => report_guest_failure(&mut vm, "VM error", completion),
+        Err(error) => {
+            eprintln!("VM host refusal: {error}");
+            1
+        }
+    }
+}
+
+fn native_vm(profile: &'static DialectProfile, output: Box<dyn Write>) -> Option<Vm> {
+    Vm::with_native_core(
+        output,
+        Rc::new(NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+}
+
+fn report_guest_failure(
+    vm: &mut Vm,
+    label: &str,
+    completion: tcl_vm::Completion<tcl_vm::Value>,
+) -> i32 {
+    let options = completion.options.clone();
+    let error = tcl_vm::TclError::from_completion(completion);
+    let message = match error.message_bytes_in(vm) {
+        Ok(bytes) => bytes,
+        Err(tcl_vm::TclError::Host(failure)) => {
+            eprintln!("VM host refusal while reporting {label}: {failure}");
+            return 1;
+        }
+        Err(_) => {
+            eprintln!("VM error presentation failed");
             return 1;
         }
     };
-
-    let mut vm = Vm::with_output(Box::new(Stdout));
-    vm.set_runtime_version(TclVersion::V9_0);
-    vm.set_compiler(Box::new(Svc::for_profile(profile)));
-    let init = vm.init_library();
-    if !init.code.is_ok() {
-        eprintln!("Tcl library initialisation error: {}", init.result.to_str());
-        return 1;
+    let options = match tcl_syntax::value::ValueOps::native_string_bytes(vm, &options) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            eprintln!("VM host refusal while reporting completion options: {error}");
+            return 1;
+        }
+    };
+    let result = (|| -> std::io::Result<()> {
+        let mut stderr = std::io::stderr().lock();
+        write!(stderr, "{label}: ")?;
+        stderr.write_all(&message)?;
+        stderr.write_all(b"\noptions: ")?;
+        stderr.write_all(&options)?;
+        stderr.write_all(b"\n")
+    })();
+    if let Err(error) = result {
+        eprintln!("run_test: cannot write completion: {error}");
+        return 2;
     }
-    let c = vm.run_module(&asm);
-    if c.code.is_ok() {
-        0
-    } else {
-        eprintln!(
-            "VM error: {}\noptions: {}",
-            c.result.to_str(),
-            c.options.to_str()
-        );
-        1
-    }
+    1
 }
 
 struct Arguments {
     testfile: String,
     match_filter: Option<String>,
+    version: TclVersion,
 }
 
 impl Arguments {
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
         let testfile = args.next().ok_or_else(|| "missing test file".to_owned())?;
         let mut match_filter = None;
+        let mut version = None;
         while let Some(option) = args.next() {
             match option.as_str() {
+                "--tcl-version" if version.is_none() => {
+                    let release = args
+                        .next()
+                        .ok_or_else(|| "--tcl-version requires a release".to_owned())?;
+                    version = Some(
+                        TclVersion::from_package_version(&release)
+                            .ok_or_else(|| format!("unknown Tcl release {release:?}"))?,
+                    );
+                }
+                "--tcl-version" => return Err("--tcl-version may be supplied only once".to_owned()),
                 "--match" | "-match" if match_filter.is_none() => {
                     match_filter = Some(
                         args.next()
@@ -155,6 +215,59 @@ impl Arguments {
         Ok(Self {
             testfile,
             match_filter,
+            version: version.unwrap_or(TclVersion::V9_0),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(arguments: &[&str]) -> Result<Arguments, String> {
+        Arguments::parse(arguments.iter().map(|argument| (*argument).to_owned()))
+    }
+
+    #[test]
+    fn selected_release_controls_the_actual_core() {
+        for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+            let arguments = parse(&["file.test", "--tcl-version", release]).unwrap();
+            let profile = DialectProfile::find(arguments.version.dialect_profile_name()).unwrap();
+            let mut vm = native_vm(profile, Box::new(std::io::sink())).unwrap();
+            assert_eq!(vm.runtime_version(), arguments.version);
+            assert!(matches!(
+                vm.try_eval_source_bytes(b"catch {set ran 1} caught"),
+                Err(tcl_runtime_api::NativeExecutionError::CompileServiceRefusal(_))
+            ));
+            assert!(vm.get_var("ran").is_none());
+            assert!(vm.get_var("caught").is_none());
+        }
+    }
+
+    #[test]
+    fn default_release_and_match_spelling_are_preserved() {
+        let arguments = parse(&[
+            "path with spaces.test",
+            "--match",
+            "namespace-56.2 trace-34.1",
+        ])
+        .unwrap();
+        assert_eq!(arguments.version, TclVersion::V9_0);
+        assert_eq!(arguments.testfile, "path with spaces.test");
+        assert_eq!(
+            arguments.match_filter.as_deref(),
+            Some("namespace-56.2 trace-34.1")
+        );
+    }
+
+    #[test]
+    fn invalid_release_selection_fails_without_a_fallback() {
+        for arguments in [
+            vec!["file.test", "--tcl-version", "10.0"],
+            vec!["file.test", "--tcl-version"],
+            vec!["file.test", "--tcl-version", "8.4", "--tcl-version", "9.1"],
+        ] {
+            assert!(parse(&arguments).is_err());
+        }
     }
 }

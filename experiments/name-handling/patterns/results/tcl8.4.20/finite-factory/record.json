@@ -1,0 +1,30 @@
+{
+  "case_id": "finite-factory",
+  "release": "8.4",
+  "patchlevel": "8.4.20",
+  "probe": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+  "probe_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+  "input_sha256": "c4624c955d8cc0aa83897d2dec783cbc8771729326115eeefa3961f29a4af12d",
+  "process_exit_code": 0,
+  "stdout_sha256": "d8ee885e19e39e7b1c9d4c9a3b65398ac453be6c1c8a732c966e7454c77711b7",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/results/tcl8.4.20/finite-factory",
+  "setup_and_lookup_separate": true,
+  "setup_code": "0",
+  "lookup_code": "0",
+  "setup_result": "",
+  "setup_options": "",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "lookup_result": "red blue",
+  "lookup_options": "",
+  "lookup_error_code": "",
+  "lookup_error_info": ""
+}

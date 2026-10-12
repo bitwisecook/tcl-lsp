@@ -1,0 +1,261 @@
+{
+  "captured_at": "2026-10-12T11:38:43.796092+00:00",
+  "scope": "everything",
+  "manifest_path": "scripts/perf/MANIFEST.toml",
+  "manifest_sha256": "956a8a562484da5356bfe340ec82531f699a18c65a7ea4a9e4efbdd9540b1f58",
+  "corpus_revision": 1,
+  "fetch_command": "python3 scripts/perf/fetch_corpus.py --scope everything --dest tmp/name-pattern-corpus",
+  "verify_command": "python3 scripts/perf/fetch_corpus.py --scope everything --dest tmp/name-pattern-corpus --verify-only",
+  "fetch_exit_code": 0,
+  "verify_exit_code": 0,
+  "public_repositories": [
+    {
+      "group": "georgtree",
+      "name": "SpiceGenTcl",
+      "url": "https://github.com/georgtree/SpiceGenTcl",
+      "revision": "b6ee79b5e711ae8f869b4f19ee7115e34b2b1e95",
+      "matches_manifest": true
+    },
+    {
+      "group": "georgtree",
+      "name": "tclopt",
+      "url": "https://github.com/georgtree/tclopt",
+      "revision": "ff9a56074272327f3d5f7a3d589e50d9c2da24a0",
+      "matches_manifest": true
+    },
+    {
+      "group": "georgtree",
+      "name": "ruff",
+      "url": "https://github.com/georgtree/ruff",
+      "revision": "b63da69eed625bc544d1f4da76371e8bd6b02d29",
+      "matches_manifest": true
+    },
+    {
+      "group": "georgtree",
+      "name": "argparse",
+      "url": "https://github.com/georgtree/argparse",
+      "revision": "139d695c9012ebd79e21798b5c8041fef64e8358",
+      "matches_manifest": true
+    },
+    {
+      "group": "georgtree",
+      "name": "tcl_tools",
+      "url": "https://github.com/georgtree/tcl_tools",
+      "revision": "6be5470f73d88239896225747ba5f86e57daa5a3",
+      "matches_manifest": true
+    },
+    {
+      "group": "georgtree",
+      "name": "tclinterp",
+      "url": "https://github.com/georgtree/tclinterp",
+      "revision": "ccd894bbcf759607cec37cb308e12fca639b17b0",
+      "matches_manifest": true
+    },
+    {
+      "group": "georgtree",
+      "name": "tclmeasure",
+      "url": "https://github.com/georgtree/tclmeasure",
+      "revision": "648b0ccf18de53fd6f48d227fd5813e9290217bf",
+      "matches_manifest": true
+    },
+    {
+      "group": "georgtree",
+      "name": "extexpr",
+      "url": "https://github.com/georgtree/extexpr",
+      "revision": "1d53317eb9a71886a79fc7cad88bbdc12ee16e1d",
+      "matches_manifest": true
+    },
+    {
+      "group": "nico-robert",
+      "name": "ticklecharts",
+      "url": "https://github.com/nico-robert/ticklecharts",
+      "revision": "b49f014cb6c2412a7e661e805a37eaebcd625c59",
+      "matches_manifest": true
+    },
+    {
+      "group": "nico-robert",
+      "name": "tomato",
+      "url": "https://github.com/nico-robert/tomato",
+      "revision": "1a41d9b36822a637846ee4ab6f659ff7e2a9c416",
+      "matches_manifest": true
+    },
+    {
+      "group": "nico-robert",
+      "name": "pix",
+      "url": "https://github.com/nico-robert/pix",
+      "revision": "a859536d06efd12b6ec6b4ab00d6701902235e2b",
+      "matches_manifest": true
+    },
+    {
+      "group": "nico-robert",
+      "name": "zesty",
+      "url": "https://github.com/nico-robert/zesty",
+      "revision": "7cc87f3f21b48cce17b001880e4ce37708ad7f3e",
+      "matches_manifest": true
+    },
+    {
+      "group": "nico-robert",
+      "name": "haru",
+      "url": "https://github.com/nico-robert/haru",
+      "revision": "1d3f44abb568141f2048210cac7e6a614874b6de",
+      "matches_manifest": true
+    },
+    {
+      "group": "nico-robert",
+      "name": "implottk",
+      "url": "https://github.com/nico-robert/implottk",
+      "revision": "505b824ac966479ec51444eab7b43ad552ca47cd",
+      "matches_manifest": true
+    },
+    {
+      "group": "tcltk",
+      "name": "tcllib",
+      "url": "https://github.com/tcltk/tcllib",
+      "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+      "matches_manifest": true
+    },
+    {
+      "group": "tcltk",
+      "name": "tklib",
+      "url": "https://github.com/tcltk/tklib",
+      "revision": "627bfe1e8dcc17b718dfafba26478c3e08501b2f",
+      "matches_manifest": true
+    },
+    {
+      "group": "tcltk",
+      "name": "tk",
+      "url": "https://github.com/tcltk/tk",
+      "revision": "7005f92520a03c7bec78ea521f96258d3365e4aa",
+      "matches_manifest": true
+    },
+    {
+      "group": "aplsimple",
+      "name": "pave",
+      "url": "https://github.com/aplsimple/pave",
+      "revision": "875de1f1539d62e46e48e206f34f82848bca1736",
+      "matches_manifest": true
+    },
+    {
+      "group": "aplsimple",
+      "name": "alited",
+      "url": "https://github.com/aplsimple/alited",
+      "revision": "a1fae46fb7a7f27624d149ac9f56eabbf43a04df",
+      "matches_manifest": true
+    },
+    {
+      "group": "other",
+      "name": "XilinxTclStore",
+      "url": "https://github.com/Xilinx/XilinxTclStore",
+      "revision": "f1e8fe54482b8728572c2e73cc0633f5bea526cf",
+      "matches_manifest": true
+    },
+    {
+      "group": "other",
+      "name": "OSVVM-Scripts",
+      "url": "https://github.com/OSVVM/OSVVM-Scripts",
+      "revision": "60a2751c1d2087e6e58671585d3649cd5eb0b93d",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-kaiwilke",
+      "name": "F5-iRule-RADIUS-Server-Stack",
+      "url": "https://github.com/KaiWilke/F5-iRule-RADIUS-Server-Stack",
+      "revision": "d69925554c45d1010a8dbb58bf5a98d275d005ca",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-kaiwilke",
+      "name": "F5-iRule-RADIUS-Client-Stack",
+      "url": "https://github.com/KaiWilke/F5-iRule-RADIUS-Client-Stack",
+      "revision": "2689ed3c55ff5b84620851231d199d6cdfb69d2a",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-kaiwilke",
+      "name": "F5-Natural-Speech-Expression",
+      "url": "https://github.com/KaiWilke/F5-Natural-Speech-Expression",
+      "revision": "2f73abbb2692063d4f05b2b344129c4a8c9535eb",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-kaiwilke",
+      "name": "F5CrowdSRC",
+      "url": "https://github.com/KaiWilke/F5CrowdSRC",
+      "revision": "aad8a81d5338681ce9045cb45fddfbfc4e29918e",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-kaiwilke",
+      "name": "F5-PrismJS-iRule-Language-Definition",
+      "url": "https://github.com/KaiWilke/F5-PrismJS-iRule-Language-Definition",
+      "revision": "c6fc0072983d05cbfafdc1963d92e4013cf199f3",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-f5devcentral",
+      "name": "f5-agility-labs-irules",
+      "url": "https://github.com/f5devcentral/f5-agility-labs-irules",
+      "revision": "2c2119606c6e039c5285184c7fc1f90d4b8cc07c",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-f5devcentral",
+      "name": "irules-toolbox",
+      "url": "https://github.com/f5devcentral/irules-toolbox",
+      "revision": "b8b13de8550effbfa06428cc79fa789d20ebe3c8",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-community",
+      "name": "TesTcl",
+      "url": "https://github.com/landro/TesTcl",
+      "revision": "e31743809b976ba39da39138aeebf36f8d264fd9",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-community",
+      "name": "f5",
+      "url": "https://github.com/e-XpertSolutions/f5",
+      "revision": "702f20826ea475201f825e469f287ee593b5da14",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-community",
+      "name": "iRules",
+      "url": "https://github.com/megamattzilla/iRules",
+      "revision": "078f45638bad19dedf8d2f52f0e374d01cab6eac",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-community",
+      "name": "f5-irules-json",
+      "url": "https://github.com/JuergenMang/f5-irules-json",
+      "revision": "a8d9e0ffa7f4227f8696523f1551e304025b467a",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-community",
+      "name": "simple-sideband",
+      "url": "https://github.com/pwhitef5/simple-sideband",
+      "revision": "95b13e0e323919330cabe1dcbba7bb966173b9cd",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-community",
+      "name": "HTTP_Debug_iRule",
+      "url": "https://github.com/0xHiteshPatel/HTTP_Debug_iRule",
+      "revision": "f86aff4adab021fba7b158914b8c1ae0f7f8b142",
+      "matches_manifest": true
+    },
+    {
+      "group": "irules-community",
+      "name": "f5-irules",
+      "url": "https://github.com/erkac/f5-irules",
+      "revision": "96ce76edde28e1295b5b50888cacaee149d48d29",
+      "matches_manifest": true
+    }
+  ],
+  "missing_public_checkouts": [],
+  "private_sources_requested": false,
+  "count_note": "Fetcher reports 2649 selected source files (*.tcl, *.irule, *.tmsh); this is not a semantic naming-site denominator. Research additionally inspects .test and .irul files."
+}
