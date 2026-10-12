@@ -606,12 +606,37 @@ impl WasmEmitter {
             return;
         };
         self.call(aot.frame_push);
+        let imports = self.general_imports();
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_unbound_parameter_cleanup(proc, 0);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
         for (param_idx, name) in proc.params.iter().enumerate() {
             self.push_i32(i64::try_from(param_idx).unwrap_or(i64::MAX));
             self.push_text_pair(name);
             self.local_get(u64::try_from(param_idx).unwrap_or(u64::MAX));
-            self.call(aot.local_bind);
-            self.push(WasmOp::Drop);
+            // The binding ABI consumes this parameter even when it refuses.
+            // Later parameters still own their transferred references.
+            self.raw_call(aot.local_bind);
+            self.local_set(self.code_local);
+            self.raw_call(imports.host_refusal_pending);
+            self.local_get(self.code_local);
+            self.push(WasmOp::I32Or);
+            self.open_frame(WasmOp::If);
+            self.emit_unbound_parameter_cleanup(proc, param_idx + 1);
+            self.emit_general_refusal_return(imports);
+            self.close_frame();
+        }
+    }
+
+    fn emit_unbound_parameter_cleanup(&mut self, proc: &Procedure, first: usize) {
+        let Some(aot) = self.general_imports().aot else {
+            return;
+        };
+        for parameter in first..proc.params.len() {
+            self.local_get(u64::try_from(parameter).expect("formal index fits u64"));
+            self.raw_call(aot.argv.object_release);
         }
     }
 
@@ -3555,3 +3580,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "backend/original_bind_tests.rs"]
+mod original_bind_tests;
