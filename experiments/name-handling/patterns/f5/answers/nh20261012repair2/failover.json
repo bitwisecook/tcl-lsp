@@ -1,0 +1,4 @@
+{
+  "command": "tmsh show sys failover",
+  "exit_code": 0
+}

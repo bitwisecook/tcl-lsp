@@ -1,0 +1,10 @@
+{
+  "checked_git_base": "56cf7d243c2bcd9ff3bdbb515e185cfb9a74171a",
+  "proof_count": 2413,
+  "new_proof_count": 86,
+  "existing_records_changed": 0,
+  "gate_exit_code": 1,
+  "inherited_non_bigip_digest_errors": 315,
+  "new_bigip_diagnostics": 0,
+  "scope": "All315 diagnostics name existing unchanged proof records; source bindings were already stale at this fetched branch state. No global gate success is claimed."
+}

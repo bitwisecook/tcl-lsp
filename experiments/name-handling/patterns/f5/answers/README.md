@@ -9,15 +9,29 @@ Every accepted pointer carries the sealed records file SHA-256 and exact JSON
 pointer. `attempt_record` supplies measured boundary evidence with a null
 `answer_record` when final-operation authority is absent.
 
-Returned measurements and pending answers are indexed in the
-[current coverage snapshot](nh20261012coverage2/answers.md), with its
-[machine-readable receipts and input hashes](nh20261012coverage2/coverage.json).
-It covers every original question/context row and preserves their existing
-answer pointers. Original-source candidates require separate review; adapted
-inputs and whole-program errors do not fill the original matrix. This current snapshot preserves accepted original pointers and measured attempts separately, including the completed persistence and namespace-owner controls. [Historical snapshot 1](nh20261012coverage1/answers.md) remains unchanged.
+The [current investigation coverage](nh20261012finish1/ANSWERS.md) supplies a
+readable conclusion for all 307 previously outstanding rows. Its
+[JSON resolutions](nh20261012finish1/resolutions.json) retain exact receipt
+selectors and hashes. All investigations are complete: 108 matrix rows are
+observed, 25 have an unsupported native-call surface, and 267 original final
+operations remain unreached. The previous 93 accepted original pointers are
+preserved. Unreached portable rows keep `answer_record` null and retain their
+original attempts; separate resolution records explain the measured boundary.
+Adapted collision controls do not fill original-input rows.
+
+[Historical coverage snapshot 2](nh20261012coverage2/answers.md) and its
+[receipt inventory](nh20261012coverage2/coverage.json) remain unchanged, as does
+[historical snapshot 1](nh20261012coverage1/answers.md). Native composite answers
+retain actual events, units and phases; the separate native1/native2 RULE_INIT
+sequences are not joined into one activated provider identity.
 
 | Retained run | Scope and current limitations |
 | --- | --- |
+| [nh20261012finish1](nh20261012finish1/ANSWERS.md) | All 307 completed investigations; 93 prior accepted pointers preserved, original final-operation boundaries explicit. |
+| [nh20261012native1](nh20261012native1/README.md) / [native2](nh20261012native2/README.md) | Native routes, computed targets, arguments, provider phases and cells; actual context/event/unit retained and partial native1 captures preserved. |
+| [nh20261012nativecap1](nh20261012nativecap1/README.md) / [APL repair](nh20261012aplrepair1/README.md) | Own-version non-TMM native-call absence, real package and independent namespace/OO capability controls. |
+| [nh20261012repair2](nh20261012repair2/README.md) / [harness2](nh20261012harness2/README.md) | Native parent and fresh-child real-package boundaries; unchanged explicit TMM child module fails at pwd. |
+| [nh20261012collision1](nh20261012collision1/README.md) | Separately renamed controls; source bytes changed and original collision failures retained. |
 | [nh20261012cap2](nh20261012cap2/ANSWERS.md) | Individual dynamic capability controls; the combined traffic configuration exceeded the MCP string limit, so its traffic lookup did not run. |
 | [nh20261012stock2](nh20261012stock2/ANSWERS.md) | Appliance stock 8.4/8.5 portable programs and real-tcltest suite selections. Whole-program errors and unavailable child error options retain their narrower scope. |
 | [nh20261012pat1](nh20261012pat1/ANSWERS.md) | Adapted naming reductions in separate setup/final stages; earlier traffic load failure and uninvoked APL presentation callbacks remain explicit. |

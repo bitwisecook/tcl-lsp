@@ -1,0 +1,4 @@
+{
+  "remote_command": "tmsh show sys tmm-info",
+  "exit_code": 0
+}

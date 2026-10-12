@@ -1,0 +1,2469 @@
+{
+  "schema_version": 1,
+  "review_status": "approved: independent raw/source candidate review and independent 79-selector composite/decoded-result review; parent approved bounded conclusions",
+  "scope": "Fifteen TMM question/context investigations; exact native materialisations only. Measured error/capability/capture boundaries remain explicit. No original portable promotion.",
+  "source_runs": [
+    {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+      "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+    },
+    {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+      "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+    }
+  ],
+  "rows": [
+    {
+      "question_id": "corpus-f5-rule-path",
+      "context": "tmm-RULE_INIT",
+      "investigation_status": "complete",
+      "conclusion": "Native call selects the caller-local same-tail owner, Common root-relative/absolute provider, explicitly absolute folder provider and temporary-partition provider. Folder-leaf relative lookup and missing rule/procedure routes return separately captured errors. Current caller is in an owned Common folder; no temporary-partition caller or unspecified folder search is inferred. Scope: actual captured RULE_INIT units.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/8",
+          "case_id": "bare-local",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/2"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/35",
+          "case_id": "root-relative",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/3"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/62",
+          "case_id": "root-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/4"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/88",
+          "case_id": "other-owner",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/5"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/113",
+          "case_id": "folder-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/6"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/136",
+          "case_id": "folder-leaf-relative",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/7"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/159",
+          "case_id": "partition-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/8"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/178",
+          "case_id": "missing-rule",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/9"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/197",
+          "case_id": "missing-proc",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/10"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-computed-target",
+      "context": "tmm-RULE_INIT",
+      "investigation_status": "complete",
+      "conclusion": "Variable-built and list/join-built target strings retain the exact literal control target bytes and reach the same OLD provider with identical argv bytes. The literal-matched-arguments receipt is the direct control in this same context/invocation family. Scope: actual captured RULE_INIT units. Other target strings/releases are not inferred.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/216",
+          "case_id": "computed-variable-target",
+          "question_id": "corpus-f5-computed-target",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/11"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/231",
+          "case_id": "computed-list-target",
+          "question_id": "corpus-f5-computed-target",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:1",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/12"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/245",
+          "case_id": "literal-matched-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:1",
+          "invocation": "load-old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-1/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/13"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-prefix-arguments",
+      "context": "tmm-RULE_INIT",
+      "investigation_status": "complete",
+      "conclusion": "Direct literal and supported eval/linsert list-prefix calls pass two identical arguments: a b and {x} ::tail. Provider argv hex is 612062 and 7b787d203a3a7461696c. Deliberately space-joined source reaches a wrong-argument-count error. This measures the retained supported list-prefix form, not arbitrary {*} syntax or event argument injection. Scope: actual captured RULE_INIT units.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/247",
+          "case_id": "literal-matched-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:2",
+          "invocation": "old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-2/input.tcl",
+            "sha256": "9ca48427c1dd637b993489ad519977de92b08edb24f4cb27b65059f0f5f7cea6"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-2/applied.conf",
+            "sha256": "9ca48427c1dd637b993489ad519977de92b08edb24f4cb27b65059f0f5f7cea6"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/13"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/261",
+          "case_id": "list-prefix-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:2",
+          "invocation": "old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-2/input.tcl",
+            "sha256": "9ca48427c1dd637b993489ad519977de92b08edb24f4cb27b65059f0f5f7cea6"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-2/applied.conf",
+            "sha256": "9ca48427c1dd637b993489ad519977de92b08edb24f4cb27b65059f0f5f7cea6"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/275",
+          "case_id": "space-joined-near-miss",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:2",
+          "invocation": "old-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-2/input.tcl",
+            "sha256": "9ca48427c1dd637b993489ad519977de92b08edb24f4cb27b65059f0f5f7cea6"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-2/applied.conf",
+            "sha256": "9ca48427c1dd637b993489ad519977de92b08edb24f4cb27b65059f0f5f7cea6"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/15"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-RULE_INIT",
+      "investigation_status": "complete",
+      "conclusion": "Two independent owned provider identities: native2 fresh RULE_INIT observers return OLD, then NEW after accepted replacement, then NEW after a loader-rejected replacement on all four units. Native1 fresh observer receipts return NEW after detachment, NEW after provider configuration deletion, and RECREATED after recreation on their recorded units. The two run sequences are not joined into one activated provider identity; native1 NEW/rejected init captures remain missing. No suspended-frame or restart inference.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native2",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+            "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+          },
+          "json_pointer": "/12",
+          "case_id": "old-provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "old-provider-lifetime",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/input.tcl",
+            "sha256": "60a4e4a47880b58420601dc1e92838f06a9ffc6d159c925360a822ca5e606eaa"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-2/applied.conf",
+            "sha256": "6c368eb192c60f1e5fe9485bf4c3708dee8e099bfc7ba81a19ddfa78a0b7963e"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-cases.json",
+            "sha256": "9a8fd07057e172f2f926337eb0de7455d4242a9007bf4a2e1484bfcb6fed4a18",
+            "json_pointer": "/3"
+          },
+          "administrative_phase": null
+        },
+        {
+          "run_id": "nh20261012native2",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+            "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+          },
+          "json_pointer": "/24",
+          "case_id": "new-provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "new-provider-lifetime",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/input.tcl",
+            "sha256": "e17713f191eeefa589ad168501981d538afa0101c32c71ccdfee6ebe998a97bc"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-5/applied.conf",
+            "sha256": "4414780d4bc7383e3e3b9e3df2960d29a4e4a73e0de7e72d414f28ee01ef64b0"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-cases.json",
+            "sha256": "9a8fd07057e172f2f926337eb0de7455d4242a9007bf4a2e1484bfcb6fed4a18",
+            "json_pointer": "/6"
+          },
+          "administrative_phase": null
+        },
+        {
+          "run_id": "nh20261012native2",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+            "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+          },
+          "json_pointer": "/36",
+          "case_id": "rejected-provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "rejected-provider-lifetime",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/input.tcl",
+            "sha256": "7d6c647f1e70160c4ca2bf48b1099875b09a213b74033fa7ec8e548a2125f736"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-8/applied.conf",
+            "sha256": "1c9e727b32e59967e707c2d34ca117a1f6aa931874cfc45a5c5b14b67a7c9935"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-cases.json",
+            "sha256": "9a8fd07057e172f2f926337eb0de7455d4242a9007bf4a2e1484bfcb6fed4a18",
+            "json_pointer": "/9"
+          },
+          "administrative_phase": null
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/291",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:2",
+          "invocation": "detached-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-5/input.tcl",
+            "sha256": "33e046e58ab249805381162ae9cc3482fa5a11dc9cb6fcc7290607f5c8405b8b"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-5/applied.conf",
+            "sha256": "33e046e58ab249805381162ae9cc3482fa5a11dc9cb6fcc7290607f5c8405b8b"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "detached"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/292",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "deleted-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/input.tcl",
+            "sha256": "2b437326585753ca171a44ba433dcc418b425009e0793b8608624a703cae0119"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied.conf",
+            "sha256": "2b437326585753ca171a44ba433dcc418b425009e0793b8608624a703cae0119"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "deleted"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/295",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:1",
+          "invocation": "recreated-init",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-7/input.tcl",
+            "sha256": "6bbb40bb87f29606e284514cd633d4ad31f68a31762d5a9c07c34be9f97ad868"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-7/applied.conf",
+            "sha256": "6bbb40bb87f29606e284514cd633d4ad31f68a31762d5a9c07c34be9f97ad868"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json",
+            "sha256": "94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "recreated"
+        }
+      ],
+      "supporting_evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/old-provider.stdout",
+          "sha256": "133305c8801bda3181add042d7b48155d098f13162beb1f5bbe6a2ea6655c63d"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/new-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/rejected-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/detached-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/recreated-provider.stdout",
+          "sha256": "203dab658ded9db6325de2002e5c67c9c734d80640d735cf3d34ffa56d7bf455"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-traffic-event-0/rejected-apply.stdout",
+          "sha256": "82c159f5edd65332266a5e21084de504d5185515d81c1a164dae3e54c1308325"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-RULE_INIT",
+      "investigation_status": "complete",
+      "conclusion": "Native2 provider-side writes through upvar 1 change the caller-local cell while retaining a distinct provider-local sentinel. Explicit namespace, regular-global and static cells receive distinct provider values and caller readbacks match. OLD, NEW and failed-replacement singleton controls each complete on all four actual initial units; guards, seed and owned cleanup also complete on all four. This is fresh RULE_INIT scope, not per-connection traffic or another run identity.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native2",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+            "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+          },
+          "json_pointer": "/16",
+          "case_id": "old-provider-local-upvar-write",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "old-provider-local-upvar-write",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/input.tcl",
+            "sha256": "3d88c0471ce75e5f78d275215a450e84dfaea5573e26996eb512a5137fee115a"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-3/applied.conf",
+            "sha256": "eca6c84f440d5cb65c7f0442e454c090877ef2da2467c4ca5aa565fd944ebb10"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-cases.json",
+            "sha256": "9a8fd07057e172f2f926337eb0de7455d4242a9007bf4a2e1484bfcb6fed4a18",
+            "json_pointer": "/4"
+          },
+          "administrative_phase": null
+        },
+        {
+          "run_id": "nh20261012native2",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+            "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+          },
+          "json_pointer": "/20",
+          "case_id": "old-provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-RULE_INIT",
+          "event": "RULE_INIT",
+          "unit": "0:0",
+          "invocation": "old-provider-shared-write-readback",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/input.tcl",
+            "sha256": "1ecdbc8c924b35006270b4b292b8ae585e760bb9ef373cb8db237377836780c1"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-4/applied.conf",
+            "sha256": "3d086c984a061a7ee9746763926833ef70230a7dfe0398edbf3156b40837ce54"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-RULE_INIT-cases.json",
+            "sha256": "9a8fd07057e172f2f926337eb0de7455d4242a9007bf4a2e1484bfcb6fed4a18",
+            "json_pointer": "/5"
+          },
+          "administrative_phase": null
+        }
+      ],
+      "supporting_evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/source-review.json",
+          "sha256": "81fdec630966a24a1ec70d0db15ece6b1c8ccd27bd8ba8de28e1ca1c7a3768fd"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-rule-path",
+      "context": "tmm-procedure",
+      "investigation_status": "complete",
+      "conclusion": "Native call selects the caller-local same-tail owner, Common root-relative/absolute provider, explicitly absolute folder provider and temporary-partition provider. Folder-leaf relative lookup and missing rule/procedure routes return separately captured errors. Current caller is in an owned Common folder; no temporary-partition caller or unspecified folder search is inferred. Scope: HTTP_REQUEST on actual unit 0:0; native procedure invoked by the HTTP event.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/344",
+          "case_id": "bare-local",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/0"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/391",
+          "case_id": "root-relative",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/1"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/438",
+          "case_id": "root-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/2"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/485",
+          "case_id": "other-owner",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/3"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/532",
+          "case_id": "folder-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/4"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/579",
+          "case_id": "folder-leaf-relative",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/5"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/626",
+          "case_id": "partition-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/6"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/673",
+          "case_id": "missing-rule",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/7"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/720",
+          "case_id": "missing-proc",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/8"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-computed-target",
+      "context": "tmm-procedure",
+      "investigation_status": "complete",
+      "conclusion": "Variable-built and list/join-built target strings retain the exact literal control target bytes and reach the same OLD provider with identical argv bytes. The literal-matched-arguments receipt is the direct control in this same context/invocation family. Scope: HTTP_REQUEST on actual unit 0:0; native procedure invoked by the HTTP event. Other target strings/releases are not inferred.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/766",
+          "case_id": "computed-variable-target",
+          "question_id": "corpus-f5-computed-target",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/9"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/812",
+          "case_id": "computed-list-target",
+          "question_id": "corpus-f5-computed-target",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/10"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/859",
+          "case_id": "literal-matched-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/11"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-prefix-arguments",
+      "context": "tmm-procedure",
+      "investigation_status": "complete",
+      "conclusion": "Direct literal and supported eval/linsert list-prefix calls pass two identical arguments: a b and {x} ::tail. Provider argv hex is 612062 and 7b787d203a3a7461696c. Deliberately space-joined source reaches a wrong-argument-count error. This measures the retained supported list-prefix form, not arbitrary {*} syntax or event argument injection. Scope: HTTP_REQUEST on actual unit 0:0; native procedure invoked by the HTTP event.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/859",
+          "case_id": "literal-matched-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/11"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/905",
+          "case_id": "list-prefix-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/12"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/952",
+          "case_id": "space-joined-near-miss",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/13"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-procedure",
+      "investigation_status": "complete",
+      "conclusion": "The same continuing native1 traffic caller reaches OLD, accepted NEW, unchanged NEW after the failed replacement, NEW after detachment, NEW after provider configuration deletion, and RECREATED after recreation. These are fresh invocations/frames on actual unit 0:0. The native measure procedure is called from HTTP_REQUEST, not RULE_INIT. Failed replacement exit code and byte-identical live provider snapshots are retained; native1 compiler stderr is omitted, so no specific rejected-loader reason is asserted. No entered suspended frame or restart inference.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/999",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1008",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-3",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "new"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1011",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-6",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "rejected"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1014",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-9",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "detached"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1003",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-12",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "deleted"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1006",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-15",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "recreated"
+        }
+      ],
+      "supporting_evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/old-provider.stdout",
+          "sha256": "133305c8801bda3181add042d7b48155d098f13162beb1f5bbe6a2ea6655c63d"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/new-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/rejected-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/detached-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/recreated-provider.stdout",
+          "sha256": "203dab658ded9db6325de2002e5c67c9c734d80640d735cf3d34ffa56d7bf455"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-traffic-event-0/rejected-apply.stdout",
+          "sha256": "82c159f5edd65332266a5e21084de504d5185515d81c1a164dae3e54c1308325"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-procedure",
+      "investigation_status": "complete",
+      "conclusion": "Cross-rule provider writes change an upvar 1 caller-local cell and three explicitly qualified namespace/regular-global/static cells, with distinct sentinels and caller readback. Paired A/B connections on unit 0:0 share provider cells after A writes; the fresh connection retains those worker values. This native measure is invoked from HTTP_REQUEST; separate HTTP-body connection receipts identify the peers, without pretending a provider directly read a CLIENT_ACCEPTED connection cell. No other traffic worker or universal C Tcl namespace model is inferred.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1046",
+          "case_id": "provider-local-upvar-write",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/15"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1094",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1088",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-a-provider-write",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1090",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-b-provider-read",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1093",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-procedure",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-fresh-provider-read",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-procedure-cases.json",
+            "sha256": "c9ea5fdebd4b8561bbc24eb64abed0b9fee5a0674ac12e5e601e86c62db2328b",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        }
+      ],
+      "supporting_evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/paired-connections.json",
+          "sha256": "ed4d1712b7795887d3a63b1d82a0721aa41beedd47e95731f45990f9f012781a"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-rule-path",
+      "context": "tmm-traffic-event",
+      "investigation_status": "complete",
+      "conclusion": "Native call selects the caller-local same-tail owner, Common root-relative/absolute provider, explicitly absolute folder provider and temporary-partition provider. Folder-leaf relative lookup and missing rule/procedure routes return separately captured errors. Current caller is in an owned Common folder; no temporary-partition caller or unspecified folder search is inferred. Scope: HTTP_REQUEST on actual unit 0:0.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1143",
+          "case_id": "bare-local",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/0"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1183",
+          "case_id": "root-relative",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/1"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1223",
+          "case_id": "root-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/2"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1263",
+          "case_id": "other-owner",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/3"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1303",
+          "case_id": "folder-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/4"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1343",
+          "case_id": "folder-leaf-relative",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/5"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1383",
+          "case_id": "partition-absolute",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/6"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1423",
+          "case_id": "missing-rule",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/7"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1463",
+          "case_id": "missing-proc",
+          "question_id": "corpus-f5-rule-path",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/8"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-computed-target",
+      "context": "tmm-traffic-event",
+      "investigation_status": "complete",
+      "conclusion": "Variable-built and list/join-built target strings retain the exact literal control target bytes and reach the same OLD provider with identical argv bytes. The literal-matched-arguments receipt is the direct control in this same context/invocation family. Scope: HTTP_REQUEST on actual unit 0:0. Other target strings/releases are not inferred.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1503",
+          "case_id": "computed-variable-target",
+          "question_id": "corpus-f5-computed-target",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/9"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1543",
+          "case_id": "computed-list-target",
+          "question_id": "corpus-f5-computed-target",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/10"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1583",
+          "case_id": "literal-matched-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/11"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-prefix-arguments",
+      "context": "tmm-traffic-event",
+      "investigation_status": "complete",
+      "conclusion": "Direct literal and supported eval/linsert list-prefix calls pass two identical arguments: a b and {x} ::tail. Provider argv hex is 612062 and 7b787d203a3a7461696c. Deliberately space-joined source reaches a wrong-argument-count error. This measures the retained supported list-prefix form, not arbitrary {*} syntax or event argument injection. Scope: HTTP_REQUEST on actual unit 0:0.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1583",
+          "case_id": "literal-matched-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/11"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1623",
+          "case_id": "list-prefix-arguments",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/12"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1663",
+          "case_id": "space-joined-near-miss",
+          "question_id": "corpus-f5-prefix-arguments",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/13"
+          },
+          "administrative_phase": "old"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-rule-lifetime",
+      "context": "tmm-traffic-event",
+      "investigation_status": "complete",
+      "conclusion": "The same continuing native1 traffic caller reaches OLD, accepted NEW, unchanged NEW after the failed replacement, NEW after detachment, NEW after provider configuration deletion, and RECREATED after recreation. These are fresh invocations/frames on actual unit 0:0. Failed replacement exit code and byte-identical live provider snapshots are retained; native1 compiler stderr is omitted, so no specific rejected-loader reason is asserted. No entered suspended frame or restart inference.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1703",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1712",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-3",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "new"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1715",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-6",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "rejected"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1718",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-9",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "detached"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1707",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-12",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "deleted"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1710",
+          "case_id": "provider-lifetime",
+          "question_id": "corpus-f5-rule-lifetime",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-15",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/14"
+          },
+          "administrative_phase": "recreated"
+        }
+      ],
+      "supporting_evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/old-provider.stdout",
+          "sha256": "133305c8801bda3181add042d7b48155d098f13162beb1f5bbe6a2ea6655c63d"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/new-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/rejected-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/detached-provider.stdout",
+          "sha256": "df25def4dc8a009db1f528f6a534870df6e737555c68150fcfb1bf775a516904"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/recreated-provider.stdout",
+          "sha256": "203dab658ded9db6325de2002e5c67c9c734d80640d735cf3d34ffa56d7bf455"
+        },
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/tmm-traffic-event-0/rejected-apply.stdout",
+          "sha256": "82c159f5edd65332266a5e21084de504d5185515d81c1a164dae3e54c1308325"
+        }
+      ]
+    },
+    {
+      "question_id": "corpus-f5-storage-context",
+      "context": "tmm-traffic-event",
+      "investigation_status": "complete",
+      "conclusion": "Cross-rule provider writes change an upvar 1 caller-local cell and three explicitly qualified namespace/regular-global/static cells, with distinct sentinels and caller readback. Paired A/B connections on unit 0:0 share provider cells after A writes; the fresh connection retains those worker values. Connection-cell writes remain isolated between A and B; A retains its write and a fresh connection has its own seed. No other traffic worker or universal C Tcl namespace model is inferred.",
+      "measurements": [
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1743",
+          "case_id": "provider-local-upvar-write",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/15"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1783",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "phase-0",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1777",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-a-provider-write",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1779",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-b-provider-read",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1782",
+          "case_id": "provider-shared-write-readback",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-fresh-provider-read",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/16"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1816",
+          "case_id": "connection-identity-write-read",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-a-connection-write",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/17"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1818",
+          "case_id": "connection-identity-write-read",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-b-connection-read",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/17"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1815",
+          "case_id": "connection-identity-write-read",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-a-connection-read",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/17"
+          },
+          "administrative_phase": "old"
+        },
+        {
+          "run_id": "nh20261012native1",
+          "records": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+            "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+          },
+          "json_pointer": "/1822",
+          "case_id": "connection-identity-write-read",
+          "question_id": "corpus-f5-storage-context",
+          "context": "tmm-traffic-event",
+          "event": "HTTP_REQUEST",
+          "unit": "0:0",
+          "invocation": "pair-fresh-provider-read",
+          "source": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/input.tcl",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "configuration": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/applied.conf",
+            "sha256": "7132b4c8a3639dad061bcdd5b9b852d404d9c8af339c62a324c150049f14c1e3"
+          },
+          "case_metadata": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-cases.json",
+            "sha256": "564ffa120c7becb238db9739480ca9d7bfe41cb958bb15cf80c6e79a2d6e661c",
+            "json_pointer": "/17"
+          },
+          "administrative_phase": "old"
+        }
+      ],
+      "supporting_evidence": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/paired-connections.json",
+          "sha256": "ed4d1712b7795887d3a63b1d82a0721aa41beedd47e95731f45990f9f012781a"
+        }
+      ]
+    }
+  ],
+  "independent_review": {
+    "path": "experiments/name-handling/patterns/f5/answers/nh20261012finish1/native-independent-review.json",
+    "sha256": "38f21f364b98b3b244780f896a9c6d6ed8dbec6c1d765e5f486d8bdb29a26b75"
+  },
+  "review_limits": "Final status updates review metadata only. Actual records and selectors remain unchanged. Separate native1/native2 provider identities are not one continuous RULE_INIT sequence; incomplete captures, activated-catalogue retirement and suspended frames remain outside the claims.",
+  "transport_projection": {
+    "deployment_fixture": "Documentation address 192.0.2.10 replaces the executed deployment address outside Tcl program bodies.",
+    "runtime_envelope": "Retained NHO protocol rows only; device/syslog envelope and non-probe inventory omitted.",
+    "hardware_inventory": "Omitted; provider interpreter/build version retained separately.",
+    "executed_input_hashes": "Historical stdin/prepared/source-helper hashes describe execution-time inputs, not sanitised current deployment/helper bytes.",
+    "original_transport_bytes_retained": false
+  }
+}

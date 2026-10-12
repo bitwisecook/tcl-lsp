@@ -1,0 +1,15 @@
+[
+  {
+    "id": "real-harness-explicit-source-child",
+    "context": "tmm-RULE_INIT",
+    "variant_id": "host-child-unchanged-real-module-v1",
+    "original_input": {
+      "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness1/real-tcltest-2.2.8.tcl",
+      "sha256": "2ef6cc2a65738bf7cf8b9c247db7a3f1548a498adfc669f05e71c12cbad921a0"
+    },
+    "setup": "set nh_child [interp create]; set nh_module {}; append nh_module [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module0::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module1::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module2::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module3::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module4::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module5::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module6::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module7::bytes] [call /Common/__tcl_lsp_probe_nh20261012harness1_0_module8::bytes]",
+    "operation": "set nh_child_version [interp eval $nh_child {list [info patchlevel] [info tclversion] [namespace current]}]; set nh_module_code [catch {interp eval $nh_child $nh_module} nh_module_result]; set nh_package_code [catch {interp eval $nh_child {package require tcltest}} nh_package_result]; list child-provider $nh_child_version module-code $nh_module_code module-result $nh_module_result require-code $nh_package_code require-result $nh_package_result",
+    "cleanup": "interp delete $nh_child",
+    "scope": "Independent child-interpreter real-package capability. Does not substitute for native-parent package require or original suite."
+  }
+]

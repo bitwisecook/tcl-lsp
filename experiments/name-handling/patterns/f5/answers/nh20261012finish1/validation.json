@@ -1,0 +1,33 @@
+{
+  "source_matrix": {
+    "path": "experiments/name-handling/patterns/f5/answers/nh20261012finish1/original-questions.json",
+    "sha256": "359cdb8018e5413e2efa67f374e5919d11e1d6835e3ac3d8cb3beb76d9228148"
+  },
+  "total_rows": 400,
+  "previously_accepted_rows_preserved": 93,
+  "previously_nonaccepted_rows": 307,
+  "result_status_counts": {
+    "observed": 108,
+    "unreached": 267,
+    "unsupported": 25
+  },
+  "investigation_status_counts": {
+    "complete": 307
+  },
+  "terminal_categories": {
+    "original-ownership-guard-collision": 12,
+    "earlier-original-program-failure": 37,
+    "real-harness-initialisation-debug": 120,
+    "real-harness-package-missing": 90,
+    "real-harness-constraint-skip": 8,
+    "native-call-absent": 25,
+    "native-composite-observation": 15
+  },
+  "final_ready": true,
+  "canonical_matrix_modified": false,
+  "canonical_proof_manifest_modified": false,
+  "evidence_references_verified": 938,
+  "native_composite_selectors": 79,
+  "portable_null_final_answers": 267,
+  "repository_gate_status": "Coverage checks passed; full repository gates are not asserted by this derivation."
+}

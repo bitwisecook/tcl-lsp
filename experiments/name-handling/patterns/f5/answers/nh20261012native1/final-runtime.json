@@ -1,0 +1,4 @@
+{
+  "remote_command": "grep -F 'NHO|nh20261012native1|' /var/log/ltm",
+  "exit_code": 0
+}

@@ -1,0 +1,102 @@
+{
+  "review_status": "passed",
+  "scope": "Independent semantic projection audit after privacy refresh; original transport values not retained in this review",
+  "baseline_commit": "c7d876907",
+  "runs": [
+    {
+      "run_id": "nh20261012repair2",
+      "records": 162,
+      "semantic_projections_equal": 162,
+      "unchanged_Tcl_case_sources_checked": 162,
+      "connection_records_checked": 0,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012repair2/records.json",
+        "sha256": "c5240dce764746d9df0704d7b638c7de753bc44430608db159c31c253ee17caf"
+      }
+    },
+    {
+      "run_id": "nh20261012harness1",
+      "records": 22,
+      "semantic_projections_equal": 22,
+      "unchanged_Tcl_case_sources_checked": 22,
+      "connection_records_checked": 0,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness1/records.json",
+        "sha256": "fed2ca110bc2b2553a153066c632c8a62676448bb88eebbc39177f72c6676609"
+      }
+    },
+    {
+      "run_id": "nh20261012harness2",
+      "records": 24,
+      "semantic_projections_equal": 24,
+      "unchanged_Tcl_case_sources_checked": 24,
+      "connection_records_checked": 0,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012harness2/records.json",
+        "sha256": "863422f9fb765b89400e77f7bb6f0f1ef0841af2956cf99a3247f9c844276ebc"
+      }
+    },
+    {
+      "run_id": "nh20261012collision1",
+      "records": 72,
+      "semantic_projections_equal": 72,
+      "unchanged_Tcl_case_sources_checked": 72,
+      "connection_records_checked": 0,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012collision1/records.json",
+        "sha256": "cd453e5500acedd5a6a8087644cb52e90fd2dffdbc45980846ac594e3824ad93"
+      }
+    },
+    {
+      "run_id": "nh20261012nativecap1",
+      "records": 30,
+      "semantic_projections_equal": 30,
+      "unchanged_Tcl_case_sources_checked": 30,
+      "connection_records_checked": 0,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012nativecap1/records.json",
+        "sha256": "55ef26840e42777b4be7a9aa1cafa813a95ccf0d914695e3b67d0027cda5e35b"
+      }
+    },
+    {
+      "run_id": "nh20261012aplrepair1",
+      "records": 6,
+      "semantic_projections_equal": 6,
+      "unchanged_Tcl_case_sources_checked": 6,
+      "connection_records_checked": 0,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplrepair1/records.json",
+        "sha256": "f1b05369f73ad7765043722f4ba33cf245e1d040988ce0ac1d728c879afc3d72"
+      }
+    },
+    {
+      "run_id": "nh20261012native1",
+      "records": 1839,
+      "semantic_projections_equal": 1839,
+      "unchanged_Tcl_case_sources_checked": 1839,
+      "connection_records_checked": 40,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json",
+        "sha256": "550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f"
+      }
+    },
+    {
+      "run_id": "nh20261012native2",
+      "records": 48,
+      "semantic_projections_equal": 48,
+      "unchanged_Tcl_case_sources_checked": 48,
+      "connection_records_checked": 0,
+      "retained_records": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native2/records.json",
+        "sha256": "69142e52a6a3bbb68d704a945a6e68ef3a0a74756284088ea147a278b3903299"
+      }
+    }
+  ],
+  "old_accepted_question_context_pointer_identities_preserved": 93,
+  "historical_execution_hash_fields_not_renewed_by_this_review": true,
+  "failures": [],
+  "limits": [
+    "Connection value comparison permits only explicitly identified peer address projection; original exact peer bytes are not retained.",
+    "No appliance execution or new semantic admission occurs during privacy review."
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "remote_command": "tmsh list ltm virtual /Common/__tcl_lsp_probe_nh20261012native1_folder/__tcl_lsp_probe_nh20261012native1_caller_vs",
+  "exit_code": 0
+}

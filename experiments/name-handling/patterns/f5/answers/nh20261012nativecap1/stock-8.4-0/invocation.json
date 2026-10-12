@@ -1,0 +1,6 @@
+{
+  "exit_code": 0,
+  "stdin_sha256": "8827e06446ddf3c8ca49695586325ec158de37740c152c3d4ec3109a40dccbd7",
+  "command": "/usr/bin/tclsh8.4",
+  "authentication_metadata": "omitted"
+}

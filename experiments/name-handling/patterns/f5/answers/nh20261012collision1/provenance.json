@@ -1,0 +1,8 @@
+{
+  "run_id": "nh20261012collision1",
+  "configuration_saved": false,
+  "timestamp_utc": "2026-10-12T19:10:26.078127+00:00",
+  "transport": "authentication metadata omitted",
+  "scope": "Original guard failures retained independently. This run changes only enumerated procedure/variable spellings, never removes unowned variables or the native forward command.",
+  "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
+}

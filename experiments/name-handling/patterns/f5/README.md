@@ -13,21 +13,25 @@ boundaries while `answer_record` remains null when the original final lookup
 is unreached or its reachability is unproved. Related adapted controls have
 independent variant scope.
 
-Returned adapted controls, original-source review candidates and remaining
-questions are indexed in [the answer directory](answers/README.md) and its
-[coverage snapshot](answers/nh20261012coverage2/answers.md). The snapshot links
-individual units/invocations and preserves load, setup and lookup boundaries;
-it does not silently promote a related variant into an original matrix row.
-The current matrix has 400 rows: 93 observed, 244 unreached and 63 unavailable.
-The snapshot retains original answer pointers separately from later bounded
-controls. Its [JSON inventory](answers/nh20261012coverage2/coverage.json)
-preserves each record path and JSON pointer; the
-[portable report index](../../f5/answers/README.md#portable-report-index)
-links all 23 input reports and their raw records and seals. Follow a matrix
-`answer_record` for an accepted original answer or an `attempt_record` for a
-measured boundary, then inspect that record's input, provider, reached stage
-and raw evidence. [Historical snapshot 1](answers/nh20261012coverage1/answers.md)
-remains unchanged and predates those updates.
+Returned controls and per-row conclusions are indexed in [the answer directory](answers/README.md) and the
+[current investigation coverage](answers/nh20261012finish1/ANSWERS.md).
+All 307 previously outstanding investigations are complete; none remains pending.
+The 400-row matrix has 108 observed answers, 25 unsupported native-call surfaces
+and 267 unreached original final operations. The 93 previous accepted original
+pointers are preserved. Completed investigation does not mean an unreached final
+lookup ran: portable boundary rows retain `answer_record: null` and their original
+`attempt_record`, with separate `resolution_record` conclusions. Adapted spelling
+controls remain independent variants.
+
+The [current JSON resolutions](answers/nh20261012finish1/resolutions.json)
+retain exact source/record selectors, while the
+[historical coverage snapshot 2](answers/nh20261012coverage2/answers.md) and its
+[JSON inventory](answers/nh20261012coverage2/coverage.json) remain unchanged.
+The [portable report index](../../f5/answers/README.md#portable-report-index)
+links retained input reports and raw records. Follow a matrix `answer_record`
+for a measured answer, `attempt_record` for the original measured boundary,
+and `resolution_record` for its completed investigation scope.
+[Historical snapshot 1](answers/nh20261012coverage1/answers.md) predates these updates.
 
 At commit `755f78207b993cdfa4b0fd230abcafb1f3f606bc`, all 30 retained
 `MANIFEST.sha256` seals across the two F5 answer trees verified: 26,097 listed

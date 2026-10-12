@@ -1,0 +1,16 @@
+{
+  "run_id": "nh20261012native2",
+  "remote_staging": "/var/tmp/tcl_lsp_nh20261012native2",
+  "timestamp_utc": "2026-10-12T19:29:42.168215+00:00",
+  "configuration_saved": false,
+  "execution_requested": true,
+  "source_helper": "experiments/name-handling/patterns/f5/answers/nh20261012native1/runner.py",
+  "source_helper_sha256": "a01601dda40eb5dc5884fe8993cb39b895abb4f8dbc4f76394033620c73827ee",
+  "capture_helper_sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
+  "limits": {
+    "scope": "RULE_INIT singleton gap controls only",
+    "suspended_frames": "unmeasured",
+    "native_catalog_retirement": "not inferred",
+    "configuration_saved": false
+  }
+}

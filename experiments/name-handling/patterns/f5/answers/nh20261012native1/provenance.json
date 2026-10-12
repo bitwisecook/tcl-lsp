@@ -1,0 +1,18 @@
+{
+  "run_id": "nh20261012native1",
+  "timestamp_utc": "2026-10-12T19:17:11.523949+00:00",
+  "remote_staging": "/var/tmp/tcl_lsp_nh20261012native1",
+  "configuration_saved": false,
+  "execution_requested": true,
+  "capture_helper": "scripts/dev/bigip-probes/name-patterns/capture.py",
+  "capture_helper_sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
+  "prepared_config_sha256": "0527ca5d720f1bdf96cc08b8efb10a4ffaa6da92c283bfa35ad2f74a8c0ca284",
+  "limits": {
+    "suspended_frames": "unmeasured",
+    "native_catalog_retirement": "not inferred from configuration deletion",
+    "traffic_workers": "actual response units only",
+    "RULE_INIT_lifetime": "fresh observer loads after each phase",
+    "connection_cleanup": "owned connections closed",
+    "configuration_saved": false
+  }
+}

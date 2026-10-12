@@ -1,0 +1,4 @@
+{
+  "remote_command": "bash -c 'tmsh load sys config merge file /var/tmp/tcl_lsp_nh20261012native2/rejected.conf 2>&1'",
+  "exit_code": 1
+}

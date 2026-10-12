@@ -1,0 +1,3 @@
+ltm rule __tcl_lsp_probe_nh20261012native1_folder/__tcl_lsp_probe_nh20261012native1_folded {
+proc __nh_nh20261012native1_target {fixed value} {set rows {}; foreach value [list $fixed $value] {binary scan $value H* h; lappend rows $h}; list owner FOLDER argc 2 argv [list $fixed $value] argv-hex $rows}
+}
