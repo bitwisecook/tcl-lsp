@@ -4251,3 +4251,15 @@ Module, CFG and materialized-value consumers retain their original input,
 configuration, image and command world before querying the same purpose owner.
 Missing or foreign ownership remains unknown; existing Native and authored
 operation guards stay independent of Logical source analysis.
+
+
+Reference-body import candidates retain exact closed original Registry advisory
+labels under the same Module, whole source input and original argument tokens.
+Caller labels are collected before any reference appendix changes the source
+image. Written tails and descriptor punctuation cannot select a backing row.
+The actual lowered one-procedure backing supplies its constructed declaration
+key; Registry's descriptor lookup must select the same backing row for that
+produced key. Existing own-definition precedence, live pack/reference facts,
+body shape/text, appendix mapping, replayable sites and runtime ReferenceBody
+claims remain independent. Candidate or descriptor metadata supplies neither
+Native command/namespace identity nor splice or admission authority.
