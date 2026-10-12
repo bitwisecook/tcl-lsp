@@ -10,10 +10,11 @@
     "-o",
     "IdentityAgent=none",
     "-i",
-    "/Users/jimd/.ssh/github_rsa",
-    "bigip-211",
+    "/redacted/ssh-identity",
+    "redacted-lab-target",
     "/usr/bin/tclsh8.5"
   ],
   "exit_code": 0,
-  "stdin_sha256": "4195e17f745c5e433c08716842357ec36064fbb927619e542fb4df241be6f93e"
+  "stdin_sha256": "4195e17f745c5e433c08716842357ec36064fbb927619e542fb4df241be6f93e",
+  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
 }

@@ -6,7 +6,7 @@
     "-o",
     "ControlPersist=600",
     "-o",
-    "ControlPath=/tmp/tcl_lsp_oracle_01a13073_%C",
+    "ControlPath=/tmp/redacted-probe-control",
     "-o",
     "BatchMode=yes",
     "-o",
@@ -16,10 +16,11 @@
     "-o",
     "IdentityAgent=none",
     "-i",
-    "/Users/jimd/.ssh/github_rsa",
-    "bigip-211",
+    "/redacted/ssh-identity",
+    "redacted-lab-target",
     "bash -s"
   ],
   "exit_code": 0,
-  "stdin_sha256": "cbf57ab710f2579393a3bc1e4abebca646deb3b6c01852acd9141a137e6af6ab"
+  "stdin_sha256": "cbf57ab710f2579393a3bc1e4abebca646deb3b6c01852acd9141a137e6af6ab",
+  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
 }

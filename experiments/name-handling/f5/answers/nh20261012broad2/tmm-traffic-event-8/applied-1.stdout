@@ -1,5 +1,5 @@
 ltm virtual __tcl_lsp_probe_nh20261012broad2_7_8_vs {
-    destination 192.168.9.24:19912
+    destination 192.0.2.10:19912
     ip-protocol tcp
     mask 255.255.255.255
     profiles {

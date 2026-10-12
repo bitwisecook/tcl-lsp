@@ -8,8 +8,9 @@
     "/Users/jimd/src/tcl-lsp/experiments/name-handling/patterns/f5/answers/nh20261012exact2/tmm-traffic-event-40/traffic-10.headers",
     "-H",
     "X-NH-Invocation: 10",
-    "http://192.168.9.24:19912/"
+    "http://192.0.2.10:19912/"
   ],
   "exit_code": 0,
-  "run_marker_matches": true
+  "run_marker_matches": true,
+  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
 }

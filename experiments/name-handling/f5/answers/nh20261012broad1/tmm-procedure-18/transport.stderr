@@ -1,5 +1,5 @@
 ** WARNING: connection is not using a post-quantum key exchange algorithm.
 ** This session may be vulnerable to "store now, decrypt later" attacks.
 ** The server may need to be upgraded. See https://openssh.com/pq.html
-Load key "/Users/jimd/.ssh/github_rsa.pub": invalid format
-root@192.168.9.24: Permission denied (publickey,keyboard-interactive,hostbased).
+Load key "/redacted/ssh-identity.pub": invalid format
+root@192.0.2.10: Permission denied (publickey,keyboard-interactive,hostbased).

@@ -64,9 +64,10 @@ controls remain separate. Admit only exact release/input/channel/reached-event
 observations; unreached/unavailable rows remain unanswered. Suspended frames,
 restart persistence, other traffic/units and earlier-state cleanup remain open.
 
-Deleted lab transport identities, screenshots and unrelated device inventories are being
-removed from current evidence. All970 original Tcl files remain byte-identical;
-coverage and canonical observation statuses remain unchanged. Sanitised transport
+Deleted lab transport identities, screenshots and unrelated device inventories were removed from the returned evidence and its capture tools. All970 original Tcl files remain byte-identical;
+coverage and canonical observation statuses remain unchanged. Thirty seals now
+verify26,091 retained entries after six screenshots were removed. A broader
+repository audit found older lab references; that separate cleanup remains open. Sanitised transport
 artifacts have new content hashes; historical executed-input hashes remain retained.
 See [cleanup verification](../../../experiments/name-handling/results/f5-evidence-sanitisation/README.md).
 

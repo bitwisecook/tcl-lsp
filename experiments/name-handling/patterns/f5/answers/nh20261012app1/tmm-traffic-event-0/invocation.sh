@@ -1,3 +1,4 @@
+# Sanitised retained source: transport/device literals changed; these are not original captured bytes.
 set -u
 mkdir -p /var/tmp/tcl_lsp_nh20261012app1/evidence/__tcl_lsp_probe_nh20261012app1_2
 E=/var/tmp/tcl_lsp_nh20261012app1/evidence/__tcl_lsp_probe_nh20261012app1_2
@@ -20,7 +21,7 @@ if ! grep -q "was not found" "$E/before-2.stderr" "$E/before-2.stdout"; then ech
 run before-3 tmsh list ltm virtual /Common/__tcl_lsp_probe_nh20261012app1_2_vs
 if ! grep -q "was not found" "$E/before-3.stderr" "$E/before-3.stdout"; then echo "Collision or unverified absence" >&2; exit 3; fi
 run destination-inventory tmsh list ltm virtual one-line
-if grep -q "destination 192.168.9.24:19912 " "$E/destination-inventory.stdout"; then echo "Destination collision" >&2; exit 3; fi
+if grep -q "destination 192.0.2.10:19912 " "$E/destination-inventory.stdout"; then echo "Destination collision" >&2; exit 3; fi
 run input-hash sha256sum /var/tmp/tcl_lsp_nh20261012app1/__tcl_lsp_probe_nh20261012app1_2.conf
 if ! grep -q "^9c9f48a1e0a5e85e622657f0799743f6c48e6df90a11ffc0ab6bf962e5cce1bf " "$E/input-hash.stdout"; then exit 4; fi
 owned+=('ltm rule /Common/__tcl_lsp_probe_nh20261012app1_2_provider')

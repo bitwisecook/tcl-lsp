@@ -1,5 +1,5 @@
 {
-  "receipts_sha256": "8092ee371f5bb1639fcdeba3a0871501c01b0ce0b624e687f2472d9e29229cc8",
+  "receipts_sha256": "dd3f52f5b5ad74eeacf28c9e68111807c622b3b0ac53d669f87289e9d281411d",
   "checked_receipts": 17,
   "verified_original_sealed_files": 12001,
   "anchors": [
@@ -7,11 +7,11 @@
       "run_id": "nh20261012aplcap1",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplcap1/provenance.json",
-        "sha256": "2b0360d86bca5a4a9b86fd79fb5ae6484106e495e43838a6ff907275e5746d4f"
+        "sha256": "2813aef95164da81baf7b720ebed435921dfa84a6883020d26856abe621aec51"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplcap1/MANIFEST.sha256",
-        "sha256": "26420803dc0032ca24b47c9952b113e258bc927b2339eb8b278a8dad94d76369"
+        "sha256": "b83f1efa6191946d7b900adf48ce3d5377f0a00ce9b7111add35dfdb6c3bd15f"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplcap1.stdout",
@@ -29,11 +29,11 @@
       "run_id": "nh20261012aplpat1",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed"
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/MANIFEST.sha256",
-        "sha256": "185e696c8264e6c1dbf475f5d891ce01db6e67ab7510b479d92208e9701f3640"
+        "sha256": "f24b22dcf29e46234930573c9024994906948e6901252543fc9237ed4dffb436"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplpat1.stdout",
@@ -51,11 +51,11 @@
       "run_id": "nh20261012aplwiki1",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/provenance.json",
-        "sha256": "f210fd9f1534f74c6b533d97e22a0d918236ab402705a76b9cfa83ddeeaa1e55"
+        "sha256": "2691015f54a423712e1155e5bf1d396867ab70b9862a6daed60c0d592a682ae5"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/MANIFEST.sha256",
-        "sha256": "ea01550e033c36bb10d658b654b40ec4159b6401a5435632bd91ab7969ba07d3"
+        "sha256": "a22699a14904e48d7f3574cf2f577363bcdc31338291a89bafdab38485e26e6f"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplwiki1.stdout",
@@ -73,11 +73,11 @@
       "run_id": "nh20261012app1",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012app1/provenance.json",
-        "sha256": "238b3388910f46def2c3d2ef6c6cd4395f1bd60252a1f767e6b3f8859a0b5f60"
+        "sha256": "bc6c9412044c8f55c027cbe763db0e02fd6800e36aafabfa184ecdc533e51fe6"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012app1/MANIFEST.sha256",
-        "sha256": "678d7c4cb66711b8908603299442b3be228b647a32bb37b201cd9fa988d291d9"
+        "sha256": "7e87e24a81e51f6c955f87b16491bc18a1b91cfc3536292dae602990cfa69127"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app1.stdout",
@@ -95,11 +95,11 @@
       "run_id": "nh20261012app2",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012app2/provenance.json",
-        "sha256": "364e321e4a03d6c7c21817efa17f9394b02a9e877237b75ec441da993ead3e39"
+        "sha256": "462a951982e9034f0a9d4b1c5fdfd409e7d059a00767b87f1c9fc2b65d78e7f1"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012app2/MANIFEST.sha256",
-        "sha256": "bd344640e1aa2fb86cdf0148ff8e754f240f3a071b8db763bf2e610701668599"
+        "sha256": "dc98cd3a4e60d7194fca2ddb122985ef27a0b95f9ba57deb6f1bd2861a0261a4"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app2.stdout",
@@ -117,11 +117,11 @@
       "run_id": "nh20261012app3",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012app3/provenance.json",
-        "sha256": "e2f718494a3315196f478347a98bf71a6d45ffee55ff8614e5a946c4c1793e05"
+        "sha256": "0ab51060ea51122ae9104223f9e898907e1d3c8d710b3435f5e8de07cd6ef9ef"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012app3/MANIFEST.sha256",
-        "sha256": "6ca2911d2b5a4daa6e365b0130d248aba177adb381bc1e99b81e67dcaa8d95dc"
+        "sha256": "e90aecd813bf439e866ddd0f11df7495005a135704affa378248084088e306b4"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app3.stdout",
@@ -139,11 +139,11 @@
       "run_id": "nh20261012cap1",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap1/provenance.json",
-        "sha256": "2a1b3f239ac1f60bda5ab31c1b9c10f2036cfa8c97c861115ab13ec9710b590e"
+        "sha256": "4703a8dc28052f4f6a101cb5956c8d9cd9e9af173cf0d228dbe9fac80c1e4615"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap1/MANIFEST.sha256",
-        "sha256": "1de18bb7c5d5212651b85fe931c55b643889a6e9a4f6a01e7af84af7a8d049e9"
+        "sha256": "728992dd758bf03295a62fbd77f5b3b4ff08225c997d6f74791ee9d77f1d2a52"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap1.stdout",
@@ -161,11 +161,11 @@
       "run_id": "nh20261012cap2",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap2/provenance.json",
-        "sha256": "e7c88b8114a9fe2c04610005c06490a6ca7fce5f8eee978773c45afcb2159829"
+        "sha256": "c731b0eae5ba0fefec6446d0dff46f782f24a55c39800d8c4e8e94819b344cdd"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap2/MANIFEST.sha256",
-        "sha256": "864548c71c5dc181ae4decb9b13c8b55123776aa3ff6d18f0997e017e28d75fd"
+        "sha256": "e2b8902b7d3e77bc01723dc28d7ed67d0d02c5f2022d28d6a89c8ff830954c3f"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap2.stdout",
@@ -183,11 +183,11 @@
       "run_id": "nh20261012cap3",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c"
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/MANIFEST.sha256",
-        "sha256": "4ce222e32a0508ab8aa8c9f3ec5ada1806a874b89bfc1a1d0b8503971f3ce66a"
+        "sha256": "bd64ef7e83fdc6e6a2f98b0c6960e38659f96556e4ec583f0c63326db26c7b73"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap3.stdout",
@@ -205,11 +205,11 @@
       "run_id": "nh20261012pat1",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat1/provenance.json",
-        "sha256": "7f26fef112d86ff652b97f9c00598f865f76b973205dba694b0a0956e4b6f8e3"
+        "sha256": "1e5689729e757c5963efb03545895ebc2aa106fb99d81d891a72477264ab4c86"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat1/MANIFEST.sha256",
-        "sha256": "bd6cc27310cfe7558f332f58e5449d55e76956023ed4b41d0226f72b1616ec56"
+        "sha256": "3db3f1e564ee4c57af33e7aaab514bb01bb22fa84fa311a575e8a81105c68c17"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012pat1.stdout",
@@ -227,11 +227,11 @@
       "run_id": "nh20261012pat3",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat3/provenance.json",
-        "sha256": "bc1d76100f37e3728910e69c57d23c0ebdb13d196298c8318383007e1cbaa259"
+        "sha256": "66865c4fef8a830d84f21e3927bba71e8bb2445d89fefc8e451efafe19932a02"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat3/MANIFEST.sha256",
-        "sha256": "9e0e3705ab908d78da4eda2ec955c776ddf4aa0df8a0c0c49c62576dba1d3183"
+        "sha256": "f3914c8995c74ddea5194657aa40df688aae7a9251bcd12babb8e26eb39fc892"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012pat3.stdout",
@@ -249,11 +249,11 @@
       "run_id": "nh20261012stock2",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/provenance.json",
-        "sha256": "0f3d02031f60f889ed66a69df59e85047b36619ee77ec2a170719ed911728c64"
+        "sha256": "14167993a46843c5c1970eaaeb773584f2c2a4563884bc51cbe17410cee549af"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/MANIFEST.sha256",
-        "sha256": "c4c7888190efc8ca6f7339be59605825ee475d41a6ae8fa13b46f49da7cb48da"
+        "sha256": "e19741a4957fc19009373173841c91d8172225243e09408a257fba71ab886c59"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012stock2.stdout",
@@ -271,11 +271,11 @@
       "run_id": "nh20261012stock3",
       "original_provenance": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock3/provenance.json",
-        "sha256": "299d19c6c7d8caf5cd616dc27bcd3e9bf1e3abe50d7e799d352c477b631d05cb"
+        "sha256": "8d5f46f1742b1307d576ae59214a738fc04944797c6e1d679bcf0594d82e3d91"
       },
       "original_seal": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock3/MANIFEST.sha256",
-        "sha256": "33f4ce645e968e9e40fb3e92e15448953326a5e9b27b6ef7e0f3b312e085441d"
+        "sha256": "71e61f124317dc675f20b0eeccc9a16820d7a9cb3eefaa3c511c374fdc1d7398"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012stock3.stdout",
@@ -293,11 +293,11 @@
       "run_id": "nh20261012aplbroad1",
       "original_provenance": {
         "path": "experiments/name-handling/f5/answers/nh20261012aplbroad1/provenance.json",
-        "sha256": "196f74e3398296a2d4b22a9407a9cfe21015014cd417463f11af46a39a4a4742"
+        "sha256": "2e8b48ef5fea67e6e96acb270d1f833bd5156081627c7426e7c68db54b7a57d1"
       },
       "original_seal": {
         "path": "experiments/name-handling/f5/answers/nh20261012aplbroad1/MANIFEST.sha256",
-        "sha256": "c42abc99cf7db1923ae016f4017d5e0921fdd5dfdab59d5ecd9c6f2d9e0c4ce7"
+        "sha256": "80465574efc61689062363369bb0c3490a9b5a3186866328c9eca3fec2a7e00f"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplbroad1.stdout",
@@ -315,11 +315,11 @@
       "run_id": "nh20261012broad1",
       "original_provenance": {
         "path": "experiments/name-handling/f5/answers/nh20261012broad1/provenance.json",
-        "sha256": "8dcc591477356fe3062b826af8bf4d8b24c1713ac1133223682749af7d388592"
+        "sha256": "eb682f4a18f63cb4ff4b795495e4fbf650e23c6b6b96c2eb19b1ff493cbb8dd1"
       },
       "original_seal": {
         "path": "experiments/name-handling/f5/answers/nh20261012broad1/MANIFEST.sha256",
-        "sha256": "aa68aac28cccaba025838117f2a16d609770852a197771444ad7d9449a1c15f7"
+        "sha256": "6f1e35472d87eb7041a71430696e7b36f86b3ad6e7c992480d53f6bd2cbed390"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012broad1.stdout",
@@ -337,11 +337,11 @@
       "run_id": "nh20261012broad2",
       "original_provenance": {
         "path": "experiments/name-handling/f5/answers/nh20261012broad2/provenance.json",
-        "sha256": "b2d33cce84ce08ec6a19ed1008a5c3f20fcf7303e2ebecf7d2cf28a12ab9dc2f"
+        "sha256": "21ba97a3fbad73ffa08267a6eb9bfb26614b1de556b00e81e9ce48d75e9c1b2d"
       },
       "original_seal": {
         "path": "experiments/name-handling/f5/answers/nh20261012broad2/MANIFEST.sha256",
-        "sha256": "54ed28e3dbb3cf6d41d43d346f6d191a9fd3466ab5d35f5749806f31703fb036"
+        "sha256": "7776d5bdbd3a2ad3f69674da85cc4b4b497f5d7ffa348479176423ef1b8889a8"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012broad2.stdout",
@@ -359,11 +359,11 @@
       "run_id": "nh20261012literal1",
       "original_provenance": {
         "path": "experiments/name-handling/f5/answers/nh20261012literal1/provenance.json",
-        "sha256": "e94d8f7bc12e56b1dd77da0039a3303c2b2f5e0a1b0f53c5a33f1840b1f1376c"
+        "sha256": "53d3357a62089c9ca50504912f5d6af8a8f9c4fd01cd1c5b0f21b11052242e0f"
       },
       "original_seal": {
         "path": "experiments/name-handling/f5/answers/nh20261012literal1/MANIFEST.sha256",
-        "sha256": "dc9aa70799db1fc08499f4a88c88bb6dc4418f6c46574adb6330738186f4ee72"
+        "sha256": "217d3772d923690ec35a8a4a562a98f3a68056ce53f20ee7270ac6c9b3bd4631"
       },
       "stdout": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012literal1.stdout",
@@ -378,5 +378,6 @@
       "captured_absence_exit": 0
     }
   ],
-  "limits": "After-removal command exit0 proves exact staging path absent at that captured time. Inventory is maxdepth2 and no remote file digest was measured. Empty stock inventories do not prove a directory or file existed before cleanup. No runtime namespace, native catalogue or configuration cleanup claim is inferred."
+  "limits": "After-removal command exit0 proves exact staging path absent at that captured time. Inventory is maxdepth2 and no remote file digest was measured. Empty stock inventories do not prove a directory or file existed before cleanup. No runtime namespace, native catalogue or configuration cleanup claim is inferred.",
+  "sanitised_provenance": "Retained artifacts and transport/device fields have been sanitised; current artifact references hash retained bytes. Historical execution checks describe the original run, without an appliance rerun."
 }

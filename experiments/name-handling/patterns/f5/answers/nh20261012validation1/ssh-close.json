@@ -6,7 +6,7 @@
     "-o",
     "ControlPersist=600",
     "-o",
-    "ControlPath=/tmp/tcl_lsp_oracle_01a13073_%C",
+    "ControlPath=/tmp/redacted-probe-control",
     "-o",
     "BatchMode=yes",
     "-o",
@@ -16,12 +16,13 @@
     "-o",
     "IdentityAgent=none",
     "-i",
-    "/Users/jimd/.ssh/github_rsa",
+    "/redacted/ssh-identity",
     "-O",
     "exit",
-    "bigip-211"
+    "redacted-lab-target"
   ],
   "exit_code": 0,
   "stdout": "",
-  "stderr": "Exit request sent.\r\n"
+  "stderr": "Exit request sent.\r\n",
+  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
 }

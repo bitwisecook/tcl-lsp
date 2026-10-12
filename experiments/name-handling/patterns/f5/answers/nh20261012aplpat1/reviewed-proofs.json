@@ -103,7 +103,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -178,8 +177,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -192,7 +191,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -283,22 +282,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -318,7 +310,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/0"
       }
@@ -435,7 +427,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -510,8 +501,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -524,7 +515,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -615,22 +606,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -650,7 +634,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/2"
       }
@@ -767,7 +751,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -842,8 +825,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -856,7 +839,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -947,22 +930,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -982,7 +958,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/4"
       }
@@ -1099,7 +1075,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -1174,8 +1149,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -1188,7 +1163,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1279,22 +1254,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -1314,7 +1282,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/5"
       }
@@ -1431,7 +1399,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -1506,8 +1473,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -1520,7 +1487,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1611,22 +1578,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -1646,7 +1606,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/6"
       }
@@ -1763,7 +1723,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -1838,8 +1797,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -1852,7 +1811,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1943,22 +1902,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -1978,7 +1930,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/7"
       }
@@ -2095,7 +2047,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -2170,8 +2121,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -2184,7 +2135,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2275,22 +2226,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -2310,7 +2254,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/9"
       }
@@ -2427,7 +2371,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -2502,8 +2445,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -2516,7 +2459,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2607,22 +2550,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -2642,7 +2578,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/10"
       }
@@ -2759,7 +2695,6 @@
           "cleanup-8",
           "extra-0",
           "extra-1",
-          "extra-2",
           "extra-3",
           "extra-4",
           "measurement"
@@ -2834,8 +2769,8 @@
         "id": "raw-6",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-7",
@@ -2848,7 +2783,7 @@
         "id": "raw-8",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
-        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed",
+        "sha256": "3b859e36dffc14f7334b2d5a60311167ce31167feb54d89a805028d35d5b4211",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2939,22 +2874,15 @@
         "id": "extra-0",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-options.json",
-        "sha256": "4f0477f0f1e307bdd44ab2fd6a709c399199f718507552c434e47e4249e4bc14",
+        "sha256": "1a66b3f0a38404f48c01b8e76ac253a82074e90adb7f1c5018eb1e019aaaface",
         "description": "Independent retained provider or run provenance."
       },
       {
         "id": "extra-1",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser-dom.txt",
-        "sha256": "5550595d4da6b8ba9746a576147fa3ea0d06cd3860c7061dde72482b62c1f07d",
-        "description": "Independent retained provider or run provenance."
-      },
-      {
-        "id": "extra-2",
-        "role": "provider",
-        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/browser.png",
-        "sha256": "753eeab9bbf67ed04eb2350a244a311768ab474373504c5d026fcc11237fe9a4",
-        "description": "Independent retained provider or run provenance."
+        "sha256": "fbc508f76c22a63f6a20866a3be8a575440a9cb4c69e80b4c28aac44e5e5aa5e",
+        "description": "Independent retained provider or run provenance. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "extra-3",
@@ -2974,7 +2902,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/records.json",
-        "sha256": "7069cfae28b223d281ecc5a6b276f4f71b19dc1cba4ef9af42e07174f8f4e919",
+        "sha256": "40bad7636dfdd429fbe86ef6e3dc6b1ecf8adba13ed372088a08a972b03334c8",
         "description": "Reviewed measurement record.",
         "json_pointer": "/13"
       }

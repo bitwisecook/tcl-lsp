@@ -1,3 +1,4 @@
+# Sanitised retained source: transport/device literals changed; these are not original captured bytes.
 # tcl-lsp — a language server and toolchain for Tcl
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 #
@@ -196,7 +197,7 @@ list connection [set {connection}] peer [IP::client_addr] [TCP::client_port] lev
     )
     traffic += f'call {provider}::measure $nh_invocation\nHTTP::respond 200 content "{name} [TMM::cmp_group]:[TMM::cmp_unit]" X-NH-TMM "[TMM::cmp_group]:[TMM::cmp_unit]" X-NH-Invocation $nh_invocation Connection keep-alive\n'
     accepted = f"if {{[info exists {connection}]}} {{error {{Owned connection-cell collision}}}}\nset {connection} [list SEED {tag} [IP::client_addr] [TCP::client_port]]\n"
-    config = f"ltm rule {provider} {{\nproc {tail} {{value}} {{list NATIVE $value}}\n{record_proc}proc measure {{invocation}} {{\n{procedure}}}\n}}\nltm rule {caller} {{\nwhen RULE_INIT {{\n{init}}}\nwhen CLIENT_ACCEPTED {{\n{accepted}}}\nwhen HTTP_REQUEST {{\n{traffic}}}\n}}\nltm virtual {caller}_vs {{ destination 192.168.9.24:19912 mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {provider} {caller} }} }}\n"
+    config = f"ltm rule {provider} {{\nproc {tail} {{value}} {{list NATIVE $value}}\n{record_proc}proc measure {{invocation}} {{\n{procedure}}}\n}}\nltm rule {caller} {{\nwhen RULE_INIT {{\n{init}}}\nwhen CLIENT_ACCEPTED {{\n{accepted}}}\nwhen HTTP_REQUEST {{\n{traffic}}}\n}}\nltm virtual {caller}_vs {{ destination 192.0.2.10:19912 mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {provider} {caller} }} }}\n"
     source = record_proc + procedure + init + accepted + traffic
     return {
         "tag": tag,
@@ -254,7 +255,7 @@ def paired_requests(dest, _remote, _context, name, index):
         by_unit = {}
         pair = None
         for i in range(5):
-            conn = http.client.HTTPConnection("192.168.9.24", 19912, timeout=3)
+            conn = http.client.HTTPConnection("192.0.2.10", 19912, timeout=3)
             connections.append(conn)
             unit = request(conn, "keep-candidate-" + str(i))
             if unit in by_unit:

@@ -1,3 +1,4 @@
+# Sanitised retained source: transport/device literals changed; these are not original captured bytes.
 # tcl-lsp — a language server and toolchain for Tcl
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 #
@@ -31,7 +32,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ForwardAgent=no", "-o", "IdentityAgent=none", "-i", "/Users/jimd/.ssh/github_rsa", "bigip-211"]
+SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ForwardAgent=no", "-o", "IdentityAgent=none", "-i", "/redacted/ssh-identity", "redacted-lab-target"]
 
 
 def digest(data):
@@ -144,7 +145,7 @@ def make_config(context, name, source, port=19912):
     if context == 'tmm-procedure':
         config = f'ltm rule {base} {{\nproc measure {{}} {{\n{source}\n}}\nwhen RULE_INIT {{ call measure }}\n}}\n'
     elif context == 'tmm-traffic-event':
-        config = f'ltm rule {base} {{\nwhen HTTP_REQUEST {{\n{source}\nHTTP::respond 200 content "{name} [TMM::cmp_group]:[TMM::cmp_unit]" X-NH-Invocation $nh_invocation Connection close\n}}\n}}\nltm virtual {base}_vs {{ destination 192.168.9.24:{port} mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {base} }} }}\n'
+        config = f'ltm rule {base} {{\nwhen HTTP_REQUEST {{\n{source}\nHTTP::respond 200 content "{name} [TMM::cmp_group]:[TMM::cmp_unit]" X-NH-Invocation $nh_invocation Connection close\n}}\n}}\nltm virtual {base}_vs {{ destination 192.0.2.10:{port} mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {base} }} }}\n'
         return config, [('ltm rule', base), ('ltm virtual', base + '_vs')], None
     else:
         config = f'ltm rule {base} {{\nwhen RULE_INIT {{\n{source}\n}}\n}}\n'
@@ -187,7 +188,7 @@ trap cleanup EXIT
         script += f'run before-{index} tmsh list {kind} {shlex.quote(obj)}\n'
         script += f'if ! grep -q "was not found" "$E/before-{index}.stderr" "$E/before-{index}.stdout"; then echo "Collision or unverified absence" >&2; exit 3; fi\n'
     if context == 'tmm-traffic-event':
-        script += 'run destination-inventory tmsh list ltm virtual one-line\nif grep -q "destination 192.168.9.24:19912 " "$E/destination-inventory.stdout"; then echo "Destination collision" >&2; exit 3; fi\n'
+        script += 'run destination-inventory tmsh list ltm virtual one-line\nif grep -q "destination 192.0.2.10:19912 " "$E/destination-inventory.stdout"; then echo "Destination collision" >&2; exit 3; fi\n'
     script += f'run input-hash sha256sum {shlex.quote(remote_config)}\n'
     script += f'if ! grep -q "^{digest(config.encode())} " "$E/input-hash.stdout"; then exit 4; fi\n'
     # Ownership begins only after every absence check, before a possibly partial merge.
@@ -222,7 +223,7 @@ trap cleanup EXIT
                 time.sleep(1)
             if ready:
                 for index in range(16):
-                    command=['curl','-sS','--max-time','2','-D',str(dest/f'traffic-{index}.headers'),'-H',f'X-NH-Invocation: {index}','http://192.168.9.24:19912/']
+                    command=['curl','-sS','--max-time','2','-D',str(dest/f'traffic-{index}.headers'),'-H',f'X-NH-Invocation: {index}','http://192.0.2.10:19912/']
                     result=subprocess.run(command,capture_output=True,check=False)
                     (dest/f'traffic-{index}.stdout').write_bytes(result.stdout)
                     (dest/f'traffic-{index}.stderr').write_bytes(result.stderr)

@@ -55,12 +55,11 @@ def main():
     )
     for label, command in [
         ("version", "tmsh show sys version"),
-        ("platform", "tmsh show sys hardware"),
         ("tmm-roster", "tmsh show sys tmm-info"),
     ]:
         r = capture.rpc(command)
         (dest / (label + ".stdout")).write_bytes(r.stdout)
-        (dest / (label + ".stderr")).write_bytes(r.stderr)
+        (dest / (label + ".stderr")).write_bytes(capture.receipt_bytes(r.stderr))
     original = capture.make_config
     for ci, context in enumerate(
         ["tmm-RULE_INIT", "tmm-procedure", "tmm-traffic-event"]
@@ -216,11 +215,12 @@ def main():
                 )
             r = capture.rpc(command)
             (job / (phase + ".stdout")).write_bytes(r.stdout)
-            (job / (phase + ".stderr")).write_bytes(r.stderr)
+            (job / (phase + ".stderr")).write_bytes(capture.receipt_bytes(r.stderr))
             (job / (phase + ".json")).write_text(
                 json.dumps(
                     {
                         "argv": capture.SSH + [command],
+                        "receipt_redactions": capture.RECEIPT_REDACTIONS,
                         "exit_code": r.returncode,
                         "before_request": index,
                     },

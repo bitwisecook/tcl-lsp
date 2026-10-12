@@ -5,9 +5,10 @@
   "new_execution": false,
   "source_records": {
     "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
-    "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1"
+    "sha256": "b76e3e8d98db4ce8307c6a547045538c3e175f8599d5e8d6df7f9435a26053b1"
   },
   "source_review_validator": "scripts/dev/bigip-probes/name-patterns/report.py::apply_reachability_review",
   "validated_reviews": 4,
-  "proof_schema_errors": 0
+  "proof_schema_errors": 0,
+  "sanitised_provenance": "Retained artifacts and transport/device fields have been sanitised; current artifact references hash retained bytes. Historical execution checks describe the original run, without an appliance rerun."
 }

@@ -128,8 +128,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -142,8 +142,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/applied.conf",
-        "sha256": "160ce8b184c03a075673e70d3a76d3c6028c13f49ef6cad9014f2c4e02f5b34b",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "f2c73b3e4f37f0b2e232a86f5b698238000087a36fadd1016dc8fb8666874926",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -170,14 +170,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/invocation.sh",
-        "sha256": "0446399681ebfcfd3c04efa6289f6e3a95bbe77399527f4705fbcdbe378df083",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "5e543afb948528b1f6d97dfaeeaa0e562ddf3b720ead734bb3f084dfd3123fcd",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/driver.json",
-        "sha256": "47a064e579e1ac69101b7b2de17111d570b6c080a458811385c61b478beda03f",
+        "sha256": "295fc288e58eae4824b427123371b53e0939d83039c5ec924ba959d1dd7cbdbf",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -212,8 +212,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -233,7 +233,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -275,7 +275,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/applied-1.stdout",
-        "sha256": "d0d1110d42ad134343bb201570c9f7bffb28423b7a83d21f75dc63567385ec45",
+        "sha256": "1f162ee35c49d902b03618bb250463f9aee592043f113c4a551c535355341861",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -422,7 +422,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/0"
       }
@@ -564,8 +564,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -578,8 +578,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/applied.conf",
-        "sha256": "160ce8b184c03a075673e70d3a76d3c6028c13f49ef6cad9014f2c4e02f5b34b",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "f2c73b3e4f37f0b2e232a86f5b698238000087a36fadd1016dc8fb8666874926",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -606,14 +606,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/invocation.sh",
-        "sha256": "0446399681ebfcfd3c04efa6289f6e3a95bbe77399527f4705fbcdbe378df083",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "5e543afb948528b1f6d97dfaeeaa0e562ddf3b720ead734bb3f084dfd3123fcd",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/driver.json",
-        "sha256": "47a064e579e1ac69101b7b2de17111d570b6c080a458811385c61b478beda03f",
+        "sha256": "295fc288e58eae4824b427123371b53e0939d83039c5ec924ba959d1dd7cbdbf",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -648,8 +648,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -669,7 +669,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -711,7 +711,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/applied-1.stdout",
-        "sha256": "d0d1110d42ad134343bb201570c9f7bffb28423b7a83d21f75dc63567385ec45",
+        "sha256": "1f162ee35c49d902b03618bb250463f9aee592043f113c4a551c535355341861",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -858,7 +858,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/16"
       }
@@ -1000,8 +1000,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -1014,8 +1014,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/applied.conf",
-        "sha256": "160ce8b184c03a075673e70d3a76d3c6028c13f49ef6cad9014f2c4e02f5b34b",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "f2c73b3e4f37f0b2e232a86f5b698238000087a36fadd1016dc8fb8666874926",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -1042,14 +1042,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/invocation.sh",
-        "sha256": "0446399681ebfcfd3c04efa6289f6e3a95bbe77399527f4705fbcdbe378df083",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "5e543afb948528b1f6d97dfaeeaa0e562ddf3b720ead734bb3f084dfd3123fcd",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/driver.json",
-        "sha256": "47a064e579e1ac69101b7b2de17111d570b6c080a458811385c61b478beda03f",
+        "sha256": "295fc288e58eae4824b427123371b53e0939d83039c5ec924ba959d1dd7cbdbf",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1084,8 +1084,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -1105,7 +1105,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1147,7 +1147,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-0/applied-1.stdout",
-        "sha256": "d0d1110d42ad134343bb201570c9f7bffb28423b7a83d21f75dc63567385ec45",
+        "sha256": "1f162ee35c49d902b03618bb250463f9aee592043f113c4a551c535355341861",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1294,7 +1294,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/32"
       }
@@ -1436,8 +1436,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -1450,8 +1450,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/applied.conf",
-        "sha256": "9896046015dca09821394f502cd30e4dd883edfd2ec1205c8a3c5d578d5e08c1",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "5992a1c68dfe7e2e850b51321821b313ffedc5b41a8a7910b6233daea0b5c49d",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -1478,14 +1478,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/invocation.sh",
-        "sha256": "b0088261e21f6bc58f5ebb443f4b8d599768b68d7443bee378c81090d7ed5973",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "d2d90a02aa7d033b60e6a589b0197ca07fb7b42c65c17f6a1d7eb62efa2f9028",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/driver.json",
-        "sha256": "23d680919f7b3b88521d6504afaf30069afec88533642d59e8b7d0a04ed320a5",
+        "sha256": "ef76421e5f4fb3a9d5a886340f8379c952d2da9b827d3df6f71663fefb60d8e0",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1520,8 +1520,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -1541,7 +1541,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1583,7 +1583,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/applied-1.stdout",
-        "sha256": "aa7526f8450d64733effd991758f80c94ca563d0157b6c5ec388c6245006129f",
+        "sha256": "15754478edbe9f884ae7903430216172032aad6bdb3533a50206fb8d2c639336",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1730,7 +1730,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/48"
       }
@@ -1872,8 +1872,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -1886,8 +1886,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/applied.conf",
-        "sha256": "9896046015dca09821394f502cd30e4dd883edfd2ec1205c8a3c5d578d5e08c1",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "5992a1c68dfe7e2e850b51321821b313ffedc5b41a8a7910b6233daea0b5c49d",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -1914,14 +1914,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/invocation.sh",
-        "sha256": "b0088261e21f6bc58f5ebb443f4b8d599768b68d7443bee378c81090d7ed5973",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "d2d90a02aa7d033b60e6a589b0197ca07fb7b42c65c17f6a1d7eb62efa2f9028",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/driver.json",
-        "sha256": "23d680919f7b3b88521d6504afaf30069afec88533642d59e8b7d0a04ed320a5",
+        "sha256": "ef76421e5f4fb3a9d5a886340f8379c952d2da9b827d3df6f71663fefb60d8e0",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -1956,8 +1956,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -1977,7 +1977,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2019,7 +2019,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/applied-1.stdout",
-        "sha256": "aa7526f8450d64733effd991758f80c94ca563d0157b6c5ec388c6245006129f",
+        "sha256": "15754478edbe9f884ae7903430216172032aad6bdb3533a50206fb8d2c639336",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2166,7 +2166,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/64"
       }
@@ -2308,8 +2308,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -2322,8 +2322,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/applied.conf",
-        "sha256": "9896046015dca09821394f502cd30e4dd883edfd2ec1205c8a3c5d578d5e08c1",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "5992a1c68dfe7e2e850b51321821b313ffedc5b41a8a7910b6233daea0b5c49d",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -2350,14 +2350,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/invocation.sh",
-        "sha256": "b0088261e21f6bc58f5ebb443f4b8d599768b68d7443bee378c81090d7ed5973",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "d2d90a02aa7d033b60e6a589b0197ca07fb7b42c65c17f6a1d7eb62efa2f9028",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/driver.json",
-        "sha256": "23d680919f7b3b88521d6504afaf30069afec88533642d59e8b7d0a04ed320a5",
+        "sha256": "ef76421e5f4fb3a9d5a886340f8379c952d2da9b827d3df6f71663fefb60d8e0",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2392,8 +2392,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -2413,7 +2413,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2455,7 +2455,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-1/applied-1.stdout",
-        "sha256": "aa7526f8450d64733effd991758f80c94ca563d0157b6c5ec388c6245006129f",
+        "sha256": "15754478edbe9f884ae7903430216172032aad6bdb3533a50206fb8d2c639336",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2602,7 +2602,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/80"
       }
@@ -2744,8 +2744,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -2758,8 +2758,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/applied.conf",
-        "sha256": "2ec40b8e950648b2900241b61fe5a835134715e7cc0579da8d390b0843217134",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "64ce98e2a773e97ae86c035080141a29f8cc00d0a65f502b1e7c69c7ac5b3707",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -2786,14 +2786,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/invocation.sh",
-        "sha256": "ad14d90374814192262e9fd63c745a6b348d83b34e7bc7b2e2bc3c2e6daea311",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "bde23d4cd2011008fa549a6ee50793574ddb5b17ca821d888aac0ec75983b0c9",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/driver.json",
-        "sha256": "b876f15afd79c5cbb860d9311d04e1ecd2416c95764db95635919b074f387116",
+        "sha256": "4f4e05805f8249aad56a90093e92bec11afccea123e93d17c4bc150c4b2cc139",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2828,8 +2828,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -2849,7 +2849,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -2891,7 +2891,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/applied-1.stdout",
-        "sha256": "077a49e5bf1b4680d31e4c015edb584eb44ed7dda3bf2da89a90fa6b4aa06ab9",
+        "sha256": "fb859785925ff9af33d91a1a2b7eed309433fbdf4595de72088bd80ed23c42b1",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -3038,7 +3038,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/96"
       }
@@ -3180,8 +3180,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -3194,8 +3194,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/applied.conf",
-        "sha256": "2ec40b8e950648b2900241b61fe5a835134715e7cc0579da8d390b0843217134",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "64ce98e2a773e97ae86c035080141a29f8cc00d0a65f502b1e7c69c7ac5b3707",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -3222,14 +3222,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/invocation.sh",
-        "sha256": "ad14d90374814192262e9fd63c745a6b348d83b34e7bc7b2e2bc3c2e6daea311",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "bde23d4cd2011008fa549a6ee50793574ddb5b17ca821d888aac0ec75983b0c9",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/driver.json",
-        "sha256": "b876f15afd79c5cbb860d9311d04e1ecd2416c95764db95635919b074f387116",
+        "sha256": "4f4e05805f8249aad56a90093e92bec11afccea123e93d17c4bc150c4b2cc139",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -3264,8 +3264,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -3285,7 +3285,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -3327,7 +3327,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/applied-1.stdout",
-        "sha256": "077a49e5bf1b4680d31e4c015edb584eb44ed7dda3bf2da89a90fa6b4aa06ab9",
+        "sha256": "fb859785925ff9af33d91a1a2b7eed309433fbdf4595de72088bd80ed23c42b1",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -3474,7 +3474,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/112"
       }
@@ -3616,8 +3616,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -3630,8 +3630,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/applied.conf",
-        "sha256": "2ec40b8e950648b2900241b61fe5a835134715e7cc0579da8d390b0843217134",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "64ce98e2a773e97ae86c035080141a29f8cc00d0a65f502b1e7c69c7ac5b3707",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -3658,14 +3658,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/invocation.sh",
-        "sha256": "ad14d90374814192262e9fd63c745a6b348d83b34e7bc7b2e2bc3c2e6daea311",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "bde23d4cd2011008fa549a6ee50793574ddb5b17ca821d888aac0ec75983b0c9",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/driver.json",
-        "sha256": "b876f15afd79c5cbb860d9311d04e1ecd2416c95764db95635919b074f387116",
+        "sha256": "4f4e05805f8249aad56a90093e92bec11afccea123e93d17c4bc150c4b2cc139",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -3700,8 +3700,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -3721,7 +3721,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -3763,7 +3763,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-2/applied-1.stdout",
-        "sha256": "077a49e5bf1b4680d31e4c015edb584eb44ed7dda3bf2da89a90fa6b4aa06ab9",
+        "sha256": "fb859785925ff9af33d91a1a2b7eed309433fbdf4595de72088bd80ed23c42b1",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -3910,7 +3910,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/128"
       }
@@ -4052,8 +4052,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -4066,8 +4066,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/applied.conf",
-        "sha256": "d2af2260fed9379a065b139283d2b9bdf628514b984e093efdc85fcb1777b2aa",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "388d61ae15c431b949bb82cb05df34a437e56d96d5f11588511532235e14e500",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -4094,14 +4094,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/invocation.sh",
-        "sha256": "1fe50b8f222b73e429cee567e5bdf1b4562b360fd648c1155fbb9c032bcb1b7c",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "0da360b607e599a77e5bb6a13e4c5ebbf6a9ed5bbee84de79cc1567876bb21cb",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/driver.json",
-        "sha256": "4de2b50ff8d4da6424767e38c0acf91b031ab2ceb7b4b23cdc10680d1ecc5d27",
+        "sha256": "4f941767ec98f0558a7a76593e971909f9fad8668b0ab1f85281a2719c33ea2a",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -4136,8 +4136,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -4157,7 +4157,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -4199,7 +4199,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/applied-1.stdout",
-        "sha256": "360a5255d045b86112cd155f8fcc91f71be2ec9a1e8ee4b87a49ca56506665ff",
+        "sha256": "4bcf6f81cd13c8b9f098f638ac560a19e094cbbeff691bcc440a26720e3e3e64",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -4346,7 +4346,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/144"
       }
@@ -4488,8 +4488,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -4502,8 +4502,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/applied.conf",
-        "sha256": "d2af2260fed9379a065b139283d2b9bdf628514b984e093efdc85fcb1777b2aa",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "388d61ae15c431b949bb82cb05df34a437e56d96d5f11588511532235e14e500",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -4530,14 +4530,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/invocation.sh",
-        "sha256": "1fe50b8f222b73e429cee567e5bdf1b4562b360fd648c1155fbb9c032bcb1b7c",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "0da360b607e599a77e5bb6a13e4c5ebbf6a9ed5bbee84de79cc1567876bb21cb",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/driver.json",
-        "sha256": "4de2b50ff8d4da6424767e38c0acf91b031ab2ceb7b4b23cdc10680d1ecc5d27",
+        "sha256": "4f941767ec98f0558a7a76593e971909f9fad8668b0ab1f85281a2719c33ea2a",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -4572,8 +4572,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -4593,7 +4593,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -4635,7 +4635,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/applied-1.stdout",
-        "sha256": "360a5255d045b86112cd155f8fcc91f71be2ec9a1e8ee4b87a49ca56506665ff",
+        "sha256": "4bcf6f81cd13c8b9f098f638ac560a19e094cbbeff691bcc440a26720e3e3e64",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -4782,7 +4782,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/160"
       }
@@ -4924,8 +4924,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -4938,8 +4938,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/applied.conf",
-        "sha256": "d2af2260fed9379a065b139283d2b9bdf628514b984e093efdc85fcb1777b2aa",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "388d61ae15c431b949bb82cb05df34a437e56d96d5f11588511532235e14e500",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -4966,14 +4966,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/invocation.sh",
-        "sha256": "1fe50b8f222b73e429cee567e5bdf1b4562b360fd648c1155fbb9c032bcb1b7c",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "0da360b607e599a77e5bb6a13e4c5ebbf6a9ed5bbee84de79cc1567876bb21cb",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/driver.json",
-        "sha256": "4de2b50ff8d4da6424767e38c0acf91b031ab2ceb7b4b23cdc10680d1ecc5d27",
+        "sha256": "4f941767ec98f0558a7a76593e971909f9fad8668b0ab1f85281a2719c33ea2a",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5008,8 +5008,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -5029,7 +5029,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5071,7 +5071,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-3/applied-1.stdout",
-        "sha256": "360a5255d045b86112cd155f8fcc91f71be2ec9a1e8ee4b87a49ca56506665ff",
+        "sha256": "4bcf6f81cd13c8b9f098f638ac560a19e094cbbeff691bcc440a26720e3e3e64",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5218,7 +5218,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/176"
       }
@@ -5360,8 +5360,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -5374,8 +5374,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/applied.conf",
-        "sha256": "709613f84aa750a684839460255090be3286cbc2f5953e17d17fc0661a54b863",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "74959ed2ac1851c726ea34e8ee2d05decd4975246735b6208701dde31e4cda39",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -5402,14 +5402,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/invocation.sh",
-        "sha256": "92c51ba8f2de532227ab5ac3774066afdd0ede0314ebac4357ff3bf5275ae167",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "56747004444c47b6ed026e98c74a598f7a264fd3f2cfff0e9af0f2f493917e8c",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/driver.json",
-        "sha256": "5b0fedf09c4269a6c275d47e4e9357f7a34caec8b048fdc5f31e96fcd1f62d12",
+        "sha256": "e97160f37eed8c08e736d7a21c9b11f58dea69d019f266b0e79f19ce0d344f97",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5444,8 +5444,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -5465,7 +5465,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5507,7 +5507,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/applied-1.stdout",
-        "sha256": "a0fb5b5c412fa9e7d0ab54f46ff07b7aed9300cab16c2c9c724a38e4312ba5c2",
+        "sha256": "b2d66833505f03cd754ee499d8f94636faef6bdf3816bb5a69e7442ad6828fda",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5654,7 +5654,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/192"
       }
@@ -5796,8 +5796,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -5810,8 +5810,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/applied.conf",
-        "sha256": "709613f84aa750a684839460255090be3286cbc2f5953e17d17fc0661a54b863",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "74959ed2ac1851c726ea34e8ee2d05decd4975246735b6208701dde31e4cda39",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -5838,14 +5838,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/invocation.sh",
-        "sha256": "92c51ba8f2de532227ab5ac3774066afdd0ede0314ebac4357ff3bf5275ae167",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "56747004444c47b6ed026e98c74a598f7a264fd3f2cfff0e9af0f2f493917e8c",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/driver.json",
-        "sha256": "5b0fedf09c4269a6c275d47e4e9357f7a34caec8b048fdc5f31e96fcd1f62d12",
+        "sha256": "e97160f37eed8c08e736d7a21c9b11f58dea69d019f266b0e79f19ce0d344f97",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5880,8 +5880,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -5901,7 +5901,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -5943,7 +5943,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/applied-1.stdout",
-        "sha256": "a0fb5b5c412fa9e7d0ab54f46ff07b7aed9300cab16c2c9c724a38e4312ba5c2",
+        "sha256": "b2d66833505f03cd754ee499d8f94636faef6bdf3816bb5a69e7442ad6828fda",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -6090,7 +6090,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/208"
       }
@@ -6232,8 +6232,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -6246,8 +6246,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/applied.conf",
-        "sha256": "709613f84aa750a684839460255090be3286cbc2f5953e17d17fc0661a54b863",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "74959ed2ac1851c726ea34e8ee2d05decd4975246735b6208701dde31e4cda39",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -6274,14 +6274,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/invocation.sh",
-        "sha256": "92c51ba8f2de532227ab5ac3774066afdd0ede0314ebac4357ff3bf5275ae167",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "56747004444c47b6ed026e98c74a598f7a264fd3f2cfff0e9af0f2f493917e8c",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/driver.json",
-        "sha256": "5b0fedf09c4269a6c275d47e4e9357f7a34caec8b048fdc5f31e96fcd1f62d12",
+        "sha256": "e97160f37eed8c08e736d7a21c9b11f58dea69d019f266b0e79f19ce0d344f97",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -6316,8 +6316,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -6337,7 +6337,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -6379,7 +6379,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-4/applied-1.stdout",
-        "sha256": "a0fb5b5c412fa9e7d0ab54f46ff07b7aed9300cab16c2c9c724a38e4312ba5c2",
+        "sha256": "b2d66833505f03cd754ee499d8f94636faef6bdf3816bb5a69e7442ad6828fda",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -6526,7 +6526,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/224"
       }
@@ -6668,8 +6668,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -6682,8 +6682,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/applied.conf",
-        "sha256": "2eb5660983d871275c8e05cc30ae6d917fca7ec354abc1f6d3a68b33e041f9ee",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "c9fd7e48029bae38a3cf3e9177971289d11b88d3a6fa68ef1503c3ea2854ec27",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -6710,14 +6710,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/invocation.sh",
-        "sha256": "d6f5b4e5a70421a7628bb07b9dc049a9f77d8edde97eac9e000e174b47713d55",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "87bc83f7174780e8d414787cabec59c727ceda88b15498412d0c9e7e4db36cae",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/driver.json",
-        "sha256": "febf317289579ee491cccbd3e07abf984d1c5ca3e91f157c2adcddea464ee36c",
+        "sha256": "cf6b4cb298827f6541b64c60bcbc13b876375cd44f5acea5876a1cc836b61dbf",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -6752,8 +6752,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -6773,7 +6773,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -6815,7 +6815,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/applied-1.stdout",
-        "sha256": "e2911b44cdc0dc56931ed79aa37e471037bbed3d68d6b0a277e4d8670b7e9ee2",
+        "sha256": "9c01c1da9138aa4c075593d8f85b594599b80c5aeee19011ac9d78110c9d2881",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -6962,7 +6962,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/240"
       }
@@ -7104,8 +7104,8 @@
         "id": "original-input",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/runner.py",
-        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
-        "description": "Complete retained original_input bytes."
+        "sha256": "8db59e0c24c3c60acab3ddcf5b1b3b5bd495aee2412fd096d931a78b77b61ebd",
+        "description": "Complete retained original_input bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "actual-input",
@@ -7118,8 +7118,8 @@
         "id": "wrapper",
         "role": "input",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/applied.conf",
-        "sha256": "2eb5660983d871275c8e05cc30ae6d917fca7ec354abc1f6d3a68b33e041f9ee",
-        "description": "Complete retained wrapper bytes."
+        "sha256": "c9fd7e48029bae38a3cf3e9177971289d11b88d3a6fa68ef1503c3ea2854ec27",
+        "description": "Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-0",
@@ -7146,14 +7146,14 @@
         "id": "raw-3",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/invocation.sh",
-        "sha256": "d6f5b4e5a70421a7628bb07b9dc049a9f77d8edde97eac9e000e174b47713d55",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "87bc83f7174780e8d414787cabec59c727ceda88b15498412d0c9e7e4db36cae",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-4",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/driver.json",
-        "sha256": "febf317289579ee491cccbd3e07abf984d1c5ca3e91f157c2adcddea464ee36c",
+        "sha256": "cf6b4cb298827f6541b64c60bcbc13b876375cd44f5acea5876a1cc836b61dbf",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -7188,8 +7188,8 @@
         "id": "raw-9",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/platform.stdout",
-        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
-        "description": "Exact retained capture or provider receipt."
+        "sha256": "a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f",
+        "description": "Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed."
       },
       {
         "id": "raw-10",
@@ -7209,7 +7209,7 @@
         "id": "raw-12",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
-        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c",
+        "sha256": "6bf8db81e11617b14f22c9f1f37ccd53bf3ebd57281ac614ef415c26873d8452",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -7251,7 +7251,7 @@
         "id": "raw-18",
         "role": "provider",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/tmm-traffic-event-5/applied-1.stdout",
-        "sha256": "e2911b44cdc0dc56931ed79aa37e471037bbed3d68d6b0a277e4d8670b7e9ee2",
+        "sha256": "9c01c1da9138aa4c075593d8f85b594599b80c5aeee19011ac9d78110c9d2881",
         "description": "Exact retained capture or provider receipt."
       },
       {
@@ -7398,7 +7398,7 @@
         "id": "measurement",
         "role": "observation",
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/records.json",
-        "sha256": "aea1f9b72541558cdeb31f90efa48439c1cd3d1cd77643ea1eda35dc279b8062",
+        "sha256": "ea62050e13894b4ba2e9102226f2c07f834abe261ef1d2ce6803e53566ba3d4d",
         "description": "Reviewed measurement record.",
         "json_pointer": "/256"
       }

@@ -196,7 +196,7 @@ list connection [set {connection}] peer [IP::client_addr] [TCP::client_port] lev
     )
     traffic += f'call {provider}::measure $nh_invocation\nHTTP::respond 200 content "{name} [TMM::cmp_group]:[TMM::cmp_unit]" X-NH-TMM "[TMM::cmp_group]:[TMM::cmp_unit]" X-NH-Invocation $nh_invocation Connection keep-alive\n'
     accepted = f"if {{[info exists {connection}]}} {{error {{Owned connection-cell collision}}}}\nset {connection} [list SEED {tag} [IP::client_addr] [TCP::client_port]]\n"
-    config = f"ltm rule {provider} {{\nproc {tail} {{value}} {{list NATIVE $value}}\n{record_proc}proc measure {{invocation}} {{\n{procedure}}}\n}}\nltm rule {caller} {{\nwhen RULE_INIT {{\n{init}}}\nwhen CLIENT_ACCEPTED {{\n{accepted}}}\nwhen HTTP_REQUEST {{\n{traffic}}}\n}}\nltm virtual {caller}_vs {{ destination 192.168.9.24:19912 mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {provider} {caller} }} }}\n"
+    config = f"ltm rule {provider} {{\nproc {tail} {{value}} {{list NATIVE $value}}\n{record_proc}proc measure {{invocation}} {{\n{procedure}}}\n}}\nltm rule {caller} {{\nwhen RULE_INIT {{\n{init}}}\nwhen CLIENT_ACCEPTED {{\n{accepted}}}\nwhen HTTP_REQUEST {{\n{traffic}}}\n}}\nltm virtual {caller}_vs {{ destination {capture.fixture_address()}:19912 mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {provider} {caller} }} }}\n"
     source = record_proc + procedure + init + accepted + traffic
     return {
         "tag": tag,
@@ -254,7 +254,7 @@ def paired_requests(dest, _remote, _context, name, index):
         by_unit = {}
         pair = None
         for i in range(5):
-            conn = http.client.HTTPConnection("192.168.9.24", 19912, timeout=3)
+            conn = http.client.HTTPConnection(capture.fixture_address(), 19912, timeout=3)
             connections.append(conn)
             unit = request(conn, "keep-candidate-" + str(i))
             if unit in by_unit:
@@ -294,7 +294,7 @@ def paired_requests(dest, _remote, _context, name, index):
         for conn in connections:
             conn.close()
         (dest / "paired-keepalive.json").write_text(
-            json.dumps(observations, indent=2) + "\n"
+            capture.fixture_receipt_text(json.dumps(observations, indent=2)) + "\n"
         )
 
 
@@ -308,12 +308,11 @@ def execute(plan, dest):
         raise RuntimeError("Remote staging collision")
     for label, command in [
         ("version", "tmsh show sys version"),
-        ("platform", "tmsh show sys hardware"),
         ("tmm-roster", "tmsh show sys tmm-info"),
     ]:
         r = capture.rpc(command)
         (dest / (label + ".stdout")).write_bytes(r.stdout)
-        (dest / (label + ".stderr")).write_bytes(r.stderr)
+        (dest / (label + ".stderr")).write_bytes(capture.receipt_bytes(r.stderr))
         (dest / (label + ".exit")).write_text(str(r.returncode) + "\n")
     preflight_path = dest / "tmm-RULE_INIT-0"
     capture.run_job(
@@ -381,8 +380,8 @@ def execute(plan, dest):
             + "\n"
         )
     r = capture.rpc("grep -F " + shlex.quote("NHO|" + tag + "|") + " /var/log/ltm")
-    (dest / "final-runtime.stdout").write_bytes(r.stdout)
-    (dest / "final-runtime.stderr").write_bytes(r.stderr)
+    (dest / "final-runtime.stdout").write_bytes(capture.probe_log_bytes(r.stdout))
+    (dest / "final-runtime.stderr").write_bytes(capture.receipt_bytes(r.stderr))
     (dest / "final-runtime.exit").write_text(str(r.returncode) + "\n")
     (dest / "capture-complete.json").write_text(
         json.dumps({"completed": True, "configuration_saved": False}) + "\n"
@@ -403,8 +402,8 @@ def main():
     dest.mkdir(parents=True, exist_ok=False)
     for path in [Path(__file__), Path(capture.__file__)]:
         (dest / path.name).write_bytes(path.read_bytes())
-    (dest / "prepared.conf").write_text(plan["config"])
-    (dest / "plan.json").write_text(json.dumps(plan, indent=2) + "\n")
+    (dest / "prepared.conf").write_text(capture.fixture_receipt_text(plan["config"]))
+    (dest / "plan.json").write_text(capture.fixture_receipt_text(json.dumps(plan, indent=2)) + "\n")
     for context, items in plan["metadata"].items():
         (dest / (context + "-cases.json")).write_text(
             json.dumps(items, indent=2) + "\n"
@@ -420,6 +419,7 @@ def main():
                 "remote_staging": "/var/tmp/tcl_lsp_" + args.run,
                 "execution_requested": args.execute,
                 "prepared_config_sha256": capture.digest(plan["config"].encode()),
+                "receipt_redactions": capture.RECEIPT_REDACTIONS,
                 "limits": plan["limits"],
             },
             indent=2,

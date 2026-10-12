@@ -66,8 +66,8 @@ The measured report rows and their limits are:
 
 
 Run `r2286t` used a fresh VIP on port 18121 and backend port 18120. Its baseline
-forwarded 128 requests to `192.168.9.80`, where the server observed SNAT peer
-`192.168.9.24` 128 times. Response headers proved 32 baseline connections on
+forwarded 128 requests to `192.0.2.20`, where the server observed SNAT peer
+`192.0.2.21` 128 times. Response headers proved 32 baseline connections on
 each actual TMM. The exact counted-input source from the request matched the
 Markdown code block byte-for-byte: 1,791 ASCII/LF bytes, no CR or NUL, SHA-256
 `f1925eaf85382d68115f842ddccf108249de9f696efde04c66fbbaa31ea74a26`.
@@ -153,7 +153,7 @@ line 38: [variable reference used where variable name expected][$input]
 The array-root and array-index wrappers loaded without warnings. Complete raw
 rows, exact error bytes, response hashes, trace tuples and per-TMM equality are
 in the [counted-boundary decoded results](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json).
-
+ Transport endpoint literals in the baseline traffic paragraph are documentation placeholders; Tcl program and measured completion/result fields are retained.
 
 ## Exact evidence
 

@@ -9,7 +9,7 @@
     "verified_keepalive_peer_rows": 11,
     "verified_mutation_phase_reads": 6
   },
-  "source_records_sha256": "bc1121d920aca505c25d388334ad24842d311e14c41b34a0f823d8b659561a24",
+  "source_records_sha256": "d1037c62304551eb3488beceae78d94e770a6ffef9c35e46e2b347885fcac496",
   "selected_proofs": 95,
   "selection": "All actual RULE_INIT identities; every init-procedure identity; HTTP native baseline invocation 0 and after mutations 8; all paired worker/connection state observations. Alias copies are one execution, not independent runs.",
   "text_projection": "ASCII byte projection for retained binary-scan values; original encoding unchanged.",

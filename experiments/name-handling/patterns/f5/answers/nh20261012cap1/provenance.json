@@ -3,5 +3,6 @@
   "timestamp_utc": "2026-10-12T14:50:15.173177+00:00",
   "input_commit": "aca32edb2718824761009be977fdb1e8683c5009",
   "remote_staging": "/var/tmp/tcl_lsp_nh20261012cap1",
-  "configuration_saved": false
+  "configuration_saved": false,
+  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
 }

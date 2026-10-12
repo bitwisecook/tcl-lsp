@@ -22,7 +22,9 @@ import argparse
 import datetime
 import hashlib
 import io
+import ipaddress
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -33,26 +35,74 @@ from pathlib import Path
 TRAFFIC_HOOK = None
 
 ROOT = Path(__file__).resolve().parents[4]
-SSH = [
-    "ssh",
-    "-o",
-    "ControlMaster=auto",
-    "-o",
-    "ControlPersist=600",
-    "-o",
-    "ControlPath=/tmp/tcl_lsp_oracle_01a13073_%C",
-    "-o",
-    "BatchMode=yes",
-    "-o",
-    "ConnectTimeout=10",
-    "-o",
-    "ForwardAgent=no",
-    "-o",
-    "IdentityAgent=none",
-    "-i",
-    "/Users/jimd/.ssh/github_rsa",
-    "bigip-211",
-]
+DOCUMENTATION_ADDRESS = "192.0.2.10"
+RECEIPT_REDACTIONS = ["SSH target", "identity path", "control path", "fixture address"]
+
+
+def fixture_address():
+    address = os.environ.get("BIGIP_PROBE_ADDRESS", DOCUMENTATION_ADDRESS)
+    return str(ipaddress.IPv4Address(address))
+
+
+def ssh_argv(redacted=False):
+    target = os.environ.get("BIGIP_PROBE_SSH_TARGET")
+    if not redacted and not target:
+        raise RuntimeError("Set BIGIP_PROBE_SSH_TARGET before appliance execution")
+    control = os.environ.get("BIGIP_PROBE_SSH_CONTROL_PATH", "/tmp/tcl_lsp_probe_%C")
+    argv = [
+        "ssh",
+        "-o",
+        "ControlMaster=auto",
+        "-o",
+        "ControlPersist=600",
+        "-o",
+        "ControlPath=" + ("[redacted-control-path]" if redacted else control),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "ForwardAgent=no",
+        "-o",
+        "IdentityAgent=none",
+    ]
+    identity = os.environ.get("BIGIP_PROBE_SSH_IDENTITY")
+    if identity:
+        argv += ["-i", "[redacted-identity-path]" if redacted else identity]
+    return argv + ["[redacted-target]" if redacted else target]
+
+
+# Receipt callers retain command semantics without retaining transport identity.
+SSH = ssh_argv(redacted=True)
+
+
+def receipt_text(text):
+    for name in [
+        "BIGIP_PROBE_SSH_TARGET",
+        "BIGIP_PROBE_SSH_IDENTITY",
+        "BIGIP_PROBE_SSH_CONTROL_PATH",
+    ]:
+        value = os.environ.get(name)
+        if value:
+            text = text.replace(value, "[redacted-transport]")
+    return fixture_receipt_text(text)
+
+
+def fixture_receipt_text(text):
+    return text.replace(fixture_address(), DOCUMENTATION_ADDRESS)
+
+
+def receipt_bytes(data):
+    text = data.decode("utf-8", errors="surrogateescape")
+    return receipt_text(text).encode("utf-8", errors="surrogateescape")
+
+
+def probe_log_bytes(data):
+    return b"".join(
+        line[line.index(b"NHO|") :]
+        for line in data.splitlines(keepends=True)
+        if b"NHO|" in line
+    )
 
 
 def digest(data):
@@ -69,7 +119,7 @@ def literal(text):
 
 def rpc(command, data=None, timeout=180):
     return subprocess.run(
-        SSH + [command], input=data, capture_output=True, timeout=timeout, check=False
+        ssh_argv() + [command], input=data, capture_output=True, timeout=timeout, check=False
     )
 
 
@@ -264,7 +314,7 @@ def make_config(context, name, source, port=19912):
     if context == "tmm-procedure":
         config = f"ltm rule {base} {{\nproc measure {{}} {{\n{source}\n}}\nwhen RULE_INIT {{ call measure }}\n}}\n"
     elif context == "tmm-traffic-event":
-        config = f'ltm rule {base} {{\nwhen HTTP_REQUEST {{\n{source}\nHTTP::respond 200 content "{name} [TMM::cmp_group]:[TMM::cmp_unit]" X-NH-Invocation $nh_invocation Connection close\n}}\n}}\nltm virtual {base}_vs {{ destination 192.168.9.24:{port} mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {base} }} }}\n'
+        config = f'ltm rule {base} {{\nwhen HTTP_REQUEST {{\n{source}\nHTTP::respond 200 content "{name} [TMM::cmp_group]:[TMM::cmp_unit]" X-NH-Invocation $nh_invocation Connection close\n}}\n}}\nltm virtual {base}_vs {{ destination {fixture_address()}:{port} mask 255.255.255.255 ip-protocol tcp profiles {{ tcp {{}} http {{}} }} rules {{ {base} }} }}\n'
         return config, [("ltm rule", base), ("ltm virtual", base + "_vs")], None
     else:
         config = f"ltm rule {base} {{\nwhen RULE_INIT {{\n{source}\n}}\n}}\n"
@@ -279,13 +329,14 @@ def run_job(dest, remote_root, context, name, source, wait=2):
         command = f"/usr/bin/tclsh{version}"
         p = rpc(command, source.encode(), 60)
         (dest / "runtime.stdout").write_bytes(p.stdout)
-        (dest / "runtime.stderr").write_bytes(p.stderr)
+        (dest / "runtime.stderr").write_bytes(receipt_bytes(p.stderr))
         (dest / "invocation.json").write_text(
             json.dumps(
                 {
                     "argv": SSH + [command],
                     "exit_code": p.returncode,
                     "stdin_sha256": digest(source.encode()),
+                    "receipt_redactions": RECEIPT_REDACTIONS,
                 },
                 indent=2,
             )
@@ -293,7 +344,7 @@ def run_job(dest, remote_root, context, name, source, wait=2):
         )
         return
     config, objects, invoke = make_config(context, name, source)
-    (dest / "applied.conf").write_text(config)
+    (dest / "applied.conf").write_text(fixture_receipt_text(config))
     evidence = remote_root + "/evidence/" + name
     remote_config = remote_root + "/" + name + ".conf"
     p = rpc("cat > " + shlex.quote(remote_config), config.encode())
@@ -317,7 +368,21 @@ trap cleanup EXIT
         script += f"run before-{index} tmsh list {kind} {shlex.quote(obj)}\n"
         script += f'if ! grep -q "was not found" "$E/before-{index}.stderr" "$E/before-{index}.stdout"; then echo "Collision or unverified absence" >&2; exit 3; fi\n'
     if context == "tmm-traffic-event":
-        script += 'run destination-inventory tmsh list ltm virtual one-line\nif grep -q "destination 192.168.9.24:19912 " "$E/destination-inventory.stdout"; then echo "Destination collision" >&2; exit 3; fi\n'
+        destination = shlex.quote(fixture_address() + ":19912")
+        script += f"""if ! inventory=$(tmsh list ltm virtual destination one-line 2>/dev/null); then
+  echo unavailable > "$E/destination-check.stdout"
+  echo 1 > "$E/destination-check.exit"
+  exit 3
+fi
+if printf '%s\\n' "$inventory" | awk -v wanted={destination} 'index($0, "destination " wanted " ") {{found=1}} END {{exit !found}}'; then
+  echo collision > "$E/destination-check.stdout"
+  echo 3 > "$E/destination-check.exit"
+  exit 3
+fi
+unset inventory
+echo absent > "$E/destination-check.stdout"
+echo 0 > "$E/destination-check.exit"
+"""
     script += f"run input-hash sha256sum {shlex.quote(remote_config)}\n"
     script += f'if ! grep -q "^{digest(config.encode())} " "$E/input-hash.stdout"; then exit 4; fi\n'
     # Ownership begins only after every absence check, before a possibly partial merge.
@@ -337,7 +402,7 @@ trap cleanup EXIT
     )
     script += f"sleep {max(wait, 5) if context.startswith('tmm-') else wait}\nrun runtime-logs grep -F {shlex.quote('NHO|' + TAG + '|')} {log_path}\n"
     script += 'echo "configuration_saved=false" > "$E/save-status.txt"\n'
-    (dest / "invocation.sh").write_text(script)
+    (dest / "invocation.sh").write_text(fixture_receipt_text(script))
     if context == "tmm-traffic-event":
         remote_driver = remote_root + "/" + name + ".sh"
         rpc("cat > " + shlex.quote(remote_driver), script.encode())
@@ -380,15 +445,16 @@ trap cleanup EXIT
                         str(dest / f"traffic-{index}.headers"),
                         "-H",
                         f"X-NH-Invocation: {index}",
-                        "http://192.168.9.24:19912/",
+                        f"http://{fixture_address()}:19912/",
                     ]
                     result = subprocess.run(command, capture_output=True, check=False)
                     (dest / f"traffic-{index}.stdout").write_bytes(result.stdout)
-                    (dest / f"traffic-{index}.stderr").write_bytes(result.stderr)
+                    (dest / f"traffic-{index}.stderr").write_bytes(receipt_bytes(result.stderr))
                     (dest / f"traffic-{index}.json").write_text(
                         json.dumps(
                             {
-                                "argv": command,
+                                "argv": [fixture_receipt_text(arg) for arg in command],
+                                "receipt_redactions": RECEIPT_REDACTIONS,
                                 "exit_code": result.returncode,
                                 "run_marker_matches": name.encode() in result.stdout,
                             },
@@ -413,20 +479,21 @@ trap cleanup EXIT
     else:
         p = rpc("bash -s", script.encode(), 600)
     (dest / "driver.stdout").write_bytes(p.stdout)
-    (dest / "driver.stderr").write_bytes(p.stderr)
+    (dest / "driver.stderr").write_bytes(receipt_bytes(p.stderr))
     (dest / "driver.json").write_text(
         json.dumps(
             {
                 "argv": SSH + ["bash -s"],
                 "exit_code": p.returncode,
                 "stdin_sha256": digest(script.encode()),
+                "receipt_redactions": RECEIPT_REDACTIONS,
             },
             indent=2,
         )
         + "\n"
     )
     p = rpc("tar -C " + shlex.quote(evidence) + " -cf - .", timeout=60)
-    (dest / "transport.stderr").write_bytes(p.stderr)
+    (dest / "transport.stderr").write_bytes(receipt_bytes(p.stderr))
     if p.returncode:
         raise RuntimeError("Evidence retrieval failed")
     with tarfile.open(fileobj=io.BytesIO(p.stdout)) as tar:
@@ -435,7 +502,13 @@ trap cleanup EXIT
                 path = Path(member.name)
                 if path.is_absolute() or ".." in path.parts:
                     raise RuntimeError("Invalid evidence path")
-                (dest / path.name).write_bytes(tar.extractfile(member).read())
+                data = tar.extractfile(member).read()
+                if path.name == "runtime-logs.stdout":
+                    data = probe_log_bytes(data)
+                elif path.name.startswith("applied-") and path.name.endswith(".stdout"):
+                    text = data.decode("utf-8", errors="surrogateescape")
+                    data = fixture_receipt_text(text).encode("utf-8", errors="surrogateescape")
+                (dest / path.name).write_bytes(data)
     for index in range(len(objects)):
         after = dest / f"after-{index}.stderr"
         if (
@@ -473,17 +546,14 @@ def main():
     if p.returncode:
         raise RuntimeError("Remote staging directory is not absent")
     (dest / "staging-create.stdout").write_bytes(p.stdout)
-    (dest / "staging-create.stderr").write_bytes(p.stderr)
+    (dest / "staging-create.stderr").write_bytes(receipt_bytes(p.stderr))
     for label, command in [
         ("version", "tmsh show sys version"),
-        ("platform", "tmsh show sys hardware"),
         ("tmm-roster", "tmsh show sys tmm-info"),
-        ("failover", "tmsh show sys failover"),
-        ("virtuals", "tmsh list ltm virtual one-line"),
     ]:
         result = rpc(command)
         (dest / (label + ".stdout")).write_bytes(result.stdout)
-        (dest / (label + ".stderr")).write_bytes(result.stderr)
+        (dest / (label + ".stderr")).write_bytes(receipt_bytes(result.stderr))
         (dest / (label + ".json")).write_text(
             json.dumps(
                 {"argv": SSH + [command], "exit_code": result.returncode}, indent=2

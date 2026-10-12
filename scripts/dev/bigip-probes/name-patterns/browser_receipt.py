@@ -39,6 +39,14 @@ def main():
     selected_template = '- option "__tcl_lsp_probe_' + run.name + '" [selected]'
     if not any(line.strip() == selected_template for line in snapshot.splitlines()):
         raise RuntimeError("Selected template not proven by DOM")
+    data = [select for select in data if select["name"].startswith("var__probe__")]
+    snapshot = "\n".join(
+        line
+        for line in snapshot.splitlines()
+        if line.strip() == selected_template
+        or "var__probe__" in line
+        or "NHO|" in line
+    ) + "\n"
     tcl = tkinter.Tcl()
     rows = []
     projections = set()
@@ -65,6 +73,9 @@ def main():
                 )
     if not rows:
         raise RuntimeError("No callback rows observed")
+    (run / "browser-options.json").write_text(json.dumps(data, indent=2) + "\n")
+    (run / "browser-dom.txt").write_text(snapshot)
+    (run / "browser.png").unlink(missing_ok=True)
     job = run / "iapp-apl-0"
     (job / "invoke.stdout").write_text("\n".join(rows) + "\n")
     (job / "invocation.json").write_text(
@@ -77,6 +88,7 @@ def main():
                 "projection_validation": "passed",
                 "browser_process_exit_code": None,
                 "rows": len(rows),
+                "retained_browser_scope": "Selected owned template and probe option rows; device chrome and screenshot omitted",
             },
             indent=2,
         )

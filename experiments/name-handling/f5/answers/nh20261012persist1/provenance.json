@@ -12,5 +12,6 @@
     "state_resets_in_HTTP_REQUEST": false,
     "native_catalog_retirement": "unavailable; config deletion only",
     "cleanup_scope": "Exact owned dynamic namespace/regular global/static cells on every RULE_INIT unit; connection cells expire with owned TCP connections."
-  }
+  },
+  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
 }

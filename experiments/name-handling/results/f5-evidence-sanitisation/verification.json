@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "scope": "Deleted lab transport/device identity and unrelated appliance configuration; Tcl interpreter behaviour remains the evidence purpose.",
+  "categories": {
+    "retained_files_with_transport_placeholders": 2740,
+    "projected_browser_dom": 6,
+    "omitted_platform_inventories": 22,
+    "projected_browser_options": 6,
+    "removed_browser_screenshots": 6,
+    "omitted_virtual_inventory_stdout_files": 88,
+    "sanitised_virtual_inventory_json_receipts": 2
+  },
+  "seals": 30,
+  "sealed_entries_before": 26097,
+  "sealed_entries_after": 26091,
+  "retained_tcl_program_files": 970,
+  "measurement_semantics_unchanged": true,
+  "coverage_semantics_unchanged": true,
+  "coverage_row_count": 400,
+  "original_matrix_status_counts": {
+    "observed": 93,
+    "unreached": 244,
+    "unavailable": 63
+  },
+  "question_index_hash_fields_updated": true,
+  "deployment_config_transport_literals_changed": true,
+  "historical_executed_input_hash_receipts_preserved": true,
+  "screenshots_removed": true,
+  "baseline_identity_and_target_verification": "Scoped baseline-derived private marker scan passed: zero matches in the two answer trees, maintained name-pattern capture helpers and canonical proof files. Broader historical F5 evidence cleanup remains separately open.",
+  "exact_maintained_tool_reference_renewals": {},
+  "changed_canonical_records": 1148,
+  "artifact_reference_verification": "Path-resolved descriptors and seals converged; unrelated implementation hashes were not renewed.",
+  "question_index_changed_fields": 405,
+  "question_index_changes": "SHA-256 fields only; all other fields and list lengths preserved against the pre-cleanup baseline.",
+  "selected_source_range_hashes_verified": 1590,
+  "selected_tcl_operation_value_hashes_verified": 92,
+  "selected_anchor_hash_mismatches": 0,
+  "unrelated_implementation_hashes_renewed": 0,
+  "historical_execution_hash_fields_restored": {
+    "stdin_sha256": 85,
+    "prepared_config_sha256": 1,
+    "original_seal_sha256": 6,
+    "original_provenance_sha256": 1
+  },
+  "historical_execution_hash_files_restored": 87,
+  "final_retained_artifact_audit": {
+    "seals": 30,
+    "sealed_entries": 26091,
+    "retained_artifact_descriptors": 445600,
+    "omitted_destination_inventories": 86,
+    "omitted_global_virtual_inventories": 2,
+    "omitted_platform_inventories": 22,
+    "historical_hash_fields_verified": 93
+  },
+  "final_retained_artifact_mismatches": 0,
+  "baseline_tcl_program_files_byte_identical": 970,
+  "baseline_tcl_program_files_changed": 0,
+  "baseline_coverage_sha256_only_changed_fields_per_projection": 540,
+  "baseline_canonical_status_identity_fields_unchanged": 20873,
+  "additional_canonical_transport_literals_substituted": 2,
+  "parent_private_marker_candidates_in_sanitised_scope": 0
+}

@@ -146,7 +146,7 @@
       },
       "source_measurement": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
-        "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+        "sha256": "b76e3e8d98db4ce8307c6a547045538c3e175f8599d5e8d6df7f9435a26053b1",
         "json_pointer": "/4"
       }
     },
@@ -293,7 +293,7 @@
       },
       "source_measurement": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
-        "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+        "sha256": "b76e3e8d98db4ce8307c6a547045538c3e175f8599d5e8d6df7f9435a26053b1",
         "json_pointer": "/13"
       }
     },
@@ -440,7 +440,7 @@
       },
       "source_measurement": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
-        "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+        "sha256": "b76e3e8d98db4ce8307c6a547045538c3e175f8599d5e8d6df7f9435a26053b1",
         "json_pointer": "/49"
       }
     },
@@ -587,7 +587,7 @@
       },
       "source_measurement": {
         "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
-        "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+        "sha256": "b76e3e8d98db4ce8307c6a547045538c3e175f8599d5e8d6df7f9435a26053b1",
         "json_pointer": "/58"
       }
     }

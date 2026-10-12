@@ -1,1 +1,4 @@
-{"completed":true}
+{
+  "completed": true,
+  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
+}
