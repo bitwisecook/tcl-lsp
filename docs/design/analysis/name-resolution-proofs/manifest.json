@@ -162866,6 +162866,11 @@
           "path": "rust/tcl-lsp-core/src/minify/original.rs",
           "symbol": "minify_with_analysis",
           "purpose": "Use current original analysis/source syntax for compact presentation while independently requiring the alpha-renaming contract for name changes."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "symbol": "find_proc_call_sites",
+          "purpose": "Descriptive call-site compatibility preserves complete colon components and existing indirect/dedup guards; its selected labels do not supply alpha-renaming permission."
         }
       ],
       "tests": [
@@ -162886,6 +162891,12 @@
           "selector": "minify::original::tests::original_hosted_minifier_keeps_source_syntax_without_native_alpha_permission",
           "assertion": "A genuine hosted source minification context permits source formatting while MissingAlphaRenameContract preserves every name and an empty rename map; hosted syntax does not supply Native alpha permission.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "selector": "minify::constructed_compatibility_tests::constructed_minifier_call_sites_keep_original_indirect_and_naming_guards",
+          "status": "linked",
+          "assertion": "The actual minifier on genuine Native source without the independent public alpha-renaming contract retains MissingAlphaRenameContract, an empty symbol map and unchanged public procedure spelling. Descriptive compatibility call-site labels still exclude indirect heads and deduplicate spans; they cannot grant that missing naming purpose. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         }
       ],
       "evidence": [
@@ -162900,7 +162911,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/minify.rs",
-          "sha256": "2c897523ba2f03ae7133d737b8c60091986a100eaab25eaab2e8770243dc3e00",
+          "sha256": "493dd5396f3fea806a3e3e85f768e0471ad3ea64b5a63a649cd4b45667d215c9",
           "description": "Current source owner and fixed authored assertions; no native or Rust execution receipt."
         },
         {
@@ -591703,6 +591714,20 @@
           "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs",
           "sha256": "1ec79cf666991bcff2b3e332a1704964211f6ca5154313f7b14ca89edd093056",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-compatibility602-7a8fd2e912c99e2a",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "sha256": "493dd5396f3fea806a3e3e85f768e0471ad3ea64b5a63a649cd4b45667d215c9",
+          "description": "Current authored one-root compatibility consumer with actual fixed source controls. Original selected reference and public naming permissions remain independent; no assertion or external-provider outcome is attached."
+        },
+        {
+          "id": "receiver-compatibility602-834e0bf1515bb1fe",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "description": "Current authored one-root compatibility consumer with actual fixed source controls. Original selected reference and public naming permissions remain independent; no assertion or external-provider outcome is attached."
         }
       ],
       "source_anchors": [],
@@ -591772,6 +591797,18 @@
           "selector": "hover::tests::command_profile_metadata_keeps_foreign_surface_and_own_requirements",
           "status": "linked",
           "assertion": "The shared command-hover metadata renderer uses an actual F5 descriptor for namespace profile inheritance, declines foreign or absent surface, and preserves command-owned requirements before namespace defaults. This is descriptive source rendering rather than executed event behavior. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "selector": "references::constructed_compatibility_tests::constructed_reference_projection_keeps_colon_components_and_known_refusal",
+          "status": "linked",
+          "assertion": "Actual reference compatibility consumers use explicit descriptive written invocation metadata, preserving one optional root versus a literal-colon component, Unicode and colon tails. The separate genuine Native original builtin-alias source route retains Known(None) as terminal before lexical assistance. These labels supply no original command or source-edit authority. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "selector": "minify::constructed_compatibility_tests::constructed_minifier_call_sites_keep_original_indirect_and_naming_guards",
+          "status": "linked",
+          "assertion": "Actual minifier call-site selection over explicit descriptive metadata preserves literal-colon holders, independently resolved labels, exact span deduplication and exclusion of indirect command heads. The separate genuine Native source analysis retains its public naming-rewrite refusal; constructed labels provide no rewrite or execution permission. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         }
       ],
       "owners": [
@@ -591869,6 +591906,16 @@
           "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs",
           "symbol": "Analyser::emit_irule1001_command_event_validity",
           "purpose": "Keep selected argument-form gating and the existing namespace-hint then command-requirement fallback order while using the shared selected-descriptor Profile query."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "invocation_references_named",
+          "purpose": "Reuse the central one-root constructed compatibility projection only after the existing selected original reference route and terminal known-refusal guard; no original lookup or source-edit authority."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "symbol": "find_proc_call_sites",
+          "purpose": "Reuse the central one-root descriptive label projection while preserving actual original call selection, indirect-head exclusion and exact-span deduplication; the public naming contract remains independent."
         }
       ],
       "replay": {
