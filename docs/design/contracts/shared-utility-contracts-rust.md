@@ -3865,3 +3865,11 @@ independent. C86 has no selected abstract initializer. Other stock metaclass
 initializers, inherited method admission and complete bootstrap inventory are
 independent contracts. No native callback chronology or execution outcome is
 attached to this source contract.
+
+Standalone configured signature scanning retains Symbolic procedure and namespace
+metadata for a positively selected hosted source descriptor. It reads complete
+original Document words under the actual full configuration through the shared
+Unicode word owner. Symbolic records contain no SourceName or NameKey, Native
+policy, command allocation or entered frame. A supplied binding inventory keeps
+its separate Native, hosted or unavailable contract; it cannot fall back to the
+standalone route. Conflicting Native release/point profiles remain unavailable.

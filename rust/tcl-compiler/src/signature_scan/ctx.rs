@@ -383,6 +383,15 @@ impl ScanCtx<'_> {
             {
                 Some(OriginalSourceNamePurpose::Symbolic)
             }
+            Some(profile)
+                if tcl_registry::InvocationDialect::of_profile(profile)
+                    .authored_f5_tcl84_core()
+                    .is_some() =>
+            {
+                // Header-only hosted source descriptors supply Symbolic
+                // metadata, never a Native name policy or complete key.
+                Some(OriginalSourceNamePurpose::Symbolic)
+            }
             Some(_) => policy.map(OriginalSourceNamePurpose::Native),
         }
     }
@@ -683,3 +692,6 @@ mod tests {
 
 #[cfg(test)]
 mod original_source_name_purpose_tests;
+
+#[cfg(test)]
+mod original_hosted_source_metadata_tests;
