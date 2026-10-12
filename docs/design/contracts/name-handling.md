@@ -143,6 +143,14 @@ Retain real-oracle programs and outcomes for semantic claims. Review rejected
 patterns to improve coverage rather than relaxing the proof required for edits
 or optimisations. See [the pattern acceptance matrix](../../../experiments/name-handling/case-catalogue.md#dynamic-pattern-acceptance).
 
+Discover and prioritise patterns using the maintained corpus in
+[docs/CORPUS.md](../../CORPUS.md), its authoritative pinned manifest/fetcher,
+and the Tcl Wiki. Retain concrete source locations and revisions, check runtime
+claims against real oracles, and evaluate coverage and wrong targets on held-out
+projects. The [source and investigation protocol](../../../experiments/name-handling/pattern-sources.md)
+defines the evidence record. Corpus frequency and Wiki explanations support
+pattern discovery; they do not establish an individual call's identity.
+
 ## Surface boundaries
 
 LSP providers, server middleware, CLI tools and MCP tools consume common

@@ -43,6 +43,11 @@ experiment backlog; they are not claims that probes or consumer implementations
 already exist. Keep one positive example and a counterexample for each pattern,
 with C/Jim/F5 expectations scoped to actual supported contexts.
 
+Discover representative variants in the maintained corpus and Tcl Wiki using
+[pattern-sources.md](pattern-sources.md). Retain repository revision/file/line
+or Wiki page/revision/date for each source-backed case; extend examples beyond
+the snippets in this matrix and validate on held-out projects.
+
 | Pattern | Useful result when established | Required counterexample / boundary |
 | --- | --- | --- |
 | Constant command head: `set cmd helper; $cmd` | Flow-sensitive name value plus the correct call-time binding | Reassign the value or rename/shadow/delete the command before invocation. |

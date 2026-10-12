@@ -76,6 +76,14 @@ Compare wrong targets, missed provable targets and abstention reasons separately
 Heuristic candidate ranking never satisfies a transformation proof. Improvements
 must reduce unnecessary abstention without increasing confident wrong results.
 
+Source discovery uses the maintained pinned corpus and the Tcl Wiki under
+[the investigation protocol](../../../experiments/name-handling/pattern-sources.md).
+Start from `docs/CORPUS.md`, the authoritative performance manifest/fetcher and
+the existing import-example references. Record concrete project/Wiki provenance,
+reduce positive and adversarial examples, verify semantics on real oracles and
+evaluate recognisers on held-out project families. Preserve benchmark pins and
+separate patterns observed in code from identities proved at a particular site.
+
 ## Ordered work
 
 1. **Reproduce and establish evidence.** Refresh issue relationships and the

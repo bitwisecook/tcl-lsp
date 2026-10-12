@@ -28,6 +28,7 @@ branch documents first:
 - `docs/work/name-handling/{current-state,issues,plan}.md`
 - `experiments/name-handling/README.md`
 - `experiments/name-handling/results/RESULTS.md`
+- `experiments/name-handling/pattern-sources.md`
 - `experiments/name-handling/f5/REQUEST.md`
 
 The user's `work` instruction overrides the stale AGENTS statement that only
@@ -66,6 +67,19 @@ is unavailable, preserving unaffected facts rather than suppressing everything.
 Use the dynamic-pattern acceptance matrix in
 `experiments/name-handling/case-catalogue.md` to test both useful coverage and
 false target selection. This is required completion work, not optional polish.
+
+Investigate those patterns in the maintained corpus and the Tcl Wiki. Read
+`docs/CORPUS.md`, `scripts/perf/MANIFEST.toml`, its verified fetcher and
+`docs/design/analysis/code-importing-examples.md`; reuse their source owners.
+The public `everything` scope covers Tcl/Tk/EDA and iRules projects. Keep pins
+stable, verify actual checkouts and record missing sources. Find concrete sites
+and variants, preserve scope/effects when reducing them, and retain source
+revision/location or Wiki URL/revision/date with every finding. Validate
+runtime claims on real oracles and static conclusions in consumer tests.
+Measure useful coverage, wrong targets, missed provable sites and abstention
+reasons on held-out project families. Do not design heuristics solely around
+invented snippets or treat prevalence as proof. Give the oracle/static-analysis
+lanes ownership of this research and share results through the central contract.
 
 Use and extend existing owner crates, not a second name system. Preserve
 command slots versus live command objects, interpreter domains, frames and
