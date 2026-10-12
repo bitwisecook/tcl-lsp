@@ -23,6 +23,15 @@ missing clock worker `ParseFormatArgs`. Discrete questions retain exact files,
 streams, skips, failure IDs, original orchestration and two diagnostic harness
 attempts; only the final upstream-consistent attempt supplies conformance counts.
 
+## Clock orchestration worker
+
+The [eleven original ParseFormatArgs inputs](clock-parse-format-args/README.md)
+were measured in all five real C releases and pinned Jim. C8.5/C8.6 each return
+four successes and seven worker errors; other providers lack this private
+command. Error wording/codes differ between the two responding releases, and
+both accept the retained unsigned-boundary clock value. This answers worker
+behaviour, not a runtime implementation or general public clock conformance.
+
 ## Actual VM C8.6 constructor
 
 The [shared-roster VM regression](vm-c86-mathfunc-bootstrap/README.md) passes

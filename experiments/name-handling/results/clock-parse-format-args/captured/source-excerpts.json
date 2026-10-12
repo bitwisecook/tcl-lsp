@@ -1,0 +1,90 @@
+[
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclClock.c",
+    "source_sha256": "b42be0ed1c43ccef8d027e62ae779175039776f27093d4f59e7aeef950940c97",
+    "first_line": 39,
+    "last_line": 90,
+    "excerpt": "c8.4.20-clock-39-90.c",
+    "excerpt_sha256": "d3d56e429e4c8dadb8268eccb38287e29cdb4e5582843a6655f7dd9bbc5ea88b"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclClock.c",
+    "source_sha256": "b1664c5bab1af0598a6ca6899f24ee056b1ddda5348a4994387955ba1617bfa3",
+    "first_line": 195,
+    "last_line": 227,
+    "excerpt": "c8.5.19-clock-195-227.c",
+    "excerpt_sha256": "266adb590271547d0c3134531b609acceddb7b75963e70e0e0105602564c0de0"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "first_line": 56,
+    "last_line": 88,
+    "excerpt": "c8.6.18-clock-56-88.c",
+    "excerpt_sha256": "836eac7a6cc95c502fcee1e8f64a866b155cbe4a86e280a028e2545cc5bde1fb"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "first_line": 209,
+    "last_line": 223,
+    "excerpt": "c8.6.18-clock-209-223.c",
+    "excerpt_sha256": "9895a1db011c8af3d50c0b7b1dbc80fefa1c274cffec51157fab678effcea3c4"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "first_line": 242,
+    "last_line": 305,
+    "excerpt": "c8.6.18-clock-242-305.c",
+    "excerpt_sha256": "3b8436278e9df33beb06989eeb1223fa367a8e16fb3ac7d805e9181384fcb5b4"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "first_line": 1877,
+    "last_line": 1994,
+    "excerpt": "c8.6.18-clock-1877-1994.c",
+    "excerpt_sha256": "64e0d0e5114a1884d9b562201de53e5bbb2413ebd9093e857ba85693a48d7c4d"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "first_line": 2113,
+    "last_line": 2128,
+    "excerpt": "c8.6.18-clock-2113-2128.c",
+    "excerpt_sha256": "61af1b0f78c8ec496e37687a323f58c8cb0d14bdcc10e8f6ce58abb3986d3706"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclClock.c",
+    "source_sha256": "ceda0e2655bf4a431710a737aa9019c256362c9fe5065a670db55b67a00182c9",
+    "first_line": 134,
+    "last_line": 154,
+    "excerpt": "c9.0.4-clock-134-154.c",
+    "excerpt_sha256": "072d73559194b575581d15e65c29fcee9f3b4947d606b48c88c1844775adbad7"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclClock.c",
+    "source_sha256": "807e7146701eb3d11f29bc317964140cd2fe60ee7e5832bbe2b9d2b4b8473524",
+    "first_line": 142,
+    "last_line": 156,
+    "excerpt": "c9.1.0-clock-142-156.c",
+    "excerpt_sha256": "6df78017b721269a0af6967f27d6185c20a37af277132c8f3db0223a103ec0c4"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl",
+    "source_sha256": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "first_line": 664,
+    "last_line": 674,
+    "excerpt": "c8.6.18-clock-format-664-674.tcl",
+    "excerpt_sha256": "14bc23b4926ac6e1a3e93df46e1ff01d610e458b80214284b60f8c6b31842936"
+  },
+  {
+    "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclClock.c",
+    "source_sha256": "b1664c5bab1af0598a6ca6899f24ee056b1ddda5348a4994387955ba1617bfa3",
+    "first_line": 1843,
+    "last_line": 1941,
+    "excerpt": "c8.5.19-parse-format-worker.c",
+    "excerpt_sha256": "28a3a3613de29c8dfa5828efcce490217c125cb33678e168f77320a29b946a61"
+  }
+]

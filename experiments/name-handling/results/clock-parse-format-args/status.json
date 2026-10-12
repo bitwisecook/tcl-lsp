@@ -1,0 +1,82 @@
+{
+  "processes": 6,
+  "fresh_processes_per_release": 1,
+  "cases_per_process": 11,
+  "all_process_exits_zero": true,
+  "all_stderr_empty": true,
+  "input_and_source_hashes_valid": true,
+  "binary_and_library_currency_valid": true,
+  "replay_parser_checks": [
+    {
+      "case": "help",
+      "exit_code": 0
+    },
+    {
+      "case": "missing-output",
+      "exit_code": 2
+    },
+    {
+      "case": "existing-output",
+      "exit_code": 2
+    }
+  ],
+  "C85_C86_observed_difference": "C8.5 badSwitch/switch vs C8.6 badOption/option",
+  "wide_boundary_observation": "Both responding releases accepted9223372036854775808; returned default3list. No signed-range-rejection rule inferred.",
+  "F5": "Unmeasured",
+  "runs": [
+    {
+      "case": "c8.4.20",
+      "process_exit": 0,
+      "stdout_rows": 11,
+      "named_command_absence_rows": 11,
+      "worker_success_rows": 0,
+      "worker_error_rows": 0,
+      "interpretation": "named private worker absent; no public-clock-format result inference"
+    },
+    {
+      "case": "c8.5.19",
+      "process_exit": 0,
+      "stdout_rows": 11,
+      "named_command_absence_rows": 0,
+      "worker_success_rows": 4,
+      "worker_error_rows": 7,
+      "interpretation": "private worker responded; actual named input results only"
+    },
+    {
+      "case": "c8.6.18",
+      "process_exit": 0,
+      "stdout_rows": 11,
+      "named_command_absence_rows": 0,
+      "worker_success_rows": 4,
+      "worker_error_rows": 7,
+      "interpretation": "private worker responded; actual named input results only"
+    },
+    {
+      "case": "c9.0.4",
+      "process_exit": 0,
+      "stdout_rows": 11,
+      "named_command_absence_rows": 11,
+      "worker_success_rows": 0,
+      "worker_error_rows": 0,
+      "interpretation": "named private worker absent; no public-clock-format result inference"
+    },
+    {
+      "case": "c9.1.0",
+      "process_exit": 0,
+      "stdout_rows": 11,
+      "named_command_absence_rows": 11,
+      "worker_success_rows": 0,
+      "worker_error_rows": 0,
+      "interpretation": "named private worker absent; no public-clock-format result inference"
+    },
+    {
+      "case": "jim-5bac7c9",
+      "process_exit": 0,
+      "stdout_rows": 11,
+      "named_command_absence_rows": 11,
+      "worker_success_rows": 0,
+      "worker_error_rows": 0,
+      "interpretation": "named private worker absent; no public-clock-format result inference"
+    }
+  ]
+}

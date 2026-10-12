@@ -35,6 +35,7 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 Exact raw results and limits:
 
 - [Real C8.6 suite questions](../../../experiments/name-handling/results/runtime-c86-real-suites/README.md).
+- [Clock worker oracle answers](../../../experiments/name-handling/results/clock-parse-format-args/README.md).
 - [Original suite census](../../../experiments/name-handling/results/RESULTS.md).
 - [VM constructor and startup question](../../../experiments/name-handling/results/vm-c86-mathfunc-bootstrap/README.md).
 - [Mathfunc constructor/startup controls](../../../experiments/name-handling/results/native-c86-mathfunc-bootstrap/README.md).

@@ -1,0 +1,11 @@
+{} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+0 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{0 -g 1} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{0 -format A -format B} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{0 -gmt 0 -timezone :GMT} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{bad -gmt bad} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{bad -gmt 1 -timezone :GMT} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{0 -z X} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{0 - X} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+{0 -format} 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
+9223372036854775808 1 {invalid command name "::tcl::clock::ParseFormatArgs"} {TCL LOOKUP COMMAND ::tcl::clock::ParseFormatArgs}
