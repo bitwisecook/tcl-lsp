@@ -1,0 +1,21 @@
+{
+  "completed_utc": "2026-10-12T21:04:39.711727+00:00",
+  "exit_code": 0,
+  "outcome": "passed",
+  "selected_test": "the_seven_ordered_state_witnesses",
+  "test_summary": "1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out",
+  "reported_test_execution_seconds": 0.51,
+  "binary_path": "tmp/name-target-runtime/debug/deps/differential_fold-ccf46cc3f3fbe57f",
+  "binary_sha256": "464474917676e9e6633314b699d5acfce3c300a228db6985660ac6b226409074",
+  "binary_bytes": 23288680,
+  "test_log": "test.log",
+  "test_log_sha256": "c93c41384460ed0bd5a5cf403805c4abc7706dec4c85f491f8ac95284c44cc4e",
+  "source_sha256_after": {
+    "rust/tcl-registry/tests/differential_fold.rs": "ee8b4f03d3b37bfd756b0a5e86da60cb8890199421ca30cbb754086dc322110e",
+    "rust/tcl-syntax/src/expr/eval.rs": "916c67a9ef2adfde4a01673de8c6d3fc7c545dfa24b15aac79912939a758fdfb",
+    "rust/tcl-registry/Cargo.toml": "1ba577f5ab933da5670d00024f24f30ea857aa67eb48388368f9f4419158875d",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49"
+  },
+  "selected_sources_unchanged": true,
+  "scope": "The differential_fold integration target compiled and this one existing authored control passed. Its i64 mathematical adapter and Tcl script witnesses do not establish original native-object identity or acceptance for the 26 filtered tests."
+}

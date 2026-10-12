@@ -2948,8 +2948,8 @@ impl tcl_syntax::expr::ExprOps for OrderedProbe<'_> {
     ) -> Option<tcl_syntax::expr::NumericCompare> {
         Some(tcl_syntax::expr::NumericCompare::Ordered(left.cmp(right)))
     }
-    fn compare_string(&mut self, left: &i64, right: &i64) -> std::cmp::Ordering {
-        left.to_string().cmp(&right.to_string())
+    fn compare_string(&mut self, left: &i64, right: &i64) -> Result<std::cmp::Ordering, Stop> {
+        Ok(left.to_string().cmp(&right.to_string()))
     }
     fn in_list(&mut self, _needle: &i64, _list: &i64) -> Result<bool, Stop> {
         Err(Stop::Declined("in".to_owned()))

@@ -1,0 +1,16 @@
+{
+  "question": "Does the existing ordered-state integration control compile and pass after OrderedProbe adopts the fallible ExprOps string-comparison API?",
+  "started_utc": "2026-10-12T21:02:51.057652+00:00",
+  "cwd": "/workspace/tcl-lsp",
+  "environment_source": "/tmp/name-env.sh",
+  "environment_source_sha256": "8f00e30a0cc13e817026ae85ae9b4176235f53fbf1c37f5112b6d067054c1688",
+  "cargo_target_dir": "/workspace/tcl-lsp/tmp/name-target-runtime",
+  "command": "source /tmp/name-env.sh\nexport CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-runtime\ncargo test --offline -j2 -p tcl-registry --test differential_fold the_seven_ordered_state_witnesses -- --exact --nocapture",
+  "source_sha256": {
+    "rust/tcl-registry/tests/differential_fold.rs": "ee8b4f03d3b37bfd756b0a5e86da60cb8890199421ca30cbb754086dc322110e",
+    "rust/tcl-syntax/src/expr/eval.rs": "916c67a9ef2adfde4a01673de8c6d3fc7c545dfa24b15aac79912939a758fdfb",
+    "rust/tcl-registry/Cargo.toml": "1ba577f5ab933da5670d00024f24f30ea857aa67eb48388368f9f4419158875d",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49"
+  },
+  "scope": "One existing authored integration control; no full-suite acceptance claim."
+}
