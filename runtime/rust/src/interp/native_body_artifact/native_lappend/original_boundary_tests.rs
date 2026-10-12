@@ -148,7 +148,7 @@ fn exercise(profile: &str, mode: u8) {
     assert_eq!(REFS.get(), 2);
     if mode == 0 {
         assert_eq!(reached, Ok(Code::Ok));
-        assert_eq!(obj::bytes_of(actual.get_obj_result()).as_ref(), b"A B");
+        assert_eq!(obj::bytes_of(actual.get_obj_result()).as_slice(), b"A B");
         scope.currency().ensure_current_or_refuse().unwrap();
     } else {
         assert_eq!(reached, Err(Code::Error));
@@ -228,7 +228,7 @@ fn original_argument_list_concat_checks_source_free_before_target_mutation_and_f
             assert_eq!(REFS.get(), 1);
             if mode == 0 {
                 let result = reached.unwrap();
-                assert_eq!(obj::bytes_of(result.as_ptr()).as_ref(), b"A B");
+                assert_eq!(obj::bytes_of(result.as_ptr()).as_slice(), b"A B");
             } else {
                 assert!(reached.is_err());
                 assert!(original.check(&actual).is_err());
