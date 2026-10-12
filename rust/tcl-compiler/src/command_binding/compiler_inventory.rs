@@ -1728,18 +1728,27 @@ mod original_inline_control_source_tests {
                 environment,
             );
             let context = tcl_registry::model::ingress::resolve_known_environment(environment)
-                .unwrap().default_context_registry();
+                .unwrap()
+                .default_context_registry();
             assert!(Arc::ptr_eq(&context, &fixture.input.context_registry()));
             let same = ResolvedAnalysisInput::new(
-                fixture.input.analyser_profile(), fixture.input.unit_profile(), context,
+                fixture.input.analyser_profile(),
+                fixture.input.unit_profile(),
+                context,
                 fixture.input.lexer_config(),
             );
             assert_eq!(same, fixture.input);
             let tokens = fixture.tokens.last().unwrap();
             let binding = tokens.source_binding.as_ref().unwrap();
-            assert!(binding.original_inline_control_metadata_for_input(
-                tokens, &same, fixture.input.borrowed_context_registry().commands(),
-            ).is_some());
+            assert!(
+                binding
+                    .original_inline_control_metadata_for_input(
+                        tokens,
+                        &same,
+                        fixture.input.borrowed_context_registry().commands(),
+                    )
+                    .is_some()
+            );
         }
     }
 
@@ -1788,10 +1797,13 @@ mod original_inline_control_source_tests {
                     .default_context_registry();
             // Resolving the same environment returns its cached original Arc.
             // Assemble an independent actual context over the same command store.
-            let foreign_context = Arc::new(foreign_context.with_command_store(
-                Arc::clone(foreign_context.commands()),
+            let foreign_context = Arc::new(
+                foreign_context.with_command_store(Arc::clone(foreign_context.commands())),
+            );
+            assert!(!Arc::ptr_eq(
+                &foreign_context,
+                &fixture.input.context_registry()
             ));
-            assert!(!Arc::ptr_eq(&foreign_context, &fixture.input.context_registry()));
             let foreign = ResolvedAnalysisInput::new(
                 fixture.input.analyser_profile(),
                 fixture.input.unit_profile(),

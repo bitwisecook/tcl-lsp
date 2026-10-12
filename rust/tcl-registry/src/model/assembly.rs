@@ -127,7 +127,6 @@ impl ContextRegistry {
         )
     }
 
-
     /// Reassemble this exact availability context over an explicitly supplied
     /// command store. Retains provider, release and package state; it does not
     /// reconstruct a context from the store's profile name or establish native

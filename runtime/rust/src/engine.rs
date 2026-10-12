@@ -1146,9 +1146,7 @@ mod tests {
         )
         .err()
         .expect("first actual scalar import refusal");
-        assert!(
-            matches!(error, EngineError::ExecutionFailure(cause) if *cause == first)
-        );
+        assert!(matches!(error, EngineError::ExecutionFailure(cause) if *cause == first));
         assert_eq!(engine.interp.native_execution_refusal(), Some(first));
         assert_eq!(engine.interp.result_bytes(), b"SEEDED RESULT");
         assert_eq!(engine.interp.snapshot_error().code_bytes(), b"SEEDED CODE");
@@ -1782,9 +1780,7 @@ mod tests {
             Code::Ok
         })
         .unwrap_err();
-        assert!(
-            matches!(error, EngineError::ExecutionFailure(cause) if *cause == first)
-        );
+        assert!(matches!(error, EngineError::ExecutionFailure(cause) if *cause == first));
         assert_eq!(calls.get(), 0);
         assert_eq!(engine.interp.result_obj(), prior);
         assert_eq!(engine.interp.native_execution_refusal(), Some(first));
@@ -2042,15 +2038,25 @@ mod original_active_host_deletion_tests {
                 "actual Runtime Engine typed callback cause",
             ),
         );
-        engine.define_command("originalTypedFailure", Rc::new(Typed(cause.clone()))).unwrap();
-        let error = engine.eval_in_invocation(
-            "set ::prior BEFORE; catch {originalTypedFailure}; set ::after LATER",
-        ).unwrap_err();
+        engine
+            .define_command("originalTypedFailure", Rc::new(Typed(cause.clone())))
+            .unwrap();
+        let error = engine
+            .eval_in_invocation(
+                "set ::prior BEFORE; catch {originalTypedFailure}; set ::after LATER",
+            )
+            .unwrap_err();
         assert_eq!(error, EngineError::execution_failure(cause.clone()));
         assert_eq!(engine.interp.native_execution_refusal(), Some(cause));
         assert!(crate::test_storage::global_scalar(&engine.interp, b"prior").is_some());
         assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
-        assert_eq!(engine.eval_in_invocation("return NEXT").unwrap().value.as_str(), Some("NEXT"));
+        assert_eq!(
+            engine
+                .eval_in_invocation("return NEXT")
+                .unwrap()
+                .value
+                .as_str(),
+            Some("NEXT")
+        );
     }
-
 }

@@ -29,6 +29,20 @@ use crate::obj::TclObj;
 
 /// Register `clock`.
 pub fn install(interp: &mut Interp) {
+    if interp
+        .native_invocation_dialect()
+        .clock_bootstrap_ensemble()
+        .is_some()
+    {
+        interp.register_stock_ensemble(
+            tcl_registry::invocation_words::EnsembleImplementationFamily::Clock,
+            b"clock",
+            clock_cmd,
+            CLOCK_READING_MEMBERS,
+            &[b"clicks", b"seconds", b"milliseconds", b"microseconds"],
+        );
+        return;
+    }
     interp.register_stock_builtin(b"clock", clock_cmd);
     // The ensemble's implementation members: the real `clock.tcl` rewrites
     // `clock` into an ensemble whose subcommands dispatch to `::tcl::clock::…`,
@@ -42,6 +56,13 @@ pub fn install(interp: &mut Interp) {
     interp.register_stock_builtin(b"::tcl::clock::add", clock_add);
     interp.register_stock_builtin(b"::tcl::clock::scan", clock_scan);
 }
+
+const CLOCK_READING_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+    (b"clicks", clock_clicks),
+    (b"seconds", clock_seconds),
+    (b"milliseconds", clock_milliseconds),
+    (b"microseconds", clock_microseconds),
+];
 
 /// Dispatch an `::tcl::clock::<sub>` ensemble member by prepending `sub` to the
 /// argument list and reusing [`clock_cmd`].
@@ -92,6 +113,52 @@ fn clock_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         Err(e) => interp.report_cmd_error(e),
+    }
+}
+
+#[cfg(test)]
+mod bootstrap_tests {
+    use crate::interp::{Code, Interp};
+    use crate::namespace::{NativeCompilerRecipe, GLOBAL};
+
+    #[test]
+    fn c86_clock_scalar_births_preserve_epochs_and_reading_replacement_advances_them() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        for member in ["clicks", "seconds", "milliseconds", "microseconds"] {
+            let name = format!("::tcl::clock::{member}");
+            let token = interp.resolve_cmd_token(name.as_bytes()).unwrap();
+            assert!(matches!(
+                interp.namespaces().native_compiler_recipe(token),
+                Some(NativeCompilerRecipe::Registered { .. })
+            ));
+        }
+        for member in ["add", "format", "scan", "getenv"] {
+            assert!(interp
+                .resolve_cmd_token(format!("::tcl::clock::{member}").as_bytes())
+                .is_none());
+        }
+        let before = interp.native_compiler_cache_epochs(GLOBAL).unwrap();
+        assert_eq!(
+            interp.eval_str(b"proc boot {} {proc ::tcl::clock::add args {return deferred}; proc ::tcl::clock::format args {return deferred}; proc ::tcl::clock::scan args {return deferred}; set marker after}; boot"),
+            Code::Ok
+        );
+        assert_eq!(interp.result_bytes(), b"after");
+        assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
+        assert_eq!(interp.eval_str(b"clock ad"), Code::Ok);
+        assert_eq!(interp.result_bytes(), b"deferred");
+        assert_eq!(
+            interp.eval_str(b"proc ::tcl::clock::seconds args {}"),
+            Code::Ok
+        );
+        assert_eq!(
+            interp.native_compiler_cache_epochs(GLOBAL),
+            Some((before.0 + 1, before.1))
+        );
     }
 }
 

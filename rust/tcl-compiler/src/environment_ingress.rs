@@ -482,11 +482,18 @@ mod tests {
                 tcl_registry::model::ingress::resolve_known_environment(name).unwrap();
             let (owner, entry) = captured_native_entry_with_owner(environment.unit_profile());
             assert_eq!(entry.execution_point, environment.point(), "{name}");
-            assert_eq!(entry.profile, environment.unit_profile().cache_key(), "{name}");
+            assert_eq!(
+                entry.profile,
+                environment.unit_profile().cache_key(),
+                "{name}"
+            );
             assert!(entry.closed, "{name}");
             assert!(!entry.commands.is_empty(), "{name}");
             let observation = entry.empty_literal_world.as_ref().unwrap();
-            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            assert!(
+                observation.is_current_for(entry.interpreter, entry.epoch),
+                "{name}"
+            );
             drop(owner);
             assert!(!observation.is_current(), "{name}");
         }
@@ -499,17 +506,30 @@ mod tests {
         // Original weak registration observation, independent from command semantics.
         for name in ["tcl8.4", "jimtcl"] {
             let profile = tcl_registry::model::ingress::resolve_known_environment(name)
-                .unwrap().unit_profile();
+                .unwrap()
+                .unit_profile();
             let (owner, entry) = captured_native_entry_with_owner(profile);
             let (other_owner, other) = captured_native_entry_with_owner(profile);
             let observation = entry.empty_literal_world.as_ref().unwrap();
             assert_ne!(entry.interpreter, other.interpreter, "{name}");
-            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
-            assert!(!observation.is_current_for(other.interpreter, other.epoch), "{name}");
+            assert!(
+                observation.is_current_for(entry.interpreter, entry.epoch),
+                "{name}"
+            );
+            assert!(
+                !observation.is_current_for(other.interpreter, other.epoch),
+                "{name}"
+            );
             drop(other_owner);
-            assert!(observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            assert!(
+                observation.is_current_for(entry.interpreter, entry.epoch),
+                "{name}"
+            );
             drop(owner);
-            assert!(!observation.is_current_for(entry.interpreter, entry.epoch), "{name}");
+            assert!(
+                !observation.is_current_for(entry.interpreter, entry.epoch),
+                "{name}"
+            );
         }
     }
 }

@@ -7,8 +7,8 @@
 
 use crate::{
     interp::{
-        Interp, native_arguments::OriginalArguments,
-        native_operation_currency::CheckedNumericEnvironment,
+        native_arguments::OriginalArguments, native_operation_currency::CheckedNumericEnvironment,
+        Interp,
     },
     obj::{self, TclObj},
 };
@@ -17,7 +17,7 @@ use std::{
     rc::{Rc, Weak},
 };
 use tcl_cmd_core::CmdError;
-use tcl_registry::{InvocationDialect, frame_effect::NativeFrameLevelObject};
+use tcl_registry::{frame_effect::NativeFrameLevelObject, InvocationDialect};
 use tcl_syntax::{
     scalar_getter::{
         NativeScalarGetterConversion, NativeScalarGetterFailure, NativeScalarGetterKind,

@@ -1033,11 +1033,9 @@ fn install_configurable(interp: &mut Interp) {
     // so the release gate hides them below their introducing release the way
     // it hides a builtin — real tclsh 8.6.16 has no `oo::configurable`.
     let mut roots = vec![b"::oo::configurable".as_slice(), b"::oo::singleton"];
-    if let Some(recipe) =
-        tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
-            interp.native_invocation_dialect(),
-        )
-    {
+    if let Some(recipe) = tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
+        interp.native_invocation_dialect(),
+    ) {
         roots.push(recipe.command().as_bytes());
     }
     for root in roots {
@@ -1075,11 +1073,9 @@ fn install_abstract_singleton(interp: &mut Interp) {
     let _ = interp.eval_str(b"oo::class create ::oo::SingletonInstance {}");
     // The shared release recipe describes the C9 class initializer only.
     // The existing script workers still create and publish its genuine class.
-    if let Some(recipe) =
-        tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
-            interp.native_invocation_dialect(),
-        )
-    {
+    if let Some(recipe) = tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
+        interp.native_invocation_dialect(),
+    ) {
         let _ = interp.eval_str(recipe.initialization_script());
     }
 }
@@ -4142,17 +4138,22 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return nextto_cmd_with_original(interp, argv, originals, None);
         }
         let Some(version) = dialect.tcl_version else {
-            return interp.report_cmd_error(originals.retain_refusal(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "selected original C NextTo version",
-                ).into(),
-            ));
+            return interp.report_cmd_error(
+                originals.retain_refusal(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "selected original C NextTo version",
+                    )
+                    .into(),
+                ),
+            );
         };
         // Ordinary C9.1 reads its head before context selection. C8.6/C9.0
         // select first and read the head only for an absent-context diagnostic.
         let head = if version == tcl_dialect::TclVersion::V9_1 {
             Some(oo_original_bytes!(interp, originals, 0))
-        } else { None };
+        } else {
+            None
+        };
         let selected = match native_context::OriginalOoNextContext::capture(interp) {
             Ok(Some(selected)) => selected,
             Ok(None) => {
@@ -4189,26 +4190,36 @@ fn nextto_cmd_with_original(
     extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
 ) -> Code {
     if let Some(check) = extra {
-        if let Err(first) = check(interp) { return interp.report_cmd_error(first); }
+        if let Err(first) = check(interp) {
+            return interp.report_cmd_error(first);
+        }
     }
-    let ctx = extra.is_none().then(|| interp
-        .oo
-        .borrow()
-        .call_stack
-        .iter()
-        .rev()
-        .find(|frame| frame.activation == Some(interp.frames.borrow().current_activation()))
-        .map(|frame| {
-            (
-                frame.object,
-                frame.chain.clone(),
-                frame.index,
-                frame.target.clone(),
-                frame.external,
-            )
-        })).flatten();
-    let selected_present = ctx.is_some() || (extra.is_some() && interp.oo.borrow().call_stack
-        .iter().any(|frame| frame.activation == Some(interp.frames.borrow().current_activation())));
+    let ctx = extra
+        .is_none()
+        .then(|| {
+            interp
+                .oo
+                .borrow()
+                .call_stack
+                .iter()
+                .rev()
+                .find(|frame| frame.activation == Some(interp.frames.borrow().current_activation()))
+                .map(|frame| {
+                    (
+                        frame.object,
+                        frame.chain.clone(),
+                        frame.index,
+                        frame.target.clone(),
+                        frame.external,
+                    )
+                })
+        })
+        .flatten();
+    let selected_present = ctx.is_some()
+        || (extra.is_some()
+            && interp.oo.borrow().call_stack.iter().any(|frame| {
+                frame.activation == Some(interp.frames.borrow().current_activation())
+            }));
     if !selected_present {
         return err(interp, b"nextto may only be called from inside a method");
     };
@@ -4223,7 +4234,10 @@ fn nextto_cmd_with_original(
         Err(error) => return interp.report_cmd_error(error),
     };
     let reached = interp.oo_resolve_original_object_using(original, extra);
-    if let Err(first) = originals.check().and_then(|()| extra.map_or(Ok(()), |check| check(interp))) {
+    if let Err(first) = originals
+        .check()
+        .and_then(|()| extra.map_or(Ok(()), |check| check(interp)))
+    {
         return interp.report_cmd_error(first);
     }
     let class = match reached {
@@ -4249,16 +4263,33 @@ fn nextto_cmd_with_original(
     }
     // Re-read the selected context's mutable payload at the actual post-
     // lookup stage. The caller checks the original weak frame/chain first.
-    let ctx = ctx.or_else(|| interp.oo.borrow().call_stack.iter().rev()
-        .find(|frame| frame.activation == Some(interp.frames.borrow().current_activation()))
-        .map(|frame| (frame.object, frame.chain.clone(), frame.index,
-            frame.target.clone(), frame.external)));
+    let ctx = ctx.or_else(|| {
+        interp
+            .oo
+            .borrow()
+            .call_stack
+            .iter()
+            .rev()
+            .find(|frame| frame.activation == Some(interp.frames.borrow().current_activation()))
+            .map(|frame| {
+                (
+                    frame.object,
+                    frame.chain.clone(),
+                    frame.index,
+                    frame.target.clone(),
+                    frame.external,
+                )
+            })
+    });
     let Some((object, chain, index, target, external)) = ctx else {
-        return interp.report_cmd_error(originals.retain_refusal(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original selected NextTo context",
-            ).into(),
-        ));
+        return interp.report_cmd_error(
+            originals.retain_refusal(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original selected NextTo context",
+                )
+                .into(),
+            ),
+        );
     };
     // The actual producer flag distinguishes filters from target steps.
     let is_target = |s: &CallStep| !s.is_filter;
@@ -4280,20 +4311,18 @@ fn nextto_cmd_with_original(
         }
     }
     // Not reachable ahead: distinguish "behind us" from "not in the chain".
-    let method_type: &[u8] = if chain.report_role() == NativeTclooMethodReportRole::Constructor
-    {
+    let method_type: &[u8] = if chain.report_role() == NativeTclooMethodReportRole::Constructor {
         b"constructor"
     } else if chain.report_role() == NativeTclooMethodReportRole::Destructor {
         b"destructor"
     } else {
         b"method"
     };
-    let reachable_behind =
-        (0..=index).any(|i| chain[i].provider == class && is_target(&chain[i]));
+    let reachable_behind = (0..=index).any(|i| chain[i].provider == class && is_target(&chain[i]));
     let raw = match native_context::next_original_bytes_using(interp, originals, 1, extra) {
-            Ok(bytes) => bytes,
-            Err(first) => return interp.report_cmd_error(first),
-        };
+        Ok(bytes) => bytes,
+        Err(first) => return interp.report_cmd_error(first),
+    };
     let mut m = method_type.to_vec();
     if reachable_behind {
         m.extend_from_slice(b" implementation by \"");
@@ -4305,7 +4334,6 @@ fn nextto_cmd_with_original(
         m.push(b'"');
     }
     err(interp, &m)
-
 }
 
 /// `classvariable name ...` — the method-context command that links each `name`
@@ -9540,7 +9568,7 @@ mod tests {
             // b inherits y=1 and its own foo (operating on b's y).
             assert_eq!(ok(i, b"b eval foo"), b"2"); // b.y 1->2
             assert_eq!(ok(i, b"b eval foo"), b"3"); // b.y 2->3
-            // a's y is untouched by b's foo.
+                                                    // a's y is untouched by b's foo.
             assert_eq!(ok(i, b"a eval {set y}"), b"1");
             assert_eq!(ok(i, b"a eval foo"), b"2"); // a.y 1->2
         });
@@ -11471,11 +11499,9 @@ mod original_call_argv_tests {
                     .map(|pair| list::list_elements_native_checked(pair[1], protocol).unwrap())
                     .collect();
                 assert_eq!(calls.len(), 2);
-                assert!(
-                    calls
-                        .iter()
-                        .all(|call| call.last() == Some(&argument.as_ptr()))
-                );
+                assert!(calls
+                    .iter()
+                    .all(|call| call.last() == Some(&argument.as_ptr())));
                 assert_eq!(
                     calls.last().unwrap(),
                     &vec![head.as_ptr(), method.as_ptr(), argument.as_ptr()]
@@ -11578,11 +11604,9 @@ mod original_call_argv_tests {
                 .unwrap();
             let stack = interp.original_error_stack_value();
             let parts = list::list_elements_native_checked(stack.as_ptr(), protocol).unwrap();
-            assert!(
-                !parts
-                    .chunks_exact(2)
-                    .any(|pair| obj::bytes_of(pair[0]) == b"CALL")
-            );
+            assert!(!parts
+                .chunks_exact(2)
+                .any(|pair| obj::bytes_of(pair[0]) == b"CALL"));
         }
     }
 }

@@ -1,0 +1,44 @@
+ * Math functions. All are safe.
+ */
+
+typedef struct {
+    const char *name;		/* Name of the function. The full name is
+				 * "::tcl::mathfunc::<name>". */
+    Tcl_ObjCmdProc *objCmdProc;	/* Function that evaluates the function */
+    ClientData clientData;	/* Client data for the function */
+} BuiltinFuncDef;
+static const BuiltinFuncDef BuiltinFuncTable[] = {
+    { "abs",	ExprAbsFunc,	NULL			},
+    { "acos",	ExprUnaryFunc,	(void *)acos	},
+    { "asin",	ExprUnaryFunc,	(void *)asin	},
+    { "atan",	ExprUnaryFunc,	(void *)atan	},
+    { "atan2",	ExprBinaryFunc,	(void *)atan2	},
+    { "bool",	ExprBoolFunc,	NULL			},
+    { "ceil",	ExprCeilFunc,	NULL			},
+    { "cos",	ExprUnaryFunc,	(void *)cos	},
+    { "cosh",	ExprUnaryFunc,	(void *)cosh	},
+    { "double",	ExprDoubleFunc,	NULL			},
+    { "entier",	ExprEntierFunc,	NULL			},
+    { "exp",	ExprUnaryFunc,	(void *)exp	},
+    { "floor",	ExprFloorFunc,	NULL			},
+    { "fmod",	ExprBinaryFunc,	(void *)fmod	},
+    { "hypot",	ExprBinaryFunc,	(void *)hypot	},
+    { "int",	ExprIntFunc,	NULL			},
+    { "isqrt",	ExprIsqrtFunc,	NULL			},
+    { "log",	ExprUnaryFunc,	(void *)log	},
+    { "log10",	ExprUnaryFunc,	(void *)log10	},
+    { "pow",	ExprBinaryFunc,	(void *)pow	},
+    { "rand",	ExprRandFunc,	NULL			},
+    { "round",	ExprRoundFunc,	NULL			},
+    { "sin",	ExprUnaryFunc,	(void *)sin	},
+    { "sinh",	ExprUnaryFunc,	(void *)sinh	},
+    { "sqrt",	ExprSqrtFunc,	NULL			},
+    { "srand",	ExprSrandFunc,	NULL			},
+    { "tan",	ExprUnaryFunc,	(void *)tan	},
+    { "tanh",	ExprUnaryFunc,	(void *)tanh	},
+    { "wide",	ExprWideFunc,	NULL			},
+    { NULL, NULL, NULL }
+};
+
+/*
+ * TIP#174's math operators. All are safe.

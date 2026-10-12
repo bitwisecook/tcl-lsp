@@ -564,7 +564,6 @@ mod tests {
             .push("::leaf".to_owned());
         assert!(!is_descendant_of(&analysis, "::leaf", "::missing"));
     }
-
 }
 
 #[cfg(test)]

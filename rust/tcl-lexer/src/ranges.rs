@@ -1564,14 +1564,15 @@ mod shared_boundary_tests {
         // Implementation contract: naming.grammar.shared-written-name-boundaries
         // docs/design/analysis/name-resolution-proofs/shared-written-name-boundaries.md
         // Actual array-index scan; ASCII nested bare variables keep the old door.
-        for (source, end) in [("$a($n:::v(k))", 13), ("$a($foo:::(k))", 14), ("$a($:(k))", 8), ("$a($é(k))", 9)] {
+        for (source, end) in [
+            ("$a($n:::v(k))", 13),
+            ("$a($foo:::(k))", 14),
+            ("$a($:(k))", 8),
+            ("$a($é(k))", 9),
+        ] {
             let bytes = source.as_bytes();
-            let scan = scan_array_index(
-                bytes,
-                2,
-                ArrayIndexSyntax::Tcl8,
-                BracedVarStyle::FirstClose,
-            );
+            let scan =
+                scan_array_index(bytes, 2, ArrayIndexSyntax::Tcl8, BracedVarStyle::FirstClose);
             assert_eq!(scan.end, ArrayIndexEnd::Closed(end));
             assert_eq!(scan.invalid, None);
         }

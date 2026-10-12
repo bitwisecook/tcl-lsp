@@ -1,0 +1,5 @@
+PRIVATE {::tcl::clock::clicks ::tcl::clock::microseconds ::tcl::clock::milliseconds ::tcl::clock::seconds}
+ENSEMBLE 1
+MAP {clicks ::tcl::clock::clicks seconds ::tcl::clock::seconds milliseconds ::tcl::clock::milliseconds microseconds ::tcl::clock::microseconds add ::tcl::clock::add format ::tcl::clock::format scan ::tcl::clock::scan}
+PREFIXES 1
+SUBCOMMANDS {}

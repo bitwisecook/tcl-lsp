@@ -1,0 +1,11 @@
+    {"array",		tclArrayImplMap,	NULL, CMD_IS_SAFE},
+    {"binary",		tclBinaryImplMap,	NULL, CMD_IS_SAFE},
+    {"binary encode",	tclBinaryEncodeImplMap, NULL, CMD_IS_SAFE},
+    {"binary decode",	tclBinaryDecodeImplMap, NULL, CMD_IS_SAFE},
+    {"chan",		tclChanImplMap,		TclSetUpChanCmd, CMD_IS_SAFE},
+    // TODO: Sort out why setup of [clock] is so weird
+    {"clock",		tclClockImplMap,	NULL, 0},
+    {"dict",		tclDictImplMap,		NULL, CMD_IS_SAFE},
+    {"encoding",	tclEncodingImplMap,	NULL, 0},
+    {"file",		tclFileImplMap,		NULL, 0},
+    {"info",		tclInfoImplMap,		NULL, CMD_IS_SAFE},

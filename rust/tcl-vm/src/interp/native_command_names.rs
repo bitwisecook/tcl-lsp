@@ -96,22 +96,22 @@ impl<'a> OriginalLiteralOperation<'a> {
             None,
             &mut |original| {
                 let reached = (|| {
-                if registration().is_err() {
+                    if registration().is_err() {
+                        self.current_cmd()?;
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "original literal registration stage",
+                        )
+                        .into());
+                    }
                     self.current_cmd()?;
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "original literal registration stage",
-                    )
-                    .into());
-                }
-                self.current_cmd()?;
-                original
-                    .original_native_header_currentness()
-                    .map_err(|error| {
-                        let first = self.vm.borrow_mut().retain_tcl_host_failure(
-                            crate::error::TclHostFailure::ValueAccess(error),
-                        );
-                        CmdError::from_execution_refusal(first)
-                    })
+                    original
+                        .original_native_header_currentness()
+                        .map_err(|error| {
+                            let first = self.vm.borrow_mut().retain_tcl_host_failure(
+                                crate::error::TclHostFailure::ValueAccess(error),
+                            );
+                            CmdError::from_execution_refusal(first)
+                        })
                 })();
                 if let Err(error) = &reached {
                     self.retain(error);

@@ -1,0 +1,19 @@
+    /*
+     * Install the commands.
+     */
+
+    Tcl_Namespace *nsPtr = Tcl_FindNamespace(interp, TCL_CLOCK_NS, NULL, 0);
+    const struct ClockCommand *clockCmdPtr;
+    for (clockCmdPtr=clockCommands ; clockCmdPtr->name!=NULL ; clockCmdPtr++) {
+	void *clientData = NULL;
+	if (clockCmdPtr->useClientData) {
+	    clientData = data;
+	    data->refCount++;
+	}
+	Command *cmdPtr = (Command *)TclCreateObjCommandInNs(interp,
+		clockCmdPtr->name, nsPtr, clockCmdPtr->objCmdProc, clientData,
+		clientData ? ClockDeleteCmdProc : NULL);
+	cmdPtr->compileProc = clockCmdPtr->compileProc;
+    }
+    Tcl_CreateObjCommand2(interp, "::tcl::unsupported::clock::configure",
+	    ClockConfigureObjCmd, data, ClockDeleteCmdProc);

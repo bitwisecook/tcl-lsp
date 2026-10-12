@@ -378,8 +378,12 @@ impl ScanCtx<'_> {
             Some(profile)
                 if tcl_registry::InvocationDialect::of_profile(profile).family()
                     == Some(tcl_dialect::model::Family::Tcl)
-                    && tcl_registry::InvocationDialect::of_profile(profile).tcl_version.is_none()
-                    && tcl_registry::InvocationDialect::of_profile(profile).core_point.is_none() =>
+                    && tcl_registry::InvocationDialect::of_profile(profile)
+                        .tcl_version
+                        .is_none()
+                    && tcl_registry::InvocationDialect::of_profile(profile)
+                        .core_point
+                        .is_none() =>
             {
                 Some(OriginalSourceNamePurpose::Symbolic)
             }

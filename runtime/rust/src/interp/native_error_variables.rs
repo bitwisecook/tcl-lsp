@@ -2,8 +2,8 @@
 
 use super::{new_string, Interp, TraceAccess, GLOBAL};
 use crate::obj;
-use tcl_syntax::value::ValueError;
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
+use tcl_syntax::value::ValueError;
 
 #[derive(Default, Clone)]
 pub(super) struct NativeErrorObjects {

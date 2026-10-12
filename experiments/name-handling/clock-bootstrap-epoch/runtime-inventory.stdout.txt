@@ -1,0 +1,1 @@
+PRIVATE {::tcl::clock::add ::tcl::clock::clicks ::tcl::clock::format ::tcl::clock::microseconds ::tcl::clock::milliseconds ::tcl::clock::scan ::tcl::clock::seconds}

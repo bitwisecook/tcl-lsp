@@ -1,0 +1,40 @@
+{
+  "scope": "Retention integrity only; no tests/builds rerun and no comparison with current working source",
+  "raw_artifacts_checked": 39,
+  "raw_bytes_checked": 1579038,
+  "all_retained_raw_bytes_equal_original_temporary_files": true,
+  "all_retained_raw_digests_and_lengths_match_records": true,
+  "source_advice_snapshot_files_matching_original_manifest": [
+    "0.current",
+    "0.head",
+    "1.current",
+    "1.head",
+    "2.current",
+    "3.current",
+    "3.head",
+    "4.current",
+    "4.head"
+  ],
+  "logical_namespace_original_head_hash_and_bytes": "Not available; original head_sha256 is null and no 2.head exists",
+  "counterfactual_and_current_owner_logs_match_original_comparison_digests": true,
+  "counterfactual_and_current_owner_failure_names_match_exactly": true,
+  "owner_failure_count_each": 6,
+  "owner_pass_count_each": 6,
+  "new_owner_failures_in_comparison": 0,
+  "packaged_lsp_failure_count": 2,
+  "packaged_lsp_pass_count": 0,
+  "original_restoration_receipt_flags_true": true,
+  "restoration_reexecuted": false,
+  "w210_tcltest_pass_count": 6,
+  "w210_tcltest_failure_count": 3,
+  "w210_exact_missing_read_failure_names_checked": true,
+  "w210_selection_inventory_entries": 3,
+  "w210_selection_before_after_inventories_identical": true,
+  "w210_frozen_before_inventory_entries": 568,
+  "w210_selection_owners_different_from_frozen_before_inventory": [
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+    "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+    "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs"
+  ],
+  "missing_provenance": "No complete original source/build receipt for every invocation; no matching W210 selection-stage source bytes retained; original other-WIP restoration is not independently rerun"
+}

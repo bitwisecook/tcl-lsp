@@ -5,7 +5,7 @@
   "fileTypes": [
     "apl"
   ],
-  "comment": "APL — the presentation language of an F5 iApp template. Not Tcl: it has its own grammar of sections, typed fields, attributes and choice lists, with `[ … ]` bracket expressions that *are* Tcl. Every Tcl-family language used to be pointed at `tcl.tmLanguage.json`, which contains no APL rule at all, so an APL file was painted with Tcl rules until the server answered and replaced them wholesale (issue #903). The scopes below are the ones `package.json` already maps the server's `apl*` semantic-token types to, so the static paint and the semantic paint agree instead of contradicting each other.\n\nEvery keyword alternation carries an explicit trailing boundary. Without one, `yesno` matches inside the *user-defined type name* `yesno_choice` (`define choice yesno_choice`) and paints half of it as a field-type keyword — a real bug the first draft of this grammar had.\n\nA field's type may be user-defined (`define choice lb_method` … then `lb_method lb_algorithm`). A static grammar cannot know those names, so such a field is left unscoped rather than guessed at; the semantic layer types it correctly.",
+  "comment": "APL describes iApp sections, typed fields, attributes and choices; bracket expressions embed Tcl. Scopes match the server's APL semantic tokens. Keyword boundaries keep user-defined types such as yesno_choice intact. User-defined field types are left unscoped for semantic analysis.",
   "patterns": [
     {
       "include": "#directive"

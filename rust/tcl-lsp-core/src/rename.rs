@@ -16,69 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Rename provider.
+//! Rename plans for current original symbols and explicit lexical compatibility.
 //!
-//! Computes a workspace edit that renames the symbol at the
-//! cursor across the current document.  Handles:
+//! Native namespace, variable, command and member selection uses the shared
+//! typed owners. Plans require current source/configuration, complete occurrence
+//! coverage, unoccupied replacements and independently validated edit geometry.
+//! Missing identity or coverage refuses the entire edit set.
 //!
-//! * `$var` references → rewrite the `VarDef.definition_span`
-//!   and every `VarDef.references` span to the new name.
-//! * proc references → rewrite `ProcDef.name_span` and every
-//!   matching command-invocation head to the new name.
-//!
-//! With **safety gating**: the caller may pass a
-//! [`tcl_registry::CommandRegistry`].  When provided, the new
-//! name is validated against:
-//!
-//! * `is_safe_symbol_name(name)` — must match
-//!   `^[A-Za-z_][A-Za-z0-9_]*$`.  Applies to every rename
-//!   target.
-//! * `is_builtin_command_name(name, registry)` — proc renames
-//!   refuse to overwrite a built-in command name.
-//!
-//! When the new name fails either check, [`rename`] returns an
-//! empty `Vec<TextEdit>` so the editor refuses the rename
-//! rather than producing a partial edit set.
-//!
-//! Class renames are also supported: when the cursor sits on a
-//! `oo::class create ClassName` declaration name (or on any
-//! `ClassName new` / `ClassName create instance` invocation
-//! head), the provider rewrites the declaration's name span
-//! and every invocation that targets the class.  The same
-//! `is_safe_symbol_name` / `is_builtin_command_name` gates
-//! apply.
-//!
-//! Method / classmethod / property renames: when
-//! the cursor sits on a member name inside the class body
-//! (either at the declaration or at a call site), the
-//! provider rewrites the declaration's name span plus every
-//! same-name command invocation inside the class body, **and**
-//! every external `$obj method` / `[$obj method]` call site
-//! where `$obj`'s class (per `analysis.instance_classes`)
-//! matches.  Renaming can also be triggered from an external
-//! call site.  See [`crate::references::method_references_for_class`]
-//! for the external-site scan's coverage.
-//!
-//! Cross-document rename: procs and classes rewrite their sibling-document
-//! call / definition sites via [`cross_document_symbol_edits`] over the
-//! workspace index.  **Methods** rename across their whole override family,
-//! including sibling documents: the server resolves the family via
-//! [`crate::workspace_index::WorkspaceIndex::method_override_family`] and
-//! calls [`method_spans_in_document`] per family-member document.
-//! [`method_rename_target`] identifies the seed class + method under the
-//! cursor for that path.
-//!
-//! Limitations:
-//!
-//! * A `$obj method` site is only rewritten in a document that also
-//!   *defines* the receiver's class — the same single-document constraint
-//!   under which the analyser resolves `$obj`'s class at all.  A `$obj
-//!   method` call in a file that only *uses* a class (never defines it) is
-//!   not resolvable, so it is neither found nor (mis)renamed.
-//! * `$obj method` sites embedded in quoted / word tokens
-//!   (`"prefix[$d bark]"`) — the external scan descends into
-//!   command-substitution args and proc / method bodies but
-//!   not into string interpolation.
+//! Lexical compatibility uses separate ASCII-name and builtin-collision gates.
+//! The server validates every participating document before combining shared
+//! plans; an empty result and an explicit safety refusal remain distinct.
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
@@ -129,23 +76,6 @@ pub fn is_builtin_command_name(name: &str, registry: &CommandRegistry) -> bool {
     registry.command_names().any(|n| n == name)
 }
 
-/// Compute the text edits for a rename of the symbol at the
-/// cursor.
-///
-/// Returns an empty vector when no recognisable symbol is at
-/// the position, the new name fails the safety gate, or a
-/// proc rename would shadow a built-in command.  The caller
-/// (server) is responsible for wrapping the output in a
-/// `WorkspaceEdit { changes: { uri: edits } }`.
-///
-/// `registry`, when `Some`, enables safety
-/// gating:
-///
-/// * Every rename target rejects new names that don't match
-///   `is_safe_symbol_name` — invalid syntax is refused.
-/// * Proc renames additionally refuse names registered as
-///   built-in commands via [`is_builtin_command_name`].
-///
 /// Result of [`prepare_rename`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrepareRename {
@@ -375,7 +305,8 @@ pub fn prepare_rename_in_program(
 
 /// Compute rename text edits.
 ///
-/// See module-level docs for the dispatch order (variable → proc → class).
+/// Explicit safety refusals become an empty edit set; use
+/// [`rename_with_diagnosis`] when the caller needs the refusal reason.
 #[must_use]
 pub fn rename(
     source: &str,
@@ -5738,5 +5669,4 @@ mod tests {
                 .is_none()
         );
     }
-
 }

@@ -127,7 +127,10 @@ impl Interp {
         let reference_guard = stage.is_some().then(|| reference.clone());
         let reference_current = |actual: &Interp| {
             check()?;
-            if reference_guard.as_ref().is_some_and(|reference| !actual.namespaces().owns_namespace_name_token(reference)) {
+            if reference_guard
+                .as_ref()
+                .is_some_and(|reference| !actual.namespaces().owns_namespace_name_token(reference))
+            {
                 return Err(match retain {
                     Some(retain) => retain(ValueError::CommandProtocolUnavailable(
                         "changed original namespace reference incarnation",

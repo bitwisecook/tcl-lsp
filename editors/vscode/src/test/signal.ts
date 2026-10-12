@@ -46,8 +46,7 @@
 //! mod.rs`): every deadline here is a *hang backstop*, not an assertion. A
 //! fixed wall-clock backstop is wrong in exactly one direction — on a machine
 //! the OS is giving a fraction of a core, a correct server misses it and a
-//! *content* test fails as a *timeout*. That is a real failure mode: the VS
-//! Code suite has stalled while ~9 agent build trees shared the container.
+//! *content* test fails as a *timeout*.
 //!
 //! So deadlines are multiplied by [`loadFactor`], a measured probe of how much
 //! capacity this process is actually getting. On an idle machine the factor is

@@ -1,0 +1,30 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--test",
+    "native_variable_declaration",
+    "-j2"
+  ],
+  "cargo_target_dir": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "profile": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0"
+  },
+  "result": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0
+  },
+  "source_sha256": {
+    "rust/tcl-registry/src/native_variable_declaration.rs": "67443e9a97913fe3ccb989951268aa45143b5366aca3ef1805e2d18332951938",
+    "rust/tcl-vm/tests/native_variable_declaration.rs": "a78230d43d4b30249a428cd588104bd03d8c8bb132e175e1ae79759f6db56c7c"
+  },
+  "test_executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/native_variable_declaration-56943b135f517f18",
+  "test_executable_sha256": "8682a9a2fef0e82069ea5b2e0ce82493a76c345ab69c9d5d70b1fa2f182063b6",
+  "log_sha256": "da40f3833ea57c63179b010ded0d1ebbc72a7ecd82b37bee5d38051ae40e0650",
+  "cases": "zero,three,four operands across actual native C8.4,C8.5,C8.6,C9.0,C9.1,Jim cores; original oracle rows"
+}

@@ -9,11 +9,9 @@ use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 fn source_units(current: &ByteNamespacePath, written: &[u8]) -> Option<()> {
     (std::str::from_utf8(written).is_ok()
         && !written.contains(&0)
-        && current
-            .as_segments()
-            .iter()
-            .all(|segment| std::str::from_utf8(segment.as_bytes()).is_ok()
-                && !segment.as_bytes().contains(&0)))
+        && current.as_segments().iter().all(|segment| {
+            std::str::from_utf8(segment.as_bytes()).is_ok() && !segment.as_bytes().contains(&0)
+        }))
     .then_some(())
 }
 
@@ -226,5 +224,4 @@ mod tests {
             );
         }
     }
-
 }

@@ -371,7 +371,6 @@ fn completion_of(outcome: Result<Option<String>, String>) -> Completion<tcl_vm::
     }
 }
 
-
 impl NativeCommand for WordAdapter {
     fn invoke(&self, vm: &mut Vm, args: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
         let words = match vm.original_callback_unicode_words(
@@ -571,8 +570,17 @@ mod tests {
         // Actual pack interpreter/vocabulary path, not a native name experiment.
         let (seen, mut vocabulary, unknown) = capture_all();
         vocabulary[0].0 = ":clock";
-        run_pack_program(":clock {A\0B}\n", &vocabulary, &unknown, &PackEvalConfig::default()).unwrap();
-        assert_eq!(*seen.borrow(), [vec!["register".to_owned(), "A\0B".to_owned()]]);
+        run_pack_program(
+            ":clock {A\0B}\n",
+            &vocabulary,
+            &unknown,
+            &PackEvalConfig::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            *seen.borrow(),
+            [vec!["register".to_owned(), "A\0B".to_owned()]]
+        );
         assert_eq!(denied_axis(":clock"), None);
         assert_eq!(denied_axis("::::clock"), Some("clock/time"));
         assert_eq!(denied_axis("other::clock"), None);

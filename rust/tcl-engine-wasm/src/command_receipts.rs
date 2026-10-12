@@ -71,15 +71,22 @@ fn owned_string<C: AsContextMut<Data = HostState>>(
 /// Decode only the actual callback-free diagnostic projection. Missing identity
 /// is terminal for typed transport; no raw pointer or command lookup fallback.
 pub(crate) fn interpreter_identity<C: AsContextMut<Data = HostState>>(
-    context: &mut C, exports: &Exports, interp: i32,
+    context: &mut C,
+    exports: &Exports,
+    interp: i32,
 ) -> Result<EngineInterpreterIdentity, Failure> {
     let out = call(context, &exports.alloc, (16, 1))?;
     let reached = (|| {
         if call(context, &exports.interpreter_identity, (interp, out))? != 0 {
-            return Err(Failure::ExecutionRefusal("actual interpreter diagnostic identity unavailable".into()));
+            return Err(Failure::ExecutionRefusal(
+                "actual interpreter diagnostic identity unavailable".into(),
+            ));
         }
         let mut bytes = [0; EngineInterpreterIdentity::BYTE_LENGTH];
-        exports.memory.read(context.as_context(), address(out), &mut bytes).map_err(|error| Failure::Trap(wasmtime::Error::new(error)))?;
+        exports
+            .memory
+            .read(context.as_context(), address(out), &mut bytes)
+            .map_err(|error| Failure::Trap(wasmtime::Error::new(error)))?;
         Ok(EngineInterpreterIdentity::from_bytes(bytes))
     })();
     call(context, &exports.free, out)?;
@@ -99,7 +106,11 @@ pub(crate) fn host_error<C: AsContextMut<Data = HostState>>(
     let state = context.as_context();
     if let Some(record) = state.data().execution_causes.get(&identity)
         && let Some(original) = record.episode.upgrade()
-        && state.data().entry_episode.as_ref().is_some_and(|current| std::rc::Rc::ptr_eq(current, &original))
+        && state
+            .data()
+            .entry_episode
+            .as_ref()
+            .is_some_and(|current| std::rc::Rc::ptr_eq(current, &original))
     {
         return Ok(Some(EngineError::execution_failure(record.cause.clone())));
     }

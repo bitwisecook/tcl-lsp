@@ -1651,7 +1651,9 @@ mod tests {
             old.header
         );
         let epoch = interp.oo.borrow().property_foundation_epoch;
-        interp.native_property_structure_changed(class, true).unwrap();
+        interp
+            .native_property_structure_changed(class, true)
+            .unwrap();
         assert_eq!(interp.oo.borrow().property_foundation_epoch, epoch + 1);
     }
 }
@@ -1766,7 +1768,9 @@ mod original_slot_boundary_tests {
             let (mut interpreter, target) = native();
             MODE.with(|selected| selected.set(mode));
             let original = obj::Owned::fresh(obj::alloc_typed(&UPDATER, 0));
-            let original_cache = obj::native_object_snapshot(original.as_ptr()).unwrap().cache;
+            let original_cache = obj::native_object_snapshot(original.as_ptr())
+                .unwrap()
+                .cache;
             let original_primary = obj::internal_rep(original.as_ptr());
             assert!(matches!(original_cache, NativeObjectCacheSnapshot::Other));
             interpreter.set_result_bytes(b"PRIOR");
@@ -1787,7 +1791,9 @@ mod original_slot_boundary_tests {
                 &UPDATER
             ));
             assert_eq!(
-                obj::native_object_snapshot(original.as_ptr()).unwrap().cache,
+                obj::native_object_snapshot(original.as_ptr())
+                    .unwrap()
+                    .cache,
                 original_cache,
             );
             assert_eq!(obj::internal_rep(original.as_ptr()), original_primary);

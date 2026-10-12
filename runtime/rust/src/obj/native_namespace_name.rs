@@ -81,7 +81,10 @@ pub(crate) fn install_using(
         let error = ValueError::CommandProtocolUnavailable(
             "native namespace-name primary origin and resident storage",
         );
-        let first = match retain { Some(retain) => retain(error), None => error };
+        let first = match retain {
+            Some(retain) => retain(error),
+            None => error,
+        };
         drop(cache);
         return Err(first);
     }

@@ -1,0 +1,151 @@
+   Compiling syn v3.0.6
+   Compiling memchr v2.8.3
+   Compiling smallvec v1.16.2
+   Compiling syn v2.0.119
+   Compiling foldhash v0.2.0
+   Compiling allocator-api2 v0.2.21
+   Compiling aho-corasick v1.1.5
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.2
+   Compiling regex-automata v0.4.18
+   Compiling serde_json v1.0.151
+   Compiling nom v7.1.3
+   Compiling regex v1.13.1
+   Compiling synstructure v0.13.2
+   Compiling asn1-rs-impl v0.2.0
+   Compiling rusticata-macros v4.1.0
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive v1.0.229
+   Compiling displaydoc v0.2.7
+   Compiling asn1-rs-derive v0.6.0
+   Compiling pin-project-lite v0.2.17
+   Compiling parking_lot_core v0.9.12
+   Compiling futures-sink v0.3.34
+   Compiling futures-core v0.3.34
+   Compiling once_cell v1.21.4
+   Compiling ref-cast v1.0.27
+   Compiling tracing-core v0.1.36
+   Compiling futures-channel v0.3.34
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling asn1-rs v0.7.2
+   Compiling ref-cast-impl v1.0.27
+   Compiling futures-macro v0.3.34
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling tracing-attributes v0.1.31
+   Compiling serde v1.0.229
+   Compiling x509-parser v0.18.1
+   Compiling portable-atomic v1.15.0
+   Compiling typeid v1.0.3
+   Compiling futures-io v0.3.34
+   Compiling futures-task v0.3.34
+   Compiling slab v0.4.12
+   Compiling tracing v0.1.44
+   Compiling futures-util v0.3.34
+   Compiling parking_lot v0.12.5
+   Compiling tokio-macros v2.7.2
+   Compiling httparse v1.10.1
+   Compiling bytes v1.12.1
+   Compiling borrow-or-share v0.2.4
+   Compiling fluent-uri v0.4.1
+   Compiling tokio v1.53.2
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling crossbeam-queue v0.3.14
+   Compiling salsa-macros v0.28.5
+   Compiling hashlink v0.12.2
+   Compiling iana-time-zone v0.1.65
+   Compiling hashbrown v0.14.5
+   Compiling tower-service v0.3.3
+   Compiling thin-vec v0.2.20
+   Compiling intrusive-collections v0.10.3
+   Compiling boxcar v0.2.14
+   Compiling sync_wrapper v1.0.2
+   Compiling percent-encoding v2.3.2
+   Compiling inventory v0.3.24
+   Compiling tower-layer v0.3.3
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling salsa-macro-rules v0.28.5
+   Compiling tower v0.5.3
+   Compiling ls-types v0.0.6
+   Compiling dashmap v6.2.1
+   Compiling salsa v0.28.5
+   Compiling tokio-util v0.7.19
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling chrono v0.4.45
+   Compiling futures v0.3.34
+   Compiling temp-env v0.3.6
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+warning: function `known_profile_for_dialect` is never used
+  --> rust/tcl-explorer/src/environment.rs:94:8
+   |
+94 | pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `catalogue_profile_for_dialect` is never used
+   --> rust/tcl-explorer/src/environment.rs:110:8
+    |
+110 | pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-explorer` (lib) generated 2 warnings
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+warning: method `fresh_index_seed_is_current` is never used
+     --> rust/tcl-lsp-server/src/lib.rs:11754:14
+      |
+ 9348 | impl Backend {
+      | ------------ method in this implementation
+...
+11754 |     async fn fresh_index_seed_is_current(&self, source: &str, seed: &FreshAnalysisSeed) -> bool {
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-server` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 2m 13s
+     Running tests/e2e.rs (tmp/name-target-issues/debug/deps/e2e-4086e7b269cda8d6)
+
+running 2 tests
+
+thread 'semantic_tokens::test_imported_tcltest_test_structure_recognised' (128672) panicked at rust/tcl-lsp-server/tests/e2e/semantic_tokens.rs:1260:5:
+assertion `left == right` failed: imported test's -body must be an option: [TypedToken { line: 0, char: 0, length: 9, ttype: "keyword", modifiers: 0 }, TypedToken { line: 0, char: 10, length: 6, ttype: "keyword", modifiers: 8 }, TypedToken { line: 0, char: 17, length: 10, ttype: "namespace", modifiers: 0 }, TypedToken { line: 1, char: 0, length: 4, ttype: "function", modifiers: 0 }, TypedToken { line: 1, char: 5, length: 3, ttype: "string", modifiers: 0 }, TypedToken { line: 1, char: 9, length: 6, ttype: "string", modifiers: 0 }, TypedToken { line: 1, char: 16, length: 5, ttype: "string", modifiers: 0 }, TypedToken { line: 1, char: 22, length: 1, ttype: "string", modifiers: 0 }, TypedToken { line: 2, char: 0, length: 11, ttype: "string", modifiers: 0 }, TypedToken { line: 3, char: 0, length: 1, ttype: "string", modifiers: 0 }, TypedToken { line: 3, char: 2, length: 7, ttype: "string", modifiers: 0 }, TypedToken { line: 3, char: 10, length: 1, ttype: "number", modifiers: 0 }]
+  left: Some("string")
+ right: Some("decorator")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test semantic_tokens::test_imported_tcltest_test_structure_recognised ... FAILED
+
+thread 'semantic_tokens::test_namespaced_imported_tcltest_test_structure_recognised' (128673) panicked at rust/tcl-lsp-server/tests/e2e/semantic_tokens.rs:1306:9:
+namespace-imported test option -body must be classified: [TypedToken { line: 5, char: 45, length: 5, ttype: "string", modifiers: 0 }, TypedToken { line: 6, char: 89, length: 5, ttype: "string", modifiers: 0 }]
+test semantic_tokens::test_namespaced_imported_tcltest_test_structure_recognised ... FAILED
+
+failures:
+
+failures:
+    semantic_tokens::test_imported_tcltest_test_structure_recognised
+    semantic_tokens::test_namespaced_imported_tcltest_test_structure_recognised
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 1632 filtered out; finished in 2.93s
+
+error: test failed, to rerun pass `-p tcl-lsp-server --test e2e`

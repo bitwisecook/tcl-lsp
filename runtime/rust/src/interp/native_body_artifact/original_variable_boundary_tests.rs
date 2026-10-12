@@ -66,7 +66,9 @@ extern "C" fn update_name(original: *mut TclObj) {
 }
 extern "C" fn update_root(original: *mut TclObj) {
     ROOT_GETTERS.set(ROOT_GETTERS.get() + 1);
-    if MODE.get() == 5 { obj::change_type(PARENT.get(), &MARKER, 0); }
+    if MODE.get() == 5 {
+        obj::change_type(PARENT.get(), &MARKER, 0);
+    }
     unsafe {
         obj::set_native_updater_string_rep(original, b"variable_array", false);
     }

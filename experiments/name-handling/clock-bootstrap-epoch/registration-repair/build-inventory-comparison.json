@@ -1,0 +1,7 @@
+{
+  "before": "build-source-inventory.json.gz",
+  "after": "after-build-source-inventory.json.gz",
+  "changed_paths": [
+    "rust/tcl-compiler/tests/compiler_analysis_residual.rs"
+  ]
+}

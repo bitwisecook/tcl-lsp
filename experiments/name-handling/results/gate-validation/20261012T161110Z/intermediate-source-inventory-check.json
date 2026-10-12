@@ -1,0 +1,7 @@
+{
+  "before_sha256": "5b7c6af81a9fcd90a7512e1b58ec38076fab1d3e583c553d3c463d778f11a5dd",
+  "after_sha256": "7a2b961bcbd21f21cfbe52ec3e1a9d19818d5be938652c9e70006b9bd2beffb6",
+  "changed_paths": [
+    "runtime/rust/src/interp/native_body_artifact/native_each.rs"
+  ]
+}

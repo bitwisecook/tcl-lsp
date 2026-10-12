@@ -1,0 +1,45 @@
+    # TIP #255 min and max functions
+    namespace eval mathfunc {
+	proc min {args} {
+	    if {![llength $args]} {
+		return -code error \
+		    "not enough arguments to math function \"min\""
+	    }
+	    set val Inf
+	    foreach arg $args {
+		# This will handle forcing the numeric value without
+		# ruining the internal type of a numeric object
+		if {[catch {expr {double($arg)}} err]} {
+		    return -code error $err
+		}
+		if {$arg < $val} {set val $arg}
+	    }
+	    return $val
+	}
+	proc max {args} {
+	    if {![llength $args]} {
+		return -code error \
+		    "not enough arguments to math function \"max\""
+	    }
+	    set val -Inf
+	    foreach arg $args {
+		# This will handle forcing the numeric value without
+		# ruining the internal type of a numeric object
+		if {[catch {expr {double($arg)}} err]} {
+		    return -code error $err
+		}
+		if {$arg > $val} {set val $arg}
+	    }
+	    return $val
+	}
+	namespace export min max
+    }
+}
+
+# Windows specific end of initialization
+
+if {(![interp issafe]) && ($tcl_platform(platform) eq "windows")} {
+    namespace eval tcl {
+	proc EnvTraceProc {lo n1 n2 op} {
+	    global env
+	    set x $env($n2)

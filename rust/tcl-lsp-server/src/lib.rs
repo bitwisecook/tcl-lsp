@@ -59439,7 +59439,6 @@ proc p {} {
         assert!(refusal.reason.contains("::茶::box"));
         assert!(refusal.reason.contains("already exists"));
     }
-
 }
 
 #[cfg(test)]

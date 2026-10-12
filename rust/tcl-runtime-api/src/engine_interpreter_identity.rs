@@ -29,7 +29,9 @@ impl EngineInterpreterIdentity {
     pub fn from_bytes(bytes: [u8; Self::BYTE_LENGTH]) -> Self {
         Self(NativeInterpreterIdentity {
             owner: u64::from_le_bytes(bytes[..8].try_into().expect("fixed identity owner field")),
-            interpreter: u64::from_le_bytes(bytes[8..].try_into().expect("fixed interpreter field")),
+            interpreter: u64::from_le_bytes(
+                bytes[8..].try_into().expect("fixed interpreter field"),
+            ),
         })
     }
 }

@@ -16,62 +16,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Completion provider.
+//! Completion candidates from the current source and selected Registry.
 //!
-//! Wires the LSP completion surface for the three Tcl
-//! completion contexts the analyser surfaces today:
+//! Original variable, argument, member and workspace owners retain source
+//! identity, frame and naming policy. Hosted source advice and explicitly
+//! selected lexical compatibility have separate entry points. Missing or stale
+//! original inputs cannot be reconstructed from displayed names.
 //!
-//! * **Variable completion** — when the cursor sits immediately
-//!   after `$` (or inside a `${name}` braced reference), suggest
-//!   every variable name visible in the global scope.
-//! * **Proc-name completion** — at any other cursor position,
-//!   suggest every user-defined `proc` name that the analyser
-//!   recorded for the document.
-//! * **Built-in command completion** — at the same cursor
-//!   contexts as proc-name completion, also suggest every
-//!   command registered in the caller-provided
-//!   [`tcl_registry::CommandRegistry`].  The caller (server)
-//!   threads its already-built per-dialect registry through.
-//!   When no registry is provided, the completion surface
-//!   degrades cleanly to the proc-only set.
+//! Registry roles select contextual commands, options and argument values.
+//! Prefix filtering and bounded fuzzy fallback share [`filter_candidates`];
+//! command-position fallback ranks candidates only when the whole response is
+//! empty. Candidates provide source insertions, not live lookup or execution.
 //!
-//! Subcommand-scoped argument-value completion: when a
-//! subcommand declares `arg_values` for a positional slot
-//! (e.g. `string is <class>`), the matching character classes
-//! complete at that argument with `EnumValue` kind.
-//!
-//! Workspace-wide proc enumeration: when the caller threads a
-//! [`crate::workspace_index::WorkspaceIndex`], procs defined in
-//! *other* analysed documents surface in the command/proc-completion
-//! fallback (deduped by label against the local set, sorted after
-//! local procs / built-ins via a `C0_…` sort key, detail tagged
-//! `(workspace)`).
-//!
-//! Trait-driven dialect arg rules: any command carrying
-//! `Traits::IS_EVENT_HANDLER` triggers event-name completion
-//! at word-index 1 (iRules `when EVENT`), and any command
-//! carrying `Traits::INVOKES_USER_PROC` surfaces user-defined
-//! proc names at word-index 1 (iRules `call PROC_NAME`).
-//!
-//! **Fuzzy fallback.**  Candidate filtering goes through one shared
-//! helper ([`filter_candidates`]): prefix matches keep the historical
-//! behaviour byte-for-byte, and when a typed fragment of two-plus
-//! characters prefix-matches nothing, the closest candidates by edit
-//! distance (budget and ranking shared with the analyser's "did you
-//! mean…?" emitters via `tcl_compiler::text`) are offered instead —
-//! capped, ranked by `(distance, name)`, and decorated
-//! ([`decorate_fuzzy_items`]) so editors neither hide nor re-order
-//! them.  Context-scoped lists (switches, subcommands, argument
-//! values, events, scoped ops, `call` procs, variables, array
-//! elements) fall back per list; the command-position response falls
-//! back as a whole ([`fuzzy_command_fallback`]) only when procs,
-//! built-ins, scoped heads, workspace procs, and snippets all
-//! produced nothing, so a fragment that matches anything today keeps
-//! today's response exactly.
-//!
-//! Cache + `spawn_blocking` + cached-analysis read-out ride on
-//! top of this provider in `tcl-lsp-server::Backend::completion`;
-//! this module is the pure-CPU computation, no I/O, no async.
+//! The server owns caching and asynchronous scheduling; this provider performs
+//! synchronous computation over the supplied source and analysis.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
@@ -85,8 +43,7 @@ mod original_workspace;
 use crate::definition::utf16_col_to_char_col;
 use tcl_dialect::model::SpecSurface;
 
-/// LSP completion-item kind for our surface.  Keep narrow —
-/// extend as richer completion is added.
+/// LSP completion-item kinds emitted by this provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompletionKind {
     /// Tcl variable.
@@ -103,11 +60,8 @@ pub enum CompletionKind {
 
 /// A single completion suggestion.
 ///
-/// The subset of the LSP `CompletionItem` fields we
-/// emit today: label, insert-text, kind, and an optional
-/// detail line.  The detail is what the editor shows in the
-/// right-hand column of the completion list (typically a
-/// parameter-list summary for procs).
+/// Presentation and insertion fields passed to the editor. Optional detail
+/// provides a short synopsis independently of full documentation.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompletionItem {
     /// Label shown in the completion list — for variables,
@@ -184,8 +138,7 @@ struct FilteredCandidates<T> {
 ///
 /// **Prefix path** — when `partial` is empty or prefix-matches at
 /// least one candidate name — keeps exactly the prefix matches, in
-/// input order: byte-identical to the per-site `starts_with` filters
-/// it replaced.
+/// input order.
 ///
 /// **Fuzzy fallback** — when nothing prefix-matches and the typed
 /// fragment is at least [`MIN_FUZZY_FRAGMENT_CHARS`] characters —
@@ -250,12 +203,8 @@ fn decorate_fuzzy_items(items: &mut [CompletionItem], typed: &str) {
     }
 }
 
-/// Candidate name of an assembled completion item for fragment
-/// matching: a `::`-led fragment matches the inserted (qualified)
-/// name, anything else matches the label.  Procs label their simple
-/// name but insert the qualified one; for every other item kind the
-/// two agree, so this reproduces the historical
-/// name-or-qualified-name prefix test.
+/// Match colon-led fragments against inserted qualification and other
+/// fragments against labels, so a procedure's simple label stays usable.
 fn item_match_name<'a>(item: &'a CompletionItem, partial: &str) -> &'a str {
     if partial.starts_with(':') {
         &item.insert_text
@@ -496,13 +445,8 @@ pub fn completions(
         return items;
     }
 
-    // A command position inside a definition body — including the root of a
-    // document whose dialect declares a document grammar — has a *closed*
-    // vocabulary: exactly that grammar's members. Offering the whole registry
-    // there put `hostname` at the top level of a `.sslictcl` document and the
-    // members of unrelated blocks inside an `hsts { … }`. The grammar, the
-    // nesting rule, and the root answer are all registry data; this consumer
-    // names no dialect and no declaration.
+    // Definition bodies and document grammars have a closed member vocabulary;
+    // the selected Registry owns both nesting and the permitted heads.
     if let Some(registry) = registry
         && let Some(grammar) =
             definition_grammar_at_position(source, line, character, &line_index, analysis, registry)
@@ -622,9 +566,7 @@ pub fn completions(
             file_events: &file_events,
         },
     ));
-    // Response-level fuzzy fallback — only when nothing at all matched
-    // the fragment, so any fragment that matches something today keeps
-    // today's response byte-for-byte.
+    // Preserve prefix matches before considering response-wide fuzzy candidates.
     if items.is_empty() {
         items = fuzzy_command_fallback(
             source,
@@ -994,7 +936,7 @@ fn push_cross_namespace_vars(
 
 /// Build `$arr(index)` completions for the recorded indices of `arr` when
 /// the partial contains `(`.  Always returns (suggestions or empty) —
-/// matching the original short-circuit semantics for array-element context.
+/// preventing command completion from replacing an array-element response.
 fn array_element_completions(
     line_text: &str,
     scope: &Scope,
@@ -1022,10 +964,8 @@ fn array_element_completions(
         return Vec::new();
     }
     // Extend the replace range to swallow an existing `)` that closes this
-    // array reference — but only if one actually exists on the line. When the
-    // reference is unclosed (`$arr(k more stuff`), the old unbounded walk ran
-    // to end-of-line, so accepting a completion deleted the trailing text;
-    // leave the range at the cursor instead (issue 181).
+    // array reference. An unclosed reference leaves the range at the cursor
+    // so accepting a completion preserves trailing text.
     let line_chars: Vec<char> = line_text.chars().collect();
     let arr_end = match line_chars[end.min(line_chars.len())..]
         .iter()
@@ -2129,9 +2069,7 @@ fn arg_value_completions_from(
     mut values: Vec<&tcl_registry::ArgValue>,
     partial: &str,
 ) -> Vec<CompletionItem> {
-    // Pre-sort by value so the prefix path's output matches the
-    // historical post-build label sort, while the fuzzy path keeps its
-    // `(distance, name)` ranking.
+    // Prefix matches retain value order; fuzzy matches retain distance ranking.
     values.sort_unstable_by_key(|v| v.value);
     let FilteredCandidates {
         candidates: values,
@@ -2850,15 +2788,33 @@ mod tests {
             !items.iter().any(|item| item.label == "bark"),
             "malformed `${{x` must not dispatch through real `x`: {items:?}"
         );
-        assert_eq!(strip_instance_var("${x}", tcl_lexer::LexerConfig::default()), Some("x".to_owned()));
-        assert_eq!(strip_instance_var("$x", tcl_lexer::LexerConfig::default()), Some("x".to_owned()));
+        assert_eq!(
+            strip_instance_var("${x}", tcl_lexer::LexerConfig::default()),
+            Some("x".to_owned())
+        );
+        assert_eq!(
+            strip_instance_var("$x", tcl_lexer::LexerConfig::default()),
+            Some("x".to_owned())
+        );
         // Completion intentionally only dispatches simple scalar handles;
         // the shared codec still parses the array decoration, but this
         // feature's documented name validation rejects it.
-        assert_eq!(strip_instance_var("$arr(idx)", tcl_lexer::LexerConfig::default()), None);
-        assert_eq!(strip_instance_var("$::a:::b", tcl_lexer::LexerConfig::default()), Some("::a:::b".to_owned()));
-        assert_eq!(strip_instance_var("$foo:::", tcl_lexer::LexerConfig::default()).as_deref(), Some("foo:::"));
-        assert_eq!(strip_instance_var("${x", tcl_lexer::LexerConfig::default()).as_deref(), None);
+        assert_eq!(
+            strip_instance_var("$arr(idx)", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            strip_instance_var("$::a:::b", tcl_lexer::LexerConfig::default()),
+            Some("::a:::b".to_owned())
+        );
+        assert_eq!(
+            strip_instance_var("$foo:::", tcl_lexer::LexerConfig::default()).as_deref(),
+            Some("foo:::")
+        );
+        assert_eq!(
+            strip_instance_var("${x", tcl_lexer::LexerConfig::default()).as_deref(),
+            None
+        );
     }
 
     #[test]

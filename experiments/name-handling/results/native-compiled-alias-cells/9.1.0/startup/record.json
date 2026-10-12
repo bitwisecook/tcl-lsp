@@ -1,0 +1,17 @@
+{
+  "version": "9.1.0",
+  "case": "startup",
+  "argv": [
+    "/tmp/name-native-compiled-alias-runner",
+    "--quiet",
+    "--tcl-version",
+    "9.1",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/9.1.0/startup/input.tcl"
+  ],
+  "exit_code": 2,
+  "timed_out": false,
+  "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+  "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+  "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+}

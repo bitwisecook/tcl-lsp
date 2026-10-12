@@ -1,0 +1,2 @@
+NH_EXTRA declaration-three 0 {}
+NH_EXTRA declaration-four 0 {}

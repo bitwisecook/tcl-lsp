@@ -83,10 +83,7 @@ pub(crate) fn runtime_target(
             declaration.name.as_bytes(),
             root,
         )? {
-            return Ok(Some((
-                namespace,
-                declaration.private_storage(epoch),
-            )));
+            return Ok(Some((namespace, declaration.private_storage(epoch))));
         }
     }
     for declaration in public {
@@ -113,13 +110,11 @@ pub(crate) fn reported_bindings(
     Ok(public
         .iter()
         .map(|entry| (namespace, entry.name.clone(), entry.name.clone()))
-        .chain(private.iter().map(|entry| {
-            (
-                namespace,
-                entry.name.clone(),
-                entry.private_storage(epoch),
-            )
-        }))
+        .chain(
+            private
+                .iter()
+                .map(|entry| (namespace, entry.name.clone(), entry.private_storage(epoch))),
+        )
         .collect())
 }
 

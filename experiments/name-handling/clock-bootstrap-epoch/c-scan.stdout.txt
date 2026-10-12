@@ -1,0 +1,34 @@
+EPOCH	created	17	0
+COMMAND	created	::clock	1	1	0
+COMMAND	created	::tcl::clock::add	0	-1	-1
+COMMAND	created	::tcl::clock::format	0	-1	-1
+COMMAND	created	::tcl::clock::scan	0	-1	-1
+COMMAND	created	::tcl::clock::clicks	1	1	0
+COMMAND	created	::tcl::clock::seconds	1	1	0
+COMMAND	created	::tcl::clock::milliseconds	1	1	0
+COMMAND	created	::tcl::clock::microseconds	1	1	0
+COMMAND	created	::tcl::clock::getenv	1	0	0
+COMMAND	created	::tcl::clock::Oldscan	1	0	0
+COMMAND	created	::tcl::clock::ConvertLocalToUTC	1	0	0
+COMMAND	created	::tcl::clock::GetDateFields	1	0	0
+COMMAND	created	::tcl::clock::GetJulianDayFromEraYearMonthDay	1	0	0
+COMMAND	created	::tcl::clock::GetJulianDayFromEraYearWeekDay	1	0	0
+COMMAND	created	::tcl::clock::ParseFormatArgs	1	0	0
+after
+RESULT	0	
+EPOCH	completed	17	0
+COMMAND	completed	::clock	1	1	0
+COMMAND	completed	::tcl::clock::add	0	-1	-1
+COMMAND	completed	::tcl::clock::format	0	-1	-1
+COMMAND	completed	::tcl::clock::scan	1	1	1
+COMMAND	completed	::tcl::clock::clicks	1	1	0
+COMMAND	completed	::tcl::clock::seconds	1	1	0
+COMMAND	completed	::tcl::clock::milliseconds	1	1	0
+COMMAND	completed	::tcl::clock::microseconds	1	1	0
+COMMAND	completed	::tcl::clock::getenv	1	0	0
+COMMAND	completed	::tcl::clock::Oldscan	1	0	0
+COMMAND	completed	::tcl::clock::ConvertLocalToUTC	1	0	0
+COMMAND	completed	::tcl::clock::GetDateFields	1	0	0
+COMMAND	completed	::tcl::clock::GetJulianDayFromEraYearMonthDay	1	0	0
+COMMAND	completed	::tcl::clock::GetJulianDayFromEraYearWeekDay	1	0	0
+COMMAND	completed	::tcl::clock::ParseFormatArgs	1	0	0

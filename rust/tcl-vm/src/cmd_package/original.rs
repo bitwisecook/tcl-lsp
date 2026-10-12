@@ -41,7 +41,8 @@ impl OriginalPackage<'_> {
                 Ok(()) => callback(&mut original),
                 Err(error) => crate::command::completion_from_cmd_error(original.vm, error),
             };
-            let checked = original.check_value(&completion.result)
+            let checked = original
+                .check_value(&completion.result)
                 .and_then(|()| original.check_value(&completion.options));
             let held = std::mem::take(&mut original.operands);
             drop(held);
@@ -66,7 +67,8 @@ impl OriginalPackage<'_> {
 
     pub(super) fn check_value(&mut self, value: &Value) -> Result<(), CmdError> {
         self.check()?;
-        OriginalNumericOps::in_original_scope(self.vm, &self.operation)?.current_for_value(value)?;
+        OriginalNumericOps::in_original_scope(self.vm, &self.operation)?
+            .current_for_value(value)?;
         self.check()
     }
 
@@ -76,7 +78,9 @@ impl OriginalPackage<'_> {
         let reached = (|| {
             let ops = OriginalNumericOps::in_original_scope(self.vm, &self.operation)?;
             let protocol = ops.dialect().native_string_protocol().ok_or(
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable("package String protocol"),
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "package String protocol",
+                ),
             )?;
             let reached = ops.string(held.value(), protocol);
             if let Err(error) = &reached {
@@ -108,9 +112,11 @@ impl OriginalPackage<'_> {
 
     pub(super) fn retain_failure(&mut self, error: &CmdError) {
         if let Some(first) = error.native_execution_refusal() {
-            self.vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+            self.vm
+                .retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
         } else if let Some(first) = error.native_access_refusal() {
-            self.vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
+            self.vm
+                .retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(first));
         }
     }
 
@@ -120,7 +126,9 @@ impl OriginalPackage<'_> {
     ) -> Result<T, CmdError> {
         self.check()?;
         let reached = callback(self.vm);
-        if let Err(error) = &reached { self.retain_failure(error); }
+        if let Err(error) = &reached {
+            self.retain_failure(error);
+        }
         self.check()?;
         reached
     }
@@ -138,12 +146,20 @@ impl OriginalPackage<'_> {
         reached
     }
 
-    pub(super) fn cleanup<R>(&mut self, callback: impl FnOnce(&mut Vm) -> R) -> Result<R, CmdError> {
+    pub(super) fn cleanup<R>(
+        &mut self,
+        callback: impl FnOnce(&mut Vm) -> R,
+    ) -> Result<R, CmdError> {
         self.table.cleanup(self.vm, &self.operation, callback)
     }
 
-    pub(super) fn end_loading(&mut self, name: &NameBytes, version: &NameBytes) -> Result<(), CmdError> {
-        self.table.end_loading(self.vm, &self.operation, name, version)
+    pub(super) fn end_loading(
+        &mut self,
+        name: &NameBytes,
+        version: &NameBytes,
+    ) -> Result<(), CmdError> {
+        self.table
+            .end_loading(self.vm, &self.operation, name, version)
     }
 
     pub(super) fn eval_script(&mut self, script: &Value) -> Completion<Value> {
@@ -167,10 +183,14 @@ impl OriginalPackage<'_> {
 
 impl Deref for OriginalPackage<'_> {
     type Target = Vm;
-    fn deref(&self) -> &Vm { self.vm }
+    fn deref(&self) -> &Vm {
+        self.vm
+    }
 }
 impl DerefMut for OriginalPackage<'_> {
-    fn deref_mut(&mut self) -> &mut Vm { self.vm }
+    fn deref_mut(&mut self) -> &mut Vm {
+        self.vm
+    }
 }
 
 fn retain_at_owner(ops: &OriginalNumericOps<'_>, error: &CmdError) {
@@ -182,7 +202,10 @@ fn retain_at_owner(ops: &OriginalNumericOps<'_>, error: &CmdError) {
 
 fn original_tcl_failure(error: CmdError) -> crate::TclError {
     crate::TclError::from_execution_failure(
-        error.native_execution_refusal().expect("original package currency refusal").clone(),
+        error
+            .native_execution_refusal()
+            .expect("original package currency refusal")
+            .clone(),
     )
 }
 

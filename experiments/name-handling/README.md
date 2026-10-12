@@ -17,6 +17,10 @@ Existing command/variable/namespace vectors live in
 | [patterns/README.md](patterns/README.md) | Maintained wild-pattern catalogue: sources, experiments, per-oracle results and unanswered questions |
 | [patterns/corpus-findings.md](patterns/corpus-findings.md) | Pinned corpus sites, reduced observations and bounded recogniser requirements |
 | [patterns/wiki-findings.md](patterns/wiki-findings.md) | Actually read Wiki sources, positive/adversarial probes and existing owner mappings |
+| [array-mode-validation/README.md](array-mode-validation/README.md) | Discrete C/Jim mode/trace questions, release-specific outcomes and native comparisons |
+| [results/native-variable-array-modes/README.md](results/native-variable-array-modes/README.md) | Variable arity and array-name controls, VM/runtime matrices and real 8.5 var.test |
+| [results/native-c84-declared-cell/README.md](results/native-c84-declared-cell/README.md) | Existing physical-cell observation and real C 8.4 startup |
+| [results/runtime-c84-real-suites/20261012T151253Z/README.md](results/runtime-c84-real-suites/20261012T151253Z/README.md) | Six real 8.4 naming suites, exact questions, inputs, results and refusals |
 | [results/RESULTS.md](results/RESULTS.md) | Current VM/runtime original-suite comparison and measured gaps |
 | [run_suites.py](run_suites.py) | Reusable original-suite capture across real C/VM/runtime; retains outputs and provenance |
 | [run_jim_suites.py](run_jim_suites.py) | Original upstream Jim naming suites using Jim's actual test wrapper |
@@ -80,6 +84,20 @@ identity questions. Suite and probe evidence follow the same capture and
 promotion rules below.
 
 ## Capture protocol
+
+Each experiment answers a named, bounded question. Keep a small question document
+with its stable ID, competing outcomes, exact executable inputs and invocation,
+provider/version/context matrix, observed results and limits. Link separate raw
+stdout/stderr and machine-readable result records; keep setup, reached lookup
+and consumer validation distinct. Related cases may share a runner or provider
+manifest, but each case must be independently findable and interpretable.
+
+Build provenance is supporting evidence, not the experiment. Record commit and
+input/source/binary hashes, and retain only necessary scoped source snapshots
+when uncommitted changes affect the executable. Do not capture unrelated working
+tree changes, generated proof indexes or tracking documents in a monolithic
+patch. Existing broad captures must retain their original provenance and limits;
+splitting a patch does not turn it into discrete experiments.
 
 1. Name the question and stable case ID. Record the exact script bytes or
    script path plus SHA-256, environment/context, interpreter/source revision,

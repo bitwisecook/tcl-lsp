@@ -3162,9 +3162,11 @@ fn agreed_frame_summary<'p, 's>(
 ) -> Option<(&'p crate::ir::Procedure, &'s UpvarInfo)> {
     let procedure = candidates.agreed_signature(key)?;
     let summary = summaries.get(procedure.qualified_name.as_str())?;
-    candidates.original(key)?.iter().all(|candidate| {
-        summaries.get(candidate.qualified_name.as_str()) == Some(summary)
-    }).then_some((procedure, summary))
+    candidates
+        .original(key)?
+        .iter()
+        .all(|candidate| summaries.get(candidate.qualified_name.as_str()) == Some(summary))
+        .then_some((procedure, summary))
 }
 
 /// Scan a module for procedures with a caller-frame effect
@@ -3244,7 +3246,10 @@ fn detect_upvar_procs_with_bindings(
                 agreed_frame_summary(&candidates, callee, &own_summaries)
             {
                 upvar_info::compose_forwarded(
-                    callee_info, &callee_proc.params, constructed, &mut info,
+                    callee_info,
+                    &callee_proc.params,
+                    constructed,
+                    &mut info,
                 );
             } else {
                 // Missing or disagreeing candidates supply no definite alias.
@@ -3269,9 +3274,9 @@ fn detect_upvar_procs_with_bindings(
         for callee in &own_info.plain_calls {
             let reaches_past = candidates.original(callee).is_none_or(|procedures| {
                 procedures.iter().any(|procedure| {
-                    own_summaries.get(procedure.qualified_name.as_str()).is_none_or(|summary| {
-                        summary.frame_reach == FrameReach::PastTheCaller
-                    })
+                    own_summaries
+                        .get(procedure.qualified_name.as_str())
+                        .is_none_or(|summary| summary.frame_reach == FrameReach::PastTheCaller)
                 })
             });
             if reaches_past {
@@ -7542,8 +7547,20 @@ mod tests {
              proc forward {} {uplevel 1 [list bind]}",
         );
         let summaries = detect_upvar_procs(&module);
-        assert_eq!(summaries["::a::bind"].literal_targets.get("local").map(String::as_str), Some("left"));
-        assert_eq!(summaries["::b::bind"].literal_targets.get("local").map(String::as_str), Some("right"));
+        assert_eq!(
+            summaries["::a::bind"]
+                .literal_targets
+                .get("local")
+                .map(String::as_str),
+            Some("left")
+        );
+        assert_eq!(
+            summaries["::b::bind"]
+                .literal_targets
+                .get("local")
+                .map(String::as_str),
+            Some("right")
+        );
         let possible = &summaries["bind"];
         assert!(possible.literal_targets.is_empty());
         assert!(possible.param_targets.is_empty());
@@ -7567,8 +7584,14 @@ mod tests {
         assert!(!params.contains_key("p"));
         assert!(!params.contains_key("r"));
         assert!(!params.contains_key("s"));
-        assert_eq!(params.get("::a::p"), Some(&vec!["name".into(), "args".into()]));
-        assert_eq!(params.get("::b::p"), Some(&vec!["name".into(), "args".into()]));
+        assert_eq!(
+            params.get("::a::p"),
+            Some(&vec!["name".into(), "args".into()])
+        );
+        assert_eq!(
+            params.get("::b::p"),
+            Some(&vec!["name".into(), "args".into()])
+        );
         assert_eq!(params.get("q"), Some(&vec!["name".into(), "args".into()]));
     }
 
@@ -7582,7 +7605,12 @@ mod tests {
              namespace eval b {proc p {name} {upvar 1 $name local}}",
         );
         let mut changed = module.clone();
-        changed.procedures.get_mut("::b::p").unwrap().params_raw.push_str(" extra");
+        changed
+            .procedures
+            .get_mut("::b::p")
+            .unwrap()
+            .params_raw
+            .push_str(" extra");
         let (summaries, params, _, _) = prepare_cfg_context(&changed);
         assert!(!params.contains_key("p"));
         assert!(params.contains_key("::a::p"));
@@ -7594,10 +7622,13 @@ mod tests {
         foreign.source = tcl_lexer::SourceImage::document("proc replacement {} {}");
         let (summaries, params, _, _) = prepare_cfg_context(&foreign);
         assert!(params.is_empty());
-        assert!(summaries.values().all(|summary| summary.literal_targets.is_empty()
-            && summary.param_targets.is_empty()
-            && summary.caller_frame_opaque_writes
-            && summary.caller_frame_opaque_reads));
+        assert!(
+            summaries
+                .values()
+                .all(|summary| summary.literal_targets.is_empty()
+                    && summary.param_targets.is_empty()
+                    && summary.caller_frame_opaque_writes
+                    && summary.caller_frame_opaque_reads)
+        );
     }
-
 }

@@ -1382,14 +1382,17 @@ impl DocumentRecords {
         let input = self.original_source_input.as_ref()?;
         let source = self.diagnostic_source.as_ref()?;
         let registry = input.borrowed_context_registry().commands().as_ref();
-        (input.lexer_config() == source.config && registry.snapshot().semantic_key() == source.registry)
+        (input.lexer_config() == source.config
+            && registry.snapshot().semantic_key() == source.registry)
             .then_some(registry)
     }
 
     fn settlement_dependencies(&self) -> SettlementDependencies {
         SettlementDependencies {
             dialect: self.dialect.clone(),
-            registry: self.registry().map(|registry| registry.snapshot().semantic_key()),
+            registry: self
+                .registry()
+                .map(|registry| registry.snapshot().semantic_key()),
             procs: self
                 .procs
                 .iter()
@@ -3484,9 +3487,9 @@ impl WorkspaceIndex {
                         let importing_ns = importing_namespace_of(&l.linked_qname);
                         if !g.forced
                             && (self.defines_command(&l.linked_qname)
-                                || self
-                                    .registry_for(&l.uri)
-                                    .is_some_and(|r| r.declares_command_at_rooted_key(&l.linked_qname))
+                                || self.registry_for(&l.uri).is_some_and(|r| {
+                                    r.declares_command_at_rooted_key(&l.linked_qname)
+                                })
                                 || wci.conflicting_alias_at(
                                     importing_ns,
                                     &g.source_ns,

@@ -504,7 +504,11 @@ fn registry_command(
             .get(tcl_syntax::naming::unroot_rooted_key(qname).unwrap_or(qname))
             .is_some()
     })
-    .map(|qname| tcl_syntax::naming::unroot_rooted_key(&qname).unwrap_or(&qname).to_owned())
+    .map(|qname| {
+        tcl_syntax::naming::unroot_rooted_key(&qname)
+            .unwrap_or(&qname)
+            .to_owned()
+    })
 }
 
 /// Whether `command` is a call to a user procedure in `caller_qname`'s

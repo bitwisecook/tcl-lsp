@@ -3380,7 +3380,11 @@ impl Interp {
                     }
                     Helper::Next { .. } => {
                         return self.execute_body_next(
-                            artifact, command, recipe, literal_slots, execution,
+                            artifact,
+                            command,
+                            recipe,
+                            literal_slots,
+                            execution,
                         );
                     }
                 };
@@ -3708,13 +3712,15 @@ impl Interp {
                     };
                     if recipe.exit == Exit::Done {
                         self.set_result(value.as_ptr());
-                        original_operation.check(self)
+                        original_operation
+                            .check(self)
                             .map_err(|error| self.report_cmd_error(error))?;
                         execution.done = true;
                         Ok(Code::Return)
                     } else if recipe.exit == Exit::Fallthrough {
                         self.set_result(value.as_ptr());
-                        original_operation.check(self)
+                        original_operation
+                            .check(self)
                             .map_err(|error| self.report_cmd_error(error))?;
                         Ok(Code::Ok)
                     } else {
@@ -3756,7 +3762,8 @@ impl Interp {
                             .map_err(|error| self.report_cmd_error(error))?;
                         let code=self.process_original_c_return_options_with_objects(tcl_registry::native_return_options::NativeReturnOptionsApplication::Immediate,code,level,original,&objects).map_err(|error|self.report_cmd_error(error))?;
                         self.set_result(value.as_ptr());
-                        original_operation.check(self)
+                        original_operation
+                            .check(self)
                             .map_err(|error| self.report_cmd_error(error))?;
                         if code == Code::Error && recipe.exit == Exit::Immediate {
                             self.capture_original_return_instruction_context(

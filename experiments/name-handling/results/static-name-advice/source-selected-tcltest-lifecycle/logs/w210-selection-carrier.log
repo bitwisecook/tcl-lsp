@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::declaration_flow::tests::declaration_selection_keeps_absent_dispatch_separate_from_invalid_reached_owner ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9554 filtered out; finished in 0.18s
+

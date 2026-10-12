@@ -3,8 +3,7 @@
 Integration source basis: `c49ef6fd5d147edd0cf473070dfaac2834c20dd7`,
 12 October 2026. Local implementation/evidence checkpoint is `e803f53f1`;
 the current wild-pattern/evidence index checkpoint is `df919cbed`.
-The published `work` ref was
-`bcaf88c12400c1a0a529a54ba8a73dacb216da41` when checked.
+The published `work` ref is `8f6e25e5d` at this checkpoint. Earlier `bcaf88c12` is the integrated upstream baseline.
 Earlier `127dba9d9` source audits and `b7ad30f1f` engine captures are
 prior baselines, not fresh execution of the merged source.
 
@@ -102,8 +101,9 @@ verify 35 public pins and retain 75 reduced C observations, including capability
 absences and near misses. The [wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md)
 links five-release C outcomes, 45 original-question Jim attempts and four
 distinct Jim-native controls. Unchanged Wiki harness refusal and adapted inner
-questions are recorded separately. These supplemental Jim observations still
-need canonical registration. The F5 pattern bundle's 400 context rows remain
+questions are recorded separately. Eleven reached original corpus Jim answers are registered canonically.
+Four setup failures remain unanswered; Wiki adaptations and separate Jim-native
+controls still need independent question/evidence review. The F5 pattern bundle's 400 context rows remain
 pending; other canonical appliance answers do not fill them. Static recogniser
 accuracy and held-out target-selection coverage remain unmeasured by this lane.
 

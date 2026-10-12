@@ -1,0 +1,4 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.5.19/library tcl 8.5.19 tcltest 2.3.8 loader {source /workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl}
+---- namespace-8.1 start
+namespace.test:	Total	281	Passed	1	Skipped	280	Failed	0

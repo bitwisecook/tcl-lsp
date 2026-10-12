@@ -1,0 +1,29 @@
+
+    /*
+     * Create the standard ensembles "array", "binary", "chan", "clock",
+     * "dict", "encoding", "file", "info", "namespace", "string", etc. Note
+     * that most of these commands (and their subcommands that are not present
+     * in the global namespace) are wholly safe *except*  as marked.
+     */
+
+    const EnsembleSetup *ensSetupPtr;
+    for (ensSetupPtr=ensembleCommands; ensSetupPtr->name; ensSetupPtr++) {
+	Tcl_Command ensemble = TclMakeEnsemble(interp, ensSetupPtr->name,
+		ensSetupPtr->implMap);
+	if (ensSetupPtr->configurerProc) {
+	    if (ensSetupPtr->configurerProc(interp, ensemble) != TCL_OK) {
+		Tcl_Panic("failed to set up %s: %s", ensSetupPtr->name,
+			Tcl_GetStringResult(interp));
+	    }
+	}
+    }
+
+    /*
+     * Register "clock" subcommands. These *do* go through
+     * Tcl_CreateObjCommand, since they aren't in the global namespace and
+     * involve ensembles.
+     */
+
+    TclClockInit(interp);
+
+    /*

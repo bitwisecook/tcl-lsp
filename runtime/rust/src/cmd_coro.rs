@@ -1278,7 +1278,9 @@ mod tests {
         let original = trace.as_ptr();
         interp.adopt_jim_stacktrace(trace).unwrap();
         interp.publish_coro_probe_error(interp.snapshot_error());
-        interp.adopt_jim_stacktrace(obj::Owned::fresh(obj::new_string_bytes(b"OTHER"))).unwrap();
+        interp
+            .adopt_jim_stacktrace(obj::Owned::fresh(obj::new_string_bytes(b"OTHER")))
+            .unwrap();
         let snapshot = interp
             .take_coro_probe_error()
             .expect("published probe receipt");
@@ -1463,14 +1465,12 @@ mod original_operand_tests {
             Ok(None)
         );
         // An unsupported actual bootstrap purpose cannot manufacture an issuer.
-        assert!(
-            Interp::with_native_core(
-                crate::interp::default_host(),
-                unavailable,
-                tcl_registry::special_vars::NativeBootstrapInputs::default(),
-            )
-            .is_none()
-        );
+        assert!(Interp::with_native_core(
+            crate::interp::default_host(),
+            unavailable,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .is_none());
     }
 }
 

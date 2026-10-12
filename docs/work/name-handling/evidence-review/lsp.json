@@ -1,0 +1,1306 @@
+{
+  "mode": "REVIEW ONLY",
+  "repository": "/workspace/tcl-lsp",
+  "head_at_review": "bd062ae6c9312f2db0ed276b9c063bec576dd74c",
+  "scope": [
+    "rust/tcl-lsp-core/src/completion.rs",
+    "rust/tcl-lsp-core/src/definition.rs",
+    "rust/tcl-lsp-core/src/references.rs",
+    "rust/tcl-lsp-core/src/rename.rs",
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
+  "limits": [
+    "No repository, manifest, proof-page or source edits; local Git reads and /tmp review artifacts only.",
+    "No Cargo, native provider, Rust test, GitHub or Git mutation operations.",
+    "23 questions and 26 implementation evidence entries only; other evidence/owners are outside this review.",
+    "The parent reports 158 whole-audit implementation digest errors. Zero pending/unlinked source/test coverage does not establish execution success.",
+    "experiments/name-handling/results/current-validation receipts apply only to their recorded source inventory; this review supplies no executable result.",
+    "Recent 8ec4e7478 edits to definition/completion/rename are verified comment-only; the identified semantic drift predates that commit.",
+    "Temporary process documents are removed before final merge; public prose/comments describe current how/why, while canonical evidence and execution receipts retain provenance."
+  ],
+  "counts": {
+    "files": 5,
+    "questions": 23,
+    "implementation_entries": 26,
+    "unique_historical_snapshots": 8,
+    "recovered_historical_snapshots": 8,
+    "unrecoverable_old_source": 0,
+    "unchanged_questions": 21,
+    "materially_changed_questions": 2,
+    "entry_classifications": {
+      "materially_changed_needs_meaning_test_review": 2,
+      "unchanged_scoped_contract": 24
+    }
+  },
+  "file_reviews": [
+    {
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "current_sha256": "c941bd16ed46631a16a5f59bf19fcbee27ccfdfd73f81019f316b10063e3e27d",
+      "historical_snapshots": [
+        {
+          "sha256": "bc4c7af337dda67784672b2e2e358eecb5e0decd183b36eb44afbf5b6c5a021d",
+          "recovered_revision": "b7469aa1d4c8786f09d2e8c12232be09f1ba8436"
+        },
+        {
+          "sha256": "1f8388ab4fffb1fe1d744480a9cb18119160cecdc72f550b728f5f772f895bc4",
+          "recovered_revision": "da846dc8763f143e9fe14720a0805561b9ba367c"
+        }
+      ],
+      "delta": "bc4c7af337dd -> current: comments only. 1f8388ab4fff -> current: additionally configured whole-variable scalar receiver projection, retained-config admission, Unicode/braced support, compound/array refusal and two added Logical controls. Own-object candidate owner is unchanged."
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/definition.rs",
+      "current_sha256": "f07822f54dd2a67adcc7d125b2dc91ceea594f18eaaaf7f0835f82d3da495f25",
+      "historical_snapshots": [
+        {
+          "sha256": "7ab1d20cf596c9a57d642c7adbb1b2e095fedef6394521f8981e66eb152ba87d",
+          "recovered_revision": "b7469aa1d4c8786f09d2e8c12232be09f1ba8436"
+        },
+        {
+          "sha256": "32ac7a990c58b855bb61e3e240a8caf4c01bd9b8e3201a321bf015f0d98cba10",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5"
+        }
+      ],
+      "delta": "Both historical snapshots predate analysis-retained definer family selection, missing/foreign family refusal, explicit standalone helper and CurrentSourceContext admission. Older 32ac7a990c58 also predates configured whole-variable receiver geometry; 7ab1d20cf596 already contains that geometry and controls."
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/references.rs",
+      "current_sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
+      "historical_snapshots": [
+        {
+          "sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "recovered_revision": "75fdc45edc23c263cecce7388519209807683534"
+        }
+      ],
+      "delta": "Configured sole stored-callback variable projection plus selected brace configuration; analysis-retained definer family rather than nominal profile; known non-Itcl distinction and complete current source guard; two added callback controls."
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "current_sha256": "884a58f261a1fd43d58a50f9c6804fa3c2aec4599cd13b8f5c3dbf5977c4e7b9",
+      "historical_snapshots": [
+        {
+          "sha256": "dab421d27ffabf66b110d9ec453c0f266d83d22352fb8fbce7dd74fc6f58a6ba",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5"
+        }
+      ],
+      "delta": "Comments only relative to its recorded snapshot; executable source and test bodies unchanged."
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+      "historical_snapshots": [
+        {
+          "sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46"
+        },
+        {
+          "sha256": "661b72624473d4255353257b91595b94784f0961bd1afd91f90140663eb5501a",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5"
+        }
+      ],
+      "delta": "Both snapshots predate the retained workspace definer family filter and its added test. Older 661b72624473 also predates registry.snapshot().semantic_key() currency delegation; that delegation preserves the structural store-currency invariant and was already present in recorded 0e752f696db5."
+    }
+  ],
+  "records": [
+    {
+      "id": "naming.analysis.constructed-key-consumer-projections",
+      "document": "docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md",
+      "invariant": "Which shared projection governs literal diagnostic QName grouping versus constructed class/procedure/inventory holders and tails, and what independent producer/source/metadata guards remain necessary before actual lookup, factory or creation reasoning?",
+      "classification": "materially_changed_needs_meaning_test_review",
+      "review": "Holder/tail geometry is unchanged. The definition owner now distinguishes contextual retained-store family metadata from explicit standalone metadata, and missing/foreign input from known non-Itcl family. The linked constructed test is refactored to the explicit-store helper with the same input/output/refusal assertions; contextual family behavior materially changes and belongs in reviewed guards and the dispatch-region question.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "itcl_class_proc_at",
+          "line": 2744
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "Backend::cross_document_namespace_rename",
+          "line": 17112
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "invocation_references_named",
+          "line": 344
+        }
+      ],
+      "evidence": [
+        {
+          "id": "receiver-selected-source598-4eda8b24595a9447",
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "recorded_sha256": "32ac7a990c58b855bb61e3e240a8caf4c01bd9b8e3201a321bf015f0d98cba10",
+          "current_sha256": "f07822f54dd2a67adcc7d125b2dc91ceea594f18eaaaf7f0835f82d3da495f25",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5",
+          "classification": "materially_changed_needs_meaning_test_review",
+          "test_anchors": [
+            {
+              "selector": "definition::tests::constructed_itcl_member_projection_preserves_colon_tail_and_actual_family_guard",
+              "line": 8141,
+              "source_body_comparison": "changed",
+              "execution": "not run"
+            }
+          ]
+        },
+        {
+          "id": "receiver-selected-source598-25d2ef4700a35adc",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "661b72624473d4255353257b91595b94784f0961bd1afd91f90140663eb5501a",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::logical_namespace_rename_collision_uses_constructed_colon_holder",
+              "line": 59408,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        },
+        {
+          "id": "receiver-compatibility602-834e0bf1515bb1fe",
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "recorded_sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "current_sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
+          "recovered_revision": "75fdc45edc23c263cecce7388519209807683534",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "references::constructed_compatibility_tests::constructed_reference_projection_keeps_colon_components_and_known_refusal",
+              "line": 8336,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review the changed contextual guard/operand meaning and align the question conclusion, scope, owner and linked control definitions before narrowly reissuing the affected implementation digest.",
+        "Retain all controls as unexecuted unless a separate receipt matches the exact current source inventory."
+      ]
+    },
+    {
+      "id": "naming.consumer.original-call-hierarchy",
+      "document": "docs/design/analysis/name-resolution-proofs/original-call-hierarchy.md",
+      "invariant": "How are incoming and outgoing source call candidates selected without reconstructing a procedure or member from a displayed name?",
+      "classification": "unchanged_scoped_contract",
+      "review": "invocation_calls_proc is outside changed hunks. Typed original declaration/call-edge selection is retained. Changed callback/class-family compatibility scans are separate source-region behavior.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "invocation_calls_proc",
+          "line": 524
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-1",
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "recorded_sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "current_sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
+          "recovered_revision": "75fdc45edc23c263cecce7388519209807683534",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": []
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.consumer.original-declaration-advice-ambiguity",
+      "document": "docs/design/analysis/name-resolution-proofs/original-declaration-advice-ambiguity.md",
+      "invariant": "Does original procedure declaration advice decline multiple authentic candidates instead of choosing a redefinition by reporting order?",
+      "classification": "unchanged_scoped_contract",
+      "review": "proc_visible_from_namespace and the duplicate-original-candidate assertion are unchanged; receiver geometry and family changes are outside this procedure-advice invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "proc_visible_from_namespace",
+          "line": 2626
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-0",
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "recorded_sha256": "32ac7a990c58b855bb61e3e240a8caf4c01bd9b8e3201a321bf015f0d98cba10",
+          "current_sha256": "f07822f54dd2a67adcc7d125b2dc91ceea594f18eaaaf7f0835f82d3da495f25",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "definition::tests::original_declaration_advice_cannot_choose_between_redefinitions",
+              "line": 4657,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.consumer.original-declaration-wire-roundtrip",
+      "document": "docs/design/analysis/name-resolution-proofs/original-declaration-wire-roundtrip.md",
+      "invariant": "How does the server round trip hierarchy and lens data while retaining authentic current source ownership?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "retain_original_declaration_data",
+          "line": 12635
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "resolve_original_declaration_data",
+          "line": 12651
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_declaration_documents",
+          "line": 12695
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_declaration_reference_locations",
+          "line": 12786
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-0",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_hierarchy_and_lens_wire_data_require_retained_current_declarations",
+              "line": 59075,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.consumer.original-receiver-completion-domain",
+      "document": "docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md",
+      "invariant": "Can fuzzy completion preserve authentic class/object declaration candidates while treating a missing Native receiver as terminal and keeping nominal Registry receiver advice inside independently Logical inputs?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The recovered b7469aa1d snapshot already contains configured whole-scalar receiver projection and both added Logical controls. The complete old/current diff is comment-only, so this is unchanged-contract evidence.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "fuzzy_command_fallback",
+          "line": 2587
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "registry_method_items",
+          "line": 1609
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "strip_instance_var",
+          "line": 1058
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "dispatch_receiver_of",
+          "line": 244
+        }
+      ],
+      "evidence": [
+        {
+          "id": "receiver-whole-source609-82b2015aa5fe",
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "recorded_sha256": "bc4c7af337dda67784672b2e2e358eecb5e0decd183b36eb44afbf5b6c5a021d",
+          "current_sha256": "c941bd16ed46631a16a5f59bf19fcbee27ccfdfd73f81019f316b10063e3e27d",
+          "recovered_revision": "b7469aa1d4c8786f09d2e8c12232be09f1ba8436",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "completion::original_receiver_domain_tests::native_fuzzy_methods_keep_original_class_and_object_records_without_reports",
+              "line": 6177,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports",
+              "line": 6234,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "completion::configured_receiver_completion_tests::logical_method_completion_keeps_whole_scalar_heads_and_current_source",
+              "line": 6358,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "completion::configured_receiver_completion_tests::configured_scalar_completion_projection_keeps_array_and_brace_boundaries",
+              "line": 6428,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.consumer.original-type-and-implementation-navigation",
+      "document": "docs/design/analysis/name-resolution-proofs/original-type-and-implementation-navigation.md",
+      "invariant": "Do type and implementation queries preserve original member and declaring-class identities across current source owners without borrowing reporting names or instance order for class-object methods?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "goto_implementation",
+          "line": 26828
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-3",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_implementation_queries_keep_workspace_method_and_class_owners",
+              "line": 33818,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.consumer.original-workspace-diagnostic-refinement",
+      "document": "docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md",
+      "invariant": "How do workspace reporting settlement, callable-arity diagnostics and W123 refinement preserve Original unresolved subjects while retaining explicit Logical compatibility and independently current readonly source candidates?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "settle_cross_file_calls",
+          "line": 31960
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "settle_call_against_workspace",
+          "line": 31889
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "cross_file_arity_diagnostics",
+          "line": 32075
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "refine_workspace_index_w123",
+          "line": 32151
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "needs_workspace_command_names",
+          "line": 32217
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "workspace_reporting_context",
+          "line": 31864
+        }
+      ],
+      "evidence": [
+        {
+          "id": "receiver-workspace-source603-fc5e047254448481",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_workspace_w123_preserves_native_absence_with_project_matching",
+              "line": 39378,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::original_workspace_math_source_candidate_keeps_dispatch_unresolved",
+              "line": 39420,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::original_workspace_mathfunc_rejects_foreign_namespace_report_tails",
+              "line": 39470,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.core.logical-call-target-owner",
+      "document": "docs/design/analysis/name-resolution-proofs/logical-call-target-owner.md",
+      "invariant": "Does the shared Logical call target select one exact actual current declaration range, retain Procedure or Member with independent MemberSide, preserve original direct selector/current workspace owners, and refuse missing, foreign, stale, ambiguous, Native or hosted inputs without reconstructing from presentation labels?",
+      "classification": "unchanged_scoped_contract",
+      "review": "Shared Logical class-selector owner and all seven local/server linked bodies remain unchanged. Stored callback and class-family source-region changes do not replace the typed Logical declaration/range owner.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "logical_class_command_method_sites",
+          "line": 2069
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "cross_document_incoming_calls",
+          "line": 18609
+        }
+      ],
+      "evidence": [
+        {
+          "id": "actual-source-1",
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "recorded_sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "current_sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
+          "recovered_revision": "75fdc45edc23c263cecce7388519209807683534",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "references::logical_class_selector_tests::logical_class_selector_keeps_actual_alias_and_rename_source_lineage",
+              "line": 8226,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::logical_class_selector_tests::captured_selectors_and_replaced_class_commands_have_no_written_selector_grant",
+              "line": 8251,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::logical_class_selector_tests::logical_selector_preserves_full_source_and_unicode_and_refuses_native_donation",
+              "line": 8274,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        },
+        {
+          "id": "actual-source-3",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::incoming_calls_span_multiple_documents",
+              "line": 59189,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::outgoing_calls_resolve_sibling_document_callee",
+              "line": 59221,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::logical_incoming_target_keeps_procedure_member_side_and_colon_name_separate",
+              "line": 59294,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::logical_incoming_source_owner_withdrawal_cannot_be_recovered_from_a_title",
+              "line": 59357,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.core.original-dispatch-region-context",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md",
+      "invariant": "How do references, hazard, caller-frame and refactor source-region consumers retain actual analysis context and original moved/captured operands rather than rebuilding a nominal profile realm?",
+      "classification": "materially_changed_needs_meaning_test_review",
+      "review": "Stored callback names now come from configured CommandTokens, sole_variable_substitution and whole_var_ref rather than a raw token span decoration. Positive selected-brace configuration and quoted sole variables are distinguished from concatenation/escaped/array-shaped operands. Logical classmethod source scans now require CurrentSourceContext and actual retained definer family; unknown family refuses instead of falling through as non-Itcl. Definition and Server add corresponding source controls but this record has only references.rs implementation evidence among these files.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "RetainedDispatchContext",
+          "line": 3712
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "retained_dispatch_context",
+          "line": 3718
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "nested_dispatch_regions",
+          "line": 3747
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "frame_shifted_dispatch_regions",
+          "line": 3788
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "scan_my_method_sites",
+          "line": 2172
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "references",
+          "line": 713
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "symbol": "scan_next_dispatch_sites",
+          "line": 3037
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "next_dispatch_definition",
+          "line": 449
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "ExternalObjectDispatchMask",
+          "line": 898
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "object_dispatch_mask",
+          "line": 865
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "object_dispatch_mask_at_command",
+          "line": 920
+        }
+      ],
+      "evidence": [
+        {
+          "id": "naming-core-original-dispatch-region-context-references.rs",
+          "path": "rust/tcl-lsp-core/src/references.rs",
+          "recorded_sha256": "650c48339a982a1ffcc195b9433198e59559dc8309cb15f5b94e56d066531200",
+          "current_sha256": "e5fc310123870b0268f3085305dad1f20c85e78b929b84350406e2f14afde351",
+          "recovered_revision": "75fdc45edc23c263cecce7388519209807683534",
+          "classification": "materially_changed_needs_meaning_test_review",
+          "test_anchors": [
+            {
+              "selector": "references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+              "line": 7611,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers",
+              "line": 7662,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+              "line": 7344,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry",
+              "line": 7457,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store",
+              "line": 7505,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes",
+              "line": 7520,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability",
+              "line": 8078,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source",
+              "line": 8104,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config",
+              "line": 8142,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "actual_stored_callback_reference_uses_its_retained_brace_configuration",
+              "line": 8439,
+              "source_body_comparison": "added",
+              "execution": "not run"
+            },
+            {
+              "selector": "actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name",
+              "line": 8461,
+              "source_body_comparison": "added",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review the changed contextual guard/operand meaning and align the question conclusion, scope, owner and linked control definitions before narrowly reissuing the affected implementation digest.",
+        "Retain all controls as unexecuted unless a separate receipt matches the exact current source inventory.",
+        "Consider adding implementation evidence/owners for definition.rs class_family_registry/class_definer_family and Server classmethod_dispatch_names, whose new linked controls are already in this record; current implementation evidence only pins references.rs for this five-file scope."
+      ]
+    },
+    {
+      "id": "naming.core.original-math-rename-coverage",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-math-rename-coverage.md",
+      "invariant": "Does Native procedure rename refuse readonly expression identifier references without a separate identifier edit owner?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The complete rename.rs delta is comment-only. readonly_math_rename_refusal and its atomic readonly-expression coverage guard are unchanged.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "symbol": "readonly_math_rename_refusal",
+          "line": 608
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "Backend::original_procedure_expression_coverage_is_editable",
+          "line": 18423
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-1",
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "recorded_sha256": "dab421d27ffabf66b110d9ec453c0f266d83d22352fb8fbce7dd74fc6f58a6ba",
+          "current_sha256": "884a58f261a1fd43d58a50f9c6804fa3c2aec4599cd13b8f5c3dbf5977c4e7b9",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": []
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.core.original-own-object-completion",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-own-object-completion.md",
+      "invariant": "Do own-object completions use the exact current own table and canonical original configuration metadata?",
+      "classification": "unchanged_scoped_contract",
+      "review": "Own-object candidate allocation/canonical-name/visibility merge and both bound controls are unchanged. The older snapshot predates a material Logical receiver adapter change, but that adapter is outside this Original own-table invariant and is recorded by original-receiver-completion-domain.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "original_instance_method_candidate_items_at",
+          "line": 1110
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-2",
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "recorded_sha256": "1f8388ab4fffb1fe1d744480a9cb18119160cecdc72f550b728f5f772f895bc4",
+          "current_sha256": "c941bd16ed46631a16a5f59bf19fcbee27ccfdfd73f81019f316b10063e3e27d",
+          "recovered_revision": "da846dc8763f143e9fe14720a0805561b9ba367c",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "completion::original_own_object_completion_tests::original_own_object_completion_keeps_allocations_and_opaque_routes_after_reporting_clear",
+              "line": 5762,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "completion::original_own_object_completion_tests::original_own_object_completion_requires_the_actual_generation_and_canonical_declaration",
+              "line": 5811,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.core.original-source-instance-completion",
+      "document": "docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md",
+      "invariant": "How do primary/fuzzy method candidates and property options retain genuine original source instance ancestry, effective argv and exact cursor geometry while keeping current receiver identity and Logical compatibility independent?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The recovered b7469aa1d definition snapshot already includes whole configured method-head geometry and its controls. Later Itcl family metadata changes and CallResolution comments do not change instance_method_at_cursor/logical_receiver_candidate_at or these three bound bodies.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "original_instance_method_candidate_items_at",
+          "line": 1110
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "logical_receiver_candidate_at",
+          "line": 1499
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "instance_method_at_cursor",
+          "line": 1390
+        }
+      ],
+      "evidence": [
+        {
+          "id": "receiver-whole-source609-f0146add77c7",
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "recorded_sha256": "7ab1d20cf596c9a57d642c7adbb1b2e095fedef6394521f8981e66eb152ba87d",
+          "current_sha256": "f07822f54dd2a67adcc7d125b2dc91ceea594f18eaaaf7f0835f82d3da495f25",
+          "recovered_revision": "b7469aa1d4c8786f09d2e8c12232be09f1ba8436",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "definition::tests::logical_receiver_candidates_keep_instance_and_class_buckets_together",
+              "line": 7675,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "definition::configured_receiver_head_tests::configured_method_heads_require_the_whole_variable_operand",
+              "line": 8380,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "definition::configured_receiver_head_tests::actual_method_navigation_does_not_promote_compound_variable_syntax",
+              "line": 8428,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.core.selected-variable-cursor-syntax",
+      "document": "docs/design/analysis/name-resolution-proofs/selected-variable-cursor-syntax.md",
+      "invariant": "How do editor variable cursor labels and positively admitted Logical rename projections retain the actual complete analysis, selected variable grammar and original component geometry without granting a Native read, binding or edit?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The complete rename.rs delta is comment-only. Shared selected-component replacement helpers and both closed-element/scalar-parentheses controls are unchanged.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "symbol": "build_var_replacement_in_analysis",
+          "line": 2277
+        }
+      ],
+      "evidence": [
+        {
+          "id": "naming-core-selected-variable-cursor-syntax-rename.rs",
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "recorded_sha256": "dab421d27ffabf66b110d9ec453c0f266d83d22352fb8fbce7dd74fc6f58a6ba",
+          "current_sha256": "884a58f261a1fd43d58a50f9c6804fa3c2aec4599cd13b8f5c3dbf5977c4e7b9",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "rename::tests::original_reference_replacement_preserves_closed_elements_and_scalar_parentheses",
+              "line": 3654,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+              "line": 3697,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.editor.logical-written-component-geometry",
+      "document": "docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md",
+      "invariant": "Which exact original byte extents and selected occurrence purposes does the shared written-component owner retain for Logical namespace selection and edits, and when must component correspondence refuse?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The complete rename.rs delta is comment-only. Original written separator/Unicode/array replacement geometry and its bound control are unchanged.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "symbol": "invocation_replacement",
+          "line": 1922
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "symbol": "build_var_ref_replacement",
+          "line": 2244
+        }
+      ],
+      "evidence": [
+        {
+          "id": "receiver-selected-source598-40909face5565cfe",
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "recorded_sha256": "dab421d27ffabf66b110d9ec453c0f266d83d22352fb8fbce7dd74fc6f58a6ba",
+          "current_sha256": "884a58f261a1fd43d58a50f9c6804fa3c2aec4599cd13b8f5c3dbf5977c4e7b9",
+          "recovered_revision": "a1c2a528859e4cf0a1b61a438d5b06b8903d76e5",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "rename::tests::logical_rename_preserves_original_separator_runs_unicode_and_array_extent",
+              "line": 5625,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.editor.original-declaration-document-participation",
+      "document": "docs/design/analysis/name-resolution-proofs/original-declaration-document-participation.md",
+      "invariant": "Does the shared editor declaration collector admit only Tcl source participants while retaining unknown relevant providers as a terminal inventory obligation?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_declaration_document_participates",
+          "line": 12670
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_declaration_documents",
+          "line": 12695
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal",
+              "line": 33734,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.editor.original-diagnostic-invalidation",
+      "document": "docs/design/analysis/name-resolution-proofs/original-diagnostic-invalidation.md",
+      "invariant": "Does diagnostic invalidation retain actual original provider source/header facts and match genuine caller dependencies while refusing to lose unknown relevant Tcl consumers?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "IndexedDiagnosticFacts",
+          "line": 6708
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_diagnostic_consumers",
+          "line": 7030
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-1",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_diagnostic_invalidation_keeps_opaque_dependencies_and_foreign_surfaces_separate",
+              "line": 36009,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.server.original-method-query",
+      "document": "docs/design/analysis/name-resolution-proofs/server-original-method-query.md",
+      "invariant": "Do Server definition, reference and hover consumers share one original method selection and independently recheck each owning source before projecting a result?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_method_candidate_at",
+          "line": 14392
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_method_locations_at",
+          "line": 14415
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_method_hover_at",
+          "line": 14486
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-0",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity",
+              "line": 34616,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::original_method_queries_preserve_lexical_variable_provider_priority",
+              "line": 34729,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.server.original-namespace-rename-plans",
+      "document": "docs/design/analysis/name-resolution-proofs/server-original-namespace-rename-plans.md",
+      "invariant": "Does Server original namespace rename produce typed per-document source plans after reporting names are cleared and reject a proposed implicit-parent collision?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "Backend::cross_document_original_namespace_rename",
+          "line": 17204
+        }
+      ],
+      "evidence": [
+        {
+          "id": "consumer-source",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_namespace_rename_uses_typed_workspace_collisions_and_source_plans",
+              "line": 34508,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.server.original-package-consumer-resolution",
+      "document": "docs/design/analysis/name-resolution-proofs/server-original-package-consumer-resolution.md",
+      "invariant": "Does the Server original package consumer select provider commands and transitive dependencies using the same complete requirement constraints and propagated preference?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "compute_source_inheritance",
+          "line": 32382
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "refine_original_w123_diagnostics",
+          "line": 31788
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "defined_original_commands",
+          "line": 31701
+        }
+      ],
+      "evidence": [
+        {
+          "id": "server-package-consumers",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_package_consumers_keep_constraints_and_dependency_preference",
+              "line": 35000,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::original_package_procedures_use_shared_conditional_source_slots",
+              "line": 34946,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::original_package_classes_use_shared_current_factory_slots",
+              "line": 34967,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.server.original-reference-and-lens-source-selection",
+      "document": "docs/design/analysis/name-resolution-proofs/server-original-reference-and-lens-source-selection.md",
+      "invariant": "How do workspace reference, declaration and reference-lens consumers select the same independently current original source owner without reparsing reporting names?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_declaration_identity_at",
+          "line": 12870
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "original_declaration_reference_locations",
+          "line": 12786
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "reference_locations",
+          "line": 16031
+        }
+      ],
+      "evidence": [
+        {
+          "id": "implementation-0",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_workspace_references_and_lenses_share_owned_byte_declarations",
+              "line": 33904,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            },
+            {
+              "selector": "tests::original_workspace_reference_misses_never_reparse_reporting_names",
+              "line": 33976,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.server.original-variable-rename-plans",
+      "document": "docs/design/analysis/name-resolution-proofs/server-original-variable-rename-plans.md",
+      "invariant": "Does Server variable rename require independently inspected source plans for every URI and reject a typed replacement occupied elsewhere in the workspace?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "cross_document_original_variable_rename",
+          "line": 17396
+        }
+      ],
+      "evidence": [
+        {
+          "id": "plan",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_variable_rename_shares_source_plans_and_typed_workspace_collisions",
+              "line": 34877,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.server.original-variable-symbol-query",
+      "document": "docs/design/analysis/name-resolution-proofs/server-original-variable-symbol-query.md",
+      "invariant": "Do Server cross-document variable definition/reference/hover queries use typed opaque symbols, URI ownership and actual current source?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "cross_document_variable_definition",
+          "line": 14936
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "cross_document_variable_references",
+          "line": 16237
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "cross_document_variable_hover",
+          "line": 15328
+        }
+      ],
+      "evidence": [
+        {
+          "id": "actual-consumer-source",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_variable_queries_keep_opaque_slots_across_documents",
+              "line": 34792,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    },
+    {
+      "id": "naming.source.original-class-publications",
+      "document": "docs/design/analysis/name-resolution-proofs/source-original-class-publications.md",
+      "invariant": "Which genuine original class factories survive as conditional source publication candidates, and how do current slots, canonical declarations, known terminals and unrepresented source cards retain their independent purposes?",
+      "classification": "unchanged_scoped_contract",
+      "review": "The only server delta since recorded 6046e82f3 is the separate compatibility classmethod receiver-family filter and its new source control. This record's named Original owner and bound assertion bodies are outside those hunks and remain unchanged; whole-file drift does not change its scoped invariant.",
+      "owner_anchors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "defined_original_commands",
+          "line": 31701
+        }
+      ],
+      "evidence": [
+        {
+          "id": "naming-source-original-class-publications-lib.rs",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "recorded_sha256": "0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac",
+          "current_sha256": "67730b9ee0f80ffd297096c07940bb9ebe15cd5ebd7ee3eddcbd69e94b7f8282",
+          "recovered_revision": "6046e82f3134d5a8053aa8ef2636f98ed5e60c46",
+          "classification": "unchanged_scoped_contract",
+          "test_anchors": [
+            {
+              "selector": "tests::original_package_classes_use_shared_current_factory_slots",
+              "line": 34967,
+              "source_body_comparison": "identical",
+              "execution": "not run"
+            }
+          ]
+        }
+      ],
+      "actions": [
+        "Review and narrowly reissue only these implementation digests after the final source snapshot is stable; preserve provider answers and execution status."
+      ]
+    }
+  ]
+}

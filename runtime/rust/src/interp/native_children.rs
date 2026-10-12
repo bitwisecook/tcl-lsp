@@ -406,16 +406,12 @@ mod tests {
             1
         );
         assert!(crate::native_source::bind_context(original.as_ptr(), &receiver).is_err());
-        assert!(
-            child
-                .copy_original_jim_object_to(&producer_interp, original.as_ptr())
-                .is_err()
-        );
-        assert!(
-            producer_interp
-                .copy_original_jim_object_to(&parent("tcl9.0"), original.as_ptr())
-                .is_err()
-        );
+        assert!(child
+            .copy_original_jim_object_to(&producer_interp, original.as_ptr())
+            .is_err());
+        assert!(producer_interp
+            .copy_original_jim_object_to(&parent("tcl9.0"), original.as_ptr())
+            .is_err());
     }
     #[test]
     fn child_constructor_uses_the_explicit_parent_profile_recipe() {
@@ -425,33 +421,27 @@ mod tests {
         // presence. The logical-child control checks only embedding behavior.
         let mut logical = Interp::new();
         let logical_profile = logical.dialect_profile();
-        assert!(
-            tcl_registry::InvocationDialect::of_profile(logical_profile)
-                .native_bootstrap_protocol()
-                .is_none()
-        );
+        assert!(tcl_registry::InvocationDialect::of_profile(logical_profile)
+            .native_bootstrap_protocol()
+            .is_none());
         logical.create_child(Some(b"logical".to_vec()));
         logical
             .with_child(b"logical", |child| {
                 assert!(std::ptr::eq(child.dialect_profile(), logical_profile));
-                assert!(
-                    child
-                        .namespaces
-                        .borrow()
-                        .var_table(GLOBAL)
-                        .has_native_namespace_cell(b"argv")
-                );
+                assert!(child
+                    .namespaces
+                    .borrow()
+                    .var_table(GLOBAL)
+                    .has_native_namespace_cell(b"argv"));
             })
             .unwrap();
 
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let mut parent = parent(engine);
             let profile = parent.dialect_profile();
-            assert!(
-                tcl_registry::InvocationDialect::of_profile(profile)
-                    .native_bootstrap_protocol()
-                    .is_some()
-            );
+            assert!(tcl_registry::InvocationDialect::of_profile(profile)
+                .native_bootstrap_protocol()
+                .is_some());
             parent.create_child(Some(b"native".to_vec()));
             parent
                 .with_child(b"native", |child| {
@@ -550,11 +540,9 @@ mod tests {
                     child.namespaces.borrow().resolve(GLOBAL, b"binary"),
                     Some(Command::Proc(_))
                 ));
-                assert!(
-                    child
-                        .find_command_id(GLOBAL, b"::tcl::binary::format")
-                        .is_none()
-                );
+                assert!(child
+                    .find_command_id(GLOBAL, b"::tcl::binary::format")
+                    .is_none());
             })
             .unwrap();
         parent.delete_child(&name);
@@ -578,13 +566,11 @@ mod tests {
             parent.set_current_ns(namespace);
             parent.create_child(Some(b"kid".to_vec()));
             let original = token(&parent, GLOBAL, b"kid");
-            assert!(
-                parent
-                    .namespaces
-                    .borrow()
-                    .command_in(namespace, b"kid")
-                    .is_none()
-            );
+            assert!(parent
+                .namespaces
+                .borrow()
+                .command_in(namespace, b"kid")
+                .is_none());
             assert_eq!(
                 parent.rename_command(b"kid", b"moved"),
                 crate::namespace::RenameOutcome::Renamed
@@ -592,13 +578,11 @@ mod tests {
             parent.set_current_ns(GLOBAL);
             assert!(parent.delete_child(b"kid"));
             assert!(!parent.child_exists(b"kid"));
-            assert!(
-                parent
-                    .namespaces
-                    .borrow()
-                    .command_in(namespace, b"moved")
-                    .is_none()
-            );
+            assert!(parent
+                .namespaces
+                .borrow()
+                .command_in(namespace, b"moved")
+                .is_none());
             parent.create_child(Some(b"kid".to_vec()));
             let recreated = token(&parent, GLOBAL, b"kid");
             assert!(!original.same_allocation(&recreated));
@@ -646,15 +630,13 @@ mod tests {
                 })
                 .unwrap();
             assert!(parent.child_exists(b"active"));
-            assert!(
-                !parent
-                    .children
-                    .borrow()
-                    .get(b"active".as_slice())
-                    .unwrap()
-                    .pending_delete
-                    .get()
-            );
+            assert!(!parent
+                .children
+                .borrow()
+                .get(b"active".as_slice())
+                .unwrap()
+                .pending_delete
+                .get());
         }
     }
 

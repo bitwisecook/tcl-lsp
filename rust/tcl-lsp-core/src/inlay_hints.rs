@@ -457,7 +457,9 @@ fn collect_type_hints(
 /// scope names are unqualified (`a`) while a `FunctionUnit`'s name is fully
 /// qualified (`::a`), so strip a single leading `::`.
 fn normalise_fn_name(name: &str) -> String {
-    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name).to_owned()
+    tcl_syntax::naming::unroot_rooted_key(name)
+        .unwrap_or(name)
+        .to_owned()
 }
 
 /// Recursively emit type hints for every variable definition in `scope`

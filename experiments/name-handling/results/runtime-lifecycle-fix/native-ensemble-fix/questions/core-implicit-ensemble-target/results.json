@@ -1,0 +1,30 @@
+{
+  "question": "Does the native ensemble consumer use the selected release and actual ensemble namespace?",
+  "kind": "consumer-check",
+  "unit_binary_sha256": "0b307b541a182415c855da5bd80cd3ebb688336ebeb0d09f373c703bd4cda24f",
+  "record": {
+    "name": "cmd_namespace::tests::implicit_ensemble_targets_preserve_the_selected_namespace_context",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "--exact",
+      "cmd_namespace::tests::implicit_ensemble_targets_preserve_the_selected_namespace_context",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "seconds": 5.735,
+    "stdout": "cmd_namespace-tests-implicit_ensemble_targets_preserve_the_selected_namespace_context.stdout",
+    "stderr": "cmd_namespace-tests-implicit_ensemble_targets_preserve_the_selected_namespace_context.stderr"
+  },
+  "stdout_sha256": "32262f8fbc6a2daea4d104be87661ed228bddea3394d27457b293fe978d51ac6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": {
+    "snapshot_base_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+    "snapshot_patch_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+    "path": "runtime/rust/src/cmd_namespace.rs",
+    "whole_file_sha256": "f876c747287ff7f2b493fae9df66c182d8961e79465d8127278191c1ec2444d9",
+    "line_start": 3694,
+    "line_end": 3732,
+    "excerpt_sha256": "6c781b424f9404d543b029abe5d274c6cc5b8769c202a742a1689a81cdcbe675"
+  },
+  "providers_executed_by_this_record": []
+}

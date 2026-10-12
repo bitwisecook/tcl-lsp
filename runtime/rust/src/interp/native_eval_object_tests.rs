@@ -201,14 +201,12 @@ fn original_eval_updater_keeps_reached_bytes_and_refuses_script_entry() {
         assert_eq!(interp.current_level(), 0);
         assert_eq!(interp.current_ns.get(), crate::namespace::GLOBAL);
         assert_eq!(interp.entered_native_operation_count(), 0);
-        assert!(
-            interp
-                .namespaces
-                .borrow()
-                .var_table(crate::namespace::GLOBAL)
-                .binding_id(b"reachedBody")
-                .is_none()
-        );
+        assert!(interp
+            .namespaces
+            .borrow()
+            .var_table(crate::namespace::GLOBAL)
+            .binding_id(b"reachedBody")
+            .is_none());
         let retained = interp.native_execution_refusal().unwrap();
         assert!(interp.eval_object_bytes(original.as_ptr()).is_err());
         assert_eq!(interp.native_execution_refusal(), Some(retained));

@@ -3495,12 +3495,22 @@ proc foo {} {}
         let registry = registry();
         let config = tcl_lexer::LexerConfig::default();
         let scan = crate::signature_scan::extract_signatures_with_config(source, config, &registry);
-        let declaration = scan.procedure_declarations.iter()
-            .find(|declaration| declaration.name == "SourceOnlyHelper").unwrap();
-        assert_eq!(declaration.source_spelling().as_deref(), Some("::source_names::SourceOnlyHelper"));
+        let declaration = scan
+            .procedure_declarations
+            .iter()
+            .find(|declaration| declaration.name == "SourceOnlyHelper")
+            .unwrap();
+        assert_eq!(
+            declaration.source_spelling().as_deref(),
+            Some("::source_names::SourceOnlyHelper")
+        );
         assert!(declaration.source_name.is_none());
         let known = recovery_known_commands(source, &registry, &std::sync::Arc::default(), config);
-        for spelling in ["::source_names::SourceOnlyHelper", "source_names::SourceOnlyHelper", "SourceOnlyHelper"] {
+        for spelling in [
+            "::source_names::SourceOnlyHelper",
+            "source_names::SourceOnlyHelper",
+            "SourceOnlyHelper",
+        ] {
             assert!(known.contains(spelling), "{spelling}");
         }
         assert!(!known.contains("foreign::SourceOnlyHelper"));
@@ -3516,18 +3526,35 @@ proc foo {} {}
         let source = format!("{complete}\nset unfinished {{");
         let registry = registry();
         let config = tcl_lexer::LexerConfig::default();
-        let scan = crate::signature_scan::extract_signatures_with_config(&source, config, &registry);
-        let declaration = scan.class_declarations.iter()
-            .find(|declaration| declaration.name == "SourceOnlyClass").unwrap();
-        assert_eq!(declaration.source_spelling().as_deref(), Some("::source_classes::SourceOnlyClass"));
+        let scan =
+            crate::signature_scan::extract_signatures_with_config(&source, config, &registry);
+        let declaration = scan
+            .class_declarations
+            .iter()
+            .find(|declaration| declaration.name == "SourceOnlyClass")
+            .unwrap();
+        assert_eq!(
+            declaration.source_spelling().as_deref(),
+            Some("::source_classes::SourceOnlyClass")
+        );
         assert!(declaration.source_name.is_none());
         let known = recovery_known_commands(&source, &registry, &std::sync::Arc::default(), config);
-        for spelling in ["::source_classes::SourceOnlyClass", "source_classes::SourceOnlyClass", "SourceOnlyClass"] {
+        for spelling in [
+            "::source_classes::SourceOnlyClass",
+            "source_classes::SourceOnlyClass",
+            "SourceOnlyClass",
+        ] {
             assert!(known.contains(spelling), "{spelling}");
         }
-        let closed = recovery_known_commands(complete, &registry, &std::sync::Arc::default(), config);
+        let closed =
+            recovery_known_commands(complete, &registry, &std::sync::Arc::default(), config);
         assert!(!closed.contains("SourceOnlyClass"));
-        let dynamic = recovery_known_commands("proc $unknown_name {} {}\nset unfinished {", &registry, &std::sync::Arc::default(), config);
+        let dynamic = recovery_known_commands(
+            "proc $unknown_name {} {}\nset unfinished {",
+            &registry,
+            &std::sync::Arc::default(),
+            config,
+        );
         assert!(!dynamic.contains("$unknown_name"));
     }
 

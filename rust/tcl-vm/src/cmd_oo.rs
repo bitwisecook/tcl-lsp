@@ -49,13 +49,13 @@ use tcl_registry::native_tcloo_method_definition::{
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
+mod method_preparation;
 mod native_bootstrap;
 pub(crate) mod native_context;
 pub(crate) mod native_method_cache;
 pub(crate) mod native_variables;
-mod variable_mapping;
-mod method_preparation;
 mod original_name_operands;
+mod variable_mapping;
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 
 use tcl_core_types::NameBytes;
@@ -3221,8 +3221,10 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
             return ok(Value::empty());
         }
         let existing = if selected_mapping
-            && matches!(selection.operation, NativeOoVariableSlotOperation::Set | NativeOoVariableSlotOperation::Clear)
-        {
+            && matches!(
+                selection.operation,
+                NativeOoVariableSlotOperation::Set | NativeOoVariableSlotOperation::Clear
+            ) {
             Some(Vec::new())
         } else if selected_mapping {
             variable_mapping::snapshot(vm, is_class, target, private)
@@ -3241,11 +3243,17 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
         }
         let updated = if selected_mapping {
             tcl_syntax::naming::apply_native_oo_slot_records(
-                existing, incoming, selection.operation, |entry| entry.name.as_bytes(),
+                existing,
+                incoming,
+                selection.operation,
+                |entry| entry.name.as_bytes(),
             )
         } else {
             tcl_syntax::naming::apply_native_oo_variable_slot(
-                existing, incoming, selection.operation, |entry| entry.name.as_bytes(),
+                existing,
+                incoming,
+                selection.operation,
+                |entry| entry.name.as_bytes(),
             )
         };
         for entry in &updated {
@@ -3257,7 +3265,13 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
         }
         if selected_mapping {
             if let Err(error) = variable_mapping::install(
-                vm, original_names, is_class, target, private, policy, &updated,
+                vm,
+                original_names,
+                is_class,
+                target,
+                private,
+                policy,
+                &updated,
             ) {
                 return crate::command::completion_from_cmd_error(vm, error);
             }

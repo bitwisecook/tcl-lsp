@@ -61,7 +61,6 @@ impl Value {
         Ok(())
     }
 
-
     pub(crate) fn install_jim_command_cache_checked<E: From<ValueError>>(
         &self,
         dialect: tcl_registry::InvocationDialect,

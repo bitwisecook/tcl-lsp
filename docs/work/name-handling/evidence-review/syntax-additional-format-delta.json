@@ -1,0 +1,42 @@
+[
+  {
+    "path": "rust/tcl-syntax/src/naming.rs",
+    "audit_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+    "audit_revision": "db4ed3cb835da210975e5f374a397ab7530e2420",
+    "head_sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
+    "identical": false,
+    "snapshot": "/tmp/syntax-reviewed-naming-66784f60.rs"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/native.rs",
+    "audit_sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+    "audit_revision": "26db1619445486d8f4da6cd82b8127a9046b574c",
+    "head_sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+    "identical": true,
+    "snapshot": "/tmp/syntax-reviewed-native-bb8ed465.rs"
+  },
+  {
+    "path": "rust/tcl-syntax/src/expr/checked.rs",
+    "audit_sha256": "6b0f2286824bb173fad1634c62c6ae3d1e35e2a17007edbe294060c407ed0528",
+    "audit_revision": "cebd088f36b1eccb267f002ccd9a54759a4e3f6f",
+    "head_sha256": "c15fc517688dbabac8152db03191ab52131736a6ebfcc6fb72a8c16a621a7be7",
+    "identical": false,
+    "snapshot": "/tmp/syntax-reviewed-checked-6b0f2286.rs"
+  },
+  {
+    "path": "rust/tcl-syntax/src/expr/parser.rs",
+    "audit_sha256": "236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40",
+    "audit_revision": "cebd088f36b1eccb267f002ccd9a54759a4e3f6f",
+    "head_sha256": "236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40",
+    "identical": true,
+    "snapshot": "/tmp/syntax-reviewed-parser-236c0d96.rs"
+  },
+  {
+    "path": "rust/tcl-syntax/src/value.rs",
+    "audit_sha256": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+    "audit_revision": "927fdfb934e4f6a1e94c75cb9d9a9d9a81a050dc",
+    "head_sha256": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+    "identical": true,
+    "snapshot": "/tmp/syntax-reviewed-value-7469bb97.rs"
+  }
+]

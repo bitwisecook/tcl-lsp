@@ -1,0 +1,25 @@
+   Compiling hybrid-array v0.4.15
+   Compiling serde_core v1.0.229
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling serde_json v1.0.151
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 1m 31s
+     Running tests/native_variable_declaration.rs (tmp/name-target-issues/debug/deps/native_variable_declaration-56943b135f517f18)
+
+running 1 test
+test variable_declaration_arity_matches_each_original_worker ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+

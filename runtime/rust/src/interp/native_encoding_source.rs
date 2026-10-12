@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Thin original argv stages for the shared byte encoding/source owner.
 
-use super::{Interp, native_arguments::OriginalArguments};
+use super::{native_arguments::OriginalArguments, Interp};
 use std::rc::Rc;
 use tcl_cmd_core::{
-    CmdError,
     channel::ChannelEncoding,
     encoding::{NativeEncodingNameProtocol, NativeEncodingNamePurpose, OriginalSourceFileOps},
+    CmdError,
 };
 use tcl_platform::{HostError, SystemEncoding};
 use tcl_syntax::value::ValueError;

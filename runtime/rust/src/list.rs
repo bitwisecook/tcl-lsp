@@ -50,8 +50,7 @@ struct TclList {
 #[path = "list/native_list_storage.rs"]
 mod native_list_storage;
 pub(crate) use native_list_storage::{
-    native_list_command_range, native_list_command_range_using,
-    native_list_range_using,
+    native_list_command_range, native_list_command_range_using, native_list_range_using,
 };
 
 #[cfg(test)]
@@ -1588,7 +1587,13 @@ fn replace_elements_native_with_duplicate_check<E>(
     check()?;
     obj::check_native_liveness(original_lifetime.as_ptr()).map_err(refuse)?;
     replace_prepared_native_range_using(
-        value.as_ptr(), 0, usize::MAX, elements, protocol, check, refuse,
+        value.as_ptr(),
+        0,
+        usize::MAX,
+        elements,
+        protocol,
+        check,
+        refuse,
     )?;
     drop(original_lifetime);
     check()?;
@@ -1615,15 +1620,22 @@ pub(crate) fn replace_prepared_native_range_using<E>(
         let members = list_elements_native_using(value, protocol, check, refuse)?;
         let first = first.min(members.len());
         let delete = delete.min(members.len() - first);
-        let replaced: Vec<_> = members[..first].iter().chain(elements)
-            .chain(&members[first + delete..]).copied().collect();
+        let replaced: Vec<_> = members[..first]
+            .iter()
+            .chain(elements)
+            .chain(&members[first + delete..])
+            .copied()
+            .collect();
         for &element in &replaced {
             check()?;
             obj::check_native_liveness(element).map_err(refuse)?;
             unsafe { obj::incr_ref_count(element) };
         }
         native_list_storage::replace_storage(
-            value, NativeListStorage::new(replaced), check, refuse,
+            value,
+            NativeListStorage::new(replaced),
+            check,
+            refuse,
         )?;
         unsafe { list_mut(value) }.canonical = Rc::new(Cell::new(false));
     }

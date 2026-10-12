@@ -1,0 +1,17 @@
+     */
+
+    nsPtr = Tcl_CreateNamespace(interp, "::tcl::mathfunc", NULL,NULL);
+    if (nsPtr == NULL) {
+	Tcl_Panic("Can't create math function namespace");
+    }
+#define MATH_FUNC_PREFIX_LEN 17 /* == strlen("::tcl::mathfunc::") */
+    memcpy(mathFuncName, "::tcl::mathfunc::", MATH_FUNC_PREFIX_LEN);
+    for (builtinFuncPtr = BuiltinFuncTable; builtinFuncPtr->name != NULL;
+	    builtinFuncPtr++) {
+	strcpy(mathFuncName + MATH_FUNC_PREFIX_LEN, builtinFuncPtr->name);
+	Tcl_CreateObjCommand(interp, mathFuncName,
+		builtinFuncPtr->objCmdProc, builtinFuncPtr->clientData, NULL);
+	Tcl_Export(interp, nsPtr, builtinFuncPtr->name, 0);
+    }
+
+    /*

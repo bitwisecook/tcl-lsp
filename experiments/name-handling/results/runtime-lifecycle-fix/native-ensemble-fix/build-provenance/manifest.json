@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "original_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/source.patch",
+  "original_bytes": 115244463,
+  "original_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+  "chunk_bytes": 4194304,
+  "parts": [
+    {
+      "path": "0001",
+      "bytes": 4194304,
+      "sha256": "7bc8cad4d4c3ab61deafe0eb3bc9bfc64341cd1704494fd6a387b33c93701499"
+    },
+    {
+      "path": "0002",
+      "bytes": 4194304,
+      "sha256": "4f1a5a6238fe7290946a2d970d5d9330108bea6f9cdec7b3688aeb8d73fe28b0"
+    },
+    {
+      "path": "0003",
+      "bytes": 4194304,
+      "sha256": "239baff52eef09cbf7ef5def2262120bca648a4ae2d5c4d016a901f4d1bd8707"
+    },
+    {
+      "path": "0004",
+      "bytes": 4194304,
+      "sha256": "dc4e54f494238c3314968b8f487bd25f349f427a3ed4b2c9b0ffe291931f045b"
+    },
+    {
+      "path": "0005",
+      "bytes": 4194304,
+      "sha256": "db8c29fee88421e02a5d02b4c17fb03f17480bf97d4537b6108f987e2d108899"
+    },
+    {
+      "path": "0006",
+      "bytes": 4194304,
+      "sha256": "e20a8f711fad9165372f3689f01afbe3350c4ff6f7f15f6f057acbfccac2fdf7"
+    },
+    {
+      "path": "0007",
+      "bytes": 4194304,
+      "sha256": "e0229bc01e576bf7f02f3eafda97d4f2e8ea9642fee3cfc8b3c253e80cc82bd8"
+    },
+    {
+      "path": "0008",
+      "bytes": 4194304,
+      "sha256": "e782387f77a49c0d932d578173ae4d3d2543989a819e0233a33f99739c61268a"
+    },
+    {
+      "path": "0009",
+      "bytes": 4194304,
+      "sha256": "7a0ab0a1d99278912e0fcf14906f61e1b9edf1d96e83745f0afef2040874f10c"
+    },
+    {
+      "path": "0010",
+      "bytes": 4194304,
+      "sha256": "c3f63eca807dd91011ae2b59376520747404b542b47df7db50589a63b1da79d1"
+    },
+    {
+      "path": "0011",
+      "bytes": 4194304,
+      "sha256": "f9c466c301fad9d5aa5b16f37dce833dc87d0c2ea35aaa71c98aad563a7c8cf0"
+    },
+    {
+      "path": "0012",
+      "bytes": 4194304,
+      "sha256": "489d0a1e35e671fd04fd07c756cd5db2e6a59f08dce74b07c6383bf1b698cee8"
+    },
+    {
+      "path": "0013",
+      "bytes": 4194304,
+      "sha256": "30855d885c74d89aa049864e8aab50de88925f797e315d3290b529a4e7cc34a4"
+    },
+    {
+      "path": "0014",
+      "bytes": 4194304,
+      "sha256": "d6a93d949df309e5b5685d02455be4a7355c66b5ed598189bacd1204e29fca5e"
+    },
+    {
+      "path": "0015",
+      "bytes": 4194304,
+      "sha256": "30a60f829395ca2f0e66775a88a607bfd5f10688324a93d5678f66d270b2edba"
+    },
+    {
+      "path": "0016",
+      "bytes": 4194304,
+      "sha256": "594be5060bbecbbe15671e648b222797efb39afee9a474613a21f5f71cc185f7"
+    },
+    {
+      "path": "0017",
+      "bytes": 4194304,
+      "sha256": "505633c091f36ac8e55f17b058844147e79b9c2191cbda1601d9e1c8ce98d777"
+    },
+    {
+      "path": "0018",
+      "bytes": 4194304,
+      "sha256": "4fb15bf6010cbeeb12fa1090168596943015fade3f7037817dd4f76f6359347e"
+    },
+    {
+      "path": "0019",
+      "bytes": 4194304,
+      "sha256": "3acc0c4cae120289bb495e3f48d968dac00a7c6aca80980da2e04c33f8ff2d49"
+    },
+    {
+      "path": "0020",
+      "bytes": 4194304,
+      "sha256": "19b8f82995a3983380a1fb0af409e19ea4331891bc564705ebe00c7086392e61"
+    },
+    {
+      "path": "0021",
+      "bytes": 4194304,
+      "sha256": "d34f9481326ceffab060252a2c032d4479d5429e1cc0542576a3234b63455ce1"
+    },
+    {
+      "path": "0022",
+      "bytes": 4194304,
+      "sha256": "23c3f0b44793de48341840101166db031c0ad1639945673736dae85fdb84064b"
+    },
+    {
+      "path": "0023",
+      "bytes": 4194304,
+      "sha256": "50f0605c87cd9721308acd105fe37a8a7569dc16deb54f823ba4df8977578400"
+    },
+    {
+      "path": "0024",
+      "bytes": 4194304,
+      "sha256": "b8c51ef1630ad70907e885c9fb55496f38e25793e83000c5bfcfd88640fed2ce"
+    },
+    {
+      "path": "0025",
+      "bytes": 4194304,
+      "sha256": "7723e961ebe74c17254910f35313769a62679c1aefa4a0be4f4f4812b76e9974"
+    },
+    {
+      "path": "0026",
+      "bytes": 4194304,
+      "sha256": "22093a78c642bbe33eb49843be427251a90b6ae96fa87108e95940a0dfb13a19"
+    },
+    {
+      "path": "0027",
+      "bytes": 4194304,
+      "sha256": "1037b5c2fdb33e8a9207813438734ff8522cbc62a13e0139f7f2c965c7997882"
+    },
+    {
+      "path": "0028",
+      "bytes": 1998255,
+      "sha256": "8c929e067fda9440189e68eb28fb4d1dcf71d3a78e95c14ab8b0e804419112f4"
+    }
+  ],
+  "archive_commit": "e803f53f1e55102b31bb5c051c86de1728cb38e0",
+  "base_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+  "archive_directory": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/source.patch.parts",
+  "scope": "Broad post-build working-tree snapshot; build stability under concurrent source edits was not recorded.",
+  "scoped_sources": [
+    {
+      "path": "questions/entangled-deletion-tcltest/input.tcl",
+      "sha256": "67046af71bf44a51ef0215f6dbfd283b0b6b767e3da0010bbcc4350b3e8a16be",
+      "archive_path": "experiments/name-handling/results/runtime-lifecycle-fix/upstream-namespace-56.2.tcl",
+      "origin": "unchanged input in published archive"
+    },
+    {
+      "path": "questions/global-survival/input.tcl",
+      "sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "archive_path": "experiments/name-handling/results/runtime-lifecycle-fix/deletion-global-survival-probe.tcl",
+      "origin": "unchanged input in published archive"
+    },
+    {
+      "path": "questions/cached-versus-fresh/input.tcl",
+      "sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+      "archive_path": "experiments/name-handling/results/runtime-lifecycle-fix/cached-fresh-namespace-probe.tcl",
+      "origin": "unchanged input in published archive"
+    },
+    {
+      "path": "questions/implicit-ensemble-target/input.tcl",
+      "sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+      "archive_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-runner/ensemble-shadow-probe.tcl",
+      "origin": "unchanged input in published archive"
+    },
+    {
+      "path": "questions/core-entangled-deletion/consumer-test.rs",
+      "sha256": "4cc26f9a25235ab81021eba73b6f3119fec4c37ddcaa2c205d93dd14dfa0d720",
+      "snapshot_path": "runtime/rust/src/cmd_namespace.rs",
+      "whole_file_sha256": "f876c747287ff7f2b493fae9df66c182d8961e79465d8127278191c1ec2444d9",
+      "line_start": 3626,
+      "line_end": 3651,
+      "origin": "base commit plus captured archived patch"
+    },
+    {
+      "path": "questions/core-cached-versus-fresh/consumer-test.rs",
+      "sha256": "3ec946e94658907d94bdfbf0d03fb6dd799e28a2d8d66ea8abb2b2eed6c0f3d3",
+      "snapshot_path": "runtime/rust/src/cmd_namespace.rs",
+      "whole_file_sha256": "f876c747287ff7f2b493fae9df66c182d8961e79465d8127278191c1ec2444d9",
+      "line_start": 3653,
+      "line_end": 3692,
+      "origin": "base commit plus captured archived patch"
+    },
+    {
+      "path": "questions/core-implicit-ensemble-target/consumer-test.rs",
+      "sha256": "6c781b424f9404d543b029abe5d274c6cc5b8769c202a742a1689a81cdcbe675",
+      "snapshot_path": "runtime/rust/src/cmd_namespace.rs",
+      "whole_file_sha256": "f876c747287ff7f2b493fae9df66c182d8961e79465d8127278191c1ec2444d9",
+      "line_start": 3694,
+      "line_end": 3732,
+      "origin": "base commit plus captured archived patch"
+    },
+    {
+      "path": "questions/core-parent-child-order/consumer-test.rs",
+      "sha256": "306d90343d37a8d71289d04831d5b429bdd4c933ce52d51d03aa498de8426a31",
+      "snapshot_path": "runtime/rust/src/cmd_trace.rs",
+      "whole_file_sha256": "86eea44bb5d83d6a07f0127b6ce0b405603bb5f42671067fd9f253f49a842f1c",
+      "line_start": 1884,
+      "line_end": 1920,
+      "origin": "base commit plus captured archived patch"
+    },
+    {
+      "path": "questions/core-delete-validation/consumer-test.rs",
+      "sha256": "5c77fa7a2c3f394168b7763672a2198c6b3c7e9c6cb4f10b292983cdcb241fa8",
+      "snapshot_path": "runtime/rust/src/interp/native_namespace_names/tests.rs",
+      "whole_file_sha256": "34c335fa228f78f30cfa80807eb3dc36d5a668dcbd192894585c62a926ffa2ca",
+      "line_start": 439,
+      "line_end": 505,
+      "origin": "base commit plus captured archived patch"
+    },
+    {
+      "path": "questions/core-retired-object-lifetime/consumer-test.rs",
+      "sha256": "93db488f194f7370443171975b978a958e1de963a162bde66c18d26eb267a2fd",
+      "snapshot_path": "runtime/rust/src/interp/native_namespace_names/tests.rs",
+      "whole_file_sha256": "34c335fa228f78f30cfa80807eb3dc36d5a668dcbd192894585c62a926ffa2ca",
+      "line_start": 392,
+      "line_end": 437,
+      "origin": "base commit plus captured archived patch"
+    },
+    {
+      "path": "questions/core-producer-getter-windows/consumer-test.rs",
+      "sha256": "8da371f312db4a036112ed2a4372e6a89ea0d2813d942530aa0ed7ef674425e6",
+      "snapshot_path": "runtime/rust/src/interp/native_namespace_names/tests.rs",
+      "whole_file_sha256": "34c335fa228f78f30cfa80807eb3dc36d5a668dcbd192894585c62a926ffa2ca",
+      "line_start": 149,
+      "line_end": 322,
+      "origin": "base commit plus captured archived patch"
+    }
+  ],
+  "unchanged_capture_sha256": {
+    "cmd_namespace-tests-mutually_entangled_deletion_preserves_the_global_namespace.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cmd_namespace-tests-mutually_entangled_deletion_preserves_the_global_namespace.stdout": "f21cafc59acafbd99ae26c619896b4485f79db42abe25b947a5625f341089425",
+    "unit-records.json": "0a282f674e6a4d1f0297319b9591724944297f0d75de9c719621b01f576ec699",
+    "interp-native_namespace_names-tests-original_namespace_objects_match_100_native_c_producer_and_getter_windows.stdout": "fce08705e3a65d4a52a8465e52a851057dddf3c2d9ede781f1de1672391edca9",
+    "cmd_namespace-tests-implicit_ensemble_targets_preserve_the_selected_namespace_context.stdout": "32262f8fbc6a2daea4d104be87661ed228bddea3394d27457b293fe978d51ac6",
+    "receipt.json": "7022509c101eae9aa6b3520708ad464fba217a1979f919c93d9231eaf81ad3de",
+    "records.json": "28e59658811a8206290af562c77342f041db052e8eae0c2537f2b75563aebf62",
+    "cmd_trace-tests-parent_teardown_reaches_each_child_after_parent_commands.stdout": "b9e54c463f729ab645daf10e165b8839c5beee52dc6ac51932a78bc150e42d5c",
+    "interp-native_namespace_names-tests-namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks.stdout": "fb73f2fe5b2b17cb98746bfb9645eb66392566c14787875670a44ec1a793f3a4",
+    "cmd_namespace-tests-child_teardown_distinguishes_cached_names_from_fresh_lookup.stdout": "618b053cb18b5dd870858d2c2a5026994e252d74cdc9c7ece79fcf084aa062bd",
+    "interp-native_namespace_names-tests-original_namespace_objects_match_100_native_c_producer_and_getter_windows.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cmd_trace-tests-parent_teardown_reaches_each_child_after_parent_commands.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "interp-native_namespace_names-tests-original_namespace_lifetime_survives_retirement_without_owning_the_interpreter.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cmd_namespace-tests-implicit_ensemble_targets_preserve_the_selected_namespace_context.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cmd_namespace-tests-child_teardown_distinguishes_cached_names_from_fresh_lookup.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "interp-native_namespace_names-tests-namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "interp-native_namespace_names-tests-original_namespace_lifetime_survives_retirement_without_owning_the_interpreter.stdout": "16d88b75490bd270f4a6cce0f7b47b4afe47eb9ae41077bcb485bd614be560cd",
+    "9.1.0/ensemble-shadow.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.1.0/ensemble-shadow.stdout": "db77c5024fa27355ba12a4732eb9b4ff6d82ba4f75b8928f9d301ed2519541de",
+    "9.1.0/upstream-namespace-56.2.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.1.0/cached-fresh-namespace-probe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.1.0/deletion-global-survival-probe.stdout": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+    "9.1.0/cached-fresh-namespace-probe.stdout": "5e5103ff64d34dc39844016c9f7720ebe9d207972e859af1f18bfab9b23a4442",
+    "9.1.0/deletion-global-survival-probe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.1.0/upstream-namespace-56.2.stderr": "84f95ca329632ac804c10cdedc9b088c8820f8d2737261981b87c93e59048c67",
+    "8.6.18/ensemble-shadow.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.6.18/ensemble-shadow.stdout": "db77c5024fa27355ba12a4732eb9b4ff6d82ba4f75b8928f9d301ed2519541de",
+    "8.6.18/upstream-namespace-56.2.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.6.18/cached-fresh-namespace-probe.stderr": "5b860f8f36fdce4b4aea6042e8778d2f69640ad025d59a71c7c2b04b9e6d238c",
+    "8.6.18/deletion-global-survival-probe.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.6.18/cached-fresh-namespace-probe.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.6.18/deletion-global-survival-probe.stderr": "5b860f8f36fdce4b4aea6042e8778d2f69640ad025d59a71c7c2b04b9e6d238c",
+    "8.6.18/upstream-namespace-56.2.stderr": "5b860f8f36fdce4b4aea6042e8778d2f69640ad025d59a71c7c2b04b9e6d238c",
+    "8.5.19/ensemble-shadow.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.5.19/ensemble-shadow.stdout": "332ec8ac03b730c0de19e52155429c12cbdda2dc7c67525ac57b2146512d4609",
+    "8.5.19/upstream-namespace-56.2.stdout": "2e4bd99dbc3fe40eda1aebc6f0e143f46c5e8a867c3647c4be44d0af36f58d5d",
+    "8.5.19/cached-fresh-namespace-probe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.5.19/deletion-global-survival-probe.stdout": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+    "8.5.19/cached-fresh-namespace-probe.stdout": "f6e613d6c759851d1cc89120a08189647c85a926eff6cfaa6ca21e93d9cd3fad",
+    "8.5.19/deletion-global-survival-probe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.5.19/upstream-namespace-56.2.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.4.20/upstream-namespace-56.2.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.4.20/deletion-global-survival-probe.stdout": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+    "8.4.20/deletion-global-survival-probe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8.4.20/upstream-namespace-56.2.stderr": "a1803c2e5b66df1ff922a083509cb9e81f2a2210b2adbe955d2045207e4f8521",
+    "9.0.4/ensemble-shadow.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.0.4/ensemble-shadow.stdout": "db77c5024fa27355ba12a4732eb9b4ff6d82ba4f75b8928f9d301ed2519541de",
+    "9.0.4/upstream-namespace-56.2.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.0.4/cached-fresh-namespace-probe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.0.4/deletion-global-survival-probe.stdout": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+    "9.0.4/cached-fresh-namespace-probe.stdout": "5e5103ff64d34dc39844016c9f7720ebe9d207972e859af1f18bfab9b23a4442",
+    "9.0.4/deletion-global-survival-probe.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "9.0.4/upstream-namespace-56.2.stderr": "84f95ca329632ac804c10cdedc9b088c8820f8d2737261981b87c93e59048c67"
+  }
+}

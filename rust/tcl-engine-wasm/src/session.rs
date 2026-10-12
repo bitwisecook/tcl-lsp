@@ -71,7 +71,6 @@ pub(crate) struct HostState {
     pub(crate) entry_episode: Option<Rc<()>>,
 }
 
-
 pub(crate) struct TypedExecutionCause {
     pub(crate) episode: Weak<()>,
     pub(crate) cause: tcl_engine_api::NativeExecutionError,
@@ -206,8 +205,10 @@ impl Exports {
             error_code: instance.get_typed_func(&mut *store, "tcl_engine_error_code")?,
             fail: instance.get_typed_func(&mut *store, "tcl_engine_fail")?,
             complete: instance.get_typed_func(&mut *store, "tcl_engine_complete_original")?,
-            interpreter_identity: instance.get_typed_func(&mut *store, EngineInterpreterIdentity::EXPORT)?,
-            destroy_interpreter: instance.get_typed_func(&mut *store, "tcl_runtime_delete_interp")?,
+            interpreter_identity: instance
+                .get_typed_func(&mut *store, EngineInterpreterIdentity::EXPORT)?,
+            destroy_interpreter: instance
+                .get_typed_func(&mut *store, "tcl_runtime_delete_interp")?,
             host_refusal_pending: instance
                 .get_typed_func(&mut *store, "tcl_engine_host_refusal_pending")?,
             host_refusal_text: instance
@@ -306,8 +307,15 @@ impl Session {
         let interp = create.call(&mut store, ())?;
         current.call(&mut store, interp)?;
         let scratch = exports.alloc.call(&mut store, (16, 8))?;
-        let mut session = Self { store, exports, interp, scratch };
-        session.begin_entry().map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
+        let mut session = Self {
+            store,
+            exports,
+            interp,
+            scratch,
+        };
+        session
+            .begin_entry()
+            .map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
         Ok(session)
     }
 
@@ -784,7 +792,10 @@ impl Drop for Session {
     fn drop(&mut self) {
         // Complete the already-reached actual interpreter destruction before
         // retiring diagnostic records. Store destruction retires a trapped instance.
-        let _ = self.exports.destroy_interpreter.call(&mut self.store, self.interp);
+        let _ = self
+            .exports
+            .destroy_interpreter
+            .call(&mut self.store, self.interp);
         self.store.data_mut().execution_causes.clear();
         self.store.data_mut().entry_episode = None;
     }
@@ -866,7 +877,6 @@ pub(crate) fn read_string(
     Ok(bytes)
 }
 
-
 #[cfg(test)]
 #[path = "../../tcl-compiler/tests/common/wasm_link.rs"]
 mod typed_transport_wasm_link;
@@ -887,7 +897,9 @@ mod tests {
         struct Refusing;
         impl HostCommand for Refusing {
             fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
-                Err(EngineError::ExecutionRefusal("actual host contract refusal".into()))
+                Err(EngineError::ExecutionRefusal(
+                    "actual host contract refusal".into(),
+                ))
             }
         }
         struct Later {
@@ -905,43 +917,99 @@ mod tests {
         let bytes = std::fs::read(runtime).expect("read the actual linked runtime");
         let runtime = WasmRuntime::new(&bytes).expect("compile the actual linked runtime");
         let mut session = Session::new(&runtime).expect("an actual runtime instance");
-        session.define_command(b"refuse", Rc::new(Refusing)).unwrap();
+        session
+            .define_command(b"refuse", Rc::new(Refusing))
+            .unwrap();
         let reached = Rc::new(Cell::new(0));
         let cause = tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                 "later typed cause",
             ),
         );
-        session.define_command(b"laterTyped", Rc::new(Later {
-            cause, reached: Rc::clone(&reached),
-        })).unwrap();
+        session
+            .define_command(
+                b"laterTyped",
+                Rc::new(Later {
+                    cause,
+                    reached: Rc::clone(&reached),
+                }),
+            )
+            .unwrap();
         // Capture the actual registered Func and prepare its ordinary caller
         // argv before reaching either callback. This fixture never deletes or
         // rebinds that command. Each actual argv object is held exactly once.
-        let slot = session.store.data().host_procedure.expect("published host procedure");
-        let Some(Ref::Func(Some(function))) = session.exports.table.get(&mut session.store, slot as u64) else {
+        let slot = session
+            .store
+            .data()
+            .host_procedure
+            .expect("published host procedure");
+        let Some(Ref::Func(Some(function))) =
+            session.exports.table.get(&mut session.store, slot as u64)
+        else {
             panic!("the actual published host procedure is unavailable");
         };
-        let callback = function.typed::<(i32, i32, i32, i32), i32>(&session.store).unwrap();
+        let callback = function
+            .typed::<(i32, i32, i32, i32), i32>(&session.store)
+            .unwrap();
         let word = session.object(b"laterTyped").unwrap();
-        let argv = session.exports.alloc.call(&mut session.store, (4, 4)).unwrap();
-        session.exports.memory.write(&mut session.store, address(argv), &word.to_le_bytes()).unwrap();
-        let prior = session.evaluate(&[b"refuse"])
-            .map_err(Failure::into_engine_error).unwrap_err();
-        assert_eq!(prior, EngineError::ExecutionRefusal("actual host contract refusal".into()));
+        let argv = session
+            .exports
+            .alloc
+            .call(&mut session.store, (4, 4))
+            .unwrap();
+        session
+            .exports
+            .memory
+            .write(&mut session.store, address(argv), &word.to_le_bytes())
+            .unwrap();
+        let prior = session
+            .evaluate(&[b"refuse"])
+            .map_err(Failure::into_engine_error)
+            .unwrap_err();
+        assert_eq!(
+            prior,
+            EngineError::ExecutionRefusal("actual host contract refusal".into())
+        );
         assert_eq!(reached.get(), 0);
-        assert_eq!(session.exports.host_refusal_pending.call(&mut session.store, session.interp).unwrap(), 1);
-        assert_eq!(callback.call(&mut session.store, (1, session.interp, 1, argv)).unwrap(), 1);
+        assert_eq!(
+            session
+                .exports
+                .host_refusal_pending
+                .call(&mut session.store, session.interp)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            callback
+                .call(&mut session.store, (1, session.interp, 1, argv))
+                .unwrap(),
+            1
+        );
         assert_eq!(reached.get(), 1);
         assert!(session.store.data().execution_causes.is_empty());
         // Complete the genuine caller-owned argv cleanup before settlement.
         session.release(&[word]).unwrap();
         session.exports.free.call(&mut session.store, argv).unwrap();
-        let settled = command_receipts::settle(&mut session.store, &session.exports, session.interp)
-            .map_err(Failure::into_engine_error).unwrap_err();
+        let settled =
+            command_receipts::settle(&mut session.store, &session.exports, session.interp)
+                .map_err(Failure::into_engine_error)
+                .unwrap_err();
         assert_eq!(settled, prior);
         session.begin_entry().unwrap();
-        assert_eq!(session.exports.host_refusal_pending.call(&mut session.store, session.interp).unwrap(), 0);
-        assert_eq!(session.evaluate(&[b"set", b"::next", b"NEXT"]).unwrap().result, b"NEXT");
+        assert_eq!(
+            session
+                .exports
+                .host_refusal_pending
+                .call(&mut session.store, session.interp)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            session
+                .evaluate(&[b"set", b"::next", b"NEXT"])
+                .unwrap()
+                .result,
+            b"NEXT"
+        );
     }
 }

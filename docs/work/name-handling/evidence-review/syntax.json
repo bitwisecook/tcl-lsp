@@ -1,0 +1,581 @@
+{
+  "review_mode": "REVIEW ONLY",
+  "repository": "/workspace/tcl-lsp",
+  "scope": [
+    "rust/tcl-syntax/src/naming.rs",
+    "rust/tcl-syntax/src/naming/native.rs",
+    "rust/tcl-syntax/src/expr/checked.rs",
+    "rust/tcl-syntax/src/expr/parser.rs",
+    "rust/tcl-syntax/src/value.rs"
+  ],
+  "authority": "Source/history inspection only. No repository changes, Cargo/native execution or new provider/Rust assertion results. Existing selected C/Jim 12-test validation does not certify later owner edits.",
+  "taxonomy_note": "All thirteen recorded syntax invariants remain unchanged. None of the whole-file diffs is solely formatting/comments: unrelated semantic additions and delegations require the specific review recorded here. Two entries add a SourceTopology ingress with a distinct admission purpose; this requires scope/definition controls before extending the record to that new ingress, but does not invalidate its unchanged selected-reference-root invariant or grant Native execution.",
+  "summary": {
+    "affected_records": 11,
+    "affected_implementation_entries": 13,
+    "recovered_historical_snapshots": 7,
+    "classification_counts": {
+      "unchanged_contract": 13
+    },
+    "missing_historical_source": 0,
+    "new_ingress_scope_clarifications": 2
+  },
+  "entries": [
+    {
+      "record_id": "naming.analysis.constructed-key-consumer-projections",
+      "evidence_id": "metadata-projection-source-5",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "5cc00556c75720e196c08d2309339ee0a8615832f9fe08c146b5be7a2db5ea9c",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "9ebae91303f735d5b85d38b6c099e7ebeb72b0d2",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-5cc00556c75720e196c08d2309339ee0a8615832f9fe08c146b5be7a2db5ea9c.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_additions_and_equivalent_tail_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "key_holder_and_tail and key_tail are byte-for-byte unchanged. Added written separator/suffix helpers do not alter constructed holder/tail classification or issue lookup/source authority.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn key_tail(",
+          "old_line": 365,
+          "current_line": 382
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn key_holder_and_tail(",
+          "old_line": 465,
+          "current_line": 482
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.analysis.reported-qname-namespace-prefix",
+      "evidence_id": "reporting-source-0",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "5cc00556c75720e196c08d2309339ee0a8615832f9fe08c146b5be7a2db5ea9c",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "9ebae91303f735d5b85d38b6c099e7ebeb72b0d2",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-5cc00556c75720e196c08d2309339ee0a8615832f9fe08c146b5be7a2db5ea9c.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_additions_and_equivalent_tail_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "The reporting module/re-export remains unchanged. New separator/suffix helpers do not change selected reporting-purpose/default behavior. The reporting implementation itself is outside this five-file review.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub use reporting::{",
+          "old_line": 57,
+          "current_line": 57
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.compiler.logical-upvar-target-element-geometry",
+      "evidence_id": "naming-compiler-logical-upvar-target-element-geometry-naming.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "f06a7ac6c87ccb58391496a9a7b83264f4857330",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_additions_and_equivalent_tail_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "split_element_ref and split_element_ref_bytes are unchanged: final close and first open select an element; unmatched opens/scalar tails stay whole; no sigil is stripped.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_element_ref(",
+          "old_line": 1489,
+          "current_line": 1528
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_element_ref_bytes(",
+          "old_line": 1500,
+          "current_line": 1539
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.diagnostics.original-resolved-variable-name-advice",
+      "evidence_id": "naming-diagnostics-original-resolved-variable-name-advice-naming.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "f06a7ac6c87ccb58391496a9a7b83264f4857330",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_additions_and_equivalent_tail_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "Literal braced-name branch remains unchanged and delegates whole resolved names to split_element_ref without sigil stripping. Changed written-command tail is a different purpose.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_array_name_braced(",
+          "old_line": 891,
+          "current_line": 930
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_array_name_braced_for_style(",
+          "old_line": 897,
+          "current_line": 936
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_element_ref(",
+          "old_line": 1489,
+          "current_line": 1528
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.diagnostics.original-variable-name-anchor",
+      "evidence_id": "naming-diagnostics-original-variable-name-anchor-naming.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "f06a7ac6c87ccb58391496a9a7b83264f4857330",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_additions_and_equivalent_tail_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "The syntax resolved-name split and final-close requirement are unchanged. No claim is made about current compiler scanner/source correspondence beyond this syntax owner.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_element_ref(",
+          "old_line": 1489,
+          "current_line": 1528
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_element_ref_bytes(",
+          "old_line": 1500,
+          "current_line": 1539
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.editor.logical-written-component-geometry",
+      "evidence_id": "written-geometry-3",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "26253f02fd1cde4b94d7e195e9aafcb1b96d576360dd6ce8e158d629f770aafa",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "26db1619445486d8f4da6cd82b8127a9046b574c",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-26253f02fd1cde4b94d7e195e9aafcb1b96d576360dd6ce8e158d629f770aafa.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_addition",
+      "format_or_comment_only": false,
+      "invariant_review": "Only key_suffixes and its separate source-defined control were added after this snapshot. Counted qualifier extents, separator extent, written tail and their boundary control are unchanged.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn qualifier_component_extents(",
+          "old_line": 202,
+          "current_line": 202
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn written_separator_extent(",
+          "old_line": 240,
+          "current_line": 240
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "fn written_component_extents_share_segmentation_and_preserve_original_byte_geometry(",
+          "old_line": 2527,
+          "current_line": 2547
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [
+        "naming::tests::written_component_extents_share_segmentation_and_preserve_original_byte_geometry"
+      ],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.expression.selected-reference-root",
+      "evidence_id": "naming-expression-selected-reference-root-checked.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/expr/checked.rs",
+      "old_sha256": "4a5b64ae4d0d306812314ac3bad4090cbb82d4adde0f599fdb23741a2dbc93c7",
+      "current_sha256": "6b0f2286824bb173fad1634c62c6ae3d1e35e2a17007edbe294060c407ed0528",
+      "historical_source": {
+        "commit": "9d4f72634fa1f27fe35135a0b62770e339e10dae",
+        "path": "rust/tcl-syntax/src/expr/checked.rs",
+        "local_snapshot": "/tmp/name-syntax-old-4a5b64ae4d0d306812314ac3bad4090cbb82d4adde0f599fdb23741a2dbc93c7.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "new_source_topology_admission_purpose",
+      "format_or_comment_only": false,
+      "invariant_review": "Recorded variable-root selection is unchanged: shared Pratt Var branch and actual LexerConfig still select exact whole-reference roots. Added SourceTopology ingress uses the same checked parser but skips UnknownNativeSyntax refusal; NativeSyntax ingress explicitly retains that refusal. Complete lexing failures still decline. This adds a semantic admission boundary, not native execution or native syntax certification. The new entry is crate-private and returns Option<ExprNode> for Unicode source geometry; it discards syntax/unsupported failures as None and creates neither a PreparedNativeExprParse nor preparation actions, diagnostics or entry/runtime authority. Existing NativeSyntax preparation API retains its separate typed result. Whole-token consumption, depth limits and selected operator availability remain enforced in the shared worker.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/expr/checked.rs",
+          "selector": "pub(crate) fn parse_source_expression_checked(",
+          "old_line": [],
+          "current_line": 738
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/checked.rs",
+          "selector": "enum CheckedParsePurpose {",
+          "old_line": [],
+          "current_line": 758
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/checked.rs",
+          "selector": "fn parse_checked_tokens<",
+          "old_line": 737,
+          "current_line": 763
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/checked.rs",
+          "selector": "fn parse_checked_tokens_using<",
+          "old_line": [],
+          "current_line": 771
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/checked.rs",
+          "selector": "fn checked_reference_roots_keep_selected_grammar_and_opaque_source(",
+          "old_line": 835,
+          "current_line": 872
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [
+        "expr::parser::checked::native_byte_tests::checked_reference_roots_keep_selected_grammar_and_opaque_source"
+      ],
+      "necessary_actions": [
+        "For the existing selected-reference-root invariant, keep its source-only/no-native-authority meaning. If claiming that every ingress includes the new SourceTopology entry, explicitly distinguish Option<ExprNode> source geometry from NativeSyntax preparation/certification and inspect/link a fixed source-defined control for Unknown native syntax, selected scalar/array/brace roots, malformed/trailing source refusal and unchanged NativeSyntax refusal. The reviewed five files define no direct call from a test to the new entry; another retained proof may cover it, but that is outside this bounded review. No execution outcome is asserted.",
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ],
+      "scope_clarification_required_before_extending_coverage": true,
+      "existing_source_defined_positive_negative_controls": [
+        {
+          "selector": "native_byte_tests::checked_reference_roots_keep_selected_grammar_and_opaque_source",
+          "line": 872,
+          "scope": "Positive exact whole-reference roots and selected FirstClose/nesting refusal; does not invoke new SourceTopology entry."
+        },
+        {
+          "selector": "unsupported_function_grammar_and_depth_do_not_prove_native_rejection",
+          "line": 1370,
+          "scope": "NativeSyntax lexical failure/depth/function controls; UnknownNativeSyntax remains Unsupported."
+        },
+        {
+          "selector": "checked_context_retains_independent_numeral_and_operator_axes",
+          "line": 1439,
+          "scope": "Independent selected operator/numeral axes and explicit UnknownNativeSyntax/UnknownProfile refusal."
+        }
+      ]
+    },
+    {
+      "record_id": "naming.expression.selected-reference-root",
+      "evidence_id": "naming-expression-selected-reference-root-parser.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/expr/parser.rs",
+      "old_sha256": "e3701bd18f865e2afd331a1478e6d39c5a4f9dc0679c56464da5e7a3369f6655",
+      "current_sha256": "236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40",
+      "historical_source": {
+        "commit": "4d727e4fe13a6f96778b90075ab5e2da76dd49e2",
+        "path": "rust/tcl-syntax/src/expr/parser.rs",
+        "local_snapshot": "/tmp/name-syntax-old-e3701bd18f865e2afd331a1478e6d39c5a4f9dc0679c56464da5e7a3369f6655.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "new_source_topology_ingress_reexport",
+      "format_or_comment_only": false,
+      "invariant_review": "Only parse_source_expression_checked re-export is added. Existing Pratt variable_reference_root_bytes branch and marked permissive-ingress root control are unchanged. The newly exposed source-topology path has a different admission purpose; existing all_expression_ingress control does not call this new path.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/expr/parser.rs",
+          "selector": "pub(super) use checked::parse_source_expression_checked;",
+          "old_line": [],
+          "current_line": 539
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/parser.rs",
+          "selector": "let name = variable_reference_root_bytes(",
+          "old_line": 429,
+          "current_line": 429
+        },
+        {
+          "path": "rust/tcl-syntax/src/expr/parser.rs",
+          "selector": "fn all_expression_ingress_keeps_selected_reference_roots_and_close_rules(",
+          "old_line": 855,
+          "current_line": 857
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [
+        "expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules"
+      ],
+      "necessary_actions": [
+        "For the existing selected-reference-root invariant, keep its source-only/no-native-authority meaning. If claiming that every ingress includes the new SourceTopology entry, explicitly distinguish Option<ExprNode> source geometry from NativeSyntax preparation/certification and inspect/link a fixed source-defined control for Unknown native syntax, selected scalar/array/brace roots, malformed/trailing source refusal and unchanged NativeSyntax refusal. The reviewed five files define no direct call from a test to the new entry; another retained proof may cover it, but that is outside this bounded review. No execution outcome is asserted.",
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ],
+      "scope_clarification_required_before_extending_coverage": true
+    },
+    {
+      "record_id": "naming.expression.selected-reference-root",
+      "evidence_id": "naming-expression-selected-reference-root-naming.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "f06a7ac6c87ccb58391496a9a7b83264f4857330",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_additions_and_equivalent_tail_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "variable_reference_root_bytes, selected close-element split, normalise_var_name_for_style and both marked source-root controls are byte-for-byte unchanged. New reporting/separator/suffix purposes do not alter literal-dollar/opaque/NUL source roots or grant native input/cell/read authority.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn variable_reference_root_bytes(",
+          "old_line": 695,
+          "current_line": 734
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn normalise_var_name_for_style(",
+          "old_line": 680,
+          "current_line": 719
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn split_element_ref_bytes(",
+          "old_line": 1500,
+          "current_line": 1539
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "fn selected_reference_roots_keep_whole_scalar_and_combined_element_bytes(",
+          "old_line": 1918,
+          "current_line": 1957
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "fn scalar_parentheses_share_the_closed_element_partition(",
+          "old_line": 1894,
+          "current_line": 1933
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [
+        "naming::tests::selected_reference_roots_keep_whole_scalar_and_combined_element_bytes",
+        "naming::tests::scalar_parentheses_share_the_closed_element_partition"
+      ],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.grammar.shared-written-name-boundaries",
+      "evidence_id": "shared-name-boundary-source-0",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "old_sha256": "26253f02fd1cde4b94d7e195e9aafcb1b96d576360dd6ce8e158d629f770aafa",
+      "current_sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+      "historical_source": {
+        "commit": "26db1619445486d8f4da6cd82b8127a9046b574c",
+        "path": "rust/tcl-syntax/src/naming.rs",
+        "local_snapshot": "/tmp/name-syntax-old-26253f02fd1cde4b94d7e195e9aafcb1b96d576360dd6ce8e158d629f770aafa.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_addition",
+      "format_or_comment_only": false,
+      "invariant_review": "Only constructed key_suffixes and its control were added. Recorded complete final separator worker, delegated tail and counted-unit boundary control are unchanged.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn written_separator_extent(",
+          "old_line": 240,
+          "current_line": 240
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "pub fn written_command_tail(",
+          "old_line": 275,
+          "current_line": 275
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "selector": "fn written_separator_spans_retain_complete_runs_and_counted_units(",
+          "old_line": 2561,
+          "current_line": 2581
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [
+        "naming::shared_boundary_tests::written_separator_spans_retain_complete_runs_and_counted_units"
+      ],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.list.original-value-append-storage-currency",
+      "evidence_id": "naming-list-original-value-append-storage-currency-value.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/value.rs",
+      "old_sha256": "d412e3a6736721b78a27c805245568689617faf248811acf8a046c6e556ed037",
+      "current_sha256": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+      "historical_source": {
+        "commit": "5f7096bccb1aa94aafa40ad6cacb0bce718d25fc",
+        "path": "rust/tcl-syntax/src/value.rs",
+        "local_snapshot": "/tmp/name-syntax-old-d412e3a6736721b78a27c805245568689617faf248811acf8a046c6e556ed037.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_conversion_refactor",
+      "format_or_comment_only": false,
+      "invariant_review": "ValueOps::try_list_append_in_place and its Result<bool,ValueError>/Ok(false) default are byte-for-byte unchanged. The sole diff is try_as_str replacing its explicit UnicodeAccessError constructor with From; that is a different purpose, and From implementation equivalence is outside this review.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/value.rs",
+          "selector": "fn try_list_append_in_place(",
+          "old_line": 1102,
+          "current_line": 1099
+        },
+        {
+          "path": "rust/tcl-syntax/src/value.rs",
+          "selector": "fn try_as_str(",
+          "old_line": 821,
+          "current_line": 821
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.namespace.command-teardown-frontier",
+      "evidence_id": "naming-namespace-command-teardown-frontier-native.rs",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming/native.rs",
+      "old_sha256": "454c5ce1d26aab463294b56a0c455b852c85c54a1711a87ed9be0d26ec2b5c61",
+      "current_sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+      "historical_source": {
+        "commit": "5253854bd0d1ab9f842c765f2305d82f548f5879",
+        "path": "rust/tcl-syntax/src/naming/native.rs",
+        "local_snapshot": "/tmp/name-syntax-old-454c5ce1d26aab463294b56a0c455b852c85c54a1711a87ed9be0d26ec2b5c61.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_equivalent_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "namespace_command_teardown remains unchanged: selected C recipe through tcl_version; Jim declines. Only namespace_qualifier_bytes changes elsewhere to the shared separator worker after the same c_string_extent and separate Jim branch.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming/native.rs",
+          "selector": "pub const fn namespace_command_teardown(",
+          "old_line": 511,
+          "current_line": 511
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming/native.rs",
+          "selector": "pub fn namespace_qualifier_bytes(",
+          "old_line": 1238,
+          "current_line": 1238
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    },
+    {
+      "record_id": "naming.tcloo.original-property-accessor-source-advice",
+      "evidence_id": "option-purpose",
+      "role": "implementation",
+      "path": "rust/tcl-syntax/src/naming/native.rs",
+      "old_sha256": "454c5ce1d26aab463294b56a0c455b852c85c54a1711a87ed9be0d26ec2b5c61",
+      "current_sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+      "historical_source": {
+        "commit": "5253854bd0d1ab9f842c765f2305d82f548f5879",
+        "path": "rust/tcl-syntax/src/naming/native.rs",
+        "local_snapshot": "/tmp/name-syntax-old-454c5ce1d26aab463294b56a0c455b852c85c54a1711a87ed9be0d26ec2b5c61.rs"
+      },
+      "classification": "unchanged_contract",
+      "delta_kind": "unrelated_equivalent_delegation",
+      "format_or_comment_only": false,
+      "invariant_review": "oo_property_option_name and its marked fixed control remain unchanged: audited C9 purpose, dash plus C-string extent, retained original counted name, unaudited releases decline. Only namespace qualifier implementation changes elsewhere.",
+      "evidence_anchors": [
+        {
+          "path": "rust/tcl-syntax/src/naming/native.rs",
+          "selector": "pub fn oo_property_option_name(",
+          "old_line": 1686,
+          "current_line": 1681
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming/native.rs",
+          "selector": "fn original_property_option_extent_is_separate_from_counted_declaration_names(",
+          "old_line": 4012,
+          "current_line": 4007
+        }
+      ],
+      "linked_test_definition_selectors_in_scope": [
+        "naming::native::original_property_option_extent_is_separate_from_counted_declaration_names"
+      ],
+      "necessary_actions": [
+        "Refresh only this implementation evidence digest to the final reviewed owner snapshot and regenerate its page through the coordinator; retain existing provider/input captures and execution limitations.",
+        "If owner bytes change after this review, review the additional delta before updating the digest."
+      ]
+    }
+  ]
+}

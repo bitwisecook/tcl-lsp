@@ -2396,7 +2396,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn selected_command_namespace_profiles_keep_surface_case_and_holder_purpose() {
         // naming.analysis.constructed-key-consumer-projections
@@ -2452,6 +2451,4 @@ mod tests {
                 .is_none()
         );
     }
-
-
 }

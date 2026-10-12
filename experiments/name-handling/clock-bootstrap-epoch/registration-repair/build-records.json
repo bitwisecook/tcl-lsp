@@ -1,0 +1,132 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "environment_file": "/tmp/name-env.sh",
+  "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime",
+  "runtime_final_build_sources": "build-selected-sources.json",
+  "whole_source_inventory_comparison": "build-inventory-comparison.json",
+  "attempts": [
+    {
+      "case": "registry-initial",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-registry",
+        "clock_bootstrap",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "registry-test-initial.log",
+      "outcome": "E0004 diagnostic_subject.rs exhaustive obligation mapping before tests",
+      "log_sha256": "b8d92f1e11101b9b6938961484136c4b0405daf98219e1d35a8241f9dc757c4b"
+    },
+    {
+      "case": "runtime-foreach-before-lazy",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "c86_clock_bootstrap",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "runtime-test-before-lazy-selection.log",
+      "outcome": "panic native_each.rs408 eager local-temporary index; no completed test",
+      "log_sha256": "87697846cd41b188ff2cea2e35a7a41df74d07e96e9d1ec891fc12faa3d1f568"
+    },
+    {
+      "case": "runtime-foreach-after-lazy",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "c86_clock_bootstrap",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "runtime-test-after-lazy-selection.log",
+      "outcome": "invalid-pointer allocator SIGABRT; no completed test",
+      "log_sha256": "3f6cd17d882f86ff780838463c3a5392c757d4aed54265de298fd79b3c5fdd18"
+    },
+    {
+      "case": "runtime-scalar",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "c86_clock_scalar",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "runtime-scalar-test.log",
+      "outcome": "1 focused test passed; unrelated tests filtered",
+      "test_binary_sha256": "4cff043d4fdd0bb46c32644111bf3aace202e159cf3d67268d558da9792d7ebe",
+      "log_sha256": "0fded0fce35e47be7ac287aba1b3efd1b5beea5d96ce7b07ed8684d6bdb7dfc6"
+    },
+    {
+      "case": "registry-final-attempt",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "clock_bootstrap",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "registry-test-final.log",
+      "outcome": "E0432 existing definer cfg(test) import; no completed test",
+      "log_sha256": "ba369e68cc40291455f98262d693fd110691facb5d06ad20634bd1b17a144773"
+    },
+    {
+      "case": "registry-verified",
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "clock_bootstrap",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "registry-test-verified.log",
+      "outcome": "1 focused test passed after root corrected cfg(test) import",
+      "test_binary_sha256": "82fa68198bdf831a4489ca2463ebd91c11adff5e97287413b1367010e5f6a28d",
+      "additional_source": {
+        "source": "rust/tcl-registry/src/definer.rs",
+        "source_sha256": "7a68a5b501d95a1bb47814348d383d5882e75d62eb58c3358a5f4c4782a8fb19",
+        "snapshot": "registry-validation-definer.rs.gz",
+        "snapshot_sha256": "f2858fdcaa10a1e90af8decce9e1c7e69cbd29d3590ad2120c53ed1640438991"
+      },
+      "log_sha256": "9d453774a606b452aacb9de7d8ac73a57f1c99a02b0b10e0a03bdcd4d5bac273"
+    },
+    {
+      "case": "final-runner-build",
+      "argv": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--example",
+        "run_script"
+      ],
+      "exit_code": 0,
+      "log": "runtime-final-build.log",
+      "outcome": "built separately frozen native runner",
+      "binary_path": "/tmp/name-clock-registration-repair-runner-final",
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "log_sha256": "0ed26df9a4f7d1d20979c7d42956b609706d9bd2ed6aaacb1ae93bde599f03c0"
+    }
+  ]
+}

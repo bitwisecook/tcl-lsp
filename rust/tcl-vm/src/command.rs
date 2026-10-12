@@ -2372,16 +2372,23 @@ pub(crate) trait OriginalCompletionOptions {
 }
 
 fn completion_option_rows_using(
-    vm: &mut Vm, options: &Value,
+    vm: &mut Vm,
+    options: &Value,
     original: &mut Option<&dyn OriginalCompletionOptions>,
 ) -> Result<Vec<(Value, Value)>, TclError> {
-    if let Some(original) = original { original.current(vm, options)?; }
+    if let Some(original) = original {
+        original.current(vm, options)?;
+    }
     if let Some(cause) = vm.execution_refusal.clone() {
         return Err(TclError::from_execution_failure(cause));
     }
-    options.check_native_header().map_err(|error| completion_option_failure(vm, error))?;
+    options
+        .check_native_header()
+        .map_err(|error| completion_option_failure(vm, error))?;
     if let Some(pairs) = options.with_cached_dictionary_representation(|pairs, _| pairs.to_vec()) {
-        if let Some(original) = original { original.current(vm, options)?; }
+        if let Some(original) = original {
+            original.current(vm, options)?;
+        }
         return Ok(pairs);
     }
     let items = match original {
@@ -2390,28 +2397,47 @@ fn completion_option_rows_using(
             .map_err(|error| completion_option_failure(vm, error))?,
     };
     if items.len() % 2 != 0 {
-        return Err(completion_option_failure(vm, tcl_syntax::value::ValueError::MissingDictionaryValue));
+        return Err(completion_option_failure(
+            vm,
+            tcl_syntax::value::ValueError::MissingDictionaryValue,
+        ));
     }
-    let pairs = items.as_chunks::<2>().0.iter().map(|pair| (pair[0].clone(), pair[1].clone())).collect();
+    let pairs = items
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| (pair[0].clone(), pair[1].clone()))
+        .collect();
     drop(items);
-    if let Some(original) = original { original.current(vm, options)?; }
+    if let Some(original) = original {
+        original.current(vm, options)?;
+    }
     Ok(pairs)
 }
 
 /// Checked exact-byte lookup. An absent member is independent of a getter or
 /// conversion failure; no diagnostic message contributes option identity.
-pub(crate) fn opt_get_checked(vm: &mut Vm, options: &Value, key: &[u8]) -> Result<Option<Value>, TclError> {
+pub(crate) fn opt_get_checked(
+    vm: &mut Vm,
+    options: &Value,
+    key: &[u8],
+) -> Result<Option<Value>, TclError> {
     opt_get_checked_using(vm, options, key, None)
 }
 
 pub(crate) fn opt_get_checked_using(
-    vm: &mut Vm, options: &Value, key: &[u8], mut original: Option<&dyn OriginalCompletionOptions>,
+    vm: &mut Vm,
+    options: &Value,
+    key: &[u8],
+    mut original: Option<&dyn OriginalCompletionOptions>,
 ) -> Result<Option<Value>, TclError> {
     if original.is_none() {
         for (name, value) in completion_option_rows_using(vm, options, &mut None)? {
             let bytes = tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)
                 .map_err(|error| completion_option_failure(vm, error))?;
-            if bytes.as_ref() == key { return Ok(Some(value)); }
+            if bytes.as_ref() == key {
+                return Ok(Some(value));
+            }
         }
         return Ok(None);
     }
@@ -2427,18 +2453,26 @@ pub(crate) fn opt_get_checked_using(
         drop(bytes);
         if matches {
             drop(name);
-            if let Some(original) = original { original.current(vm, options)?; }
+            if let Some(original) = original {
+                original.current(vm, options)?;
+            }
             found = Some(value);
             break;
         }
         // Preserve the original reverse local-binding retirement order.
         drop(value);
-        if let Some(original) = original { original.current(vm, options)?; }
+        if let Some(original) = original {
+            original.current(vm, options)?;
+        }
         drop(name);
-        if let Some(original) = original { original.current(vm, options)?; }
+        if let Some(original) = original {
+            original.current(vm, options)?;
+        }
     }
     drop(rows);
-    if let Some(original) = original { original.current(vm, options)?; }
+    if let Some(original) = original {
+        original.current(vm, options)?;
+    }
     Ok(found)
 }
 
@@ -4005,10 +4039,19 @@ fn eval_original_uplevel(
     }
 }
 
-/// `variable ?name value ...? name ?value?` — namespace variables (currently global).
+/// Declare namespace variables and link them into the active variable frame.
 pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    if args.is_empty() {
-        return native_wrong_args(vm, "variable ?name value ...? name ?value?");
+    let Some(grammar) = vm
+        .native_invocation_dialect()
+        .native_variable_declaration_protocol()
+    else {
+        return vm
+            .refuse_host_command("namespace variable declaration grammar is unavailable".into());
+    };
+    if let Err(usage) = grammar.arguments(args.len()) {
+        let mut full_usage = b"variable ".to_vec();
+        full_usage.extend_from_slice(usage);
+        return native_wrong_args_bytes(vm, &full_usage);
     }
     if vm.native_c_variable_name_protocol().is_some() {
         for pair in args.chunks(2) {

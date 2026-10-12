@@ -1359,13 +1359,11 @@ mod tests {
         assert_eq!(run(&mut interp, b"package require recursive"), b"1.0");
         assert_eq!(run(&mut interp, b"set ::recursiveVersion"), b"");
         assert_eq!(interp.eval_str(b"package require bad"), Code::Error);
-        assert!(
-            !interp
-                .packages
-                .borrow()
-                .provided
-                .contains_key(b"bad".as_slice())
-        );
+        assert!(!interp
+            .packages
+            .borrow()
+            .provided
+            .contains_key(b"bad".as_slice()));
         assert_eq!(run(&mut interp, b"retainedSideEffect"), b"yes");
         assert_eq!(interp.eval_str(b"package provide plain"), Code::Error);
         std::fs::remove_dir_all(directory).expect("remove fixtures");
@@ -1373,7 +1371,8 @@ mod tests {
 
     #[test]
     fn package_option_word_resolves_like_tcl_get_index_from_obj() {
-        const MUST: &str = "must be files, forget, ifneeded, names, prefer, present, provide, require, unknown, \
+        const MUST: &str =
+            "must be files, forget, ifneeded, names, prefer, present, provide, require, unknown, \
                             vcompare, versions, or vsatisfies";
         leak_free(|i| {
             let err = |i: &mut Interp, script: &[u8]| {

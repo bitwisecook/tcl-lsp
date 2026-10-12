@@ -230,10 +230,15 @@ cannot replace those original failures or infer C equivalence:
 | [namespace-explicit-variable-prefix](jim-probes/namespace-explicit-variable-prefix.tcl) | `0: local {a b} {{c d}}` | [record](jim-results-5bac7c9/jim-native/namespace-explicit-variable-prefix/record.json); explicit namespace `variable` avoids relying on ordinary `set` creation. |
 | [test-shared-lifecycle](jim-probes/test-shared-lifecycle.tcl) | `0: {{a b} {a b}} 0 1 0` | [record](jim-results-5bac7c9/jim-native/test-shared-lifecycle/record.json); real Jim `test` records one pass, zero failures and shared lifecycle values. |
 
-These separately retained captures have their own original driver/source bytes
-and explicit adaptation metadata. The existing canonical proof index remains
-the shared registration authority; consult its exact provider records before
-using any observation as a registered proof for a consumer.
+The 11 reached original corpus questions have registered Jim provider answers
+in their existing canonical records: seven returned values and four guest
+errors. Their exact unchanged setup/final-question wrappers, raw fields,
+upstream revision, harness hashes and build configuration remain attached.
+The four corpus setup failures supply no intended-question answer. Wiki inner
+adaptations and the four separately authored Jim-native controls remain
+supplemental captures with their own driver/source bytes and adaptation metadata.
+Consult each canonical provider record before using an observation as registered
+evidence; these answers establish no Rust consumer conformance.
 
 ## Other provider and source-specific questions
 
@@ -311,3 +316,10 @@ canonical consumer integration map.
 [Stock final-error review](f5/answers/stock-final-review.md) retains source-reviewed original near-error final operations from sealed stock2 captures without claiming a new execution.
 
 [Current appliance coverage](f5/answers/nh20261012coverage2/answers.md) preserves the 400 original context states separately from bounded variant and per-unit/invocation receipt counts. The [broad numbered-question snapshot](../f5/answers/nh20261012coverage2/answers.md) states the remaining concrete variants; neither snapshot claims all native semantics complete.
+
+The [clock bootstrap questions](../clock-bootstrap-epoch/registration-repair/README.md)
+retain actual C8.6 registration and compiler-epoch observations. Separate
+[mathfunc](../clock-bootstrap-epoch/registration-repair/mathfunc-bootstrap/README.md)
+and [procedure/foreach](../clock-bootstrap-epoch/registration-repair/compiled-foreach/README.md)
+questions retain original inputs and provider-specific outcomes; stock-shell
+completion supplies no native iterator lifetime or F5 answer.

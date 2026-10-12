@@ -118,10 +118,15 @@ impl Vm {
         context: tcl_registry::f5::BigIpExecutionContext,
         event: tcl_registry::f5::naming::BigIpNameEvent,
         storage: AuthoredObservedFrameStorageContext,
-        body: impl FnOnce(&mut Self) -> Result<crate::Completion<crate::Value>, tcl_runtime_api::NativeExecutionError>,
+        body: impl FnOnce(
+            &mut Self,
+        ) -> Result<
+            crate::Completion<crate::Value>,
+            tcl_runtime_api::NativeExecutionError,
+        >,
     ) -> Result<crate::Completion<crate::Value>, tcl_cmd_core::CmdError> {
-        use tcl_cmd_core::CmdError;
         use super::native_operation_currency::SavedExecutionTarget;
+        use tcl_cmd_core::CmdError;
         original.check(self)?;
         let saved = SavedExecutionTarget::capture(self);
         let previous_names = self.observed_names.clone();
@@ -129,8 +134,12 @@ impl Vm {
         let policy = tcl_registry::f5::naming::observed_name_policy(build, context, event)
             .ok_or_else(|| CmdError::from(unavailable()))?;
         let selected = ObservedNameSelection {
-            policy, build, context, event,
-            profile: self.dialect_profile(), engine: self.actual_engine_profile,
+            policy,
+            build,
+            context,
+            event,
+            profile: self.dialect_profile(),
+            engine: self.actual_engine_profile,
         };
         let mut names_reached = false;
         let mut storage_reached = false;
@@ -140,15 +149,19 @@ impl Vm {
             // Even a refused post-advance publication owes its prior restoration.
             names_reached = true;
             original.replace_observed_inputs(self, Some(selected), None, false)?;
-            if self.execution_name_policy() != Some(ExecutionNamePolicy::ObservedBigIp(storage.policy))
-                || storage.policy != policy || self.current_level() == 0
+            if self.execution_name_policy()
+                != Some(ExecutionNamePolicy::ObservedBigIp(storage.policy))
+                || storage.policy != policy
+                || self.current_level() == 0
             {
                 return Err(CmdError::from(unavailable()));
             }
             let level = self.current_level();
             let storage = ObservedFrameStorage {
-                context: storage, owner: Rc::downgrade(&self.frames[level].activation),
-                level, interpreter: self.cur,
+                context: storage,
+                owner: Rc::downgrade(&self.frames[level].activation),
+                level,
+                interpreter: self.cur,
             };
             original.check(self)?;
             storage_reached = true;
@@ -156,24 +169,35 @@ impl Vm {
             original.replace_observed_inputs(self, names, Some(storage), false)?;
             body(self).map_err(CmdError::from_execution_refusal)
         })();
-        if let Err(first) = &reached { original.retain(self, first); }
+        if let Err(first) = &reached {
+            original.retain(self, first);
+        }
         // Retain callback-caused current/physical failure before parking its
         // selection; mandatory restorations always run on the original target.
         let before_cleanup = original.check(self);
-        if let Err(first) = &before_cleanup { original.retain(self, first); }
-        let reached = saved.in_original(self, |vm| {
-            if storage_reached {
-                let names = vm.observed_names.clone();
-                let _ = original.replace_observed_inputs(vm, names, None, true);
-            }
-            if names_reached {
-                let _ = original.replace_observed_inputs(vm, previous_names, previous_storage, true);
-            }
-            let _ = original.check(vm);
-            // SavedExecutionTarget disposes unpublished completion ownership
-            // inside this authentic attachment when its first cause is pending.
-            reached
-        }).map_err(CmdError::from_execution_refusal)?;
+        if let Err(first) = &before_cleanup {
+            original.retain(self, first);
+        }
+        let reached = saved
+            .in_original(self, |vm| {
+                if storage_reached {
+                    let names = vm.observed_names.clone();
+                    let _ = original.replace_observed_inputs(vm, names, None, true);
+                }
+                if names_reached {
+                    let _ = original.replace_observed_inputs(
+                        vm,
+                        previous_names,
+                        previous_storage,
+                        true,
+                    );
+                }
+                let _ = original.check(vm);
+                // SavedExecutionTarget disposes unpublished completion ownership
+                // inside this authentic attachment when its first cause is pending.
+                reached
+            })
+            .map_err(CmdError::from_execution_refusal)?;
         before_cleanup?;
         original.check(self)?;
         reached
@@ -305,9 +329,16 @@ impl Vm {
         &mut self,
         names: Option<ObservedNameSelection>,
         storage: Option<ObservedFrameStorage>,
-        mut stage: Option<&mut dyn FnMut(&mut Self, ObservedInputReplacementStage) -> Result<(), tcl_cmd_core::CmdError>>,
+        mut stage: Option<
+            &mut dyn FnMut(
+                &mut Self,
+                ObservedInputReplacementStage,
+            ) -> Result<(), tcl_cmd_core::CmdError>,
+        >,
     ) -> Result<bool, tcl_cmd_core::CmdError> {
-        let target = stage.as_ref().map(|_| super::native_operation_currency::SavedExecutionTarget::capture(self));
+        let target = stage
+            .as_ref()
+            .map(|_| super::native_operation_currency::SavedExecutionTarget::capture(self));
         let same_names = match (&self.observed_names, &names) {
             (None, None) => true,
             (Some(old), Some(new)) => {
@@ -343,7 +374,12 @@ impl Vm {
     fn invalidate_execution_name_policy_using(
         &mut self,
         changed: bool,
-        stage: &mut Option<&mut dyn FnMut(&mut Self, ObservedInputReplacementStage) -> Result<(), tcl_cmd_core::CmdError>>,
+        stage: &mut Option<
+            &mut dyn FnMut(
+                &mut Self,
+                ObservedInputReplacementStage,
+            ) -> Result<(), tcl_cmd_core::CmdError>,
+        >,
         target: Option<&super::native_operation_currency::SavedExecutionTarget>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         self.name_world.borrow_mut().execution_name_policy = self.execution_name_policy();
@@ -351,27 +387,49 @@ impl Vm {
         self.bump_trace_deopt_epoch();
         self.invalidate_guard_domain(super::GuardDomain::Interpreter);
         self.profile_generation = self.profile_generation.wrapping_add(1);
-        let mut first = self.check_observed_input_stage(stage, ObservedInputReplacementStage::Published { changed }).err();
+        let mut first = self
+            .check_observed_input_stage(stage, ObservedInputReplacementStage::Published { changed })
+            .err();
         // These are the same reached mandatory cache clear workers. A retained
         // refusal never skips a later clear, and each actual clear settles its
         // stage before the next owner is retired.
         if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.eval_cache.clear()) {
-            if first.is_none() { first = Some(error); }
+            if first.is_none() {
+                first = Some(error);
+            }
         }
-        if let Err(error) = self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired) {
-            if first.is_none() { first = Some(error); }
+        if let Err(error) =
+            self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+        {
+            if first.is_none() {
+                first = Some(error);
+            }
         }
-        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.eval_cache_plain.clear()) {
-            if first.is_none() { first = Some(error); }
+        if let Err(error) =
+            self.retire_observed_input_cache(target, |vm| vm.eval_cache_plain.clear())
+        {
+            if first.is_none() {
+                first = Some(error);
+            }
         }
-        if let Err(error) = self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired) {
-            if first.is_none() { first = Some(error); }
+        if let Err(error) =
+            self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+        {
+            if first.is_none() {
+                first = Some(error);
+            }
         }
         if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.module_procs.clear()) {
-            if first.is_none() { first = Some(error); }
+            if first.is_none() {
+                first = Some(error);
+            }
         }
-        if let Err(error) = self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired) {
-            if first.is_none() { first = Some(error); }
+        if let Err(error) =
+            self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+        {
+            if first.is_none() {
+                first = Some(error);
+            }
         }
         first.map_or(Ok(()), Err)
     }
@@ -385,9 +443,13 @@ impl Vm {
             work(self);
             return Ok(());
         };
-        let reached = target.retire_in_original(
-            self, super::native_operation_currency::CleanupRestoration::PreserveCallbackSelection, work,
-        ).map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        let reached = target
+            .retire_in_original(
+                self,
+                super::native_operation_currency::CleanupRestoration::PreserveCallbackSelection,
+                work,
+            )
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
         // The reached unit metadata is mandatory cleanup transport, including
         // after a first cause. No later clear follows Vm Deref into a child.
         let () = reached.metadata;
@@ -400,10 +462,17 @@ impl Vm {
 
     fn check_observed_input_stage(
         &mut self,
-        stage: &mut Option<&mut dyn FnMut(&mut Self, ObservedInputReplacementStage) -> Result<(), tcl_cmd_core::CmdError>>,
+        stage: &mut Option<
+            &mut dyn FnMut(
+                &mut Self,
+                ObservedInputReplacementStage,
+            ) -> Result<(), tcl_cmd_core::CmdError>,
+        >,
         reached: ObservedInputReplacementStage,
     ) -> Result<(), tcl_cmd_core::CmdError> {
-        let result = stage.as_deref_mut().map_or(Ok(()), |check| check(self, reached));
+        let result = stage
+            .as_deref_mut()
+            .map_or(Ok(()), |check| check(self, reached));
         if let Err(error) = &result {
             if let Some(first) = error.native_execution_refusal() {
                 self.retain_tcl_host_failure(crate::TclHostFailure::Execution(first.clone()));

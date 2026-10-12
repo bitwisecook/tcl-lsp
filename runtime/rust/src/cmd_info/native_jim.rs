@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Jim parser reports retain original words and invoke the actual current lsort.
 
-use crate::interp::{Code, Interp, new_string};
+use crate::interp::{new_string, Code, Interp};
 use crate::obj::{Owned, TclObj};
 use tcl_registry::commands::tcl::{NativeJimInfoProtocol, NativeJimInfoReport};
 use tcl_syntax::value::ValueOps;

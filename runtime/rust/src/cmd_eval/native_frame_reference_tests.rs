@@ -174,22 +174,18 @@ fn frame_reference_cache_refuses_foreign_issuers_and_retired_headers() {
     )
     .unwrap();
     let foreign = actual("tcl8.6");
-    assert!(
-        foreign
-            .native_object_string_bytes(original.as_ptr())
-            .is_err()
-    );
+    assert!(foreign
+        .native_object_string_bytes(original.as_ptr())
+        .is_err());
     let lifetime = obj::ProcedureObject::retain_lifetime(&original);
     drop(original);
     assert!(obj::native_frame_level_cache_in(lifetime.as_ptr(), dialect).is_err());
-    assert!(
-        obj::install_native_frame_level_cache(
-            lifetime.as_ptr(),
-            tcl_registry::NativeFrameLevelCache::Absolute(1),
-            dialect
-        )
-        .is_err()
-    );
+    assert!(obj::install_native_frame_level_cache(
+        lifetime.as_ptr(),
+        tcl_registry::NativeFrameLevelCache::Absolute(1),
+        dialect
+    )
+    .is_err());
     // The normal live interpreter's unrelated objects retain their own recipe.
     let plain = Owned::fresh(obj::new_string_bytes(b"plain"));
     assert_eq!(
@@ -230,14 +226,12 @@ fn required_upvar_level_does_not_borrow_optional_leading_frame_default() {
         }
         let x = Owned::fresh(obj::new_string_bytes(b"x"));
         let alias = Owned::fresh(obj::new_string_bytes(b"alias"));
-        assert!(
-            super::select_frame(
-                &mut interp,
-                &[original.as_ptr(), x.as_ptr(), alias.as_ptr()],
-                tcl_registry::FrameEffectSpec::UPVAR,
-            )
-            .is_err()
-        );
+        assert!(super::select_frame(
+            &mut interp,
+            &[original.as_ptr(), x.as_ptr(), alias.as_ptr()],
+            tcl_registry::FrameEffectSpec::UPVAR,
+        )
+        .is_err());
         assert!(matches!(
             obj::native_object_snapshot(interp.result_obj()).unwrap().cache,
             tcl_syntax::native_object::NativeObjectCacheSnapshot::String { protocol: producer, .. }
@@ -417,11 +411,9 @@ fn original_frame_level_uses_entered_environment_and_preserves_native_counts() {
         push_frame(&mut interp);
         let original = Owned::fresh(obj::new_string_bytes(b"1"));
         let before = unsafe { (*original.as_ptr()).ref_count };
-        assert!(
-            obj::scalar_object_context(original.as_ptr())
-                .unwrap()
-                .is_none()
-        );
+        assert!(obj::scalar_object_context(original.as_ptr())
+            .unwrap()
+            .is_none());
         let protocol = interp
             .eval_frame_dialect()
             .native_frame_level_protocol()
@@ -435,18 +427,14 @@ fn original_frame_level_uses_entered_environment_and_preserves_native_counts() {
         if engine == "tcl8.4" {
             assert!(host.reset_calls.get() > 0);
             assert!(host.unsigned_calls.get() > 0);
-            assert!(
-                obj::native_scalar_cache(original.as_ptr())
-                    .unwrap()
-                    .is_none()
-            );
+            assert!(obj::native_scalar_cache(original.as_ptr())
+                .unwrap()
+                .is_none());
         }
         assert_eq!(unsafe { (*original.as_ptr()).ref_count }, before);
-        assert!(
-            obj::scalar_object_context(original.as_ptr())
-                .unwrap()
-                .is_none()
-        );
+        assert!(obj::scalar_object_context(original.as_ptr())
+            .unwrap()
+            .is_none());
         drop(operand);
         assert_eq!(interp.entered_native_operation_count(), 0);
         pop_frame(&mut interp);
@@ -473,16 +461,14 @@ fn original_frame_level_uses_entered_environment_and_preserves_native_counts() {
     drop(operand);
     pop_frame(&mut first);
     drop(first);
-    assert!(
-        unsafe {
-            crate::capi::probe_scalar_getter(
-                None,
-                original.as_ptr(),
-                tcl_syntax::scalar_getter::NativeScalarGetterKind::Int,
-            )
-        }
-        .is_err()
-    );
+    assert!(unsafe {
+        crate::capi::probe_scalar_getter(
+            None,
+            original.as_ptr(),
+            tcl_syntax::scalar_getter::NativeScalarGetterKind::Int,
+        )
+    }
+    .is_err());
     let mut second = actual("tcl8.5");
     push_frame(&mut second);
     let mut operand = OriginalLevel::selected(&second, original.as_ptr()).unwrap();
@@ -520,11 +506,9 @@ fn original_frame_level_missing_environment_is_terminal_only_at_reached_numeric_
         .err()
         .expect("temporary Int requires actual ENV");
     assert!(failure.native_execution_refusal().is_some());
-    assert!(
-        obj::native_scalar_cache(original.as_ptr())
-            .unwrap()
-            .is_none()
-    );
+    assert!(obj::native_scalar_cache(original.as_ptr())
+        .unwrap()
+        .is_none());
     assert_eq!(interp.get_obj_result(), prior);
     drop(operand);
 
@@ -598,11 +582,9 @@ fn original_frame_level_callbacks_cannot_restore_currency_before_script_or_cache
             .expect("original updater first cause");
         assert_eq!(FRAME_UPDATER_CALLS.with(Cell::get), 1);
         assert_eq!(obj::bytes_of(original.as_ptr()), b"1");
-        assert!(
-            obj::native_scalar_cache(original.as_ptr())
-                .unwrap()
-                .is_none()
-        );
+        assert!(obj::native_scalar_cache(original.as_ptr())
+            .unwrap()
+            .is_none());
         assert!(interp.var_get(b"frame_touched").is_none());
         assert_eq!(interp.get_obj_result(), prior);
         assert_eq!(interp.entered_native_operation_count(), 0);
@@ -638,11 +620,9 @@ fn original_frame_level_numeric_callbacks_stop_after_reached_environment_effect(
             assert_eq!(host.reset_calls.get(), 1);
             assert_eq!(host.unsigned_calls.get(), 1);
         }
-        assert!(
-            obj::native_scalar_cache(original.as_ptr())
-                .unwrap()
-                .is_none()
-        );
+        assert!(obj::native_scalar_cache(original.as_ptr())
+            .unwrap()
+            .is_none());
         assert!(
             obj::native_frame_level_cache_in(original.as_ptr(), interp.eval_frame_dialect())
                 .unwrap()
@@ -663,11 +643,9 @@ fn original_frame_level_lease_refuses_retired_header_and_replaced_current_activa
     drop(original);
     assert!(!obj::allocation_is_live(pointer));
     assert!(operand.native_frame_is_integer().is_err());
-    assert!(
-        operand
-            .native_frame_probe(tcl_syntax::scalar_getter::NativeScalarGetterKind::Int)
-            .is_err()
-    );
+    assert!(operand
+        .native_frame_probe(tcl_syntax::scalar_getter::NativeScalarGetterKind::Int)
+        .is_err());
     drop(operand);
     assert_eq!(interp.entered_native_operation_count(), 0);
 
@@ -681,11 +659,9 @@ fn original_frame_level_lease_refuses_retired_header_and_replaced_current_activa
     assert_eq!(interp.current_level(), 1);
     assert_ne!(interp.frames.borrow().current_activation(), before);
     assert!(operand.native_frame_string().is_err());
-    assert!(
-        operand
-            .native_frame_set_cache(tcl_registry::NativeFrameLevelCache::Absolute(1))
-            .is_err()
-    );
+    assert!(operand
+        .native_frame_set_cache(tcl_registry::NativeFrameLevelCache::Absolute(1))
+        .is_err());
     assert!(
         obj::native_frame_level_cache_in(original.as_ptr(), interp.eval_frame_dialect())
             .unwrap()
@@ -733,11 +709,9 @@ fn compiled_frame_and_single_script_list_use_same_original_operation() {
     assert!(super::select_compiled_uplevel_frame(&mut interp, original.as_ptr()).is_err());
     assert_eq!(FRAME_UPDATER_CALLS.with(Cell::get), 1);
     assert_eq!(obj::bytes_of(original.as_ptr()), b"1");
-    assert!(
-        obj::native_scalar_cache(original.as_ptr())
-            .unwrap()
-            .is_none()
-    );
+    assert!(obj::native_scalar_cache(original.as_ptr())
+        .unwrap()
+        .is_none());
     assert!(interp.native_execution_refusal().is_some());
     assert_eq!(interp.entered_native_operation_count(), 0);
     pop_frame(&mut interp);

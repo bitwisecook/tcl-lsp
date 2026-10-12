@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/tmp/name-clock-registration-repair-runner-lazy",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl"
+  ],
+  "exit_code": -6,
+  "timed_out": false,
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+  "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+  "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl",
+  "input_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083"
+}

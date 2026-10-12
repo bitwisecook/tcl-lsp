@@ -1,0 +1,19 @@
+{
+  "retained_oracle_sources_verified": 9,
+  "executables_verified": 2,
+  "suite_inputs_verified": 12,
+  "completed_runtime_suites": 4,
+  "runtime_completed_counts": {
+    "total": 283,
+    "passed": 270,
+    "skipped": 3,
+    "failed": 10
+  },
+  "c_counts": {
+    "total": 587,
+    "passed": 579,
+    "skipped": 8,
+    "failed": 0
+  },
+  "observed_runtime_failed_ids_across_all_streams": 23
+}

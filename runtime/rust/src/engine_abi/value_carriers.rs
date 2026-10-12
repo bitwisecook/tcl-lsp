@@ -459,16 +459,14 @@ mod tests {
         let wire = carrier::encode_scalar(&foreign).unwrap();
         interp.set_result_bytes(b"EARLIER\0\xff");
         // SAFETY: counted carrier input and real original interpreter remain live.
-        assert!(
-            unsafe {
-                tcl_engine_new_scalar_carrier(
-                    &mut interp,
-                    wire.as_ptr(),
-                    i32::try_from(wire.len()).unwrap(),
-                )
-            }
-            .is_null()
-        );
+        assert!(unsafe {
+            tcl_engine_new_scalar_carrier(
+                &mut interp,
+                wire.as_ptr(),
+                i32::try_from(wire.len()).unwrap(),
+            )
+        }
+        .is_null());
         let first = interp.native_execution_refusal().unwrap();
         let mut out = crate::codegen_abi::TclCompletionAbi {
             code: 77,

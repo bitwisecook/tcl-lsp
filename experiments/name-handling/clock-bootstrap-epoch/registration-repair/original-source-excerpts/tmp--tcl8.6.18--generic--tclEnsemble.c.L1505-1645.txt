@@ -1,0 +1,141 @@
+TclMakeEnsemble(
+    Tcl_Interp *interp,
+    const char *name,		 /* The ensemble name (as explained above) */
+    const EnsembleImplMap map[]) /* The subcommands to create */
+{
+    Tcl_Command ensemble;
+    Tcl_Namespace *ns;
+    Tcl_DString buf, hiddenBuf;
+    const char **nameParts = NULL;
+    const char *cmdName = NULL;
+    int i, nameCount = 0;
+    int ensembleFlags = 0, hiddenLen;
+
+    /*
+     * Construct the path for the ensemble namespace and create it.
+     */
+
+    Tcl_DStringInit(&buf);
+    Tcl_DStringInit(&hiddenBuf);
+    TclDStringAppendLiteral(&hiddenBuf, "tcl:");
+    Tcl_DStringAppend(&hiddenBuf, name, -1);
+    TclDStringAppendLiteral(&hiddenBuf, ":");
+    hiddenLen = Tcl_DStringLength(&hiddenBuf);
+    if (name[0] == ':' && name[1] == ':') {
+	/*
+	 * An absolute name, so use it directly.
+	 */
+
+	cmdName = name;
+	Tcl_DStringAppend(&buf, name, -1);
+	ensembleFlags = TCL_ENSEMBLE_PREFIX;
+    } else {
+	/*
+	 * Not an absolute name, so do munging of it. Note that this treats a
+	 * multi-word list differently to a single word.
+	 */
+
+	TclDStringAppendLiteral(&buf, "::tcl");
+
+	if (Tcl_SplitList(NULL, name, &nameCount, &nameParts) != TCL_OK) {
+	    Tcl_Panic("invalid ensemble name '%s'", name);
+	}
+
+	for (i = 0; i < nameCount; ++i) {
+	    TclDStringAppendLiteral(&buf, "::");
+	    Tcl_DStringAppend(&buf, nameParts[i], -1);
+	}
+    }
+
+    ns = Tcl_FindNamespace(interp, Tcl_DStringValue(&buf), NULL,
+	    TCL_CREATE_NS_IF_UNKNOWN);
+    if (!ns) {
+	Tcl_Panic("unable to find or create %s namespace!",
+		Tcl_DStringValue(&buf));
+    }
+
+    /*
+     * Create the named ensemble in the correct namespace
+     */
+
+    if (cmdName == NULL) {
+	if (nameCount == 1) {
+	    ensembleFlags = TCL_ENSEMBLE_PREFIX;
+	    cmdName = Tcl_DStringValue(&buf) + 5;
+	} else {
+	    ns = ns->parentPtr;
+	    cmdName = nameParts[nameCount - 1];
+	}
+    }
+
+    /*
+     * Switch on compilation always for core ensembles now that we can do
+     * nice bytecode things with them.  Do it now.  Waiting until later will
+     * just cause pointless epoch bumps.
+     */
+
+    ensembleFlags |= ENSEMBLE_COMPILE;
+    ensemble = Tcl_CreateEnsemble(interp, cmdName, ns, ensembleFlags);
+
+    /*
+     * Create the ensemble mapping dictionary and the ensemble command procs.
+     */
+
+    if (ensemble != NULL) {
+	Tcl_Obj *mapDict, *toObj;
+	Command *cmdPtr;
+
+	TclDStringAppendLiteral(&buf, "::");
+	TclNewObj(mapDict);
+	for (i=0 ; map[i].name != NULL ; i++) {
+	    TclNewStringObj(toObj, Tcl_DStringValue(&buf),
+		    Tcl_DStringLength(&buf));
+	    Tcl_AppendToObj(toObj, map[i].name, -1);
+	    TclDictPut(NULL, mapDict, map[i].name, toObj);
+
+	    if (map[i].proc || map[i].nreProc) {
+		/*
+		 * If the command is unsafe, hide it when we're in a safe
+		 * interpreter. The code to do this is really hokey! It also
+		 * doesn't work properly yet; this function is always
+		 * currently called before the safe-interp flag is set so the
+		 * Tcl_IsSafe check fails.
+		 */
+
+		if (map[i].unsafe && Tcl_IsSafe(interp)) {
+		    cmdPtr = (Command *)
+			    Tcl_NRCreateCommand(interp, "___tmp", map[i].proc,
+			    map[i].nreProc, map[i].clientData, NULL);
+		    Tcl_DStringSetLength(&hiddenBuf, hiddenLen);
+		    if (Tcl_HideCommand(interp, "___tmp",
+			    Tcl_DStringAppend(&hiddenBuf, map[i].name, -1))) {
+			Tcl_Panic("%s", Tcl_GetString(Tcl_GetObjResult(interp)));
+		    }
+		    /* don't compile unsafe subcommands in safe interp */
+		    cmdPtr->compileProc = NULL;
+		} else {
+		    /*
+		     * Not hidden, so just create it. Yay!
+		     */
+
+		    cmdPtr = (Command *)
+			    Tcl_NRCreateCommand(interp, TclGetString(toObj),
+			    map[i].proc, map[i].nreProc, map[i].clientData,
+			    NULL);
+		    cmdPtr->compileProc = map[i].compileProc;
+		}
+	    }
+	}
+	Tcl_SetEnsembleMappingDict(interp, ensemble, mapDict);
+    }
+
+    Tcl_DStringFree(&buf);
+    Tcl_DStringFree(&hiddenBuf);
+    if (nameParts != NULL) {
+	ckfree((char *) nameParts);
+    }
+    return ensemble;
+}
+
+/*
+ *----------------------------------------------------------------------

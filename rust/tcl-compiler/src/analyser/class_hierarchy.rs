@@ -1737,7 +1737,12 @@ mod constructed_projection_tests {
                 Some(expected),
             );
             assert_eq!(
-                resolve_class_name("Base", owner, |candidate| candidate == "::foreign::Base", &tails),
+                resolve_class_name(
+                    "Base",
+                    owner,
+                    |candidate| candidate == "::foreign::Base",
+                    &tails
+                ),
                 None,
             );
         }

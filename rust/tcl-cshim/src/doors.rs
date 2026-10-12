@@ -192,7 +192,9 @@ fn engine_failure(state: &InterpState, error: EngineError) -> TclError {
             getter: None,
             host: None,
         },
-        EngineError::ExecutionRefusal(_) | EngineError::ExecutionFailure(_) => TclError::host(error),
+        EngineError::ExecutionRefusal(_) | EngineError::ExecutionFailure(_) => {
+            TclError::host(error)
+        }
         EngineError::Compile(message) => failure(message),
         EngineError::Unsupported(_) => failure(error.to_string()),
         EngineError::BudgetExceeded(_) | EngineError::Crashed(_) => {
@@ -1162,5 +1164,4 @@ mod tests {
         assert_eq!(fake.log, ["eval originalTypedFailure"]);
         assert!(first.native_execution_failure().is_some());
     }
-
 }

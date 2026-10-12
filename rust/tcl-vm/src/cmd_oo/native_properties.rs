@@ -11,8 +11,8 @@ use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
 };
 use tcl_syntax::value::ValueError;
-mod original_stages;
 pub(super) mod mutation;
+mod original_stages;
 use original_stages::{OriginalPropertyOperation, PropertyDerivation};
 
 #[derive(Default)]

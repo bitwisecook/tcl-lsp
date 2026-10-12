@@ -1,0 +1,27 @@
+{
+  "engine": "runtime",
+  "stem": "proc",
+  "exit_code": 0,
+  "seconds": 7.196,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/tmp/name-native-c84-declared-cell-runner",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.4"
+  ],
+  "input_sha256": "03eedbe882fa0127fe557cf57ffe9f329a4d1afc9c87960839e64e9f618e3912",
+  "test_sha256": "d295aa8672cf410dcd67e995237e1e5f92660d4812da341e85d57696c6d9d5e7",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [],
+  "last_started_id": "proc-3.7",
+  "total": 19,
+  "passed": 19,
+  "skipped": 0,
+  "failed": 0,
+  "status": "pass"
+}

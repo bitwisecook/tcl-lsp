@@ -128,8 +128,11 @@ expression, and declared-implementation routes decide nothing here.
 > and `tcl-vm`'s `Vm::backing_report` say whether a name is a handler, a `TclOO`
 > object, defined by the Tcl library the runtime embeds, registered only to
 > refuse, or absent, and `cargo xtask command-backing` holds every core
-> command's declared `runtime_backing` to the WASM runtime's answer, with one
-> waiver list for the commands it does not back. Each runtime attaches its
+> command's declared `runtime_backing` to the WASM runtime's answer, querying
+> the declared implementation identity for shipped builtins. A method-context
+> spelling such as `next` names `::oo::Helpers::next`; this backing declaration
+> does not make a global `next` command available. One waiver list records
+> commands whose declared implementation has no backing. Each runtime attaches its
 > intrinsic guard identities by a sweep after registration, from the
 > generation it is pinned to and never from an overlay.
 >

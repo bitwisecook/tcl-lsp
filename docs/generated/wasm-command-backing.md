@@ -6,8 +6,14 @@
 > no longer applies, and on a stale report.
 
 Source of truth: `tcl-registry` core command specs (`required_package == None`),
-restricted to those available at Tcl 9.0 or later. `backing` is the spec's own
-`runtime_backing`. `wasm` is what `runtime/rust` reports for the name
+restricted to those available at Tcl 9.0 or later.
+`release` is the earliest supported C Tcl point the spec admits; each row
+queries separate interpreters constructed for that exact release. These
+rows do not describe one combined command surface or grant older profiles
+a command admitted only in a later release. `backing` is the spec's own
+`runtime_backing`. Shipped builtins query their declared implementation identity;
+a method-context spelling does not declare a global command. `wasm` is what
+`runtime/rust` reports for that identity (or the command name for other backings)
 (`Interp::backing_report`, built with the embedded Tcl library), and `vm` what
 `tcl-vm` reports (`Vm::backing_report`); a build of the WASM runtime without the
 numeric tower reports the handlers that need it as needing it, and this report
@@ -19,404 +25,405 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | --- | --- | --- |
 | none | absent | 52 |
 | none | unsupported | 5 |
-| shipped-builtin | absent (known gap) | 42 |
-| shipped-builtin | builtin | 275 |
+| shipped-builtin | absent (known gap) | 17 |
+| shipped-builtin | builtin | 301 |
 | shipped-builtin | object | 6 |
 | tcl-body init.tcl | stdlib init.tcl | 7 |
 | tcl-body package.tcl | stdlib package.tcl | 3 |
 | tcl-body parray.tcl | stdlib parray.tcl | 1 |
-| **total** | | 391 |
+| **total** | | 392 |
 
-| command | backing | wasm | vm | note |
-| --- | --- | --- | --- | --- |
-| `!` | none | absent | absent |  |
-| `!=` | none | absent | absent |  |
-| `%` | none | absent | absent |  |
-| `&` | none | absent | absent |  |
-| `*` | none | absent | absent |  |
-| `**` | none | absent | absent |  |
-| `+` | none | absent | absent |  |
-| `-` | none | absent | absent |  |
-| `/` | none | absent | absent |  |
-| `::tcl::dict::append` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::create` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::exists` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::filter` | shipped-builtin | absent (known gap) | absent | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::for` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::get` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::getdef` | shipped-builtin | absent (known gap) | absent | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::getwithdefault` | shipped-builtin | absent (known gap) | absent | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::incr` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::info` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::keys` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::lappend` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::map` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::merge` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::remove` | shipped-builtin | absent (known gap) | absent | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::replace` | shipped-builtin | absent (known gap) | absent | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::set` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::size` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::unset` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::update` | shipped-builtin | absent (known gap) | absent | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::values` | shipped-builtin | absent (known gap) | builtin | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::with` | shipped-builtin | absent (known gap) | absent | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::mathfunc::abs` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::acos` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::acosh` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::asin` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::asinh` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::atan` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::atan2` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::atanh` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::bool` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::cbrt` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::ceil` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::copysign` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::cos` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::cosh` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::dim` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::double` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::entier` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::erf` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::erfc` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::exp` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::exp2` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::expm1` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::floor` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::fma` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::fmod` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::gamma` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::hypot` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::int` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::isfinite` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::isinf` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::isnan` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::isnormal` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::isqrt` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::issubnormal` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::isunordered` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::ldexp` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::lgamma` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::log` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::log10` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::log1p` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::log2` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::logb` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::max` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::min` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::nextafter` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::pow` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::rand` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::remainder` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::round` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::signbit` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::sin` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::sinh` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::sqrt` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::srand` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::tan` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::tanh` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::trunc` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathfunc::wide` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::!` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::!=` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::%` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::&` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::*` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::**` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::+` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::-` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::/` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::<` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::<<` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::<=` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::==` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::>` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::>=` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::>>` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::^` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::eq` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::ge` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::gt` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::in` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::le` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::lt` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::ne` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::ni` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::|` | shipped-builtin | builtin | builtin |  |
-| `::tcl::mathop::~` | shipped-builtin | builtin | builtin |  |
-| `::tcl::process` | none | absent | absent |  |
-| `::tcl::unsupported::corotype` | shipped-builtin | builtin | builtin |  |
-| `::tcl::unsupported::grapheme` | none | absent | absent |  |
-| `::tcl::zipfs` | shipped-builtin | absent (known gap) | absent | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
-| `<` | none | absent | absent |  |
-| `<<` | none | absent | absent |  |
-| `<=` | none | absent | absent |  |
-| `==` | none | absent | absent |  |
-| `>` | none | absent | absent |  |
-| `>=` | none | absent | absent |  |
-| `>>` | none | absent | absent |  |
-| `^` | none | absent | absent |  |
-| `after` | shipped-builtin | builtin | builtin |  |
-| `append` | shipped-builtin | builtin | builtin |  |
-| `apply` | shipped-builtin | builtin | builtin |  |
-| `array` | shipped-builtin | builtin | builtin |  |
-| `auto_execok` | tcl-body init.tcl | stdlib init.tcl | absent |  |
-| `auto_import` | tcl-body init.tcl | stdlib init.tcl | builtin |  |
-| `auto_load` | tcl-body init.tcl | stdlib init.tcl | builtin |  |
-| `auto_load_index` | tcl-body init.tcl | stdlib init.tcl | absent |  |
-| `auto_mkindex` | none | absent | absent |  |
-| `auto_mkindex_old` | none | absent | absent |  |
-| `auto_qualify` | tcl-body init.tcl | stdlib init.tcl | absent |  |
-| `auto_reset` | none | absent | absent |  |
-| `bgerror` | none | absent | absent |  |
-| `binary` | shipped-builtin | builtin | builtin |  |
-| `break` | shipped-builtin | builtin | builtin |  |
-| `callback` | shipped-builtin | absent (known gap) | absent | TclOO oo::Helpers::callback (issue #923 idx 51) — builds a command prefix that re-enters a method of the current object; needs a live method frame, no runtime handler (same situation as `link`) |
-| `catch` | shipped-builtin | builtin | builtin |  |
-| `cd` | shipped-builtin | builtin | builtin |  |
-| `chan` | shipped-builtin | builtin | absent |  |
-| `classvariable` | shipped-builtin | builtin | absent |  |
-| `clock` | shipped-builtin | builtin | builtin |  |
-| `close` | shipped-builtin | builtin | builtin |  |
-| `concat` | shipped-builtin | builtin | builtin |  |
-| `const` | shipped-builtin | builtin | builtin |  |
-| `continue` | shipped-builtin | builtin | builtin |  |
-| `coroinject` | shipped-builtin | builtin | builtin |  |
-| `coroprobe` | shipped-builtin | builtin | builtin |  |
-| `coroutine` | shipped-builtin | builtin | builtin |  |
-| `dict` | shipped-builtin | builtin | builtin |  |
-| `disabled_in_irules` | none | absent | absent |  |
-| `divmod` | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) combined quotient/remainder list command; not yet implemented in runtime/rust |
-| `encoding` | shipped-builtin | builtin | builtin |  |
-| `eof` | shipped-builtin | builtin | builtin |  |
-| `eq` | none | absent | absent |  |
-| `error` | shipped-builtin | builtin | builtin |  |
-| `eval` | shipped-builtin | builtin | builtin |  |
-| `exec` | none | unsupported | builtin | registered as an explicit not-supported stub |
-| `exit` | shipped-builtin | builtin | builtin |  |
-| `expr` | shipped-builtin | builtin | builtin |  |
-| `fblocked` | shipped-builtin | builtin | builtin |  |
-| `fconfigure` | shipped-builtin | builtin | builtin |  |
-| `fcopy` | none | unsupported | absent | registered as an explicit not-supported stub |
-| `file` | shipped-builtin | builtin | builtin |  |
-| `fileevent` | none | unsupported | absent | registered as an explicit not-supported stub |
-| `filename` | none | absent | absent |  |
-| `flush` | shipped-builtin | builtin | builtin |  |
-| `for` | shipped-builtin | builtin | builtin |  |
-| `foreach` | shipped-builtin | builtin | builtin |  |
-| `foreachLine` | none | absent | absent |  |
-| `format` | shipped-builtin | builtin | builtin |  |
-| `fpclassify` | shipped-builtin | absent (known gap) | builtin | Tcl 9.0 floating-point classifier (TIP 521); not yet implemented in runtime/rust |
-| `frexp` | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; not yet implemented in runtime/rust |
-| `ge` | none | absent | absent |  |
-| `gets` | shipped-builtin | builtin | builtin |  |
-| `glob` | shipped-builtin | builtin | builtin |  |
-| `global` | shipped-builtin | builtin | builtin |  |
-| `gt` | none | absent | absent |  |
-| `http` | none | absent | absent |  |
-| `if` | shipped-builtin | builtin | builtin |  |
-| `in` | none | absent | absent |  |
-| `incr` | shipped-builtin | builtin | builtin |  |
-| `info` | shipped-builtin | builtin | builtin |  |
-| `interp` | shipped-builtin | builtin | builtin |  |
-| `join` | shipped-builtin | builtin | builtin |  |
-| `lappend` | shipped-builtin | builtin | builtin |  |
-| `lassign` | shipped-builtin | builtin | builtin |  |
-| `le` | none | absent | absent |  |
-| `ledit` | shipped-builtin | builtin | builtin |  |
-| `lfilter` | shipped-builtin | absent (known gap) | absent | Tcl 9.1 list-filter command; not yet implemented in runtime/rust |
-| `lindex` | shipped-builtin | builtin | builtin |  |
-| `link` | shipped-builtin | absent (known gap) | absent | TclOO oo::Helpers::link (issue #923 idx 113) — installs a per-object-namespace alias to a method via the object's own command table, not a standalone dispatchable command; no runtime handler |
-| `linsert` | shipped-builtin | builtin | builtin |  |
-| `list` | shipped-builtin | builtin | builtin |  |
-| `llength` | shipped-builtin | builtin | builtin |  |
-| `lmap` | shipped-builtin | builtin | builtin |  |
-| `load` | none | unsupported | absent | registered as an explicit not-supported stub |
-| `lpop` | shipped-builtin | builtin | builtin |  |
-| `lrange` | shipped-builtin | builtin | builtin |  |
-| `lremove` | shipped-builtin | builtin | absent |  |
-| `lrepeat` | shipped-builtin | builtin | builtin |  |
-| `lreplace` | shipped-builtin | builtin | builtin |  |
-| `lreverse` | shipped-builtin | builtin | builtin |  |
-| `lsearch` | shipped-builtin | builtin | builtin |  |
-| `lseq` | shipped-builtin | builtin | builtin |  |
-| `lset` | shipped-builtin | builtin | builtin |  |
-| `lsort` | shipped-builtin | builtin | builtin |  |
-| `lt` | none | absent | absent |  |
-| `memory` | none | absent | absent |  |
-| `modf` | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust |
-| `my` | shipped-builtin | object | builtin |  |
-| `mymethod` | shipped-builtin | absent (known gap) | absent | TclOO oo::Helpers::mymethod (issue #923 idx 51) — `callback` under its Tcllib-compatibility name; same missing runtime handler |
-| `namespace` | shipped-builtin | builtin | builtin |  |
-| `ne` | none | absent | absent |  |
-| `next` | shipped-builtin | builtin | builtin |  |
-| `nextto` | shipped-builtin | builtin | builtin |  |
-| `ni` | none | absent | absent |  |
-| `oo::Helpers::callback` | shipped-builtin | absent (known gap) | absent | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
-| `oo::Helpers::classvariable` | shipped-builtin | absent (known gap) | absent | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
-| `oo::Helpers::link` | shipped-builtin | absent (known gap) | absent | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
-| `oo::Helpers::mymethod` | shipped-builtin | absent (known gap) | absent | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
-| `oo::Helpers::next` | shipped-builtin | absent (known gap) | absent | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
-| `oo::Helpers::nextto` | shipped-builtin | absent (known gap) | absent | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
-| `oo::Helpers::self` | shipped-builtin | absent (known gap) | absent | qualified `::oo::Helpers::*` spelling (issue #1026): runtime/rust registers only the bare, method-context name its dispatch installs, so a direct qualified call is `invalid command name` |
-| `oo::abstract` | shipped-builtin | object | absent |  |
-| `oo::class` | shipped-builtin | object | object |  |
-| `oo::configurable` | shipped-builtin | object | object |  |
-| `oo::copy` | shipped-builtin | builtin | absent |  |
-| `oo::define` | shipped-builtin | builtin | builtin |  |
-| `oo::objdefine` | shipped-builtin | builtin | builtin |  |
-| `oo::object` | shipped-builtin | object | object |  |
-| `oo::singleton` | shipped-builtin | object | absent |  |
-| `open` | shipped-builtin | builtin | builtin |  |
-| `package` | shipped-builtin | builtin | builtin |  |
-| `parray` | tcl-body parray.tcl | stdlib parray.tcl | absent |  |
-| `pid` | shipped-builtin | builtin | absent |  |
-| `pkg::create` | tcl-body package.tcl | stdlib package.tcl | absent |  |
-| `pkg_mkindex` | none | absent | absent |  |
-| `proc` | shipped-builtin | builtin | builtin |  |
-| `puts` | shipped-builtin | builtin | builtin |  |
-| `pwd` | shipped-builtin | builtin | builtin |  |
-| `re_quote` | none | absent | absent |  |
-| `read` | shipped-builtin | builtin | builtin |  |
-| `readFile` | none | absent | absent |  |
-| `regex::quote` | none | absent | absent |  |
-| `regex_quote` | none | absent | absent |  |
-| `regexp` | shipped-builtin | builtin | builtin |  |
-| `regexp::quote` | none | absent | absent |  |
-| `registry` | none | absent | absent |  |
-| `regsub` | shipped-builtin | builtin | builtin |  |
-| `remquo` | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; not yet implemented in runtime/rust |
-| `rename` | shipped-builtin | builtin | builtin |  |
-| `return` | shipped-builtin | builtin | builtin |  |
-| `scan` | shipped-builtin | builtin | builtin |  |
-| `seek` | shipped-builtin | builtin | builtin |  |
-| `self` | shipped-builtin | builtin | builtin |  |
-| `set` | shipped-builtin | builtin | builtin |  |
-| `socket` | none | unsupported | absent | registered as an explicit not-supported stub |
-| `source` | shipped-builtin | builtin | builtin |  |
-| `split` | shipped-builtin | builtin | builtin |  |
-| `string` | shipped-builtin | builtin | builtin |  |
-| `subst` | shipped-builtin | builtin | builtin |  |
-| `switch` | shipped-builtin | builtin | builtin |  |
-| `tailcall` | shipped-builtin | builtin | builtin |  |
-| `tcl::build-info` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc` | none | absent | absent |  |
-| `tcl::mathfunc::abs` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::acos` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::acosh` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::asin` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::asinh` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::atan` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::atan2` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::atanh` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::bool` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::cbrt` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::ceil` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::copysign` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::cos` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::cosh` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::dim` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::double` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::entier` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::erf` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::erfc` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::exp` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::exp2` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::expm1` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::floor` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::fma` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::fmod` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::gamma` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::hypot` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::int` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::isfinite` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::isinf` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::isnan` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::isnormal` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::isqrt` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::issubnormal` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::isunordered` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::ldexp` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::lgamma` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::log` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::log10` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::log1p` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::log2` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::logb` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::max` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::min` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::nextafter` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::pow` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::rand` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::remainder` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::round` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::signbit` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::sin` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::sinh` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::sqrt` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::srand` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::tan` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::tanh` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::trunc` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathfunc::wide` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop` | none | absent | absent |  |
-| `tcl::mathop::!` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::!=` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::%` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::&` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::*` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::**` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::+` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::-` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::/` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::<` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::<<` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::<=` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::==` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::>` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::>=` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::>>` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::^` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::eq` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::ge` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::gt` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::in` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::le` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::lt` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::ne` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::ni` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::|` | shipped-builtin | builtin | builtin |  |
-| `tcl::mathop::~` | shipped-builtin | builtin | builtin |  |
-| `tcl::prefix` | shipped-builtin | builtin | builtin |  |
-| `tcl::process` | none | absent | absent |  |
-| `tcl::unsupported::corotype` | shipped-builtin | builtin | builtin |  |
-| `tcl::unsupported::grapheme` | none | absent | absent |  |
-| `tclLog` | tcl-body init.tcl | stdlib init.tcl | absent |  |
-| `tclPkgSetup` | tcl-body package.tcl | stdlib package.tcl | absent |  |
-| `tclPkgUnknown` | tcl-body package.tcl | stdlib package.tcl | absent |  |
-| `tcl_findLibrary` | none | absent | absent |  |
-| `tell` | shipped-builtin | builtin | builtin |  |
-| `throw` | shipped-builtin | builtin | builtin |  |
-| `time` | shipped-builtin | builtin | builtin |  |
-| `timer` | shipped-builtin | absent (known gap) | absent | Tcl 9.1 timer command; not yet implemented in runtime/rust |
-| `timerate` | shipped-builtin | builtin | absent |  |
-| `trace` | shipped-builtin | builtin | builtin |  |
-| `try` | shipped-builtin | builtin | builtin |  |
-| `unicode` | shipped-builtin | absent (known gap) | absent | Tcl 9.1 Unicode-introspection ensemble; not yet implemented in runtime/rust |
-| `unknown` | tcl-body init.tcl | stdlib init.tcl | absent |  |
-| `unload` | none | absent | absent |  |
-| `unset` | shipped-builtin | builtin | builtin |  |
-| `update` | shipped-builtin | builtin | builtin |  |
-| `uplevel` | shipped-builtin | builtin | builtin |  |
-| `upvar` | shipped-builtin | builtin | builtin |  |
-| `variable` | shipped-builtin | builtin | builtin |  |
-| `vwait` | shipped-builtin | builtin | builtin |  |
-| `while` | shipped-builtin | builtin | builtin |  |
-| `writeFile` | none | absent | absent |  |
-| `yield` | shipped-builtin | builtin | builtin |  |
-| `yieldto` | shipped-builtin | builtin | builtin |  |
-| `zipfs` | shipped-builtin | absent (known gap) | absent | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
-| `zlib` | shipped-builtin | builtin | absent |  |
-| `|` | none | absent | absent |  |
-| `~` | none | absent | absent |  |
+| command | release | backing | wasm | vm | note |
+| --- | --- | --- | --- | --- | --- |
+| `!` | 9.0 | none | absent | absent |  |
+| `!=` | 9.0 | none | absent | absent |  |
+| `%` | 9.0 | none | absent | absent |  |
+| `&` | 9.0 | none | absent | absent |  |
+| `*` | 9.0 | none | absent | absent |  |
+| `**` | 9.0 | none | absent | absent |  |
+| `+` | 9.0 | none | absent | absent |  |
+| `-` | 9.0 | none | absent | absent |  |
+| `/` | 9.0 | none | absent | absent |  |
+| `::tcl::dict::append` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::create` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::exists` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::filter` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::for` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::get` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::getdef` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::getwithdefault` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::incr` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::info` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::keys` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::lappend` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::map` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::merge` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::remove` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::replace` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::set` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::size` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::unset` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::update` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::values` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::dict::with` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::abs` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::acos` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::acosh` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::asin` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::asinh` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::atan` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::atan2` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::atanh` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::bool` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::cbrt` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::ceil` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::copysign` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::cos` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::cosh` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::dim` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::double` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::entier` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::erf` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::erfc` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::exp` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::exp2` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::expm1` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::floor` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::fma` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::fmod` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::gamma` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::hypot` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::int` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::isfinite` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::isinf` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::isnan` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::isnormal` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::isqrt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::issubnormal` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::isunordered` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::ldexp` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::lgamma` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::log` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::log10` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::log1p` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::log2` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::logb` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::max` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::min` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::nextafter` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::pow` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::rand` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::remainder` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::round` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::signbit` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::sin` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::sinh` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::sqrt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::srand` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::tan` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::tanh` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::trunc` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathfunc::wide` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::!` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::!=` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::%` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::&` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::*` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::**` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::+` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::-` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::/` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::<` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::<<` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::<=` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::==` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::>` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::>=` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::>>` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::^` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::eq` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::ge` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::gt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::in` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::le` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::lt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::ne` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::ni` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::|` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::mathop::~` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::process` | 9.0 | none | absent | absent |  |
+| `::tcl::unsupported::corotype` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `::tcl::unsupported::grapheme` | 9.1 | none | absent | absent |  |
+| `::tcl::zipfs` | 9.0 | shipped-builtin | absent (known gap) | absent | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
+| `<` | 9.0 | none | absent | absent |  |
+| `<<` | 9.0 | none | absent | absent |  |
+| `<=` | 9.0 | none | absent | absent |  |
+| `==` | 9.0 | none | absent | absent |  |
+| `>` | 9.0 | none | absent | absent |  |
+| `>=` | 9.0 | none | absent | absent |  |
+| `>>` | 9.0 | none | absent | absent |  |
+| `^` | 9.0 | none | absent | absent |  |
+| `after` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `append` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `apply` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `array` | 9.0 | shipped-builtin | builtin | absent |  |
+| `auto_execok` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
+| `auto_import` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
+| `auto_load` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
+| `auto_load_index` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
+| `auto_mkindex` | 9.0 | none | absent | absent |  |
+| `auto_mkindex_old` | 9.0 | none | absent | absent |  |
+| `auto_qualify` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
+| `auto_reset` | 9.0 | none | absent | absent |  |
+| `bgerror` | 9.0 | none | absent | absent |  |
+| `binary` | 9.0 | shipped-builtin | builtin | absent |  |
+| `break` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `callback` | 9.0 | shipped-builtin | absent (known gap) | absent | TclOO oo::Helpers::callback (issue #923 idx 51) — builds a command prefix that re-enters a method of the current object; needs a live method frame, no runtime handler (same situation as `link`) |
+| `catch` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `cd` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `chan` | 9.0 | shipped-builtin | builtin | absent |  |
+| `classvariable` | 9.0 | shipped-builtin | builtin | absent |  |
+| `clock` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `close` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `concat` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `const` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `continue` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `coroinject` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `coroprobe` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `coroutine` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `dict` | 9.0 | shipped-builtin | builtin | absent |  |
+| `disabled_in_irules` | 9.0 | none | absent | absent |  |
+| `divmod` | 9.1 | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) combined quotient/remainder list command; unsupported in runtime/rust |
+| `encoding` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `eof` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `eq` | 9.0 | none | absent | absent |  |
+| `error` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `eval` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `exec` | 9.0 | none | unsupported | builtin | registered as an explicit not-supported stub |
+| `exit` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `expr` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `fblocked` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `fconfigure` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `fcopy` | 9.0 | none | unsupported | absent | registered as an explicit not-supported stub |
+| `file` | 9.0 | shipped-builtin | builtin | absent |  |
+| `fileevent` | 9.0 | none | unsupported | absent | registered as an explicit not-supported stub |
+| `filename` | 9.0 | none | absent | absent |  |
+| `flush` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `for` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `foreach` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `foreachLine` | 9.0 | none | absent | absent |  |
+| `format` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `fpclassify` | 9.0 | shipped-builtin | absent (known gap) | builtin | Tcl 9.0 floating-point classifier (TIP 521); unsupported in runtime/rust |
+| `frexp` | 9.1 | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; not yet implemented in runtime/rust |
+| `ge` | 9.0 | none | absent | absent |  |
+| `gets` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `glob` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `global` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `gt` | 9.0 | none | absent | absent |  |
+| `http` | 9.0 | none | absent | absent |  |
+| `if` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `in` | 9.0 | none | absent | absent |  |
+| `incr` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `info` | 9.0 | shipped-builtin | builtin | absent |  |
+| `interp` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `join` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lappend` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lassign` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `le` | 9.0 | none | absent | absent |  |
+| `ledit` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lfilter` | 9.1 | shipped-builtin | absent (known gap) | absent | Tcl 9.1 list-filter command; unsupported in runtime/rust |
+| `lindex` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `link` | 9.0 | shipped-builtin | absent (known gap) | absent | TclOO oo::Helpers::link (issue #923 idx 113) — installs a per-object-namespace alias to a method via the object's own command table, not a standalone dispatchable command; no runtime handler |
+| `linsert` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `list` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `llength` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lmap` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `load` | 9.0 | none | unsupported | absent | registered as an explicit not-supported stub |
+| `lpop` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lrange` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lremove` | 9.0 | shipped-builtin | builtin | absent |  |
+| `lrepeat` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lreplace` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lreverse` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lsearch` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lseq` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lset` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lsort` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `lt` | 9.0 | none | absent | absent |  |
+| `memory` | 9.0 | none | absent | absent |  |
+| `modf` | 9.1 | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) integer/fractional split; unsupported in runtime/rust |
+| `my` | 9.0 | shipped-builtin | object | builtin |  |
+| `mymethod` | 9.0 | shipped-builtin | absent (known gap) | absent | TclOO oo::Helpers::mymethod (issue #923 idx 51) — `callback` under its Tcllib-compatibility name; same missing runtime handler |
+| `namespace` | 9.0 | shipped-builtin | builtin | absent |  |
+| `ne` | 9.0 | none | absent | absent |  |
+| `next` | 9.0 | shipped-builtin | builtin | builtin | registered implementation `::oo::Helpers::next`; source spelling requires its lookup context |
+| `nextto` | 9.0 | shipped-builtin | builtin | builtin | registered implementation `::oo::Helpers::nextto`; source spelling requires its lookup context |
+| `ni` | 9.0 | none | absent | absent |  |
+| `oo::Helpers::callback` | 9.0 | shipped-builtin | absent (known gap) | absent | The qualified callback helper requires a live method frame and has no runtime handler. |
+| `oo::Helpers::classvariable` | 9.0 | shipped-builtin | absent (known gap) | absent | The runtime registers only the bare classvariable spelling; the qualified helper has no registration. |
+| `oo::Helpers::link` | 9.0 | shipped-builtin | absent (known gap) | absent | The qualified link helper requires per-object method alias installation and has no runtime handler. |
+| `oo::Helpers::mymethod` | 9.0 | shipped-builtin | absent (known gap) | absent | The qualified Tcllib-compatible callback helper has no runtime handler. |
+| `oo::Helpers::next` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `oo::Helpers::nextto` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `oo::Helpers::self` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `oo::abstract` | 9.0 | shipped-builtin | object | object |  |
+| `oo::class` | 9.0 | shipped-builtin | object | object |  |
+| `oo::configurable` | 9.0 | shipped-builtin | object | object |  |
+| `oo::copy` | 9.0 | shipped-builtin | builtin | absent |  |
+| `oo::define` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `oo::objdefine` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `oo::object` | 9.0 | shipped-builtin | object | object |  |
+| `oo::singleton` | 9.0 | shipped-builtin | object | absent |  |
+| `open` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `package` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `parray` | 9.0 | tcl-body parray.tcl | stdlib parray.tcl | absent |  |
+| `pid` | 9.0 | shipped-builtin | builtin | absent |  |
+| `pkg::create` | 9.0 | tcl-body package.tcl | stdlib package.tcl | absent |  |
+| `pkg_mkindex` | 9.0 | none | absent | absent |  |
+| `proc` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `puts` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `pwd` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `re_quote` | 9.0 | none | absent | absent |  |
+| `read` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `readFile` | 9.0 | none | absent | absent |  |
+| `regex::quote` | 9.0 | none | absent | absent |  |
+| `regex_quote` | 9.0 | none | absent | absent |  |
+| `regexp` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `regexp::quote` | 9.0 | none | absent | absent |  |
+| `registry` | 9.0 | none | absent | absent |  |
+| `regsub` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `remquo` | 9.1 | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; unsupported in runtime/rust |
+| `rename` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `return` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `scan` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `seek` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `self` | 9.0 | shipped-builtin | builtin | builtin | registered implementation `::oo::Helpers::self`; source spelling requires its lookup context |
+| `set` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `socket` | 9.0 | none | unsupported | absent | registered as an explicit not-supported stub |
+| `source` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `split` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `string` | 9.0 | shipped-builtin | builtin | absent |  |
+| `subst` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `switch` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tailcall` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::InitAutoPath` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::build-info` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc` | 9.0 | none | absent | absent |  |
+| `tcl::mathfunc::abs` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::acos` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::acosh` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::asin` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::asinh` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::atan` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::atan2` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::atanh` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::bool` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::cbrt` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::ceil` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::copysign` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::cos` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::cosh` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::dim` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::double` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::entier` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::erf` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::erfc` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::exp` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::exp2` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::expm1` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::floor` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::fma` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::fmod` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::gamma` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::hypot` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::int` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::isfinite` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::isinf` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::isnan` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::isnormal` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::isqrt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::issubnormal` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::isunordered` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::ldexp` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::lgamma` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::log` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::log10` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::log1p` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::log2` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::logb` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::max` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::min` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::nextafter` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::pow` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::rand` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::remainder` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::round` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::signbit` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::sin` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::sinh` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::sqrt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::srand` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::tan` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::tanh` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::trunc` | 9.1 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathfunc::wide` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop` | 9.0 | none | absent | absent |  |
+| `tcl::mathop::!` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::!=` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::%` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::&` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::*` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::**` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::+` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::-` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::/` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::<` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::<<` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::<=` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::==` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::>` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::>=` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::>>` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::^` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::eq` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::ge` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::gt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::in` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::le` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::lt` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::ne` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::ni` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::|` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::mathop::~` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::prefix` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::process` | 9.0 | none | absent | absent |  |
+| `tcl::unsupported::corotype` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::unsupported::grapheme` | 9.1 | none | absent | absent |  |
+| `tclLog` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
+| `tclPkgSetup` | 9.0 | tcl-body package.tcl | stdlib package.tcl | absent |  |
+| `tclPkgUnknown` | 9.0 | tcl-body package.tcl | stdlib package.tcl | absent |  |
+| `tcl_findLibrary` | 9.0 | none | absent | absent |  |
+| `tell` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `throw` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `time` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `timer` | 9.1 | shipped-builtin | absent (known gap) | absent | Tcl 9.1 timer command; unsupported in runtime/rust |
+| `timerate` | 9.0 | shipped-builtin | builtin | absent |  |
+| `trace` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `try` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `unicode` | 9.1 | shipped-builtin | absent (known gap) | absent | Tcl 9.1 Unicode-introspection ensemble; unsupported in runtime/rust |
+| `unknown` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
+| `unload` | 9.0 | none | absent | absent |  |
+| `unset` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `update` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `uplevel` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `upvar` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `variable` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `vwait` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `while` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `writeFile` | 9.0 | none | absent | absent |  |
+| `yield` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `yieldto` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `zipfs` | 9.0 | shipped-builtin | absent (known gap) | absent | ZIP virtual filesystem; unsupported in runtime/rust |
+| `zlib` | 9.0 | shipped-builtin | builtin | absent |  |
+| `|` | 9.0 | none | absent | absent |  |
+| `~` | 9.0 | none | absent | absent |  |

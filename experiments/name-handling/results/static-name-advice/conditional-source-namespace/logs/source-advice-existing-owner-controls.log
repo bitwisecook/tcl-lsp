@@ -1,0 +1,46 @@
+
+running 12 tests
+
+thread 'command_binding::source_transition_advice::tests::authored_logical_source_advice_keeps_its_explicit_input_and_original_operands' (118966) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2459:18:
+explicit Logical source transition advice
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test command_binding::source_transition_advice::tests::authored_logical_source_advice_keeps_its_explicit_input_and_original_operands ... FAILED
+test command_binding::source_transition_advice::tests::authored_jim_root_alias_advice_keeps_the_jim_name_recipe ... ok
+
+thread 'command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier' (118963) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2333:13:
+assertion failed: source_registry_words(source, &analysis, &commands[3]).is_none()
+test command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier ... FAILED
+
+thread 'command_binding::source_transition_advice::tests::authored_source_catalogue_barriers_keep_known_shadow_and_unloaded_advice_distinct' (118967) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2051:13:
+package require Tk 8.6; proc entry args {}; entry .e -placeholder text
+test command_binding::source_transition_advice::tests::authored_source_catalogue_barriers_keep_known_shadow_and_unloaded_advice_distinct ... FAILED
+test command_binding::source_transition_advice::tests::authored_source_tape_refusals_do_not_reissue_stock_declaration_advice ... ok
+test command_binding::source_transition_advice::tests::logical_original_advice_words_keep_lossless_values_and_native_units_independent ... ok
+test command_binding::source_transition_advice::tests::original_logical_nested_expression_keeps_bom_head_and_parent_configuration ... ok
+
+thread 'command_binding::source_transition_advice::tests::original_logical_unicode_transitions_keep_exact_alias_and_move_inputs' (118973) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2589:18:
+exact Logical UTF-8 source target
+test command_binding::source_transition_advice::tests::original_logical_unicode_transitions_keep_exact_alias_and_move_inputs ... FAILED
+test command_binding::source_transition_advice::tests::original_move_qualifier_retains_the_complete_operand_and_rejects_other_projections ... ok
+
+thread 'command_binding::source_transition_advice::tests::authored_source_transitions_keep_order_prefixes_and_conditional_authority' (118970) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2201:17:
+a supplied current entry cannot borrow fresh authored transition advice
+test command_binding::source_transition_advice::tests::authored_source_transitions_keep_order_prefixes_and_conditional_authority ... FAILED
+
+thread 'command_binding::source_transition_advice::tests::authored_source_transition_tape_keeps_deletion_rebinding_and_namespace_geometry' (118969) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2411:13:
+opaque; interp alias {} pick {} switch; unknown; pick subject {default {puts no}}
+test command_binding::source_transition_advice::tests::authored_source_transition_tape_keeps_deletion_rebinding_and_namespace_geometry ... FAILED
+test command_binding::source_transition_advice::tests::authored_immediate_bodies_keep_mutation_and_callback_obligations_separate ... ok
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier
+    command_binding::source_transition_advice::tests::authored_logical_source_advice_keeps_its_explicit_input_and_original_operands
+    command_binding::source_transition_advice::tests::authored_source_catalogue_barriers_keep_known_shadow_and_unloaded_advice_distinct
+    command_binding::source_transition_advice::tests::authored_source_transition_tape_keeps_deletion_rebinding_and_namespace_geometry
+    command_binding::source_transition_advice::tests::authored_source_transitions_keep_order_prefixes_and_conditional_authority
+    command_binding::source_transition_advice::tests::original_logical_unicode_transitions_keep_exact_alias_and_move_inputs
+
+test result: FAILED. 6 passed; 6 failed; 0 ignored; 0 measured; 9542 filtered out; finished in 21.97s
+

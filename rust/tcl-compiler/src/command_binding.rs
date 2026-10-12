@@ -171,11 +171,11 @@ mod retained_body_inventory;
 pub(crate) use retained_body_inventory::RetainedSourceBodyInventory;
 mod original_body_namespace;
 #[cfg(test)]
-mod original_script_parse_entry_tests;
+mod original_restoration_obligation_tests;
 #[cfg(test)]
 mod original_restored_nested_declaration_tests;
 #[cfg(test)]
-mod original_restoration_obligation_tests;
+mod original_script_parse_entry_tests;
 pub(crate) use conditional_body::SourceConditionalBodyEntry;
 pub use conditional_body::{SourceCallerFrameInvocationTemplate, SourceDeclaredReceiverBodyEntry};
 pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;
@@ -1743,12 +1743,12 @@ impl SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         registry: &CommandRegistry,
     ) -> Option<OriginalCompilationLookupAdvice> {
-        if self.compiler_lookup_state.is_some()
-            || self.declaration_layout_observations.is_some()
-        {
+        if self.compiler_lookup_state.is_some() || self.declaration_layout_observations.is_some() {
             return None;
         }
-        let metadata = self.original_source_metadata_for_advice(tokens, registry).ok()??;
+        let metadata = self
+            .original_source_metadata_for_advice(tokens, registry)
+            .ok()??;
         metadata.permits_logical_source_names().then_some(())?;
         let input = metadata.source_analysis_input()?;
         self.original_invocation_metadata_for_input(tokens, input, registry)?;
@@ -1765,8 +1765,10 @@ impl SourceInvocationBinding {
         }
         let variables = &state.source_variables;
         let namespace_matches = variables.namespace_identity.as_ref().map_or_else(
-            || matches!(&self.lookup_namespace_key,
-                SourceNamespaceKey::Authored(namespace) if namespace == &variables.namespace),
+            || {
+                matches!(&self.lookup_namespace_key,
+                SourceNamespaceKey::Authored(namespace) if namespace == &variables.namespace)
+            },
             |namespace| namespace == &self.lookup_namespace_key,
         );
         namespace_matches.then_some(())?;
@@ -1777,8 +1779,7 @@ impl SourceInvocationBinding {
             &self.lookup_namespace_key,
             self.original_lexer_config_for_tokens(tokens)?,
         )?;
-        (advice.closed_logical_source_lookup() && advice.targets == self.targets)
-            .then_some(advice)
+        (advice.closed_logical_source_lookup() && advice.targets == self.targets).then_some(advice)
     }
 
     pub(crate) fn frozen_written_words(
@@ -2187,7 +2188,10 @@ fn original_site_layout_advice(
         });
     // Logical declaration targets and Native formal allocations consume distinct
     // purposes, even when the readonly model retains an internal source allocation.
-    if (matches!(purpose, OriginalOperandLayoutPurpose::LogicalDeclarationTargets) && !logical_source)
+    if (matches!(
+        purpose,
+        OriginalOperandLayoutPurpose::LogicalDeclarationTargets
+    ) && !logical_source)
         || (matches!(purpose, OriginalOperandLayoutPurpose::DeclarationTargets) && logical_source)
     {
         return None;
@@ -3521,7 +3525,10 @@ struct SourceExecutionContext<'a> {
 
 impl<'a> SourceExecutionContext<'a> {
     fn conditional(self) -> Self {
-        Self { body_entry: SourceBodyEntryPurpose::Conditional, ..self }
+        Self {
+            body_entry: SourceBodyEntryPurpose::Conditional,
+            ..self
+        }
     }
 
     fn entered_frame(&self) -> Option<&'a crate::var_resolve::VariableExecutionFrame> {
@@ -7296,12 +7303,20 @@ impl SourceCommandBindings {
         };
         for index in 0..tokens.nested_bindings.len() {
             let offset = tokens.nested_bindings[index].0;
-            if tokens.nested_bindings.iter().filter(|(site, _)| *site == offset).count() != 1 {
+            if tokens
+                .nested_bindings
+                .iter()
+                .filter(|(site, _)| *site == offset)
+                .count()
+                != 1
+            {
                 continue;
             }
             let mut matching = calls.iter().filter_map(|call| {
                 let child = call.tokens.as_ref()?;
-                child.words().first()
+                child
+                    .words()
+                    .first()
                     .is_some_and(|head| head.source().span.start() == offset)
                     .then_some(child)
             });
@@ -8399,11 +8414,12 @@ impl SourceCommandBindings {
                 operation: proof.operation,
                 guard: proof.guard,
             };
-            let selected_entry = if proof.certainty == compiled_invocation::CompiledExecutionCertainty::May {
-                context.conditional()
-            } else {
-                *context
-            };
+            let selected_entry =
+                if proof.certainty == compiled_invocation::CompiledExecutionCertainty::May {
+                    context.conditional()
+                } else {
+                    *context
+                };
             let selected_context = source_selected_context_boxed(&selected_entry, &selection);
             let mut result = self.walk_source_target(
                 segment,
@@ -8554,11 +8570,12 @@ impl SourceCommandBindings {
             })
         {
             let mut stable = boxed_source_branch(incoming);
-            let conditional = if transfer == compiled_invocation::HandlerSourceTransfer::PossibleBodies {
-                context.conditional()
-            } else {
-                *context
-            };
+            let conditional =
+                if transfer == compiled_invocation::HandlerSourceTransfer::PossibleBodies {
+                    context.conditional()
+                } else {
+                    *context
+                };
             let selected_context =
                 source_selected_context_boxed(&conditional, &NativeCompilationSelection::Unknown);
             let mut result = self.walk_source_target(
@@ -8721,11 +8738,12 @@ impl SourceCommandBindings {
                 &incoming,
             );
         }
-        let selected_context = if binding.unknown || binding.may_be_absent || binding.targets.len() != 1 {
-            context.conditional()
-        } else {
-            *context
-        };
+        let selected_context =
+            if binding.unknown || binding.may_be_absent || binding.targets.len() != 1 {
+                context.conditional()
+            } else {
+                *context
+            };
         let context = &selected_context;
         for target in &binding.targets {
             let mut alternative = boxed_source_branch(&incoming);
@@ -8881,7 +8899,13 @@ impl SourceCommandBindings {
             &called,
             context.config,
         );
-        self.record_called_body_source(body, context.body_entry, &frame, Some(&namespace_key), receiver_context);
+        self.record_called_body_source(
+            body,
+            context.body_entry,
+            &frame,
+            Some(&namespace_key),
+            receiver_context,
+        );
         state.source_variables = Arc::new(called);
         state.variable_frame = frame.clone();
         let previous_origin = state.current_source_origin.clone();
@@ -8932,7 +8956,9 @@ impl SourceCommandBindings {
                 *argument,
                 script,
                 frame,
-                (entry == SourceBodyEntryPurpose::Selected).then_some(receiver_context).flatten(),
+                (entry == SourceBodyEntryPurpose::Selected)
+                    .then_some(receiver_context)
+                    .flatten(),
             );
             if let Some((origin, span)) = &body.executed_word {
                 self.record_executed_word(origin, *span, None, script.clone());
@@ -10259,8 +10285,11 @@ impl SourceCommandBindings {
             // so differing issuance histories meet at the back edge rather
             // than comparing a newly issued stamp with itself.
             let mut iteration_state = head.clone();
-            let iteration =
-                self.walk_lifecycle_iteration(invocation, &mut iteration_state, context.conditional());
+            let iteration = self.walk_lifecycle_iteration(
+                invocation,
+                &mut iteration_state,
+                context.conditional(),
+            );
             outcomes.join(&iteration);
             if let Some(normal) = iteration.normal {
                 head.join(&normal);
@@ -11003,8 +11032,12 @@ impl SourceCommandBindings {
                 break;
             };
             if let Some(condition) = condition {
-                let evaluated =
-                    self.walk_expression_operand(*condition, operands, &mut incoming, branch_context);
+                let evaluated = self.walk_expression_operand(
+                    *condition,
+                    operands,
+                    &mut incoming,
+                    branch_context,
+                );
                 for (route, state) in &evaluated.abrupt {
                     outcomes.add_abrupt(*route, state);
                 }
@@ -23488,7 +23521,9 @@ mod original_logical_source_layout_tests {
     use crate::registry_invocation::InvocationMetadataContext;
 
     fn input() -> ResolvedAnalysisInput {
-        crate::analyser::Analyser::new().prepare_analysis_input("tcl").unwrap()
+        crate::analyser::Analyser::new()
+            .prepare_analysis_input("tcl")
+            .unwrap()
     }
 
     fn original(source: &str, input: &ResolvedAnalysisInput) -> crate::ir::CommandTokens {
@@ -23500,11 +23535,15 @@ mod original_logical_source_layout_tests {
             config,
             input.borrowed_context_registry().commands(),
             SourceAnalysisOptions::for_logical_source(input).unwrap(),
-        ).unwrap();
-        let segment = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &image, 0, config,
-        ).unwrap().pop().unwrap();
-        let mut tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        )
+        .unwrap();
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .pop()
+                .unwrap();
+        let mut tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
         bindings.stamp_original_tokens(&mut tokens);
         tokens
     }
@@ -23523,18 +23562,34 @@ mod original_logical_source_layout_tests {
         assert!(binding.compiler_lookup_state.is_none());
         assert!(binding.declaration_layout_observations.is_none());
         assert!(binding.original_compiler_words.is_none());
-        assert_eq!(binding.variable_frame, crate::var_resolve::VariableExecutionFrame::Unknown);
-        let advice = binding.original_conditional_operand_layout_advice(&literal, registry).unwrap();
+        assert_eq!(
+            binding.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::Unknown
+        );
+        let advice = binding
+            .original_conditional_operand_layout_advice(&literal, registry)
+            .unwrap();
         assert!(advice.closed_logical_source_lookup());
         assert!(!advice.closed_lookup());
         assert_eq!(advice.targets(), binding.targets.as_slice());
-        assert!(crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-            &literal, input.lexer_config(), registry, metadata,
-        ).unwrap().is_empty());
+        assert!(
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                &literal,
+                input.lexer_config(),
+                registry,
+                metadata,
+            )
+            .unwrap()
+            .is_empty()
+        );
         let expression = original("expr {[dict size DATA]}", &input);
         let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-            &expression, input.lexer_config(), registry, metadata,
-        ).unwrap();
+            &expression,
+            input.lexer_config(),
+            registry,
+            metadata,
+        )
+        .unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].command, "dict");
         assert_eq!(calls[0].args, ["size", "DATA"]);
@@ -23558,7 +23613,12 @@ mod original_logical_source_layout_tests {
             let tokens = original(source, &input);
             let binding = tokens.source_binding.as_ref().unwrap();
             assert!(binding.lookup_state.is_some(), "{source}");
-            assert!(binding.original_logical_source_operand_layout_advice(&tokens, registry).is_none(), "{source}");
+            assert!(
+                binding
+                    .original_logical_source_operand_layout_advice(&tokens, registry)
+                    .is_none(),
+                "{source}"
+            );
             assert!(binding.proved_handler_target().is_none());
         }
     }
@@ -23571,29 +23631,63 @@ mod original_logical_source_layout_tests {
         let registry = input.borrowed_context_registry().commands();
         let tokens = original("puts {[dict size DATA]}", &input);
         let binding = tokens.source_binding.as_ref().unwrap();
-        assert!(binding.original_logical_source_operand_layout_advice(&tokens, registry).is_some());
+        assert!(
+            binding
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_some()
+        );
         let mut changed = tokens.clone();
         changed.argv_texts[0].push('!');
-        assert!(binding.original_logical_source_operand_layout_advice(&changed, registry).is_none());
+        assert!(
+            binding
+                .original_logical_source_operand_layout_advice(&changed, registry)
+                .is_none()
+        );
         let mut foreign = binding.clone();
         Arc::make_mut(&mut foreign.variable_context).namespace = "::foreign".into();
-        assert!(foreign.original_logical_source_operand_layout_advice(&tokens, registry).is_none());
+        assert!(
+            foreign
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
         let mut namespace = binding.clone();
         namespace.lookup_namespace_key = SourceNamespaceKey::Authored("::foreign".into());
         namespace.lookup_namespace = "::foreign".into();
-        assert!(namespace.original_logical_source_operand_layout_advice(&tokens, registry).is_none());
+        assert!(
+            namespace
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
         let mut missing = binding.clone();
         missing.targets.clear();
-        assert!(missing.original_logical_source_operand_layout_advice(&tokens, registry).is_none());
+        assert!(
+            missing
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
         let mut source = binding.clone();
-        Arc::make_mut(source.lookup_state.as_mut().unwrap()).state.current_source_origin = None;
-        assert!(source.original_logical_source_operand_layout_advice(&tokens, registry).is_none());
+        Arc::make_mut(source.lookup_state.as_mut().unwrap())
+            .state
+            .current_source_origin = None;
+        assert!(
+            source
+                .original_logical_source_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
         let mut snapshot = binding.lookup_state.as_ref().unwrap().as_ref().clone();
         snapshot.state.current_source_origin = None;
         let mut refused_compiler = binding.clone();
         refused_compiler.compiler_lookup_state = Some(Arc::new(snapshot));
-        assert!(refused_compiler.original_compilation_lookup_advice(&tokens).is_none());
-        assert!(refused_compiler.original_conditional_operand_layout_advice(&tokens, registry).is_none());
+        assert!(
+            refused_compiler
+                .original_compilation_lookup_advice(&tokens)
+                .is_none()
+        );
+        assert!(
+            refused_compiler
+                .original_conditional_operand_layout_advice(&tokens, registry)
+                .is_none()
+        );
     }
 
     #[test]
@@ -23610,53 +23704,84 @@ mod original_logical_source_layout_tests {
         let mut config = input.lexer_config();
         config.strict_quoting = !config.strict_quoting;
         let changed = ResolvedAnalysisInput::new(
-            input.analyser_profile(), input.unit_profile(), input.context_registry(), config,
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
         );
         let changed = InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
         assert!(crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             registry, changed, &tokens,
         ).is_none());
         let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
-            .unwrap().default_context_registry();
+            .unwrap()
+            .default_context_registry();
         let foreign = ResolvedAnalysisInput::new(
-            input.analyser_profile(), input.unit_profile(), foreign, input.lexer_config(),
+            input.analyser_profile(),
+            input.unit_profile(),
+            foreign,
+            input.lexer_config(),
         );
         assert!(InvocationMetadataContext::for_analysis_input(registry, &foreign).is_none());
         let unbound = original("missing {[dict size DATA]}", &input);
-        assert!(unbound.source_binding.as_ref().unwrap()
-            .original_logical_source_operand_layout_advice(&unbound, registry).is_none());
+        assert!(
+            unbound
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_operand_layout_advice(&unbound, registry)
+                .is_none()
+        );
     }
 
     #[test]
     fn original_native_unknown_frame_cannot_borrow_logical_source_layout() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let environment = tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();
+        let environment =
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.0").unwrap();
         let profile = environment.unit_profile();
         let context = environment.default_context_registry();
         let (owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
-        let config = SourceAnalysisOptions { native_entry: Some(&entry), ..Default::default() }
-            .native_lexer_config(tcl_lexer::LexerConfig::for_file_grammar(profile.grammar));
+        let config = SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            ..Default::default()
+        }
+        .native_lexer_config(tcl_lexer::LexerConfig::for_file_grammar(profile.grammar));
         let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
         assert!(SourceAnalysisOptions::for_logical_source(&input).is_none());
         let image = tcl_lexer::SourceImage::document("puts {[dict size DATA]}");
         let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
-            &image, &crate::var_resolve::VariableExecutionFrame::Unknown, config,
-            context.commands(), SourceAnalysisOptions {
+            &image,
+            &crate::var_resolve::VariableExecutionFrame::Unknown,
+            config,
+            context.commands(),
+            SourceAnalysisOptions {
                 native_entry: Some(&entry),
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-                metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(&input)),
+                metadata_context:
+                    crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(
+                        &input,
+                    )),
                 ..Default::default()
             },
-        ).unwrap();
-        let segment = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &image, 0, config,
-        ).unwrap().pop().unwrap();
-        let mut tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        )
+        .unwrap();
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .pop()
+                .unwrap();
+        let mut tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
         bindings.stamp_original_tokens(&mut tokens);
         let binding = tokens.source_binding.as_ref().unwrap();
         assert!(binding.logical_source_name_advice_input().is_none());
-        assert!(binding.original_logical_source_operand_layout_advice(&tokens, context.commands()).is_none());
+        assert!(
+            binding
+                .original_logical_source_operand_layout_advice(&tokens, context.commands())
+                .is_none()
+        );
         assert!(binding.proved_handler_target().is_none());
         assert_eq!(entry.execution_point, environment.point());
         drop(owner);

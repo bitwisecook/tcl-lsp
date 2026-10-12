@@ -1,0 +1,10 @@
+
+running 5 tests
+test command_binding::logical_operation::tests::logical_namespace_cell_continuation_keeps_the_independent_storage_facet ... ok
+test command_binding::source_transition_advice::logical_namespace::tests::logical_namespace_nested_import_and_export_clear_keep_own_scope ... ok
+test command_binding::source_transition_advice::logical_namespace::tests::logical_namespace_imports_retain_conditional_source_roles_and_origins ... ok
+test command_binding::source_transition_advice::logical_namespace::tests::logical_namespace_imports_refuse_known_shadow_forget_and_origin_deletion ... ok
+test command_binding::source_transition_advice::logical_namespace::tests::logical_namespace_path_uses_generic_registry_descriptors_and_clear_barriers ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 9549 filtered out; finished in 2.79s
+

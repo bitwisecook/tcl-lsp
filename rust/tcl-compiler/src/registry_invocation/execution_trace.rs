@@ -717,7 +717,11 @@ mod tests {
             &empty
         ));
         // A descriptor-only implicit operation has no actual original receiver.
-        assert!(trace_set_requires_original_owner(registry, &unit.ir_module, Some(metadata)));
+        assert!(trace_set_requires_original_owner(
+            registry,
+            &unit.ir_module,
+            Some(metadata)
+        ));
     }
     #[test]
     fn genuine_jim_entry_cannot_borrow_raw_logical_metadata_for_trace_absence() {
@@ -960,5 +964,4 @@ mod tests {
             None
         );
     }
-
 }

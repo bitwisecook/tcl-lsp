@@ -363,20 +363,56 @@ fn original_parent_result_retirement_checks_frame_before_later_error_metadata() 
                 let prior = obj::Owned::fresh(obj::alloc_typed(&OLD_RESULT, 0));
                 actual.set_result(prior.as_ptr());
                 drop(prior);
-                let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
+                let scope =
+                    crate::interp::native_operation_currency::NativeOperationScope::enter(&actual)
+                        .unwrap();
                 FREES.set(0);
                 OLD_REFS.set(-1);
                 MODE.set(mode);
                 let mut execution = BodyExecution::default();
                 let expected = if operation == 0 {
-                    let Operation::SelectedReturn(recipe, _, _) = &artifact.scripts[&artifact.region].commands[0].operation else { panic!("actual selected Return"); };
-                    artifact.literals.original(recipe.value_word.map(|index| artifact.scripts[&artifact.region].commands[0].words[index].literal.unwrap()).unwrap()).unwrap()
+                    let Operation::SelectedReturn(recipe, _, _) =
+                        &artifact.scripts[&artifact.region].commands[0].operation
+                    else {
+                        panic!("actual selected Return");
+                    };
+                    artifact
+                        .literals
+                        .original(
+                            recipe
+                                .value_word
+                                .map(|index| {
+                                    artifact.scripts[&artifact.region].commands[0].words[index]
+                                        .literal
+                                        .unwrap()
+                                })
+                                .unwrap(),
+                        )
+                        .unwrap()
                 } else {
-                    artifact.literals.original(artifact.scripts[&artifact.region].fatal.as_ref().unwrap().message).unwrap()
+                    artifact
+                        .literals
+                        .original(
+                            artifact.scripts[&artifact.region]
+                                .fatal
+                                .as_ref()
+                                .unwrap()
+                                .message,
+                        )
+                        .unwrap()
                 };
                 let code = match operation {
-                    0 => actual.execute_body_opcode(&artifact, &artifact.scripts[&artifact.region].commands[0], &mut execution).unwrap_or_else(|code| code),
-                    1 => { let fatal = artifact.scripts[&artifact.region].fatal.as_ref().unwrap(); actual.execute_body_syntax_objects(&artifact, fatal.message, fatal.options) },
+                    0 => actual
+                        .execute_body_opcode(
+                            &artifact,
+                            &artifact.scripts[&artifact.region].commands[0],
+                            &mut execution,
+                        )
+                        .unwrap_or_else(|code| code),
+                    1 => {
+                        let fatal = artifact.scripts[&artifact.region].fatal.as_ref().unwrap();
+                        actual.execute_body_syntax_objects(&artifact, fatal.message, fatal.options)
+                    }
                     _ => actual.execute_body_region(&artifact, artifact.region, &mut execution),
                 };
                 assert_eq!(code, Code::Error);

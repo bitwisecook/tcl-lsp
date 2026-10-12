@@ -21,13 +21,13 @@
 //! shared command owner. No native +1 or COW decision surrounds source effects.
 
 use crate::{
-    interp::{Interp, native_arguments::OriginalArguments},
+    interp::{native_arguments::OriginalArguments, Interp},
     obj::{self, TclObj},
 };
 use std::{cell::RefCell, rc::Rc};
 use tcl_cmd_core::{
-    CmdError,
     native_append::{self, NativeAppendObjects},
+    CmdError,
 };
 use tcl_syntax::{
     native_string::{NativeStringProtocol, NativeStringStorageIdentity},

@@ -706,17 +706,31 @@ impl super::CommandBindingRealm {
             if original.as_slice() != advice.original_words() {
                 eprintln!(
                     "ORIGINAL_ADVICE_VECTOR offset={offset} original_count={} retained_count={}",
-                    original.len(), advice.original_words().len(),
+                    original.len(),
+                    advice.original_words().len(),
                 );
-                for (index, (actual, retained)) in original.iter().zip(advice.original_words()).enumerate().take(16) {
+                for (index, (actual, retained)) in original
+                    .iter()
+                    .zip(advice.original_words())
+                    .enumerate()
+                    .take(16)
+                {
                     if actual != retained {
                         eprintln!(
                             "ORIGINAL_ADVICE_VECTOR offset={offset} index={index} image={} config={} group={} tokens={} arena={} written={} operand={} original_start={} original_end={} retained_start={} retained_end={} original_tokens={} retained_tokens={}",
-                            actual.image() == retained.image(), actual.config() == retained.config(),
-                            actual.group() == retained.group(), actual.tokens() == retained.tokens(),
-                            actual.executable_parts() == retained.executable_parts(), actual.span() == retained.span(),
-                            actual.word_span() == retained.word_span(), actual.span().start(), actual.span().end(),
-                            retained.span().start(), retained.span().end(), actual.tokens().len(), retained.tokens().len(),
+                            actual.image() == retained.image(),
+                            actual.config() == retained.config(),
+                            actual.group() == retained.group(),
+                            actual.tokens() == retained.tokens(),
+                            actual.executable_parts() == retained.executable_parts(),
+                            actual.span() == retained.span(),
+                            actual.word_span() == retained.word_span(),
+                            actual.span().start(),
+                            actual.span().end(),
+                            retained.span().start(),
+                            retained.span().end(),
+                            actual.tokens().len(),
+                            retained.tokens().len(),
                         );
                     }
                 }

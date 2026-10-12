@@ -36,29 +36,55 @@ impl NativeCommand for Probe {
     fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
         let parent = vm.cur_interp();
         assert!(vm.frames.len() > 1);
-        let frames = vm.frames.iter().map(|frame| Rc::clone(&frame.activation)).collect::<Vec<_>>();
+        let frames = vm
+            .frames
+            .iter()
+            .map(|frame| Rc::clone(&frame.activation))
+            .collect::<Vec<_>>();
         let namespaces = vm.resolution_stacks.ns_id_stack.clone();
         let scripts = vm.ns_script_frames.clone();
         let recursion = vm.recursion_depth;
         let child_frames = vm.in_interp(self.child, |vm| {
-            vm.frames.iter().map(|frame| Rc::clone(&frame.activation)).collect::<Vec<_>>()
+            vm.frames
+                .iter()
+                .map(|frame| Rc::clone(&frame.activation))
+                .collect::<Vec<_>>()
         });
-        let child_namespaces = vm.in_interp(self.child, |vm| vm.resolution_stacks.ns_id_stack.clone());
-        let completion = vm.invoke_command("package", &[
-            Value::string("require"), Value::string("original-package"), Value::string("1.0"),
-        ]);
+        let child_namespaces =
+            vm.in_interp(self.child, |vm| vm.resolution_stacks.ns_id_stack.clone());
+        let completion = vm.invoke_command(
+            "package",
+            &[
+                Value::string("require"),
+                Value::string("original-package"),
+                Value::string("1.0"),
+            ],
+        );
         assert_eq!(completion.code, Code::Error);
         assert!(vm.interp_is_current(self.child));
         assert_eq!(vm.frames.len(), child_frames.len());
-        assert!(vm.frames.iter().zip(&child_frames).all(|(actual, expected)| Rc::ptr_eq(&actual.activation, expected)));
+        assert!(
+            vm.frames
+                .iter()
+                .zip(&child_frames)
+                .all(|(actual, expected)| Rc::ptr_eq(&actual.activation, expected))
+        );
         assert_eq!(vm.resolution_stacks.ns_id_stack, child_namespaces);
         vm.in_interp(parent, |vm| {
             assert_eq!(vm.frames.len(), frames.len());
-            assert!(vm.frames.iter().zip(&frames).all(|(actual, expected)| Rc::ptr_eq(&actual.activation, expected)));
+            assert!(
+                vm.frames
+                    .iter()
+                    .zip(&frames)
+                    .all(|(actual, expected)| Rc::ptr_eq(&actual.activation, expected))
+            );
             assert_eq!(vm.resolution_stacks.ns_id_stack, namespaces);
             assert_eq!(vm.ns_script_frames, scripts);
             assert_eq!(vm.recursion_depth, recursion);
-            assert!(vm.package_loading_version_bytes(b"original-package").is_none());
+            assert!(
+                vm.package_loading_version_bytes(b"original-package")
+                    .is_none()
+            );
             assert!(vm.take_package_file_scope().is_empty());
         });
         assert!(vm.interp_is_current(self.child));
@@ -78,17 +104,37 @@ fn original_package_global_selection_restores_hidden_parent_and_preserves_callba
     for profile in ["tcl8.6", "tcl9.1"] {
         for loading in [false, true] {
             for explicit in [false, true] {
-                let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect(profile));
+                let mut vm = crate::native_fixture::interpreter(
+                    crate::environment::profile_for_dialect(profile),
+                );
                 let parent = vm.cur_interp();
                 let global = Rc::clone(&vm.frames[0].activation);
                 let child_name = vm.create_child(Some("selected_package_child".into()), false);
                 let child = vm.child_id(&child_name).unwrap();
-                vm.in_interp(child, |vm| { Frames::push(vm, tcl_runtime_api::ROOT_NS); });
+                vm.in_interp(child, |vm| {
+                    Frames::push(vm, tcl_runtime_api::ROOT_NS);
+                });
                 let hits = Rc::new(Cell::new(0));
                 let checked = Rc::new(Cell::new(0));
                 let first = Rc::new(RefCell::new(None));
-                vm.try_register_native_command("leavePackageChild", Rc::new(LeaveChild { child, explicit, hits: Rc::clone(&hits), first: Rc::clone(&first) })).unwrap();
-                vm.try_register_native_command("probePackageFrame", Rc::new(Probe { child, checked: Rc::clone(&checked) })).unwrap();
+                vm.try_register_native_command(
+                    "leavePackageChild",
+                    Rc::new(LeaveChild {
+                        child,
+                        explicit,
+                        hits: Rc::clone(&hits),
+                        first: Rc::clone(&first),
+                    }),
+                )
+                .unwrap();
+                vm.try_register_native_command(
+                    "probePackageFrame",
+                    Rc::new(Probe {
+                        child,
+                        checked: Rc::clone(&checked),
+                    }),
+                )
+                .unwrap();
                 let setup = if loading {
                     "package ifneeded original-package 1.0 leavePackageChild"
                 } else {
@@ -102,12 +148,21 @@ fn original_package_global_selection_restores_hidden_parent_and_preserves_callba
                 assert!(vm.interp_is_current(parent));
                 assert_eq!(vm.frames.len(), 1);
                 assert!(Rc::ptr_eq(&vm.frames[0].activation, &global));
-                vm.in_interp(child, |vm| { assert_eq!(vm.frames.len(), 2); });
+                vm.in_interp(child, |vm| {
+                    assert_eq!(vm.frames.len(), 2);
+                });
                 let retained = vm.execution_refusal.clone().unwrap();
                 if explicit {
                     assert_eq!(first.borrow().as_ref(), Some(&retained));
                 } else {
-                    assert_eq!(retained, NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable("entered VM original execution context")));
+                    assert_eq!(
+                        retained,
+                        NativeExecutionError::ValueAccessRefusal(
+                            NativeValueAccessRefusal::CommandProtocolUnavailable(
+                                "entered VM original execution context"
+                            )
+                        )
+                    );
                 }
             }
         }

@@ -1,0 +1,30 @@
+    memset(&data->lastTZOffsCache, 0, sizeof(data->lastTZOffsCache));
+
+    data->defFlags = CLF_VALIDATE;
+
+    /*
+     * Install the commands.
+     */
+
+#define TCL_CLOCK_PREFIX_LEN 14 /* == strlen("::tcl::clock::") */
+    memcpy(cmdName, "::tcl::clock::", TCL_CLOCK_PREFIX_LEN);
+    for (clockCmdPtr=clockCommands ; clockCmdPtr->name!=NULL ; clockCmdPtr++) {
+	void *clientData;
+
+	strcpy(cmdName + TCL_CLOCK_PREFIX_LEN, clockCmdPtr->name);
+	if (!(clientData = clockCmdPtr->clientData)) {
+	    clientData = data;
+	    data->refCount++;
+	}
+	cmdPtr = (Command *)Tcl_CreateObjCommand(interp, cmdName,
+		clockCmdPtr->objCmdProc, clientData,
+		clockCmdPtr->clientData ? NULL : ClockDeleteCmdProc);
+	cmdPtr->compileProc = clockCmdPtr->compileProc ?
+		clockCmdPtr->compileProc : TclCompileBasicMin0ArgCmd;
+    }
+    cmdPtr = (Command *) Tcl_CreateObjCommand(interp,
+	    "::tcl::unsupported::clock::configure",
+	    ClockConfigureObjCmd, data, ClockDeleteCmdProc);
+    data->refCount++;
+    cmdPtr->compileProc = TclCompileBasicMin0ArgCmd;
+}

@@ -40,6 +40,53 @@ const VERSIONED_CLOCK_CONTEXT_RESULT: SubCommand = SubCommand {
     ..SubCommand::DEFAULT
 };
 
+impl crate::InvocationDialect {
+    /// C8.6 constructor geometry measured independently of handler effects.
+    #[must_use]
+    pub fn clock_bootstrap_ensemble(
+        self,
+    ) -> Option<crate::invocation_words::NativeEnsembleBootstrap> {
+        (self.family() == Some(tcl_dialect::model::Family::Tcl)
+            && self.tcl_version == Some(TclVersion::V8_6))
+        .then_some(crate::invocation_words::NativeEnsembleBootstrap {
+            namespace: "::tcl::clock",
+            deferred_members: &[b"add", b"format", b"scan"],
+        })
+    }
+}
+
+// C8.6's TclClockInit/TclMakeEnsemble installs these reading hooks; the
+// C9.0/C9.1 clock maps retain the same four targets and present hooks.
+// This records registration, not opcode acceptance or handler effects.
+macro_rules! clock_reading_compiler {
+    ($member:literal) => {
+        crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
+                compiler: &crate::native_compilation::NativeCompilationSpec {
+                    grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                        TclVersion::V8_6,
+                    ),
+                    operation: crate::SemanticOperationId::Invoke,
+                    body: crate::native_compilation::NativeBodyCompilation::Inherit,
+                },
+                lookups: &[
+                    crate::native_compilation::NativeCompilerImplementationLookup {
+                        ensemble: "::clock",
+                        member: $member,
+                        slot: concat!("::tcl::clock::", $member),
+                        command: "clock",
+                        prepended: &[$member],
+                    },
+                ],
+                implementation_from: TclVersion::V8_6,
+                monolithic_no_hook_before: false,
+            },
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }
+    };
+}
+
 /// Options accepted by `clock format`.
 ///
 /// Tcl 8.4's `clock format` only ever took `-format`/`-gmt`
@@ -323,6 +370,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "clicks",
+        native_compilation: Some(clock_reading_compiler!("clicks")),
         arity: Arity::new(0, 1),
         detail: "Return hi-res clock value.",
         synopsis: "clock clicks ?-milliseconds? ?-microseconds?",
@@ -355,6 +403,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "microseconds",
+        native_compilation: Some(clock_reading_compiler!("microseconds")),
         // Added in Tcl 8.5 (TIP 173).
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(0),
@@ -369,6 +418,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "milliseconds",
+        native_compilation: Some(clock_reading_compiler!("milliseconds")),
         // Added in Tcl 8.5 (TIP 173).
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(0),
@@ -418,6 +468,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "seconds",
+        native_compilation: Some(clock_reading_compiler!("seconds")),
         arity: Arity::exact(0),
         detail: "Return current time in seconds.",
         synopsis: "clock seconds",
@@ -547,5 +598,64 @@ pub fn spec() -> CommandSpec {
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
         ),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn clock_bootstrap_and_compiler_registration_keep_independent_evidence() {
+        use crate::InvocationDialect;
+        use tcl_dialect::TclVersion;
+
+        let registry = crate::CommandRegistry::build_default();
+        let dialect = InvocationDialect::for_version(TclVersion::V8_6);
+        for member in ["clicks", "seconds", "milliseconds", "microseconds"] {
+            let identity = format!("tcl::clock::{member}");
+            let compiler = registry
+                .native_compilation_for_registration(&identity, dialect)
+                .unwrap();
+            assert_eq!(compiler.compiler_hook_presence(dialect), Some(true));
+            assert_eq!(compiler.operation, crate::SemanticOperationId::Invoke);
+            assert_eq!(
+                compiler.body,
+                crate::native_compilation::NativeBodyCompilation::Inherit
+            );
+            assert!(
+                registry
+                    .native_compilation_for_registration(
+                        &identity,
+                        InvocationDialect::for_version(TclVersion::V8_5)
+                    )
+                    .is_none()
+            );
+        }
+        for member in ["add", "format", "scan", "getenv", "unmeasured"] {
+            assert!(
+                registry
+                    .native_compilation_for_registration(&format!("tcl::clock::{member}"), dialect)
+                    .is_none()
+            );
+        }
+        for version in TclVersion::ALL {
+            assert_eq!(
+                InvocationDialect::for_version(version)
+                    .clock_bootstrap_ensemble()
+                    .is_some(),
+                version == TclVersion::V8_6
+            );
+        }
+        let unknown = InvocationDialect {
+            native_family: None,
+            core_point: None,
+            tcl_version: None,
+            ..dialect
+        };
+        assert!(unknown.clock_bootstrap_ensemble().is_none());
+        assert!(
+            registry
+                .native_compilation_for_registration("tcl::clock::seconds", unknown)
+                .is_none()
+        );
     }
 }

@@ -1,0 +1,15 @@
+
+running 1 test
+
+thread 'command_binding::original_command_table::advice_slot_tests::conditional_catalogue_imports_follow_retained_original_implementations' (104945) panicked at rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs:320:14:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test command_binding::original_command_table::advice_slot_tests::conditional_catalogue_imports_follow_retained_original_implementations ... FAILED
+
+failures:
+
+failures:
+    command_binding::original_command_table::advice_slot_tests::conditional_catalogue_imports_follow_retained_original_implementations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9552 filtered out; finished in 0.13s
+

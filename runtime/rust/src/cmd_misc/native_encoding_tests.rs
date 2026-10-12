@@ -42,7 +42,7 @@ fn original_utf8_conversion_matches_all_55_c_object_storage_windows() {
     // input ByteArray string materialization, raw output and distinct error
     // fields. Original pointer/refcount identity is not measured or asserted.
     use crate::{interp::Interp, obj::Owned};
-    use tcl_test_support::encoding_utf8::{CONTROLS, object_observation_rows, original_input};
+    use tcl_test_support::encoding_utf8::{object_observation_rows, original_input, CONTROLS};
     let mut comparisons = 0;
     for control in CONTROLS {
         for (engine, column) in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
@@ -137,14 +137,12 @@ fn external_utf8_binary_result_refuses_foreign_or_jim_issuer() {
         )
         .unwrap();
         let result = interp.result_obj();
-        assert!(
-            ValueOps::native_external_utf8_result(
-                &mut interp,
-                b"DATA",
-                tcl_dialect::TclVersion::V9_1
-            )
-            .is_err()
-        );
+        assert!(ValueOps::native_external_utf8_result(
+            &mut interp,
+            b"DATA",
+            tcl_dialect::TclVersion::V9_1
+        )
+        .is_err());
         assert_eq!(interp.result_obj(), result);
     }
 }

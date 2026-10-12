@@ -1,0 +1,655 @@
+diff --git a/runtime/rust/src/builtins.rs b/runtime/rust/src/builtins.rs
+index 6632b30c1..5c2a3ea47 100644
+--- a/runtime/rust/src/builtins.rs
++++ b/runtime/rust/src/builtins.rs
+@@ -30,7 +30,7 @@ use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+ 
+ use crate::frame::VarError;
+ use crate::interp::native_arguments::OriginalArguments;
+-use crate::interp::{obj_bytes, Code, Interp};
++use crate::interp::{Code, Interp, obj_bytes};
+ // The transient `1` of a tower `incr` is the only fresh object left to drop
+ // by hand; every other path now stores through `store_var_result`.
+ use crate::interp::drop_fresh;
+@@ -213,10 +213,16 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
+ }
+ 
+ pub(crate) fn var_error_using(
+-    interp: &mut Interp, name: &[u8], e: VarError,
++    interp: &mut Interp,
++    name: &[u8],
++    e: VarError,
+     stage: Option<&dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+ ) -> Code {
+-    if let Some(check) = stage { if let Err(first) = check() { return interp.report_cmd_error(first); } }
++    if let Some(check) = stage {
++        if let Err(first) = check() {
++            return interp.report_cmd_error(first);
++        }
++    }
+ 
+     if e == VarError::NameProtocolUnavailable {
+         return interp.refuse_native_access(
+@@ -1465,7 +1471,7 @@ pub(crate) fn native_jim_wide_expression(
+                 NativeScalarGetterKind::Wide,
+             );
+             arguments.check()?;
+-            reached?;
++            let _ = reached?;
+         }
+         let cached = obj::native_scalar_cache(original);
+         arguments.check()?;
+diff --git a/runtime/rust/src/builtins/native_variable_operand_tests.rs b/runtime/rust/src/builtins/native_variable_operand_tests.rs
+index 0a7543bf5..644b969e2 100644
+--- a/runtime/rust/src/builtins/native_variable_operand_tests.rs
++++ b/runtime/rust/src/builtins/native_variable_operand_tests.rs
+@@ -6,12 +6,42 @@ use std::cell::{Cell, RefCell};
+ use std::rc::Rc;
+ 
+ const ORIGINALS: &[(&str, &str)] = &[
+-    ("tcl8.4", include_str!("../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/execute.stdout")),
+-    ("tcl8.5", include_str!("../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/execute.stdout")),
+-    ("tcl8.6", include_str!("../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/execute.stdout")),
+-    ("tcl9.0", include_str!("../../tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/execute.stdout")),
+-    ("tcl9.1", include_str!("../../tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/execute.stdout")),
+-    ("jim", include_str!("../../tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/execute.stdout")),
++    (
++        "tcl8.4",
++        include_str!(
++            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/execute.stdout"
++        ),
++    ),
++    (
++        "tcl8.5",
++        include_str!(
++            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.5.19/execute.stdout"
++        ),
++    ),
++    (
++        "tcl8.6",
++        include_str!(
++            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.6.18/execute.stdout"
++        ),
++    ),
++    (
++        "tcl9.0",
++        include_str!(
++            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/9.0.4/execute.stdout"
++        ),
++    ),
++    (
++        "tcl9.1",
++        include_str!(
++            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/9.1.0/execute.stdout"
++        ),
++    ),
++    (
++        "jim",
++        include_str!(
++            "../../tests/data/native_variable_introspection_getter_order_original/505b/providers/jim/execute.stdout"
++        ),
++    ),
+ ];
+ thread_local! {
+     static EVENTS: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+diff --git a/runtime/rust/src/cmd_var.rs b/runtime/rust/src/cmd_var.rs
+index 3650a3ac8..2ab1cceef 100644
+--- a/runtime/rust/src/cmd_var.rs
++++ b/runtime/rust/src/cmd_var.rs
+@@ -221,6 +221,20 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+ }
+ 
+ fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
++    let Some(grammar) = interp
++        .native_invocation_dialect()
++        .native_variable_declaration_protocol()
++    else {
++        return interp.report_cmd_error(
++            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                "namespace variable declaration grammar",
++            )
++            .into(),
++        );
++    };
++    if let Err(usage) = grammar.arguments(argv.len().saturating_sub(1)) {
++        return interp.wrong_args_for_invocation(argv, usage);
++    }
+     if interp.native_c_variable_name_protocol().is_some() {
+         for pair in argv[1..].chunks(2) {
+             let code = interp.define_original_c_namespace_variable(pair[0], pair.get(1).copied());
+@@ -235,7 +249,6 @@ fn variable_entered(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+         Ok(protocol) => protocol,
+         Err(error) => return crate::builtins::var_error(interp, b"", error),
+     };
+-    // `variable` with no names is a no-op (TIP 323).
+     let current = interp.current_ns();
+     let mut i = 1;
+     while i < argv.len() {
+diff --git a/runtime/rust/src/frame/native_variable_names.rs b/runtime/rust/src/frame/native_variable_names.rs
+index e05dccef6..9729e2b9c 100644
+--- a/runtime/rust/src/frame/native_variable_names.rs
++++ b/runtime/rust/src/frame/native_variable_names.rs
+@@ -223,6 +223,20 @@ impl FrameStack {
+             link,
+         ))
+     }
++    pub(crate) fn original_compiled_cell_at_is_current(
++        &self,
++        level: usize,
++        slot: usize,
++        original: &super::VariablePublicationObservation,
++    ) -> bool {
++        self.index_of_level(level)
++            .and_then(|frame| {
++                let frame = &self.frames[frame];
++                let cell = frame.compiled_slots.get(slot).copied().flatten()?;
++                Some(original.matches(&frame.table.cells.get(cell)?.contents))
++            })
++            .unwrap_or(false)
++    }
+ 
+     pub(crate) fn retain_original_compiled_alias(
+         &mut self,
+diff --git a/runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation.rs b/runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation.rs
+index 0a58fa853..4b9d8918c 100644
+--- a/runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation.rs
++++ b/runtime/rust/src/interp/native_body_artifact/native_dictionary_mutation.rs
+@@ -57,8 +57,6 @@ impl Interp {
+         use tcl_registry::native_dictionary_compilation::NativeDictionaryMutationKind as Kind;
+         let operation =
+             BodyObjectOperation::capture(self).map_err(|first| self.report_cmd_error(first))?;
+-        let actual = self.clone();
+-        let variable_stage = || operation.check(&actual);
+         let mut values = Vec::with_capacity(dictionary.operands.len());
+         let reached = (|| {
+             for operand in &dictionary.operands {
+diff --git a/runtime/rust/src/interp/native_variable_names.rs b/runtime/rust/src/interp/native_variable_names.rs
+index 9ee06b9b3..1a73fb22f 100644
+--- a/runtime/rust/src/interp/native_variable_names.rs
++++ b/runtime/rust/src/interp/native_variable_names.rs
+@@ -327,7 +327,9 @@ impl Interp {
+         stage: OriginalCNameStage<'_>,
+     ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
+         match stage {
+-            None => self.native_object_string_bytes(original).map_err(Into::into),
++            None => self
++                .native_object_string_bytes(original)
++                .map_err(Into::into),
+             Some(_) => self.native_object_string_bytes_using(
+                 original,
+                 &|| self.check_original_c_name_operation_using(&[original], stage),
+@@ -1349,12 +1351,19 @@ impl Interp {
+                 && trace.base == local
+                 && trace.binding_id == identity
+         });
+-        let local_observation = crate::vars::OriginalAliasTargetObservation::capture_home(
+-            &self.frames.borrow(),
+-            &self.namespaces(),
+-            home,
+-            local,
+-        );
++        let local_observation = match compiled {
++            Some(slot) => crate::vars::OriginalAliasTargetObservation::capture_compiled(
++                &mut self.frames.borrow_mut(),
++                &self.namespaces(),
++                slot,
++            ),
++            None => crate::vars::OriginalAliasTargetObservation::capture_home(
++                &self.frames.borrow(),
++                &self.namespaces(),
++                home,
++                local,
++            ),
++        };
+         let local_observation = match local_observation {
+             Ok(observation) => observation,
+             Err(_) => {
+@@ -3368,17 +3377,15 @@ mod tests {
+                     )
+                     .unwrap()
+                     .expect("actual native procedure artifact");
+-                assert!(
+-                    artifact
+-                        .compiled_local_layout()
+-                        .unwrap()
+-                        .names
+-                        .iter()
+-                        .any(|name| {
+-                            name.as_ref()
+-                                .is_some_and(|name| name.as_bytes() == b"callback_local")
+-                        })
+-                );
++                assert!(artifact
++                    .compiled_local_layout()
++                    .unwrap()
++                    .names
++                    .iter()
++                    .any(|name| {
++                        name.as_ref()
++                            .is_some_and(|name| name.as_bytes() == b"callback_local")
++                    }));
+                 let original = callback_name(b"::callback_target");
+                 let command = Owned::fresh(obj::new_string_bytes(b"callback_run"));
+                 reset_name_callback(mode);
+diff --git a/runtime/rust/src/vars.rs b/runtime/rust/src/vars.rs
+index ec4831e7b..5793703c8 100644
+--- a/runtime/rust/src/vars.rs
++++ b/runtime/rust/src/vars.rs
+@@ -2215,6 +2215,26 @@ mod tests {
+     use crate::capi::Tcl_NewStringObj;
+     use crate::counters;
+ 
++    #[test]
++    fn compiled_alias_observation_does_not_reselect_duplicate_names() {
++        let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
++            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
++                .execution_point()
++                .unwrap(),
++        )
++        .unwrap();
++        let mut frames = FrameStack::new();
++        let namespaces = Namespaces::new();
++        let level = frames.push(crate::namespace::GLOBAL);
++        frames.install_formal_cells(&[b"x".to_vec(), b"x".to_vec()], protocol);
++        let observed =
++            OriginalAliasTargetObservation::capture_compiled(&mut frames, &namespaces, 1).unwrap();
++        assert!(frames.original_compiled_cell_at_is_current(level, 1, &observed.cell));
++        assert!(!frames.original_compiled_cell_at_is_current(level, 0, &observed.cell));
++        frames.pop();
++        assert!(!frames.original_compiled_cell_at_is_current(level, 1, &observed.cell));
++    }
++
+     fn sobj(s: &[u8]) -> *mut TclObj {
+         // fresh_zero string obj; the table takes the owning +1
+         unsafe { Tcl_NewStringObj(s.as_ptr() as *const std::ffi::c_char, s.len() as isize) }
+@@ -2965,6 +2985,7 @@ pub(crate) struct OriginalAliasTargetObservation {
+     cell: crate::frame::VariablePublicationObservation,
+     home: VarHome,
+     name: Vec<u8>,
++    compiled: Option<usize>,
+ }
+ impl OriginalAliasTargetObservation {
+     pub(crate) fn capture(
+@@ -2989,6 +3010,29 @@ impl OriginalAliasTargetObservation {
+             cell,
+             home,
+             name: name.to_vec(),
++            compiled: None,
++        })
++    }
++    pub(crate) fn capture_compiled(
++        frames: &mut FrameStack,
++        ns: &Namespaces,
++        slot: usize,
++    ) -> Result<Self, VarError> {
++        if !frames.prepare_native_compiled_name_cell(slot) {
++            return Err(VarError::NameProtocolUnavailable);
++        }
++        let (level, name, cell, _) = frames
++            .original_compiled_name_observation(slot)
++            .ok_or(VarError::NameProtocolUnavailable)?;
++        let home = VarHome::Frame(level);
++        let table = entered_container::TableObservation::capture(frames, ns, home)
++            .ok_or(VarError::NameProtocolUnavailable)?;
++        Ok(Self {
++            table,
++            cell,
++            home,
++            name,
++            compiled: Some(slot),
+         })
+     }
+     pub(crate) fn check(
+@@ -3014,8 +3058,14 @@ impl OriginalAliasTargetObservation {
+             entered_container::same_table(interpreter, self.home, &self.table).and_then(|()| {
+                 let frames = interpreter.frames.borrow();
+                 let ns = interpreter.namespaces();
+-                let same = self::table(&frames, &ns, self.home)
+-                    .is_some_and(|table| self.cell.matches_root(table, &self.name));
++                let same = match (self.home, self.compiled) {
++                    (VarHome::Frame(level), Some(slot)) => {
++                        frames.original_compiled_cell_at_is_current(level, slot, &self.cell)
++                    }
++                    (_, None) => self::table(&frames, &ns, self.home)
++                        .is_some_and(|table| self.cell.matches_root(table, &self.name)),
++                    _ => false,
++                };
+                 if !same {
+                     return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                         "original alias target table cell",
+diff --git a/runtime/rust/tests/library_bootstrap_oracle.rs b/runtime/rust/tests/library_bootstrap_oracle.rs
+index 8c4e4c9f2..95ddeefe2 100644
+--- a/runtime/rust/tests/library_bootstrap_oracle.rs
++++ b/runtime/rust/tests/library_bootstrap_oracle.rs
+@@ -129,6 +129,49 @@ fn package_unknown_arguments_follow_each_real_release() {
+     }
+ }
+ 
++#[test]
++fn compiled_namespace_variable_links_select_the_original_local_cell() {
++    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
++    let script = r#"
++        namespace eval ::N {
++            variable value ready
++            proc get {} {variable value; return $value}
++            proc replace {} {variable value changed; return $value}
++        }
++        list [::N::get] [::N::replace] [::N::get]
++    "#;
++    for version in TclVersion::ALL
++        .into_iter()
++        .filter(|version| *version >= TclVersion::V8_5)
++    {
++        let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
++        else {
++            continue;
++        };
++        let oracle = run_script_from_source_tree(
++            &tree,
++            version,
++            format!("puts [eval {{{script}}}]\n").as_bytes(),
++        )
++        .expect("C Tcl namespace variable oracle");
++        assert!(
++            oracle.success() && oracle.stderr.is_empty(),
++            "{version:?}: {oracle:?}"
++        );
++        let mut interp = at(version);
++        assert_eq!(
++            interp.eval_str(script.as_bytes()),
++            Code::Ok,
++            "{version:?}: {:?}; refusal={:?}",
++            interp.result_bytes(),
++            interp.native_execution_refusal()
++        );
++        let mut result = interp.result_bytes();
++        result.push(b'\n');
++        assert_eq!(result, oracle.stdout, "{version:?}");
++    }
++}
++
+ #[test]
+ fn legacy_string_bytelength_matches_real_tcl_on_strings_and_binary() {
+     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+diff --git a/rust/tcl-cmd-core/src/array.rs b/rust/tcl-cmd-core/src/array.rs
+index 880f0c544..d7b7e858b 100644
+--- a/rust/tcl-cmd-core/src/array.rs
++++ b/rust/tcl-cmd-core/src/array.rs
+@@ -45,6 +45,36 @@ use tcl_syntax::value::{ValueError, ValueOps};
+ 
+ use crate::error::CmdError;
+ 
++/// Optional match-mode grammar of the original array-name enumeration worker.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum NativeArrayNamesProtocol {
++    /// C accepts a separate exact, glob or regular-expression mode.
++    C,
++    /// Jim accepts only an optional glob pattern.
++    Jim084,
++}
++
++impl NativeArrayNamesProtocol {
++    /// Select a pure grammar without changing the retained naming issuer.
++    #[must_use]
++    pub const fn from_name_policy(policy: tcl_syntax::naming::NamePolicyProtocol) -> Self {
++        if policy.recipe().is_jim084() {
++            Self::Jim084
++        } else {
++            Self::C
++        }
++    }
++
++    /// Usage after the original command and subcommand prefix.
++    #[must_use]
++    pub const fn wrong_arguments_suffix(self) -> &'static str {
++        match self {
++            Self::C => "arrayName ?mode? ?pattern?",
++            Self::Jim084 => "arrayName ?pattern?",
++        }
++    }
++}
++
+ fn confined_store_error(operation: &[u8], name: &[u8]) -> CmdError {
+     let mut message = b"can't ".to_vec();
+     message.extend_from_slice(operation);
+@@ -181,11 +211,7 @@ where
+             }
+             _ => Err(CmdError::wrong_args("array size arrayName")),
+         }),
+-        b"names" => Some(match rest {
+-            [n] => names(ops, n, None, located).map(ArrayCommandResult::plain),
+-            [n, p] => names(ops, n, Some(p), located).map(ArrayCommandResult::plain),
+-            _ => Err(CmdError::wrong_args("array names arrayName ?pattern?")),
+-        }),
++        b"names" => Some(names(ops, rest, located).map(ArrayCommandResult::plain)),
+         b"get" => Some(match rest {
+             [n] => get(ops, n, None, located),
+             [n, p] => get(ops, n, Some(p), located),
+@@ -353,25 +379,76 @@ fn locate<O: VarStore + Frames>(
+         .map_or_else(|| ops.array_target_bytes(Frames::current(ops), name), Ok)
+ }
+ 
+-/// `array names arrayName ?pattern?` — element names (glob-filtered).
+-fn names<O, V>(
+-    ops: &mut O,
+-    name: &V,
+-    pattern: Option<&V>,
+-    located: Option<&ArrayTarget>,
+-) -> Result<V, CmdError>
++/// `array names` retains original mode lookup and the selected name matcher.
++fn names<O, V>(ops: &mut O, rest: &[V], located: Option<&ArrayTarget>) -> Result<V, CmdError>
+ where
+     O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
+ {
+-    let name = ops.native_string_bytes(name)?;
+-    let pattern = pattern.map(|p| ops.native_string_bytes(p)).transpose()?;
++    use tcl_syntax::native_glob::{NativeGlobProtocol, NativeNameGlobPurpose};
++
++    let policy = ops
++        .name_policy_protocol()
++        .ok_or(ValueError::CommandProtocolUnavailable(
++            "array names native grammar and pattern purpose",
++        ))?;
++    let grammar = NativeArrayNamesProtocol::from_name_policy(policy);
++    let max_operands = if grammar == NativeArrayNamesProtocol::C {
++        3
++    } else {
++        2
++    };
++    if rest.is_empty() || rest.len() > max_operands {
++        return Err(CmdError::wrong_args(&format!(
++            "array names {}",
++            grammar.wrong_arguments_suffix()
++        )));
++    }
++    let name = ops.native_string_bytes(&rest[0])?;
+     let target = locate(ops, &name, located)?;
+-    let keys = ops.array_key_bytes_checked_at(&target)?.unwrap_or_default();
+-    let items: Vec<V> = keys
+-        .iter()
+-        .filter(|k| pattern.as_deref().is_none_or(|p| string_match_bytes(p, k)))
+-        .map(|k| ops.new_bytes(k))
+-        .collect();
++    let Some(keys) = ops.array_key_bytes_checked_at(&target)? else {
++        return Ok(ops.new_list(Vec::new()));
++    };
++    let (pattern, exact) = match rest {
++        [_] => (None, false),
++        [_, pattern] => (Some(ops.native_string_bytes(pattern)?), false),
++        [_, mode, pattern] => {
++            let pattern = ops.native_string_bytes(pattern)?;
++            static MODES: [&str; 3] = ["-exact", "-glob", "-regexp"];
++            let selected = crate::prefix::OptionTable::abbreviating("option", &MODES)
++                .index_of_original(ops, mode)?;
++            if selected == 2 {
++                return Err(ValueError::CommandProtocolUnavailable(
++                    "array names original regular-expression worker",
++                )
++                .into());
++            }
++            (Some(pattern), selected == 0)
++        }
++        _ => {
++            return Err(CmdError::wrong_args(&format!(
++                "array names {}",
++                grammar.wrong_arguments_suffix()
++            )));
++        }
++    };
++    let matcher = NativeGlobProtocol::from_name_policy(policy);
++    let mut items = Vec::new();
++    for key in keys {
++        let selected = match pattern.as_deref() {
++            None => true,
++            Some(pattern) if exact => {
++                tcl_core_types::c_string_extent(pattern) == tcl_core_types::c_string_extent(&key)
++            }
++            Some(pattern) => matcher
++                .match_name_pattern(NativeNameGlobPurpose::ArrayNamesSearch, pattern, &key)
++                .map_err(|_| {
++                    ValueError::CommandProtocolUnavailable("array names native pattern purpose")
++                })?,
++        };
++        if selected {
++            items.push(ops.new_bytes(&key));
++        }
++    }
+     Ok(ops.new_list(items))
+ }
+ 
+diff --git a/rust/tcl-registry/src/commands/tcl/array_.rs b/rust/tcl-registry/src/commands/tcl/array_.rs
+index ab20db14a..965b8170b 100644
+--- a/rust/tcl-registry/src/commands/tcl/array_.rs
++++ b/rust/tcl-registry/src/commands/tcl/array_.rs
+@@ -80,12 +80,9 @@ const DEFAULT_VALUES: &[ArgValue] = &[
+ 
+ /// `array names arrayName ?mode? ?pattern?`'s `mode` word — one of `-exact`,
+ /// `-glob` (the default when `mode` is omitted), or `-regexp`, present since
+-/// Tcl 8.4. Completion/hover data only: `mode` and `pattern` share position 1
+-/// when only one trailing word is given (confirmed against tclsh 8.6.14 —
+-/// `array names arr -glob` with no further word reads `-glob` as `mode` with
+-/// an empty pattern, while `array names arr -exact` against an array holding
+-/// a literal `-exact` key with *no* other trailing word instead matches it as
+-/// a literal glob pattern), so this position cannot be `closed_value_args`
++/// Tcl 8.4. Completion/hover data only: a sole trailing word is always a glob
++/// pattern, including `-glob` and `-exact`. Position 1 is a mode only when
++/// followed by a pattern, so it cannot be `closed_value_args`
+ /// without risking a false-positive W127 on a legitimate pattern that happens
+ /// to spell one of these words.
+ const NAMES_MODE_VALUES: &[ArgValue] = &[
+diff --git a/rust/tcl-registry/src/commands/tcl/nextto.rs b/rust/tcl-registry/src/commands/tcl/nextto.rs
+index 98e7a43be..894a75d34 100644
+--- a/rust/tcl-registry/src/commands/tcl/nextto.rs
++++ b/rust/tcl-registry/src/commands/tcl/nextto.rs
+@@ -68,7 +68,7 @@ pub fn spec() -> CommandSpec {
+             operation: crate::SemanticOperationId::Invoke,
+             body: crate::native_compilation::NativeBodyCompilation::Inherit,
+         }),
+-        runtime_backing: RuntimeBacking::shipped("nextto"),
++        runtime_backing: RuntimeBacking::shipped("::oo::Helpers::nextto"),
+         surface: Some(SpecSurface::TCL86_PLUS),
+         arity: Arity::at_least(1),
+         return_type: Some(TclType::String),
+diff --git a/rust/tcl-registry/src/commands/tcl/oo_next.rs b/rust/tcl-registry/src/commands/tcl/oo_next.rs
+index 2b3031685..d013d50fc 100644
+--- a/rust/tcl-registry/src/commands/tcl/oo_next.rs
++++ b/rust/tcl-registry/src/commands/tcl/oo_next.rs
+@@ -69,7 +69,7 @@ pub fn spec() -> CommandSpec {
+             operation: crate::SemanticOperationId::Invoke,
+             body: crate::native_compilation::NativeBodyCompilation::Inherit,
+         }),
+-        runtime_backing: RuntimeBacking::shipped("next"),
++        runtime_backing: RuntimeBacking::shipped("::oo::Helpers::next"),
+         traits: Traits::LANGUAGE_KEYWORD
+             .union(Traits::TCLOO_NEXT_CHAIN)
+             .union(Traits::TCLOO_METHOD_CONTEXT)
+diff --git a/rust/tcl-registry/src/commands/tcl/oo_self.rs b/rust/tcl-registry/src/commands/tcl/oo_self.rs
+index 6f86d7303..278266845 100644
+--- a/rust/tcl-registry/src/commands/tcl/oo_self.rs
++++ b/rust/tcl-registry/src/commands/tcl/oo_self.rs
+@@ -127,7 +127,7 @@ pub fn spec() -> CommandSpec {
+             operation: crate::SemanticOperationId::Invoke,
+             body: crate::native_compilation::NativeBodyCompilation::Inherit,
+         }),
+-        runtime_backing: RuntimeBacking::shipped("self"),
++        runtime_backing: RuntimeBacking::shipped("::oo::Helpers::self"),
+         traits: Traits::PURE
+             | Traits::LANGUAGE_KEYWORD
+             | Traits::TCLOO_INTROSPECTION
+diff --git a/rust/tcl-registry/src/lib.rs b/rust/tcl-registry/src/lib.rs
+index 43e3c22f8..70f271930 100644
+--- a/rust/tcl-registry/src/lib.rs
++++ b/rust/tcl-registry/src/lib.rs
+@@ -105,6 +105,7 @@ pub mod logical_core_simulation;
+ pub mod mathfunc;
+ pub mod model;
+ pub mod native_array;
++pub mod native_variable_declaration;
+ pub mod native_array_compilation;
+ pub mod native_binary_usage;
+ pub mod native_binary_value;
+diff --git a/rust/tcl-registry/src/runtime_backing.rs b/rust/tcl-registry/src/runtime_backing.rs
+index ee82660c8..59552aa3a 100644
+--- a/rust/tcl-registry/src/runtime_backing.rs
++++ b/rust/tcl-registry/src/runtime_backing.rs
+@@ -45,9 +45,9 @@
+ pub enum RuntimeBacking {
+     /// A shipped builtin, attested by its registry identity.
+     ///
+-    /// `identity` is the spelling the registry knows the builtin by — the
+-    /// command's own name, with a leading `::` kept where the spec carries one,
+-    /// which is the identity the VM's builtin table is keyed by.
++    /// `identity` is the registered implementation command, including its
++    /// namespace. A method-context spelling can refer to a qualified helper
++    /// reached through the receiver's namespace path.
+     ShippedBuiltin {
+         /// The builtin's registry identity.
+         identity: &'static str,
+diff --git a/rust/tcl-registry/tests/registry_sweep.rs b/rust/tcl-registry/tests/registry_sweep.rs
+index 769219d95..2d7170e70 100644
+--- a/rust/tcl-registry/tests/registry_sweep.rs
++++ b/rust/tcl-registry/tests/registry_sweep.rs
+@@ -1420,21 +1420,37 @@ fn a_spec_outside_the_core_set_declares_no_backing() {
+     }
+ }
+ 
+-/// A shipped builtin is attested by the command's own name, spelled as the
+-/// spec spells it — a leading `::` kept — which is the identity the VM's
+-/// builtin table is keyed by, and a body's source is a library file the
+-/// runtime embeds.
++/// Shipped identities name registered commands. A method-context spelling
++/// can refer to a qualified helper; Tcl bodies name embedded library files.
+ ///
+ /// registry-metadata: `runtime_backing` is registry data.
+ #[test]
+-fn a_shipped_builtin_is_attested_by_the_commands_own_name() {
++fn a_shipped_builtin_names_its_registered_implementation() {
+     use tcl_registry::{BodySource, RuntimeBacking};
+ 
++    let registry = CommandRegistry::build_default();
+     let mut shipped = 0;
+     for spec in &tcl_registry::commands::tcl::tcl_command_specs() {
+         match spec.runtime_backing {
+             RuntimeBacking::ShippedBuiltin { identity } => {
+-                assert_eq!(identity, spec.name, "{}", spec.name);
++                let registered =
++                    tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
++                let name = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
++                if registered != name {
++                    assert!(
++                        spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT),
++                        "{}",
++                        spec.name
++                    );
++                    let helper = registry
++                        .get(identity)
++                        .expect("registered method helper spec");
++                    assert_eq!(helper.name, registered, "{}", spec.name);
++                    assert!(matches!(
++                        helper.runtime_backing,
++                        RuntimeBacking::ShippedBuiltin { .. }
++                    ));
++                }
+                 shipped += 1;
+             }
+             RuntimeBacking::TclBody {

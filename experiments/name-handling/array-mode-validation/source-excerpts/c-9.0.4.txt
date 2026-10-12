@@ -1,0 +1,117 @@
+tmp/tcl9.0.4/generic/tclVar.c:3845-3960
+3845: 	    goto errorInArrayGet;
+3846: 	}
+3847:     }
+3848:     if (TclIsVarInHash(varPtr)) {
+3849: 	VarHashRefCount(varPtr)--;
+3850:     }
+3851:     Tcl_SetObjResult(interp, tmpResObj);
+3852:     TclDecrRefCount(nameLstObj);
+3853:     return TCL_OK;
+3854: 
+3855:   errorInArrayGet:
+3856:     if (TclIsVarInHash(varPtr)) {
+3857: 	VarHashRefCount(varPtr)--;
+3858:     }
+3859:     TclDecrRefCount(nameLstObj);
+3860:     TclDecrRefCount(tmpResObj);	/* Free unneeded temp result. */
+3861:     return result;
+3862: }
+3863: 
+3864: 
+3865: /*
+3866:  *----------------------------------------------------------------------
+3867:  *
+3868:  * ArrayNamesCmd --
+3869:  *
+3870:  *	This object-based function is invoked to process the "array names" Tcl
+3871:  *	command. See the user documentation for details on what it does.
+3872:  *
+3873:  * Results:
+3874:  *	A standard Tcl result object.
+3875:  *
+3876:  * Side effects:
+3877:  *	See the user documentation.
+3878:  *
+3879:  *----------------------------------------------------------------------
+3880:  */
+3881: 
+3882: static int
+3883: ArrayNamesCmd(
+3884:     TCL_UNUSED(void *),
+3885:     Tcl_Interp *interp,
+3886:     int objc,
+3887:     Tcl_Obj *const objv[])
+3888: {
+3889:     static const char *const options[] = {
+3890: 	"-exact", "-glob", "-regexp", NULL
+3891:     };
+3892:     enum arrayNamesOptionsEnum {OPT_EXACT, OPT_GLOB, OPT_REGEXP} mode = OPT_GLOB;
+3893:     Var *varPtr, *varPtr2;
+3894:     Tcl_Obj *nameObj, *resultObj, *patternObj;
+3895:     Tcl_HashSearch search;
+3896:     const char *pattern = NULL;
+3897:     int isArray;
+3898: 
+3899:     if ((objc < 2) || (objc > 4)) {
+3900: 	Tcl_WrongNumArgs(interp, 1, objv, "arrayName ?mode? ?pattern?");
+3901: 	return TCL_ERROR;
+3902:     }
+3903:     patternObj = (objc > 2 ? objv[objc-1] : NULL);
+3904: 
+3905:     if (TCL_ERROR == LocateArray(interp, objv[1], &varPtr, &isArray)) {
+3906: 	return TCL_ERROR;
+3907:     }
+3908: 
+3909:     /*
+3910:      * Finish parsing the arguments.
+3911:      */
+3912: 
+3913:     if ((objc == 4) && Tcl_GetIndexFromObj(interp, objv[2], options, "option",
+3914: 	    0, &mode) != TCL_OK) {
+3915: 	return TCL_ERROR;
+3916:     }
+3917: 
+3918:     /* If not an array, the result is empty. */
+3919: 
+3920:     if (!isArray) {
+3921: 	return TCL_OK;
+3922:     }
+3923: 
+3924:     /*
+3925:      * Check for the trivial cases where we can use a direct lookup.
+3926:      */
+3927: 
+3928:     TclNewObj(resultObj);
+3929:     if (patternObj) {
+3930: 	pattern = TclGetString(patternObj);
+3931:     }
+3932:     if ((mode==OPT_GLOB && patternObj && TclMatchIsTrivial(pattern))
+3933: 	    || (mode==OPT_EXACT)) {
+3934: 	varPtr2 = VarHashFindVar(varPtr->value.tablePtr, patternObj);
+3935: 	if ((varPtr2 != NULL) && !TclIsVarUndefined(varPtr2)) {
+3936: 	    /*
+3937: 	     * This can't fail; lappending to an empty object always works.
+3938: 	     */
+3939: 
+3940: 	    Tcl_ListObjAppendElement(NULL, resultObj, VarHashGetKey(varPtr2));
+3941: 	}
+3942: 	Tcl_SetObjResult(interp, resultObj);
+3943: 	return TCL_OK;
+3944:     }
+3945: 
+3946:     /*
+3947:      * Must scan the array to select the elements.
+3948:      */
+3949: 
+3950:     for (varPtr2=VarHashFirstVar(varPtr->value.tablePtr, &search);
+3951: 	    varPtr2!=NULL ; varPtr2=VarHashNextVar(&search)) {
+3952: 	if (TclIsVarUndefined(varPtr2)) {
+3953: 	    continue;
+3954: 	}
+3955: 	nameObj = VarHashGetKey(varPtr2);
+3956: 	if (patternObj) {
+3957: 	    const char *name = TclGetString(nameObj);
+3958: 	    int matched = 0;
+3959: 
+3960: 	    switch (mode) {

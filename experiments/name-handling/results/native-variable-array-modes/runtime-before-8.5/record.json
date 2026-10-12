@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/tmp/name-runtime-native-ensemble-fixed",
+    "--quiet",
+    "--tcl-version",
+    "8.5"
+  ],
+  "exit_code": 0,
+  "executable_sha256": "eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f",
+  "input_sha256": "027d826eebca717873028c6b98c2def397de17ba28ea11791747f1a29e1a690d",
+  "stdout_sha256": "44b35db5de59fa679364fc3cbef0dd4abafc985b0f083fa38e8d29a5304b582e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

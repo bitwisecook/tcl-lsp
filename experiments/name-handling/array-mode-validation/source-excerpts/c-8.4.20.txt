@@ -1,0 +1,132 @@
+tmp/tcl8.4.20/generic/tclVar.c:2952-3008
+2952: Tcl_ArrayObjCmd(dummy, interp, objc, objv)
+2953:     ClientData dummy;		/* Not used. */
+2954:     Tcl_Interp *interp;		/* Current interpreter. */
+2955:     int objc;			/* Number of arguments. */
+2956:     Tcl_Obj *CONST objv[];	/* Argument objects. */
+2957: {
+2958:     /*
+2959:      * The list of constants below should match the arrayOptions string array
+2960:      * below.
+2961:      */
+2962: 
+2963:     enum {ARRAY_ANYMORE, ARRAY_DONESEARCH,  ARRAY_EXISTS, ARRAY_GET,
+2964: 	  ARRAY_NAMES, ARRAY_NEXTELEMENT, ARRAY_SET, ARRAY_SIZE,
+2965: 	  ARRAY_STARTSEARCH, ARRAY_STATISTICS, ARRAY_UNSET}; 
+2966:     static CONST char *arrayOptions[] = {
+2967: 	"anymore", "donesearch", "exists", "get", "names", "nextelement",
+2968: 	"set", "size", "startsearch", "statistics", "unset", (char *) NULL
+2969:     };
+2970: 
+2971:     Interp *iPtr = (Interp *) interp;
+2972:     Var *varPtr, *arrayPtr;
+2973:     Tcl_HashEntry *hPtr;
+2974:     Tcl_Obj *resultPtr, *varNamePtr;
+2975:     int notArray;
+2976:     char *varName;
+2977:     int index, result;
+2978: 
+2979: 
+2980:     if (objc < 3) {
+2981: 	Tcl_WrongNumArgs(interp, 1, objv, "option arrayName ?arg ...?");
+2982: 	return TCL_ERROR;
+2983:     }
+2984: 
+2985:     if (Tcl_GetIndexFromObj(interp, objv[1], arrayOptions, "option",
+2986: 	    0, &index) != TCL_OK) {
+2987:     	return TCL_ERROR;
+2988:     }
+2989: 
+2990:     /*
+2991:      * Locate the array variable
+2992:      */
+2993:     
+2994:     varNamePtr = objv[2];
+2995:     varName = TclGetString(varNamePtr);
+2996:     varPtr = TclObjLookupVar(interp, varNamePtr, NULL, /*flags*/ 0,
+2997:             /*msg*/ 0, /*createPart1*/ 0, /*createPart2*/ 0, &arrayPtr);
+2998: 
+2999:     /*
+3000:      * Special array trace used to keep the env array in sync for
+3001:      * array names, array get, etc.
+3002:      */
+3003: 
+3004:     if (varPtr != NULL && varPtr->tracePtr != NULL
+3005: 	    && (TclIsVarArray(varPtr) || TclIsVarUndefined(varPtr))) {
+3006: 	if (TCL_ERROR == CallVarTraces(iPtr, arrayPtr, varPtr, varName, NULL,
+3007: 		(TCL_LEAVE_ERR_MSG|TCL_NAMESPACE_ONLY|TCL_GLOBAL_ONLY|
+3008: 		TCL_TRACE_ARRAY), /* leaveErrMsg */ 1)) {
+tmp/tcl8.4.20/generic/tclVar.c:3180-3252
+3180: 			/*
+3181: 			 * The array itself looks OK, the variable was
+3182: 			 * undefined: forget it.
+3183: 			 */
+3184: 			
+3185: 			continue;
+3186: 		    } else {
+3187: 			result = TCL_ERROR;
+3188: 			goto errorInArrayGet;
+3189: 		    }
+3190: 		}
+3191: 		result = Tcl_ListObjAppendElement(interp, tmpResPtr, namePtr);
+3192: 		if (result != TCL_OK) {
+3193: 		    goto errorInArrayGet;
+3194: 		}
+3195: 		result = Tcl_ListObjAppendElement(interp, tmpResPtr, valuePtr);
+3196: 		if (result != TCL_OK) {
+3197: 		    goto errorInArrayGet;
+3198: 		}
+3199: 	    }
+3200: 	    varPtr->refCount--;
+3201: 	    Tcl_SetObjResult(interp, tmpResPtr);
+3202: 	    Tcl_DecrRefCount(nameLstPtr);
+3203: 	    break;
+3204: 
+3205: 	    errorInArrayGet:
+3206: 	    varPtr->refCount--;
+3207: 	    Tcl_DecrRefCount(nameLstPtr);
+3208: 	    Tcl_DecrRefCount(tmpResPtr); /* free unneeded temp result obj */
+3209: 	    return result;
+3210: 	}
+3211:         case ARRAY_NAMES: {
+3212: 	    Tcl_HashSearch search;
+3213: 	    Var *varPtr2;
+3214: 	    char *pattern = NULL;
+3215: 	    char *name;
+3216: 	    Tcl_Obj *namePtr;
+3217: 	    int mode, matched = 0;
+3218: 	    static CONST char *options[] = {
+3219: 		"-exact", "-glob", "-regexp", (char *) NULL
+3220: 	    };
+3221: 	    enum options { OPT_EXACT, OPT_GLOB, OPT_REGEXP };
+3222: 
+3223: 	    mode = OPT_GLOB;
+3224: 	    
+3225: 	    if ((objc < 3) || (objc > 5)) {
+3226:   	        Tcl_WrongNumArgs(interp, 2, objv,
+3227: 			"arrayName ?mode? ?pattern?");
+3228: 		return TCL_ERROR;
+3229: 	    }
+3230: 	    if (notArray) {
+3231: 	        return TCL_OK;
+3232: 	    }
+3233: 	    if (objc == 4) {
+3234: 	        pattern = Tcl_GetString(objv[3]);
+3235: 	    } else if (objc == 5) {
+3236: 		pattern = Tcl_GetString(objv[4]);
+3237: 		if (Tcl_GetIndexFromObj(interp, objv[3], options, "option",
+3238: 			0, &mode) != TCL_OK) {
+3239: 		    return TCL_ERROR;
+3240: 		}
+3241: 	    }       		
+3242: 	    for (hPtr = Tcl_FirstHashEntry(varPtr->value.tablePtr, &search);
+3243: 		 hPtr != NULL; hPtr = Tcl_NextHashEntry(&search)) {
+3244: 	        varPtr2 = (Var *) Tcl_GetHashValue(hPtr);
+3245: 		if (TclIsVarUndefined(varPtr2)) {
+3246: 		    continue;
+3247: 		}
+3248: 		name = Tcl_GetHashKey(varPtr->value.tablePtr, hPtr);
+3249: 		if (objc > 3) {
+3250: 		    switch ((enum options) mode) {
+3251: 			case OPT_EXACT:
+3252: 			    matched = (strcmp(name, pattern) == 0);

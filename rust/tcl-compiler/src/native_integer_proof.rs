@@ -321,7 +321,11 @@ pub fn prove_native_integer_adds(
     let Some(metadata) = function_unit.invocation_metadata_context(registry) else {
         return NativeIntegerProof::SourceMetadataUnavailable;
     };
-    let observability = analyse_var_observability_with_metadata_context(&function_unit.cfg, registry, Some(metadata));
+    let observability = analyse_var_observability_with_metadata_context(
+        &function_unit.cfg,
+        registry,
+        Some(metadata),
+    );
     let params: &[String] = match unit.ir_module.procedures.get(function) {
         Some(procedure) => procedure.params.as_slice(),
         None => &[],
@@ -545,9 +549,11 @@ fn collect_caller_ranges(
             &caller.sccp.values,
             unit.ir_module.number_syntax(),
         );
-        let metadata = caller.invocation_metadata_context(registry)
+        let metadata = caller
+            .invocation_metadata_context(registry)
             .ok_or(NativeIntegerDeclineReason::MissingDirectProcEvidence)?;
-        let caller_observability = analyse_var_observability_with_metadata_context(&caller.cfg, registry, Some(metadata));
+        let caller_observability =
+            analyse_var_observability_with_metadata_context(&caller.cfg, registry, Some(metadata));
         for (index, (param, argument)) in params.iter().zip(args.iter()).enumerate() {
             let range =
                 if let Some(name) = crate::value_shapes::whole_word_scalar_var_name(argument) {

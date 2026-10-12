@@ -3221,28 +3221,35 @@ mod tests {
             assert!(input.has_logical_source_name_context());
             let binding = tokens.source_binding.as_ref().unwrap();
             assert!(binding.declaration_call_layout_advice(&tokens).is_none());
-            let declared = binding.original_logical_declaration_call_targets(
-                &tokens, input, context.commands(),
-            ).expect("complete Logical source declaration");
+            let declared = binding
+                .original_logical_declaration_call_targets(&tokens, input, context.commands())
+                .expect("complete Logical source declaration");
             assert!(!declared.is_empty());
             assert!(declared.iter().all(|target| !target.registry_backed
                 && target.kind == super::super::BindingKind::Proc
                 && target.implementation_allocation.is_none()));
-            assert!(binding.original_source_procedure_argument_roles(
-                &tokens, input, context.commands(),
-            ).is_some());
+            assert!(
+                binding
+                    .original_source_procedure_argument_roles(&tokens, input, context.commands(),)
+                    .is_some()
+            );
             assert!(binding.proved_execution_target().is_none());
             assert!(binding.proved_handler_target().is_none());
             assert!(binding.native_compilation_admission.is_none());
             let mut changed = tokens.clone();
             changed.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedArguments);
-            assert!(binding.original_source_procedure_argument_roles(
-                &changed, input, context.commands(),
-            ).is_none());
+            assert!(
+                binding
+                    .original_source_procedure_argument_roles(&changed, input, context.commands(),)
+                    .is_none()
+            );
             let mut altered_config = input.lexer_config();
             altered_config.strict_quoting = !altered_config.strict_quoting;
             let altered = ResolvedAnalysisInput::new(
-                input.analyser_profile(), input.unit_profile(), input.context_registry(), altered_config,
+                input.analyser_profile(),
+                input.unit_profile(),
+                input.context_registry(),
+                altered_config,
             );
             assert!(binding.original_source_procedure_argument_roles(
                 &tokens, &altered, context.commands(),
@@ -3256,19 +3263,27 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
         // The actual held software Native entry remains distinct from the
         // positive Logical source model. No external Native execution is observed.
-        let (_owner, context, input, tokens) = original_native_procedure_argument_tokens(
-            "proc selected {value} {}; selected VALUE",
-        );
+        let (_owner, context, input, tokens) =
+            original_native_procedure_argument_tokens("proc selected {value} {}; selected VALUE");
         let binding = tokens.source_binding.as_ref().unwrap();
         assert!(!input.has_logical_source_name_context());
         let advice = binding.declaration_call_layout_advice(&tokens).unwrap();
-        assert!(advice.targets().iter().all(|target| target.implementation_allocation.is_some()));
-        assert!(binding.original_logical_declaration_call_targets(
-            &tokens, &input, context.commands(),
-        ).is_none());
-        assert!(binding.original_source_procedure_argument_roles(
-            &tokens, &input, context.commands(),
-        ).is_some());
+        assert!(
+            advice
+                .targets()
+                .iter()
+                .all(|target| target.implementation_allocation.is_some())
+        );
+        assert!(
+            binding
+                .original_logical_declaration_call_targets(&tokens, &input, context.commands(),)
+                .is_none()
+        );
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(&tokens, &input, context.commands(),)
+                .is_some()
+        );
     }
 
     #[test]
@@ -3289,19 +3304,32 @@ mod tests {
             .unwrap();
         assert_eq!(declared.len(), 1);
         assert_eq!(declared[0].prepended.len(), 1);
-        assert_eq!(declared[0].prepended[0].literal_bytes(), Some(b"PREFIX".as_slice()));
+        assert_eq!(
+            declared[0].prepended[0].literal_bytes(),
+            Some(b"PREFIX".as_slice())
+        );
         assert!(declared[0].implementation_allocation.is_none());
-        assert!(binding
-            .original_source_procedure_argument_roles(&tokens, input, context.commands())
-            .is_some());
-        assert!(crate::word_subst::checked_argument_lifted_calls(
-            &tokens, input.lexer_config(),
-        ).unwrap().is_empty());
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(&tokens, input, context.commands())
+                .is_some()
+        );
+        assert!(
+            crate::word_subst::checked_argument_lifted_calls(&tokens, input.lexer_config(),)
+                .unwrap()
+                .is_empty()
+        );
         assert!(binding.declaration_call_layout_advice(&tokens).is_none());
         assert!(binding.proved_execution_target().is_none());
         assert!(binding.proved_handler_target().is_none());
-        assert_ne!(binding.runtime_reachability(), super::super::SourceRuntimeReachability::Reached);
-        assert_ne!(binding.runtime_reachability(), super::super::SourceRuntimeReachability::Conditional);
+        assert_ne!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Reached
+        );
+        assert_ne!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Conditional
+        );
     }
 
     #[test]
@@ -3313,29 +3341,59 @@ mod tests {
         let (analysis, tokens) = logical_original_tokens(source, &context);
         let input = analysis.resolved_input.as_ref().unwrap();
         let binding = tokens.source_binding.as_ref().unwrap();
-        assert!(binding.original_source_procedure_argument_roles(
-            &tokens, input, context.commands(),
-        ).is_some());
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(&tokens, input, context.commands(),)
+                .is_some()
+        );
         let (_, foreign) = logical_original_tokens(
-            "proc different {value} {}; return DONE; different {LITERAL}", &context,
+            "proc different {value} {}; return DONE; different {LITERAL}",
+            &context,
         );
         for axis in 0..4 {
             let mut changed = tokens.clone();
             match axis {
                 0 => changed.argv_texts[1] = "CHANGED".into(),
-                1 => changed.source_binding.as_mut().unwrap()
-                    .original_logical_declaration_targets = foreign.source_binding.as_ref()
-                    .unwrap().original_logical_declaration_targets.clone(),
-                2 => changed.source_binding.as_mut().unwrap()
-                    .declaration_layout_observations = foreign.source_binding.as_ref()
-                    .unwrap().declaration_layout_observations.clone(),
-                3 => changed.source_binding.as_mut().unwrap().targets = binding
-                    .original_logical_procedure_call_targets(&tokens, input).unwrap(),
+                1 => {
+                    changed
+                        .source_binding
+                        .as_mut()
+                        .unwrap()
+                        .original_logical_declaration_targets = foreign
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .original_logical_declaration_targets
+                        .clone()
+                }
+                2 => {
+                    changed
+                        .source_binding
+                        .as_mut()
+                        .unwrap()
+                        .declaration_layout_observations = foreign
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .declaration_layout_observations
+                        .clone()
+                }
+                3 => {
+                    changed.source_binding.as_mut().unwrap().targets = binding
+                        .original_logical_procedure_call_targets(&tokens, input)
+                        .unwrap()
+                }
                 _ => unreachable!(),
             }
-            assert!(changed.source_binding.as_ref().unwrap()
-                .original_source_procedure_argument_roles(&changed, input, context.commands())
-                .is_none(), "axis {axis}");
+            assert!(
+                changed
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_source_procedure_argument_roles(&changed, input, context.commands())
+                    .is_none(),
+                "axis {axis}"
+            );
         }
         let (alias_analysis, mut alias_tokens) = logical_original_tokens(
             "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded VALUE",
@@ -3343,27 +3401,58 @@ mod tests {
         );
         let alias_input = alias_analysis.resolved_input.as_ref().unwrap();
         let alias_binding = alias_tokens.source_binding.as_ref().unwrap();
-        assert!(alias_binding.original_source_procedure_argument_roles(
-            &alias_tokens, alias_input, context.commands(),
-        ).is_some());
+        assert!(
+            alias_binding
+                .original_source_procedure_argument_roles(
+                    &alias_tokens,
+                    alias_input,
+                    context.commands(),
+                )
+                .is_some()
+        );
         alias_tokens.source_binding.as_mut().unwrap().targets[0].prepended[0] =
             crate::registry_invocation::EffectiveInvocationWord::Literal("CHANGED".into());
-        assert!(alias_tokens.source_binding.as_ref().unwrap()
-            .original_source_procedure_argument_roles(&alias_tokens, alias_input, context.commands())
-            .is_none());
+        assert!(
+            alias_tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_source_procedure_argument_roles(
+                    &alias_tokens,
+                    alias_input,
+                    context.commands()
+                )
+                .is_none()
+        );
         let mut config = input.lexer_config();
         config.strict_quoting = !config.strict_quoting;
         let changed_input = ResolvedAnalysisInput::new(
-            input.analyser_profile(), input.unit_profile(), input.context_registry(), config,
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
         );
-        assert!(binding.original_source_procedure_argument_roles(
-            &tokens, &changed_input, context.commands(),
-        ).is_none());
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(
+                    &tokens,
+                    &changed_input,
+                    context.commands(),
+                )
+                .is_none()
+        );
         let foreign_registry = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
-            .unwrap().default_context_registry();
-        assert!(binding.original_source_procedure_argument_roles(
-            &tokens, input, foreign_registry.commands(),
-        ).is_none());
+            .unwrap()
+            .default_context_registry();
+        assert!(
+            binding
+                .original_source_procedure_argument_roles(
+                    &tokens,
+                    input,
+                    foreign_registry.commands(),
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -3379,9 +3468,12 @@ mod tests {
             let (analysis, tokens) = logical_original_tokens(source, &context);
             let input = analysis.resolved_input.as_ref().unwrap();
             let binding = tokens.source_binding.as_ref().unwrap();
-            assert!(binding.original_source_procedure_argument_roles(
-                &tokens, input, context.commands(),
-            ).is_none(), "{source}");
+            assert!(
+                binding
+                    .original_source_procedure_argument_roles(&tokens, input, context.commands(),)
+                    .is_none(),
+                "{source}"
+            );
             assert!(binding.proved_execution_target().is_none());
             assert!(binding.proved_handler_target().is_none());
         }
@@ -3401,25 +3493,34 @@ mod tests {
         let point = binding.lookup_state.as_ref().unwrap();
         assert_eq!(point.state.logical_source_name_advice_input(), Some(input));
         assert!(point.state.baseline.native_entry.is_none());
-        assert_eq!(binding.runtime_reachability(), super::super::SourceRuntimeReachability::Conditional);
-        let words = crate::registry_invocation::source_structure::original_registry_words_for_tokens(
-            source, &analysis, &tokens,
-        ).expect("same original source point and Registry source role");
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Conditional
+        );
+        let words =
+            crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+                source, &analysis, &tokens,
+            )
+            .expect("same original source point and Registry source role");
         let bodies = words.source_script_bodies_for(
             &context,
             crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
         );
         assert_eq!(bodies.len(), 1);
         let metadata = InvocationMetadataContext::for_analysis_input(context.commands(), input);
-        let footprint = binding.original_materialized_footprint(
-            &tokens, source, context.commands(), metadata,
-        ).unwrap();
+        let footprint = binding
+            .original_materialized_footprint(&tokens, source, context.commands(), metadata)
+            .unwrap();
         let names = footprint.body_name_ownership(&bodies[0]);
         assert!(!names.opaque);
         assert!(names.names.iter().any(|name| name == "x"));
         assert!(binding.proved_execution_target().is_none());
         assert!(binding.proved_handler_target().is_none());
-        assert!(binding.lookup_state.as_ref().is_some_and(|retained| Arc::ptr_eq(retained, point)));
+        assert!(
+            binding
+                .lookup_state
+                .as_ref()
+                .is_some_and(|retained| Arc::ptr_eq(retained, point))
+        );
     }
-
 }

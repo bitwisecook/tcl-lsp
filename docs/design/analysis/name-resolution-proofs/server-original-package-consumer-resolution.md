@@ -64,7 +64,7 @@ This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP ex
 
 ## Exact evidence
 
-- `server-package-consumers` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `0e752f696db51c2c57f6daeeb054b04d17e8bd63ed712b2b27c818524033ccac`. Inspected shared original inheritance/refinement consumer and constraint/dependency-preference regression.
+- `server-package-consumers` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d`. Inspected shared original inheritance/refinement consumer and constraint/dependency-preference regression.
 
 ## Source inspection
 

@@ -362,10 +362,10 @@ mod original_script_syntax_tests {
     fn original_jim_syntax_roster_delays_child_syntax_but_keeps_enclosing_delimiters() {
         // naming.source.original-configured-script-completeness
         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
-    // naming.source.jim-nested-direct-entry-and-prefix-effects
-    // docs/design/analysis/name-resolution-proofs/source-jim-nested-direct-entry-and-prefix-effects.md
-    // The physical Direct observations are separate from this syntax-only
-    // projection; neither channel nor descent issues an execution receipt.
+        // naming.source.jim-nested-direct-entry-and-prefix-effects
+        // docs/design/analysis/name-resolution-proofs/source-jim-nested-direct-entry-and-prefix-effects.md
+        // The physical Direct observations are separate from this syntax-only
+        // projection; neither channel nor descent issues an execution receipt.
         for source in [
             "set before 1; set sink [list {a}b]; set after 2",
             "set before 1; set sink [set inner 1; list {a}b]; set after 2",

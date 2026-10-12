@@ -22,7 +22,11 @@ fn fixture(environment: &str) -> Fixture {
 }
 
 fn unentered_fixture(environment: &str) -> Fixture {
-    fixture_with_source(environment, "return DONE; if {$condition} {set result VALUE}", 1)
+    fixture_with_source(
+        environment,
+        "return DONE; if {$condition} {set result VALUE}",
+        1,
+    )
 }
 
 fn fixture_with_source(environment: &str, source: &str, parent: usize) -> Fixture {
@@ -138,11 +142,16 @@ fn original_conditional_body_retains_written_geometry_without_lookup_or_native_e
         assert!(binding.proved_execution_target().is_none(), "{environment}");
         assert!(binding.lookup_state.is_none(), "{environment}");
         assert!(binding.compiler_lookup_state.is_none(), "{environment}");
-        assert!(binding.native_compilation_admission.is_none(), "{environment}");
+        assert!(
+            binding.native_compilation_admission.is_none(),
+            "{environment}"
+        );
         assert!(
             crate::registry_invocation::normal_transfer_invocation_in_context(
-                &fixture.context, tokens,
-            ).is_none(),
+                &fixture.context,
+                tokens,
+            )
+            .is_none(),
             "{environment}"
         );
         assert!(
@@ -371,14 +380,21 @@ fn original_body_geometry_is_absent_without_namespace_descent_or_retained_owner(
     assert!(binding.source_origin().is_none());
     assert!(binding.invocation_realm().is_none());
     assert!(
-        binding.original_invocation_metadata_for_input(
-            tokens, &fixture.input, fixture.context.commands(),
-        ).is_none()
+        binding
+            .original_invocation_metadata_for_input(
+                tokens,
+                &fixture.input,
+                fixture.context.commands(),
+            )
+            .is_none()
     );
     assert!(
         crate::registry_invocation::resolved_handler_invocation(
-            fixture.context.commands(), None, tokens,
-        ).is_none()
+            fixture.context.commands(),
+            None,
+            tokens,
+        )
+        .is_none()
     );
     assert!(
         crate::registry_invocation::normal_transfer_invocation_in_context(
@@ -397,14 +413,25 @@ fn original_body_geometry_cannot_overwrite_an_actual_declaration_owner() {
     let retained = original.clone();
     let binding = original.source_binding.as_ref().unwrap();
     assert!(binding.invocation_site().is_some());
-    assert!(binding.declaration_operand_layout_advice(&original).is_some());
-    let owner = fixture.bindings.original_body_written_word_owner(
-        &fixture.body, fixture.input.lexer_config(), fixture.context.commands(),
-        &fixture.input,
-    ).unwrap();
-    assert!(owner.stamp_original_tokens(
-        fixture.context.commands(), &fixture.input, &mut original,
-    ).is_none());
+    assert!(
+        binding
+            .declaration_operand_layout_advice(&original)
+            .is_some()
+    );
+    let owner = fixture
+        .bindings
+        .original_body_written_word_owner(
+            &fixture.body,
+            fixture.input.lexer_config(),
+            fixture.context.commands(),
+            &fixture.input,
+        )
+        .unwrap();
+    assert!(
+        owner
+            .stamp_original_tokens(fixture.context.commands(), &fixture.input, &mut original,)
+            .is_none()
+    );
     assert_eq!(original, retained);
     let binding = original.source_binding.as_ref().unwrap();
     assert!(binding.lookup_state.is_none());
@@ -415,9 +442,13 @@ fn original_body_geometry_cannot_overwrite_an_actual_declaration_owner() {
     assert!(binding.native_compilation_admission.is_none());
     assert!(binding.admitted_inline_invocation().is_none());
     assert!(binding.admitted_named_invocation().is_none());
-    assert!(crate::registry_invocation::normal_transfer_invocation_in_context(
-        &fixture.context, &original,
-    ).is_none());
+    assert!(
+        crate::registry_invocation::normal_transfer_invocation_in_context(
+            &fixture.context,
+            &original,
+        )
+        .is_none()
+    );
 }
 
 #[test]
@@ -426,24 +457,41 @@ fn original_jim_body_source_point_remains_without_a_proved_execution_target() {
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // Original held Jim source correspondence is distinct from executable proof.
     let fixture = fixture("jimtcl");
-    let mut lowerer = Lowerer::with_config(
-        fixture.context.commands(), fixture.input.lexer_config(),
-    ).with_dialect(Some(fixture.input.unit_profile()))
-        .with_resolved_analysis_input(fixture.input.clone());
+    let mut lowerer =
+        Lowerer::with_config(fixture.context.commands(), fixture.input.lexer_config())
+            .with_dialect(Some(fixture.input.unit_profile()))
+            .with_resolved_analysis_input(fixture.input.clone());
     lowerer.set_source_analysis_options(fixture.entry.options());
     lowerer.source_bindings = Some(fixture.bindings.clone().into());
     let script = lowerer.lower_original_body(fixture.body.clone(), Some(&fixture.namespace));
-    assert_eq!(script.namespace_context.as_deref(), Some(&fixture.namespace));
+    assert_eq!(
+        script.namespace_context.as_deref(),
+        Some(&fixture.namespace)
+    );
     assert_eq!(script.statements.len(), 1);
-    let tokens = script.retained_source_tokens_for_statement(&script.statements[0]).unwrap();
+    let tokens = script
+        .retained_source_tokens_for_statement(&script.statements[0])
+        .unwrap();
     assert_eq!(tokens.argv_texts, ["set", "result", "VALUE"]);
     let binding = tokens.source_binding.as_ref().unwrap();
-    assert_eq!(binding.invocation_site().unwrap().source, fixture.body.origin);
-    assert_eq!(binding.original_lexer_config_for_tokens(tokens), Some(fixture.input.lexer_config()));
+    assert_eq!(
+        binding.invocation_site().unwrap().source,
+        fixture.body.origin
+    );
+    assert_eq!(
+        binding.original_lexer_config_for_tokens(tokens),
+        Some(fixture.input.lexer_config())
+    );
     assert!(binding.lookup_state.is_some());
-    assert!(binding.original_invocation_metadata_for_input(
-        tokens, &fixture.input, fixture.context.commands(),
-    ).is_some());
+    assert!(
+        binding
+            .original_invocation_metadata_for_input(
+                tokens,
+                &fixture.input,
+                fixture.context.commands(),
+            )
+            .is_some()
+    );
     assert!(binding.proved_execution_target().is_none());
     assert!(lowerer.original_body_word_source.is_none());
 }

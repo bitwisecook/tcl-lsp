@@ -141,6 +141,7 @@ pub mod native_tcloo_method_cache;
 pub mod native_tcloo_method_definition;
 pub mod native_tcloo_registration;
 pub mod native_try_compilation;
+pub mod native_variable_declaration;
 
 pub mod native_boolean_truth;
 pub mod native_bytecode;

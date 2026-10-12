@@ -211,6 +211,15 @@ impl Interp {
                 }
                 map.push((member.to_vec(), vec![target]));
             }
+            for &member in self
+                .native_invocation_dialect()
+                .ensemble_bootstrap_deferred_members(family)
+            {
+                let mut target = namespace.as_bytes().to_vec();
+                target.extend_from_slice(b"::");
+                target.extend_from_slice(member);
+                map.push((member.to_vec(), vec![target]));
+            }
             let config = EnsembleConfig {
                 originals: Default::default(),
                 ns,
@@ -531,6 +540,7 @@ impl Interp {
                 return;
             }
             match family {
+                EnsembleImplementationFamily::Clock => crate::cmd_clock::install(self),
                 EnsembleImplementationFamily::Info => crate::cmd_info::install(self),
                 EnsembleImplementationFamily::File => crate::cmd_fs::install_file(self),
                 EnsembleImplementationFamily::Array => crate::cmd_array::install(self),

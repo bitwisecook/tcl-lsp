@@ -48,7 +48,10 @@ fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_looku
         super::super::Code::Ok
     );
     assert_eq!(interpreter.result_bytes(), b"YES");
-    assert_eq!(interpreter.eval_str(b"set ::encoded"), super::super::Code::Ok);
+    assert_eq!(
+        interpreter.eval_str(b"set ::encoded"),
+        super::super::Code::Ok
+    );
     assert_eq!(interpreter.result_bytes(), "é".as_bytes());
     assert_eq!(
         stages.events.borrow().as_slice(),
@@ -63,7 +66,10 @@ fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_looku
         super::super::Code::Error
     );
     assert_eq!(stages.events.borrow().as_slice(), ["filesystem", "open"]);
-    assert_eq!(interpreter.eval_str(b"set ::errorCode"), super::super::Code::Ok);
+    assert_eq!(
+        interpreter.eval_str(b"set ::errorCode"),
+        super::super::Code::Ok
+    );
     assert_eq!(
         interpreter.result_bytes(),
         b"POSIX ENOENT {no such file or directory}"

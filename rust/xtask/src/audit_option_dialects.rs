@@ -1319,6 +1319,7 @@ mod tests {
             name: "-safe",
             value: tcl_registry::hover::OptionValue::flag(),
             detail: "synthetic Jim-only audit counterexample",
+            effect: None,
             surface: None,
             aliases: &[],
             lifecycle: tcl_registry::lifecycle::Lifecycle::UNSPECIFIED,

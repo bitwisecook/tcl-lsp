@@ -124,7 +124,10 @@ fn actual_valueops_primitives_keep_selected_cache_and_native_reference_roles() {
                     "{environment}/{number}",
                 );
                 if environment == "tcl8.4" {
-                    assert_eq!(obj::bytes_of(boolean.as_ptr()), number.to_string().as_bytes());
+                    assert_eq!(
+                        obj::bytes_of(boolean.as_ptr()),
+                        number.to_string().as_bytes()
+                    );
                 }
             }
             assert_eq!(unsafe { (*integer.as_ptr()).ref_count }, 1);

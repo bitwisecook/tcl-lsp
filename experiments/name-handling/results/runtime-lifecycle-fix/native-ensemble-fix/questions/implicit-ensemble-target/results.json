@@ -1,0 +1,131 @@
+{
+  "question": "Which namespace supplies an implicit ensemble target when global and caller commands shadow its name?",
+  "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+  "input_archive_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-runner/ensemble-shadow-probe.tcl",
+  "runtime_binary_sha256": "eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f",
+  "runtime_records": [
+    {
+      "original_record": {
+        "case": "ensemble-shadow",
+        "release": "8.5",
+        "patchlevel": "8.5.19",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "8.5"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.003,
+        "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/ensemble-shadow.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/ensemble-shadow.stderr"
+      },
+      "stdout_sha256": "332ec8ac03b730c0de19e52155429c12cbdda2dc7c67525ac57b2146512d4609",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "ensemble-shadow",
+        "release": "8.6",
+        "patchlevel": "8.6.18",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "8.6"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.632,
+        "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/ensemble-shadow.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/ensemble-shadow.stderr"
+      },
+      "stdout_sha256": "db77c5024fa27355ba12a4732eb9b4ff6d82ba4f75b8928f9d301ed2519541de",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "ensemble-shadow",
+        "release": "9.0",
+        "patchlevel": "9.0.4",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "9.0"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.589,
+        "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/ensemble-shadow.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/ensemble-shadow.stderr"
+      },
+      "stdout_sha256": "db77c5024fa27355ba12a4732eb9b4ff6d82ba4f75b8928f9d301ed2519541de",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "ensemble-shadow",
+        "release": "9.1",
+        "patchlevel": "9.1.0",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "9.1"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.412,
+        "input_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/ensemble-shadow.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/ensemble-shadow.stderr"
+      },
+      "stdout_sha256": "db77c5024fa27355ba12a4732eb9b4ff6d82ba4f75b8928f9d301ed2519541de",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "oracle_record_source": "native-runner/ensemble-shadow-c-records.json",
+  "oracle_records": [
+    {
+      "version": "8.5.19",
+      "exit_code": 0,
+      "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+    },
+    {
+      "version": "8.6.18",
+      "exit_code": 0,
+      "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+    },
+    {
+      "version": "9.0.4",
+      "exit_code": 0,
+      "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+    },
+    {
+      "version": "9.1.0",
+      "exit_code": 0,
+      "script_sha256": "4519209f130cc9c8db06d4660b3cb30ecb05f37ae2d0d5b9f380281a23ed7823"
+    }
+  ],
+  "providers_not_measured": [
+    "Jim",
+    "F5"
+  ]
+}

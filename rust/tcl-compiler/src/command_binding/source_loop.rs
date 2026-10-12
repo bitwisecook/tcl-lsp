@@ -143,10 +143,15 @@ impl SourceCommandBindings {
                     loop_context = selected_context;
                 }
             }
-            let executed = self.walk_body_sequence(operands.repeated, scripts, head, &selected_context);
-            let Some(next) =
-                self.settle_source_loop_iteration(executed, operands, scripts, &selected_context, outcomes)
-            else {
+            let executed =
+                self.walk_body_sequence(operands.repeated, scripts, head, &selected_context);
+            let Some(next) = self.settle_source_loop_iteration(
+                executed,
+                operands,
+                scripts,
+                &selected_context,
+                outcomes,
+            ) else {
                 return;
             };
             *head = *next;
@@ -219,7 +224,8 @@ impl SourceCommandBindings {
             }
         }
         *context = selected_context;
-        let executed = self.walk_body_sequence(operands.repeated, scripts, iteration, &selected_context);
+        let executed =
+            self.walk_body_sequence(operands.repeated, scripts, iteration, &selected_context);
         self.settle_source_loop_iteration(executed, operands, scripts, &selected_context, outcomes)
     }
 

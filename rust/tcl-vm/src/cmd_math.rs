@@ -271,7 +271,8 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "math handler has no selected stock implementation identity".into(),
         );
     };
-    let Some(name) = tcl_registry::mathfunc::global_command_bare_name(identity).map(str::to_owned) else {
+    let Some(name) = tcl_registry::mathfunc::global_command_bare_name(identity).map(str::to_owned)
+    else {
         return vm.refuse_host_command(
             "math handler stock identity is not a direct global math function".into(),
         );

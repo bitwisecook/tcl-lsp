@@ -130,6 +130,46 @@ fn package_unknown_arguments_follow_each_real_release() {
 }
 
 #[test]
+fn compiled_namespace_variable_links_select_the_original_local_cell() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let script = r#"
+        namespace eval ::N {
+            variable value ready
+            proc get {} {variable value; return $value}
+            proc replace {} {variable value changed; return $value}
+        }
+        list [::N::get] [::N::replace] [::N::get]
+    "#;
+    for version in TclVersion::ALL {
+        let Some(tree) = locate_source_tree(&repository, version, None).expect("source discovery")
+        else {
+            continue;
+        };
+        let oracle = run_script_from_source_tree(
+            &tree,
+            version,
+            format!("puts [eval {{{script}}}]\n").as_bytes(),
+        )
+        .expect("C Tcl namespace variable oracle");
+        assert!(
+            oracle.success() && oracle.stderr.is_empty(),
+            "{version:?}: {oracle:?}"
+        );
+        let mut interp = at(version);
+        assert_eq!(
+            interp.eval_str(script.as_bytes()),
+            Code::Ok,
+            "{version:?}: {:?}; refusal={:?}",
+            interp.result_bytes(),
+            interp.native_execution_refusal()
+        );
+        let mut result = interp.result_bytes();
+        result.push(b'\n');
+        assert_eq!(result, oracle.stdout, "{version:?}");
+    }
+}
+
+#[test]
 fn legacy_string_bytelength_matches_real_tcl_on_strings_and_binary() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let script = r#"

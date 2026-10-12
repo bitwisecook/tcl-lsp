@@ -1049,7 +1049,9 @@ mod original_syntax_transport_tests {
                     } else {
                         let error = match reached {
                             Err(error) => error,
-                            Ok(_) => panic!("original callback must refuse before syntax-option publication"),
+                            Ok(_) => panic!(
+                                "original callback must refuse before syntax-option publication"
+                            ),
                         };
                         let first = interpreter.native_execution_refusal().unwrap();
                         assert_eq!(error.native_execution_refusal(), Some(&first));
@@ -1155,8 +1157,11 @@ mod original_syntax_transport_tests {
         COPY_FREES.set(COPY_FREES.get() + 1);
         COPY_REFS.set(unsafe { (*value).ref_count });
         if COPY_CHANGE.get() {
-            let actual = COPY_OWNER.with(|owner| owner.borrow().as_ref().and_then(WeakInterp::upgrade));
-            actual.unwrap().refuse_host_command("later unused Syntax duplicate retirement");
+            let actual =
+                COPY_OWNER.with(|owner| owner.borrow().as_ref().and_then(WeakInterp::upgrade));
+            actual
+                .unwrap()
+                .refuse_host_command("later unused Syntax duplicate retirement");
         }
     }
     static COPY_UNUSED: obj::TclObjType = obj::TclObjType {
@@ -1193,17 +1198,29 @@ mod original_syntax_transport_tests {
                 {
                     let mut actual = native(profile);
                     let value = Owned::fresh(obj::alloc_typed(&COPY_PRIMARY, 77));
-                    unsafe { obj::set_native_updater_string_rep(value.as_ptr(), b"ORIGINAL PRIVATE INFO", false) };
-                    let scope = super::super::native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
-                    actual.replace_native_error_object_checked(
-                        scope.currency(),
-                        tcl_registry::special_vars::NativeErrorStorageVariable::ErrorInfo,
-                        Some(Owned::retain(value.as_ptr())),
-                        None,
-                    ).unwrap();
+                    unsafe {
+                        obj::set_native_updater_string_rep(
+                            value.as_ptr(),
+                            b"ORIGINAL PRIVATE INFO",
+                            false,
+                        )
+                    };
+                    let scope =
+                        super::super::native_operation_currency::NativeOperationScope::enter(
+                            &actual,
+                        )
+                        .unwrap();
+                    actual
+                        .replace_native_error_object_checked(
+                            scope.currency(),
+                            tcl_registry::special_vars::NativeErrorStorageVariable::ErrorInfo,
+                            Some(Owned::retain(value.as_ptr())),
+                            None,
+                        )
+                        .unwrap();
                     actual.set_result_bytes(b"PRIOR");
                     let prior = actual.get_obj_result();
-                    COPY_OWNER.with(|owner| *owner.borrow_mut()=Some(actual.downgrade()));
+                    COPY_OWNER.with(|owner| *owner.borrow_mut() = Some(actual.downgrade()));
                     COPY_CHANGE.set(change);
                     COPY_DUPLICATES.set(0);
                     COPY_FREES.set(0);
@@ -1212,7 +1229,9 @@ mod original_syntax_transport_tests {
                     assert_eq!(COPY_DUPLICATES.get(), 1);
                     assert_eq!(actual.get_obj_result(), prior);
                     if change {
-                        let error = reached.err().expect("original copy primary ABA refuses before private adoption");
+                        let error = reached
+                            .err()
+                            .expect("original copy primary ABA refuses before private adoption");
                         let first = actual.native_execution_refusal().unwrap();
                         assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
                             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("changed original duplicate source primary")
@@ -1220,12 +1239,18 @@ mod original_syntax_transport_tests {
                         assert_eq!(error.native_execution_refusal(), Some(&first));
                         assert_eq!(COPY_FREES.get(), 1);
                         assert_eq!(COPY_REFS.get(), 0);
-                        assert_eq!(actual.exc.borrow().native.info.as_ref().unwrap().as_ptr(), value.as_ptr());
+                        assert_eq!(
+                            actual.exc.borrow().native.info.as_ref().unwrap().as_ptr(),
+                            value.as_ptr()
+                        );
                         assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 2);
                         assert!(scope.currency().ensure_current_or_refuse().is_err());
                     } else {
                         let options = reached.unwrap();
-                        assert_ne!(actual.exc.borrow().native.info.as_ref().unwrap().as_ptr(), value.as_ptr());
+                        assert_ne!(
+                            actual.exc.borrow().native.info.as_ref().unwrap().as_ptr(),
+                            value.as_ptr()
+                        );
                         assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
                         assert_eq!(COPY_FREES.get(), 0);
                         scope.currency().ensure_current_or_refuse().unwrap();
@@ -1233,7 +1258,7 @@ mod original_syntax_transport_tests {
                     }
                     COPY_CHANGE.set(false);
                     retire_test_state(&actual);
-                    COPY_OWNER.with(|owner| *owner.borrow_mut()=None);
+                    COPY_OWNER.with(|owner| *owner.borrow_mut() = None);
                     drop(value);
                     assert_eq!(COPY_FREES.get(), 1);
                 }
@@ -1474,7 +1499,12 @@ mod original_syntax_transport_tests {
                                 value.as_ptr(),
                                 strings,
                                 &|| scope.currency().ensure_current_or_refuse(),
-                                &|error| interpreter.clone().refuse_completion_value_access(error).into(),
+                                &|error| {
+                                    interpreter
+                                        .clone()
+                                        .refuse_completion_value_access(error)
+                                        .into()
+                                },
                             )
                             .map(drop),
                             _ => interpreter

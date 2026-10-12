@@ -149,17 +149,19 @@ fn child_alias_publication_refuses_missing_or_foreign_issuer_before_binding() {
             let child_before = interp
                 .with_child(b"child", |child| {
                     let selected = if foreign {
-                        if engine == "jim" { "tcl8.6" } else { "jim" }
+                        if engine == "jim" {
+                            "tcl8.6"
+                        } else {
+                            "jim"
+                        }
                     } else {
                         "irules"
                     };
                     child.set_dialect_profile(crate::environment::profile_for_dialect(selected));
-                    assert!(
-                        child
-                            .namespaces()
-                            .command_in(crate::namespace::GLOBAL, b"r2286_refused")
-                            .is_none()
-                    );
+                    assert!(child
+                        .namespaces()
+                        .command_in(crate::namespace::GLOBAL, b"r2286_refused")
+                        .is_none());
                     // Changing a profile may already retain a host-only cause
                     // while rebuilding stock wrappers. The refused installation
                     // must leave that actual child state untouched.
@@ -186,12 +188,10 @@ fn child_alias_publication_refuses_missing_or_foreign_issuer_before_binding() {
             assert_eq!(interp.result_bytes(), b"PARENT RESULT");
             interp
                 .with_child(b"child", |child| {
-                    assert!(
-                        child
-                            .namespaces()
-                            .command_in(crate::namespace::GLOBAL, b"r2286_refused")
-                            .is_none()
-                    );
+                    assert!(child
+                        .namespaces()
+                        .command_in(crate::namespace::GLOBAL, b"r2286_refused")
+                        .is_none());
                     assert_eq!(child.native_compilation_admission_error(), child_before.0);
                     assert_eq!(child.native_access_refusal(), child_before.1);
                     assert_eq!(child.result_obj(), child_before.2);

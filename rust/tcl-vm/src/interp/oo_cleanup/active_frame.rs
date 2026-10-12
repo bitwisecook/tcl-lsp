@@ -214,7 +214,10 @@ impl OriginalOoCallExit {
         }
         match (call, namespace) {
             (Some(call), Some(namespace)) => Some(Self {
-                original: original.saved(), call, namespace, method: None,
+                original: original.saved(),
+                call,
+                namespace,
+                method: None,
                 procedure_only: true,
             }),
             _ => {
@@ -246,14 +249,15 @@ impl OriginalOoCallExit {
     ) -> Result<(), CmdError> {
         original.check(vm)?;
         let state = original.state_mut(vm)?;
-        let method = self.procedure_only || self.method.as_ref().is_some_and(|selected| {
-            state.oo.call_stack.len() == selected.position() + 1
-                && state
-                    .oo
-                    .call_stack
-                    .get(selected.position())
-                    .is_some_and(|frame| selected.matches_description(frame))
-        });
+        let method = self.procedure_only
+            || self.method.as_ref().is_some_and(|selected| {
+                state.oo.call_stack.len() == selected.position() + 1
+                    && state
+                        .oo
+                        .call_stack
+                        .get(selected.position())
+                        .is_some_and(|frame| selected.matches_description(frame))
+            });
         if !method
             || !self.call.present(state)
             || state.frames.len() != self.call.position + 1

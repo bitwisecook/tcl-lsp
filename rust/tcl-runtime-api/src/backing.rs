@@ -218,5 +218,4 @@ mod tests {
         assert_eq!(report.of("::run"), RegisteredBacking::Builtin);
         assert_eq!(report.len(), 4);
     }
-
 }

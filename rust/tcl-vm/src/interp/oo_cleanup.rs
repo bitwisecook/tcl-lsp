@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Mandatory OO payload retirement in the actual original physical interpreter.
-use super::native_operation_currency::{CleanupRestoration, NativeOperationCurrency, NativeOperationScope, SavedExecutionTarget};
+use super::native_operation_currency::{
+    CleanupRestoration, NativeOperationCurrency, NativeOperationScope, SavedExecutionTarget,
+};
 use super::{CommandSidecarKey, InterpId, InterpState, Vm};
 use crate::cmd_oo::OoState;
 use crate::command::Command;
@@ -250,7 +252,8 @@ impl OriginalOoCleanup {
             return Err(CmdError::from_execution_refusal(first));
         }
         match &self.operation {
-            Some(operation) => operation.currency()
+            Some(operation) => operation
+                .currency()
                 .check_saved_target(vm, self.interpreter)
                 .map_err(CmdError::from_execution_refusal),
             None => Ok(()),

@@ -26,7 +26,7 @@
 
 use tcl_cmd_core::list as list_core;
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -736,13 +736,19 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use tcl_cmd_core::index::NativeIndexOps;
     if interp.index_c_version().is_some() || interp.index_jim_sort_selected() {
         return match tcl_cmd_core::lsort::run_original(
-            interp, &argv[1..], lsort_compare_original, Interp::report_cmd_error,
+            interp,
+            &argv[1..],
+            lsort_compare_original,
+            Interp::report_cmd_error,
         ) {
-            Ok(value) => { interp.set_result(value); Code::Ok }
+            Ok(value) => {
+                interp.set_result(value);
+                Code::Ok
+            }
             Err(code) => code,
         };
     }
-    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
+    use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
     let job = match prepare(interp, &argv[1..]) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);
@@ -799,11 +805,14 @@ fn lsort_compare_original(
     let code = if interp.index_jim_sort_selected() {
         interp.eval_body_obj(*command)
     } else {
-        let words = interp.index_list_elements(command)
+        let words = interp
+            .index_list_elements(command)
             .map_err(|error| interp.report_cmd_error(error))?;
         interp.dispatch(&words)
     };
-    interp.check_index_operation(original).map_err(|error| interp.report_cmd_error(error))?;
+    interp
+        .check_index_operation(original)
+        .map_err(|error| interp.report_cmd_error(error))?;
     if code != Code::Ok {
         if interp.index_c_version().is_some() {
             interp.append_error_info_context(b"(-compare command)");
@@ -827,13 +836,19 @@ fn lsort_original_comparison_result(
     obj::check_native_liveness(result)?;
     let lifetime = obj::NativeObjectLifetime::retain(result);
     let dialect = interp.native_invocation_dialect();
-    let selected = dialect.native_numeric_command_protocol(
-        NativeNumericCommandPurpose::ListSortComparisonResult,
-    ).ok_or(ValueError::CommandProtocolUnavailable("original sort comparison-result purpose"))?;
+    let selected = dialect
+        .native_numeric_command_protocol(NativeNumericCommandPurpose::ListSortComparisonResult)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "original sort comparison-result purpose",
+        ))?;
     let reached = {
         let host = interp.host();
         crate::typed_value::native_scalar_getter_with_environment_and_currency(
-            result, dialect, selected.getter_kind(), host.numeric_environment(), Some(original.original_currency()),
+            result,
+            dialect,
+            selected.getter_kind(),
+            host.numeric_environment(),
+            Some(original.original_currency()),
         )
     };
     let live = obj::check_native_liveness(lifetime.as_ptr());
@@ -841,10 +856,13 @@ fn lsort_original_comparison_result(
     interp.check_index_operation(original)?;
     live?;
     let reached = reached.map_err(|error| {
-        if !matches!(error, ValueError::NativeScalarGetter(_)) { return CmdError::from(error); }
-        selected.comparison_result_error().map_or_else(|| CmdError::from(error), |wrapper| {
-            CmdError::with_error_code_bytes(wrapper.message, wrapper.error_code)
-        })
+        if !matches!(error, ValueError::NativeScalarGetter(_)) {
+            return CmdError::from(error);
+        }
+        selected.comparison_result_error().map_or_else(
+            || CmdError::from(error),
+            |wrapper| CmdError::with_error_code_bytes(wrapper.message, wrapper.error_code),
+        )
     })?;
     let NativeScalarGetterValue::Wide(integer) = reached else {
         return Err(ValueError::ScalarNumericInputUnavailable.into());
@@ -1225,7 +1243,7 @@ mod tests {
         assert_eq!(ok(b"set x {a b c}; lset x 1 Z; set x"), b"a Z c");
         assert_eq!(ok(b"set x {a b c}; lset x end Z"), b"a b Z");
         assert_eq!(ok(b"set x {a b c}; lset x 3 Z"), b"a b c Z"); // append at len
-        // No index → whole-list replace (lset is set).
+                                                                  // No index → whole-list replace (lset is set).
         assert_eq!(ok(b"set x {a b c}; lset x Z"), b"Z");
         assert_eq!(ok(b"set x {a b}; lset x {} Z"), b"Z");
         // Nested: a lone arg is an index path; multiple args each an index.
@@ -1277,7 +1295,7 @@ mod tests {
         assert_eq!(ok(b"set l {1 2 3}; ledit l 1 0 x y; set l"), b"1 x y 2 3"); // first>last
         assert_eq!(ok(b"set l {a b c d}; ledit l end-1 end Z"), b"a b Z");
         assert_eq!(ok(b"set l {a b}; ledit l end+1 end+1 c"), b"a b c"); // append
-        // Array-element addressing, like `lappend a(k)`.
+                                                                         // Array-element addressing, like `lappend a(k)`.
         assert_eq!(
             ok(b"set a(k) {1 2 3}; ledit a(k) 0 0 X; set a(k)"),
             b"X 2 3"

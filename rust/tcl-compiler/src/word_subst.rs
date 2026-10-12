@@ -2449,25 +2449,47 @@ mod tests {
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].command, "\u{feff}unknown");
         assert_eq!(calls[0].args, ["argument"]);
-        assert_eq!(source.get(calls[0].span.as_range()), Some("[\u{feff}unknown argument]"));
+        assert_eq!(
+            source.get(calls[0].span.as_range()),
+            Some("[\u{feff}unknown argument]")
+        );
         let child = calls[0].tokens.as_ref().unwrap();
         assert!(original_call_context(child, config, registry, metadata).is_some());
-        assert!(child.source_binding.as_ref().unwrap().proved_execution_target().is_none());
+        assert!(
+            child
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .proved_execution_target()
+                .is_none()
+        );
         let mut changed = config;
         changed.strict_quoting = !changed.strict_quoting;
-        assert!(checked_original_lifted_calls_with_metadata_context(
-            &tokens, changed, registry, metadata,
-        ).is_none());
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &tokens, changed, registry, metadata,
+            )
+            .is_none()
+        );
         let mut withdrawn = tokens.clone();
         withdrawn.nested_bindings.clear();
-        assert!(checked_original_lifted_calls_with_metadata_context(
-            &withdrawn, config, registry, metadata,
-        ).is_none());
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &withdrawn, config, registry, metadata,
+            )
+            .is_none()
+        );
         let mut changed_vector = tokens.clone();
         changed_vector.argv_texts[0].push('!');
-        assert!(checked_original_lifted_calls_with_metadata_context(
-            &changed_vector, config, registry, metadata,
-        ).is_none());
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &changed_vector,
+                config,
+                registry,
+                metadata,
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -2485,24 +2507,38 @@ mod tests {
         .unwrap();
         let unknown = original_logical_tokens("unknown {[dict size DATA]}", &input);
         assert!(original_call_context(&unknown, config, registry, metadata).is_some());
-        assert!(checked_original_lifted_calls_with_metadata_context(
-            &unknown, config, registry, metadata,
-        ).is_none());
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &unknown, config, registry, metadata,
+            )
+            .is_none()
+        );
         let literal = original_logical_tokens("puts {[dict size DATA]}", &input);
-        assert!(checked_original_lifted_calls_with_metadata_context(
-            &literal, config, registry, metadata,
-        ).unwrap().is_empty());
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &literal, config, registry, metadata,
+            )
+            .unwrap()
+            .is_empty()
+        );
         let expression = original_logical_tokens("expr {[dict size DATA]}", &input);
         let calls = checked_original_lifted_calls_with_metadata_context(
-            &expression, config, registry, metadata,
-        ).unwrap();
+            &expression,
+            config,
+            registry,
+            metadata,
+        )
+        .unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].command, "dict");
         assert_eq!(calls[0].args, ["size", "DATA"]);
         let mut withdrawn = expression.clone();
         withdrawn.source_binding = None;
-        assert!(checked_original_lifted_calls_with_metadata_context(
-            &withdrawn, config, registry, metadata,
-        ).is_none());
+        assert!(
+            checked_original_lifted_calls_with_metadata_context(
+                &withdrawn, config, registry, metadata,
+            )
+            .is_none()
+        );
     }
 }

@@ -17,15 +17,21 @@ use core::ffi::{c_int, c_void};
 /// # Safety
 /// `interp` is null or live; `out` is null or writable for exactly 16 bytes.
 #[no_mangle]
-pub unsafe extern "C" fn tcl_engine_interpreter_identity(interp: *const Interp, out: *mut u8) -> c_int {
+pub unsafe extern "C" fn tcl_engine_interpreter_identity(
+    interp: *const Interp,
+    out: *mut u8,
+) -> c_int {
     if interp.is_null() || out.is_null() {
         return TCL_ERROR;
     }
     // SAFETY: caller guarantees live interpreter and counted output storage.
     let identity = unsafe { &*interp }.native_callable_interpreter();
-    let bytes = tcl_runtime_api::engine_interpreter_identity::EngineInterpreterIdentity(identity).bytes();
+    let bytes =
+        tcl_runtime_api::engine_interpreter_identity::EngineInterpreterIdentity(identity).bytes();
     // SAFETY: output is writable for the canonical exact byte count.
-    unsafe { core::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len()); }
+    unsafe {
+        core::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
+    }
     TCL_OK
 }
 
@@ -761,19 +767,27 @@ mod tests {
         let first = original.native_execution_refusal();
         let mut bytes = [0x5a; EngineInterpreterIdentity::BYTE_LENGTH];
         // SAFETY: actual original interpreter and exact output storage are live.
-        assert_eq!(unsafe { tcl_engine_interpreter_identity(&original, bytes.as_mut_ptr()) }, 0);
+        assert_eq!(
+            unsafe { tcl_engine_interpreter_identity(&original, bytes.as_mut_ptr()) },
+            0
+        );
         let identity = EngineInterpreterIdentity::from_bytes(bytes);
         assert_eq!(identity.0, original.native_callable_interpreter());
         assert_eq!(original.result_obj(), result);
         assert_eq!(original.native_execution_refusal(), first);
         let mut untouched = [0x3c; EngineInterpreterIdentity::BYTE_LENGTH];
         // SAFETY: null is explicitly refused and output remains live.
-        assert_eq!(unsafe { tcl_engine_interpreter_identity(core::ptr::null(), untouched.as_mut_ptr()) }, 1);
+        assert_eq!(
+            unsafe { tcl_engine_interpreter_identity(core::ptr::null(), untouched.as_mut_ptr()) },
+            1
+        );
         assert_eq!(untouched, [0x3c; EngineInterpreterIdentity::BYTE_LENGTH]);
         drop(original);
         let replacement = core("tcl8.6");
-        assert_eq!(unsafe { tcl_engine_interpreter_identity(&replacement, bytes.as_mut_ptr()) }, 0);
+        assert_eq!(
+            unsafe { tcl_engine_interpreter_identity(&replacement, bytes.as_mut_ptr()) },
+            0
+        );
         assert_ne!(EngineInterpreterIdentity::from_bytes(bytes), identity);
     }
-
 }

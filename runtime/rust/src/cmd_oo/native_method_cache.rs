@@ -912,7 +912,10 @@ mod tests {
                 .methods
                 .insert_generated(
                     b"observe".to_vec(),
-                    Method::builtin(observe_replaced_procedure, NativeTclooMethodPayloadType::Procedure),
+                    Method::builtin(
+                        observe_replaced_procedure,
+                        NativeTclooMethodPayloadType::Procedure,
+                    ),
                 );
             drop(retired);
             ENTERED_PROCEDURE_QUERY.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&declaration)));

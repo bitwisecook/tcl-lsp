@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Genuine extension callback controls for the original checked duplicate owner.
 use super::*;
-use crate::interp::{Interp, native_arguments::OriginalArguments};
+use crate::interp::{native_arguments::OriginalArguments, Interp};
 use std::cell::{Cell, RefCell};
 use tcl_cmd_core::CmdError;
 thread_local! {

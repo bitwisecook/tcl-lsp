@@ -5795,9 +5795,9 @@ mod tests {
 
     #[test]
     fn the_runtime_states_its_identity_to_a_host() {
-        use tcl_runtime_api::ArtefactIdentityManifest;
         use tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION;
         use tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION;
+        use tcl_runtime_api::ArtefactIdentityManifest;
 
         // SAFETY: every buffer is as long as the capacity it is passed with.
         unsafe {

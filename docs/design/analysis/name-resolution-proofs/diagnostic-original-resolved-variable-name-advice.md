@@ -66,7 +66,7 @@ This original-source implementation contract supplies no native process, reached
 
 - `naming-diagnostics-original-resolved-variable-name-advice-helpers.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs). SHA-256 `fcd48edbfc3e609583ab4f065632b3d4465f163478fe0027d54f849fbd42151f`. Original statement or terminator owner and actual source purpose precede Logical summary/existence advice. The no-SSA fallback retains original terminator source tokens rather than borrowing raw input eligibility.
 - `naming-diagnostics-original-resolved-variable-name-advice-var_command.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). SHA-256 `50bcf2ff935e4a4aae4b16d74382e1ea9c11eaaedd3f4bcac9196327fc0989df`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-resolved-variable-name-advice-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-resolved-variable-name-advice-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

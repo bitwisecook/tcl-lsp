@@ -93,11 +93,17 @@ impl PureFunction {
     /// stub `register_all` would have registered, when the table names one.
     #[cfg(test)]
     fn stub(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-        let reached = vm.with_original_operand_projection(|vm, original| self.stub_using(vm, args, original));
+        let reached =
+            vm.with_original_operand_projection(|vm, original| self.stub_using(vm, args, original));
         reached.unwrap_or_else(|error| original_completion(vm, error))
     }
 
-    fn stub_using(&self, vm: &mut Vm, args: &[Value], operation: &tcl_vm::embed::OriginalOperandProjection) -> Result<Completion<Value>, tcl_vm::TclError> {
+    fn stub_using(
+        &self,
+        vm: &mut Vm,
+        args: &[Value],
+        operation: &tcl_vm::embed::OriginalOperandProjection,
+    ) -> Result<Completion<Value>, tcl_vm::TclError> {
         let table = format!("::itest::cmd::_stub_actions({})", self.mock);
         let reached = vm.read_variable(&table);
         vm.check_original_operand_projection(operation)?;
@@ -127,7 +133,6 @@ impl PureFunction {
         before_cleanup?;
         Ok(reached)
     }
-
 }
 
 /// Register every pure function the shared cores run, under its mock name,

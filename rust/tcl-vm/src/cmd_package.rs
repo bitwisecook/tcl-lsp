@@ -59,7 +59,8 @@ fn name_key(vm: &mut OriginalPackage<'_>, operand: &Value) -> Result<NameBytes, 
 fn package_protocol(
     vm: &mut OriginalPackage<'_>,
 ) -> Result<tcl_registry::native_package::NativePackageProtocol, Completion<Value>> {
-    vm.check().map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    vm.check()
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     vm.selected_package_protocol()
         .ok_or_else(|| vm.refuse_host_command("package object protocol is unavailable".to_owned()))
 }
@@ -68,10 +69,14 @@ fn package_operand_bytes(
     vm: &mut OriginalPackage<'_>,
     value: &Value,
 ) -> Result<std::rc::Rc<[u8]>, Completion<Value>> {
-    vm.string(value).map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    vm.string(value)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
 }
 
-fn package_word(vm: &mut OriginalPackage<'_>, value: &Value) -> Result<NameBytes, Completion<Value>> {
+fn package_word(
+    vm: &mut OriginalPackage<'_>,
+    value: &Value,
+) -> Result<NameBytes, Completion<Value>> {
     let protocol = package_protocol(vm)?;
     let bytes = package_operand_bytes(vm, value)?;
     Ok(NameBytes::from(protocol.c_word(&bytes)))
@@ -140,7 +145,11 @@ fn package_list(vm: &mut OriginalPackage<'_>, members: Vec<Value>) -> Completion
     ok(Value::native_list_constructor(members, strings))
 }
 
-fn package_error(parts: &[&[u8]], code: NativePackageErrorCode, vm: &mut OriginalPackage<'_>) -> Completion<Value> {
+fn package_error(
+    parts: &[&[u8]],
+    code: NativePackageErrorCode,
+    vm: &mut OriginalPackage<'_>,
+) -> Completion<Value> {
     let message = parts.concat();
     let error = match code {
         NativePackageErrorCode::Default => tcl_cmd_core::CmdError::new_bytes(message),
@@ -229,7 +238,8 @@ fn package_subcommand(
         ))
     } else {
         vm.checked(|vm| {
-            vm.native_index_from_original_checked(original, &table, false, "option").map_err(Into::into)
+            vm.native_index_from_original_checked(original, &table, false, "option")
+                .map_err(Into::into)
         })
     };
     match selection {
@@ -483,8 +493,7 @@ fn jim_require(vm: &mut OriginalPackage<'_>, name: &NameBytes) -> Completion<Val
                     if let Some(label) = label {
                         vm.push_script(label.to_owned());
                     }
-                    let completion =
-                        vm.eval_script(&Value::from_native_string_bytes(contents));
+                    let completion = vm.eval_script(&Value::from_native_string_bytes(contents));
                     if label.is_some() {
                         if let Err(error) = vm.cleanup(Vm::pop_script) {
                             return crate::command::completion_from_cmd_error(vm, error);
@@ -751,7 +760,8 @@ fn pkg_prefer(vm: &mut OriginalPackage<'_>, rest: &[Value]) -> Completion<Value>
                     protocol.preference_members().expect("C preference table"),
                 );
             let selected = match vm.checked(|vm| {
-                vm.native_index_from_original_checked(preference, &table, false, "preference").map_err(Into::into)
+                vm.native_index_from_original_checked(preference, &table, false, "preference")
+                    .map_err(Into::into)
             }) {
                 Ok(result) => result,
                 Err(error) => {
@@ -958,7 +968,9 @@ fn invoke_package_unknown(
     match completion.code {
         Code::Ok => {
             drop(completion);
-            return vm.check().map_err(|error| crate::command::completion_from_cmd_error(vm, error));
+            return vm
+                .check()
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error));
         }
         Code::Error => {
             let message = package_operand_bytes(vm, &completion.result)?;
@@ -1172,12 +1184,16 @@ fn bad_return_code(
     // Only an explicit pending error return carries its trace into the newly
     // generated BADRESULT episode. Break/continue/custom traces are discarded.
     let pending_error = completion.code == Code::Return
-        && match vm.checked_tcl(|vm| crate::command::option_code_checked(vm, &completion.options, Code::Ok)) {
+        && match vm.checked_tcl(|vm| {
+            crate::command::option_code_checked(vm, &completion.options, Code::Ok)
+        }) {
             Ok(code) => code == Code::Error,
             Err(error) => return crate::command::completion_from_tcl_error(vm, error),
         };
     let carried = if pending_error {
-        match vm.checked_tcl(|vm| crate::command::opt_get_checked(vm, &completion.options, b"-errorinfo")) {
+        match vm.checked_tcl(|vm| {
+            crate::command::opt_get_checked(vm, &completion.options, b"-errorinfo")
+        }) {
             Ok(value) => value,
             Err(error) => return crate::command::completion_from_tcl_error(vm, error),
         }
@@ -1195,7 +1211,9 @@ fn bad_return_code(
         }
     }
     if pending_error {
-        match vm.checked_tcl(|vm| crate::command::opt_get_checked(vm, &completion.options, b"-errorstack")) {
+        match vm.checked_tcl(|vm| {
+            crate::command::opt_get_checked(vm, &completion.options, b"-errorstack")
+        }) {
             Ok(Some(stack)) => {
                 if let Err(error) = vm.checked_tcl(|vm| vm.seed_error_stack(&stack)) {
                     return crate::command::completion_from_tcl_error(vm, error);
@@ -1233,7 +1251,9 @@ fn bad_return_code(
     else {
         return vm.refuse_host_command("package return-option protocol is unavailable".into());
     };
-    let pairs = match vm.checked_tcl(|vm| crate::command::completion_option_rows_checked(vm, &completion.options)) {
+    let pairs = match vm
+        .checked_tcl(|vm| crate::command::completion_option_rows_checked(vm, &completion.options))
+    {
         Ok(pairs) => pairs,
         Err(error) => return crate::command::completion_from_tcl_error(vm, error),
     };
@@ -1258,7 +1278,9 @@ fn bad_return_code(
         ("-level", Value::int(0)),
         (
             "-errorcode",
-            match vm.checked_tcl(|vm| crate::command::opt_get_checked(vm, &failure.options, b"-errorcode")) {
+            match vm.checked_tcl(|vm| {
+                crate::command::opt_get_checked(vm, &failure.options, b"-errorcode")
+            }) {
                 Ok(Some(code)) => code,
                 Ok(None) => {
                     return vm
@@ -1268,7 +1290,9 @@ fn bad_return_code(
             },
         ),
     ] {
-        options = match vm.checked_tcl(|vm| crate::command::with_return_option(vm, &options, key, value)) {
+        options = match vm
+            .checked_tcl(|vm| crate::command::with_return_option(vm, &options, key, value))
+        {
             Ok(options) => options,
             Err(error) => return crate::command::completion_from_tcl_error(vm, error),
         };
@@ -1296,11 +1320,18 @@ fn append_loader_error_frame(
     vm.seed_error_info_frame(message, &frame);
 }
 
-fn evaluate_loader(vm: &mut OriginalPackage<'_>, name: &NameBytes, loader: &SelectedLoader) -> Completion<Value> {
+fn evaluate_loader(
+    vm: &mut OriginalPackage<'_>,
+    name: &NameBytes,
+    loader: &SelectedLoader,
+) -> Completion<Value> {
     let source = &loader.script;
 
     vm.begin_package_loading(name, &loader.version);
-    if let Err(error) = vm.checked(|vm| vm.record_package_loader_origin(name, &loader.version).map_err(Into::into)) {
+    if let Err(error) = vm.checked(|vm| {
+        vm.record_package_loader_origin(name, &loader.version)
+            .map_err(Into::into)
+    }) {
         vm.retain_failure(&error);
         if let Err(cleanup) = vm.end_loading(name, &loader.version) {
             return crate::command::completion_from_cmd_error(vm, cleanup);

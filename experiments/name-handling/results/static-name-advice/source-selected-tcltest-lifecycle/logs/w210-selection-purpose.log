@@ -1,0 +1,28 @@
+
+running 6 tests
+test registry_invocation::original_source_purpose_tests::original_logical_source_body_roles_keep_their_real_entry_purpose ... ok
+
+thread 'registry_invocation::original_source_purpose_tests::original_native_jim_source_advice_cannot_borrow_raw_logical_input_eligibility' (127124) panicked at rust/tcl-compiler/src/registry_invocation/original_source_purpose_tests.rs:89:5:
+assertion failed: metadata.permits_logical_source_names()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test registry_invocation::original_source_purpose_tests::original_native_jim_source_advice_cannot_borrow_raw_logical_input_eligibility ... FAILED
+
+thread 'interprocedural::completion::original_source_purpose_tests::original_module_completion_uses_actual_native_or_logical_entry_purpose' (127122) panicked at rust/tcl-compiler/src/interprocedural/completion.rs:960:13:
+assertion failed: metadata.permits_logical_source_names()
+test interprocedural::completion::original_source_purpose_tests::original_module_completion_uses_actual_native_or_logical_entry_purpose ... FAILED
+
+thread 'registry_invocation::original_source_purpose_tests::original_source_advice_purpose_refuses_changed_input_vector_and_missing_owner' (127126) panicked at rust/tcl-compiler/src/registry_invocation/original_source_purpose_tests.rs:215:9:
+assertion failed: changed_metadata.permits_logical_source_names()
+test registry_invocation::original_source_purpose_tests::original_source_advice_purpose_refuses_changed_input_vector_and_missing_owner ... FAILED
+test registry_invocation::original_source_purpose_tests::original_source_advice_retains_explicit_authored_simulation_separately ... ok
+test registry_invocation::original_source_purpose_tests::original_native_unentered_declaration_keeps_geometry_without_invocation_permission ... ok
+
+failures:
+
+failures:
+    interprocedural::completion::original_source_purpose_tests::original_module_completion_uses_actual_native_or_logical_entry_purpose
+    registry_invocation::original_source_purpose_tests::original_native_jim_source_advice_cannot_borrow_raw_logical_input_eligibility
+    registry_invocation::original_source_purpose_tests::original_source_advice_purpose_refuses_changed_input_vector_and_missing_owner
+
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 9549 filtered out; finished in 0.46s
+

@@ -2215,6 +2215,26 @@ mod tests {
     use crate::capi::Tcl_NewStringObj;
     use crate::counters;
 
+    #[test]
+    fn compiled_alias_observation_does_not_reselect_duplicate_names() {
+        let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+                .execution_point()
+                .unwrap(),
+        )
+        .unwrap();
+        let mut frames = FrameStack::new();
+        let namespaces = Namespaces::new();
+        let level = frames.push(crate::namespace::GLOBAL);
+        frames.install_formal_cells(&[b"x".to_vec(), b"x".to_vec()], protocol);
+        let observed =
+            OriginalAliasTargetObservation::capture_compiled(&mut frames, &namespaces, 1).unwrap();
+        assert!(frames.original_compiled_cell_at_is_current(level, 1, &observed.cell));
+        assert!(!frames.original_compiled_cell_at_is_current(level, 0, &observed.cell));
+        frames.pop();
+        assert!(!frames.original_compiled_cell_at_is_current(level, 1, &observed.cell));
+    }
+
     fn sobj(s: &[u8]) -> *mut TclObj {
         // fresh_zero string obj; the table takes the owning +1
         unsafe { Tcl_NewStringObj(s.as_ptr() as *const std::ffi::c_char, s.len() as isize) }
@@ -2965,6 +2985,7 @@ pub(crate) struct OriginalAliasTargetObservation {
     cell: crate::frame::VariablePublicationObservation,
     home: VarHome,
     name: Vec<u8>,
+    compiled: Option<usize>,
 }
 impl OriginalAliasTargetObservation {
     pub(crate) fn capture(
@@ -2989,6 +3010,29 @@ impl OriginalAliasTargetObservation {
             cell,
             home,
             name: name.to_vec(),
+            compiled: None,
+        })
+    }
+    pub(crate) fn capture_compiled(
+        frames: &mut FrameStack,
+        ns: &Namespaces,
+        slot: usize,
+    ) -> Result<Self, VarError> {
+        if !frames.prepare_native_compiled_name_cell(slot) {
+            return Err(VarError::NameProtocolUnavailable);
+        }
+        let (level, name, cell, _) = frames
+            .original_compiled_name_observation(slot)
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        let home = VarHome::Frame(level);
+        let table = entered_container::TableObservation::capture(frames, ns, home)
+            .ok_or(VarError::NameProtocolUnavailable)?;
+        Ok(Self {
+            table,
+            cell,
+            home,
+            name,
+            compiled: Some(slot),
         })
     }
     pub(crate) fn check(
@@ -3014,8 +3058,14 @@ impl OriginalAliasTargetObservation {
             entered_container::same_table(interpreter, self.home, &self.table).and_then(|()| {
                 let frames = interpreter.frames.borrow();
                 let ns = interpreter.namespaces();
-                let same = self::table(&frames, &ns, self.home)
-                    .is_some_and(|table| self.cell.matches_root(table, &self.name));
+                let same = match (self.home, self.compiled) {
+                    (VarHome::Frame(level), Some(slot)) => {
+                        frames.original_compiled_cell_at_is_current(level, slot, &self.cell)
+                    }
+                    (_, None) => self::table(&frames, &ns, self.home)
+                        .is_some_and(|table| self.cell.matches_root(table, &self.name)),
+                    _ => false,
+                };
                 if !same {
                     return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "original alias target table cell",

@@ -6969,8 +6969,7 @@ mod original_forward_tests {
 mod original_member_presentation_tests {
     use super::{SourceDefinitionMemberBodyPresentation, TCLOO_GRAMMAR};
     use crate::{InvocationArguments, InvocationWord};
-    use tcl_dialect::Family;
-    use tcl_dialect::model::SurfaceQuery;
+    use tcl_dialect::model::{Family, SurfaceQuery};
 
     #[test]
     fn original_member_presentation_follows_callable_body_slot_and_selected_layout() {

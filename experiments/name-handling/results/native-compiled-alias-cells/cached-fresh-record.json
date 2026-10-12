@@ -1,0 +1,20 @@
+{
+  "provider": "runtime",
+  "version": "8.5.19",
+  "construction": "Interp::with_native_core, real matching init.tcl",
+  "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+  "argv": [
+    "/tmp/name-native-compiled-alias-runner",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "8.5",
+    "experiments/name-handling/results/runtime-lifecycle-fix/cached-fresh-namespace-probe.tcl"
+  ],
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+  "input": "cached-fresh-input.tcl",
+  "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+  "exit_code": 0,
+  "stdout": "8.5.19-cached-fresh.stdout",
+  "stderr": "8.5.19-cached-fresh.stderr"
+}

@@ -1,0 +1,177 @@
+[
+  {
+    "version": "8.4.20",
+    "case": "compiled-alias",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.4",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/8.4.20/compiled-alias/input.tcl"
+    ],
+    "exit_code": 2,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+    "tcltest_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+  },
+  {
+    "version": "8.4.20",
+    "case": "startup",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.4",
+      "--init",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/8.4.20/startup/input.tcl"
+    ],
+    "exit_code": 2,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+    "init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+    "tcltest_sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+  },
+  {
+    "version": "8.5.19",
+    "case": "compiled-alias",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.5",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/8.5.19/compiled-alias/input.tcl"
+    ],
+    "exit_code": 0,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+    "tcltest_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d"
+  },
+  {
+    "version": "8.5.19",
+    "case": "startup",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.5",
+      "--init",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/8.5.19/startup/input.tcl"
+    ],
+    "exit_code": 0,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+    "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+    "tcltest_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d"
+  },
+  {
+    "version": "8.6.18",
+    "case": "compiled-alias",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.6",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/8.6.18/compiled-alias/input.tcl"
+    ],
+    "exit_code": 0,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+  },
+  {
+    "version": "8.6.18",
+    "case": "startup",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "8.6",
+      "--init",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/8.6.18/startup/input.tcl"
+    ],
+    "exit_code": 2,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+    "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+  },
+  {
+    "version": "9.0.4",
+    "case": "compiled-alias",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "9.0",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/9.0.4/compiled-alias/input.tcl"
+    ],
+    "exit_code": 0,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+  },
+  {
+    "version": "9.0.4",
+    "case": "startup",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "9.0",
+      "--init",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/9.0.4/startup/input.tcl"
+    ],
+    "exit_code": 2,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+    "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+  },
+  {
+    "version": "9.1.0",
+    "case": "compiled-alias",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "9.1",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/9.1.0/compiled-alias/input.tcl"
+    ],
+    "exit_code": 0,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "636466220a8dcd8c8841c956cf107b8a8d9a1643055e62887dae8d7b7a8c76be",
+    "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+    "tcltest_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+  },
+  {
+    "version": "9.1.0",
+    "case": "startup",
+    "argv": [
+      "/tmp/name-native-compiled-alias-runner",
+      "--quiet",
+      "--tcl-version",
+      "9.1",
+      "--init",
+      "/workspace/tcl-lsp/experiments/name-handling/results/native-compiled-alias-cells/9.1.0/startup/input.tcl"
+    ],
+    "exit_code": 2,
+    "timed_out": false,
+    "binary_sha256": "2aca8d769e3154c6c2235868d21470760975506f5ed33c0ab376e3c611b18dc9",
+    "input_sha256": "2d01ad1162a4a4f1112e01ab7432e527433ed16b5b82575143723a636f4533ef",
+    "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+    "tcltest_sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+  }
+]

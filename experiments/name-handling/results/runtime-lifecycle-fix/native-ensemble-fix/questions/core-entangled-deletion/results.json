@@ -1,0 +1,30 @@
+{
+  "question": "Does explicit native-core deletion preserve the global namespace across entangled command traces?",
+  "kind": "consumer-check",
+  "unit_binary_sha256": "0b307b541a182415c855da5bd80cd3ebb688336ebeb0d09f373c703bd4cda24f",
+  "record": {
+    "name": "cmd_namespace::tests::mutually_entangled_deletion_preserves_the_global_namespace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "--exact",
+      "cmd_namespace::tests::mutually_entangled_deletion_preserves_the_global_namespace",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "seconds": 5.882,
+    "stdout": "cmd_namespace-tests-mutually_entangled_deletion_preserves_the_global_namespace.stdout",
+    "stderr": "cmd_namespace-tests-mutually_entangled_deletion_preserves_the_global_namespace.stderr"
+  },
+  "stdout_sha256": "f21cafc59acafbd99ae26c619896b4485f79db42abe25b947a5625f341089425",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": {
+    "snapshot_base_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+    "snapshot_patch_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+    "path": "runtime/rust/src/cmd_namespace.rs",
+    "whole_file_sha256": "f876c747287ff7f2b493fae9df66c182d8961e79465d8127278191c1ec2444d9",
+    "line_start": 3626,
+    "line_end": 3651,
+    "excerpt_sha256": "4cc26f9a25235ab81021eba73b6f3119fec4c37ddcaa2c205d93dd14dfa0d720"
+  },
+  "providers_executed_by_this_record": []
+}

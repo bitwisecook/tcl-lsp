@@ -269,7 +269,11 @@ fn command_component(actual: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     } else {
         change();
     }
-    if actual.host_refusal_pending() { Code::Error } else { Code::Ok }
+    if actual.host_refusal_pending() {
+        Code::Error
+    } else {
+        Code::Ok
+    }
 }
 #[test]
 fn original_compiled_command_component_restores_saved_metadata_before_refusal_settlement() {
@@ -282,7 +286,10 @@ fn original_compiled_command_component_restores_saved_metadata_before_refusal_se
             let _installed = fixture::install(&mut actual, 0);
             let _reset = Reset;
             actual.register_builtin(b"originalWordCommand", command_component);
-            assert_eq!(actual.eval_str(b"proc p {} {return \"A[originalWordCommand]B\"}"), Code::Ok);
+            assert_eq!(
+                actual.eval_str(b"proc p {} {return \"A[originalWordCommand]B\"}"),
+                Code::Ok
+            );
             assert_eq!(actual.eval_str(b"p"), Code::Ok);
             let artifact = cache(actual.proc_def(b"p").unwrap().body.as_ptr())
                 .expect("actual original Command component artifact");
@@ -300,7 +307,9 @@ fn original_compiled_command_component_restores_saved_metadata_before_refusal_se
             frame.cmd = b"PARENT COMMAND".to_vec();
             frame.original_command = Some(parent);
             actual.cmd_frames.borrow_mut().push(frame);
-            let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
+            let scope =
+                crate::interp::native_operation_currency::NativeOperationScope::enter(&actual)
+                    .unwrap();
             FREES.set(0);
             REFS.set(-1);
             MODE.set(mode);
@@ -310,16 +319,29 @@ fn original_compiled_command_component_restores_saved_metadata_before_refusal_se
                 let frame = frames.last().unwrap();
                 assert_eq!(frame.line, 77);
                 assert_eq!(frame.cmd, b"PARENT COMMAND");
-                assert_eq!(frame.original_command.as_ref().unwrap().as_ptr(), parent_pointer);
+                assert_eq!(
+                    frame.original_command.as_ref().unwrap().as_ptr(),
+                    parent_pointer
+                );
             }
-            assert_eq!(unsafe { (*parent_pointer).ref_count }, if mode == 5 { 0 } else { 1 });
+            assert_eq!(
+                unsafe { (*parent_pointer).ref_count },
+                if mode == 5 { 0 } else { 1 }
+            );
             if mode == 5 {
                 assert!(actual.cmd_frames.borrow().is_empty());
                 assert!(!obj::allocation_is_live(parent_lifetime.as_ptr()));
             }
             assert_eq!(FREES.get(), if mode == 5 { 2 } else { 1 });
             assert_eq!(REFS.get(), 0);
-            assert_eq!(obj::native_object_snapshot(actual.result_obj()).unwrap().resident.unwrap().as_ref(), b"C");
+            assert_eq!(
+                obj::native_object_snapshot(actual.result_obj())
+                    .unwrap()
+                    .resident
+                    .unwrap()
+                    .as_ref(),
+                b"C"
+            );
             if mode == 0 {
                 assert_eq!(obj::bytes_of(reached.unwrap().as_ptr()), b"ACB");
                 scope.currency().ensure_current_or_refuse().unwrap();

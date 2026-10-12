@@ -459,10 +459,7 @@ mod tests {
             assert_eq!(&fields[3..6], &header);
             assert!(!fields[7].contains("listRangeImm"));
             let state = shared(3, 3);
-            assert_eq!(
-                command_range_action(version, 12, 2, state).unwrap(),
-                action
-            );
+            assert_eq!(command_range_action(version, 12, 2, state).unwrap(), action);
             assert_eq!(
                 range_action(version, coordinates(12, -2), state).unwrap(),
                 NativeListRangeAction::FreshEmpty

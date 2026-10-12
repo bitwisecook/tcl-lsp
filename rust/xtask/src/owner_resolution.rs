@@ -58,6 +58,7 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(validate_command_guard_consumers(&root)?);
     problems.extend(validate_variable_table_consumers(&root)?);
     problems.extend(validate_array_search_consumers(&root)?);
+    problems.extend(validate_variable_command_grammars(&root)?);
     problems.extend(validate_native_bootstrap_consumers(&root)?);
     problems.extend(validate_native_variable_callback_consumers(&root)?);
     problems.extend(validate_private_error_header_consumers(&root)?);
@@ -121,10 +122,10 @@ fn validate_f5_string_predicate_consumers(root: &Path) -> Result<Vec<String>> {
             ][..],
         ),
         (
-            "runtime/rust/src/expr.rs",
+            "runtime/rust/src/expr/native_values.rs",
             &[
                 ".f5_string_predicate_provider()",
-                "provider.predicate(op)",
+                "provider.predicate(operator)",
                 "predicate.evaluate(&left,&right)",
             ][..],
         ),
@@ -295,16 +296,8 @@ fn validate_variable_table_consumers(root: &Path) -> Result<Vec<String>> {
             "/// `info vars",
             "vars_in_bytes_checked(",
         ),
-        (
-            "pub fn vars<",
-            "/// `info locals",
-            "var_names_bytes_checked(",
-        ),
-        (
-            "pub fn locals<",
-            "/// `info globals",
-            "var_names_bytes_checked(",
-        ),
+        ("pub fn vars<", "/// `info locals", "filter_frame_names("),
+        ("pub fn locals<", "/// `info globals", "filter_frame_names("),
         (
             "pub fn globals<",
             "/// `info consts",
@@ -323,6 +316,20 @@ fn validate_variable_table_consumers(root: &Path) -> Result<Vec<String>> {
         if section.is_none_or(|section| !variable_inventory_is_owned(section, checked)) {
             problems.push(format!("variable inventory `{start}` bypasses checked owned order or sorts/deduplicates native declarations"));
         }
+    }
+    let frame_filter = info
+        .split_once("fn filter_frame_names<")
+        .and_then(|(_, tail)| tail.split_once("fn selected_variable_inventory_policy<"))
+        .map(|(body, _)| body);
+    if frame_filter.is_none_or(|body| {
+        !body.contains("var_names_bytes_checked(")
+            || !body.contains("var_name_pattern_inputs_bytes_checked(")
+            || !body.contains("match_name_pattern(purpose,")
+            || [".sort(", ".sort_unstable(", ".dedup("]
+                .iter()
+                .any(|bypass| body.contains(bypass))
+    }) {
+        problems.push("frame variable inventory bypasses original checked declarations or pattern-purpose ownership".into());
     }
     for path in ["rust/tcl-vm/src/interp.rs", "runtime/rust/src/interp.rs"] {
         let source = read(root, path)?;
@@ -516,13 +523,19 @@ fn validate_package_consumers(root: &Path) -> Result<Vec<String>> {
         for owner in [
             "native_package_protocol()",
             "c_members()",
-            "native_index_from_original(",
+            "native_index_from_original_checked(",
             "retains_version_object",
         ] {
             // The VM's private version owner lives beside the package state.
             if owner == "retains_version_object" && path.starts_with("rust/") {
                 continue;
             }
+            let owner =
+                if owner == "native_index_from_original_checked(" && path.starts_with("runtime/") {
+                    "native_index_from_original("
+                } else {
+                    owner
+                };
             if !production.contains(owner) {
                 problems.push(format!(
                     "package consumer `{path}` omits shared original owner `{owner}`"
@@ -580,7 +593,7 @@ fn validate_native_instruction_name_consumers(root: &Path) -> Result<Vec<String>
             "rust/tcl-vm/src/interp.rs",
             [
                 "native_return_options_application(purpose)",
-                "inner_context_name()",
+                "NativeReturnOptionsApplicationProtocol::inner_context_name",
             ],
         ),
         (
@@ -659,12 +672,12 @@ fn validate_private_error_header_consumers(root: &Path) -> Result<Vec<String>> {
     for door in [
         "native_return_options_application(purpose)",
         "retains_merged_header()",
-        "NativeReturnOptions::from_original(",
+        "NativeReturnOptions::from_original_using(",
         "process_original_c_return_options",
         "capture_original_c_syntax_options",
         "reset_original_c_compiler_result",
-        "native_scalar_probe(",
-        "retain_native_error_option(false, error_code)",
+        "native_scalar_probe_with_stage_check(",
+        "set_original_c_error_code_using(",
     ] {
         if !instructions.contains(door) {
             problems.push(format!("original return instructions bypass `{door}`"));
@@ -755,7 +768,7 @@ fn validate_array_search_consumers(root: &Path) -> Result<Vec<String>> {
     ] {
         let source = read(root, path)?;
         let source = source.split("#[cfg(test)]").next().unwrap_or(&source);
-        if !source.contains("tcl_cmd_core::native_array_search::dispatch(") {
+        if !source.contains("tcl_cmd_core::native_array_search::dispatch_bytes(") {
             problems.push(format!(
                 "array search in `{path}` bypasses the shared original-object handler"
             ));
@@ -790,9 +803,67 @@ fn validate_array_search_consumers(root: &Path) -> Result<Vec<String>> {
     Ok(problems)
 }
 
+fn validate_variable_command_grammars(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for path in ["runtime/rust/src/cmd_var.rs", "rust/tcl-vm/src/command.rs"] {
+        let source = read(root, path)?;
+        if !source.contains("native_variable_declaration_protocol()")
+            || !source.contains("grammar.arguments(")
+        {
+            problems.push(format!(
+                "variable declaration in `{path}` bypasses its shared original argument grammar"
+            ));
+        }
+    }
+    let array = read(root, "rust/tcl-cmd-core/src/array.rs")?;
+    let names_mode = array
+        .split_once("fn names_mode<")
+        .and_then(|(_, tail)| tail.split_once("fn names<"))
+        .map(|(body, _)| body);
+    if names_mode.is_none_or(|body| {
+        let compact: String = body.split_whitespace().collect();
+        !compact.contains(
+            "crate::prefix::OptionTable::abbreviating(\"option\",&MODES).index_of_original(ops,mode)",
+        )
+    }) {
+        problems.push("array names mode bypasses shared original option lookup".into());
+    }
+    let names = array
+        .split_once("fn names<")
+        .and_then(|(_, tail)| tail.split_once("fn get<"))
+        .map(|(body, _)| body);
+    if names.is_none_or(|body| {
+        let compact: String = body.split_whitespace().collect();
+        ![
+            "NativeArrayNamesProtocol::from_name_policy(policy)",
+            "array_key_bytes_checked_at(",
+            "names_mode(ops,&rest[1])?",
+            "names_mode(ops,original_mode)?",
+            "NativeNameGlobPurpose::ArrayNamesSearch",
+            "tcl_core_types::c_string_extent(",
+        ]
+        .iter()
+        .all(|door| compact.contains(door))
+            || [
+                "string_match_bytes(",
+                "from_utf8_lossy(",
+                ".sort(",
+                ".sort_unstable(",
+                ".dedup(",
+            ]
+            .iter()
+            .any(|bypass| compact.contains(bypass))
+    }) {
+        problems.push(
+            "array names bypasses shared original mode, pattern or key inventory ownership".into(),
+        );
+    }
+    Ok(problems)
+}
+
 fn variable_inventory_is_owned(section: &str, checked: &str) -> bool {
     section.contains(checked)
-        && section.contains("filter_ordered_names(")
+        && (section.contains("filter_ordered_names(") || section.contains("filter_frame_names("))
         && ![
             ".sort(",
             ".sort_unstable(",
@@ -840,7 +911,7 @@ fn validate_command_object_consumers(root: &Path) -> Result<Vec<String>> {
     let namespace = read(root, "runtime/rust/src/cmd_namespace.rs")?;
     let configuration = namespace
         .split_once("fn join_words(")
-        .and_then(|(_, tail)| tail.split_once("fn ensemble_config_dict("))
+        .and_then(|(_, tail)| tail.split_once("fn ensemble_config_list("))
         .map(|(section, _)| section);
     if configuration.is_none_or(|section| !ensemble_byte_serialization_is_owned(section)) {
         problems.push("namespace ensemble configuration must serialize original bytes through a selected native List".into());
@@ -894,7 +965,7 @@ fn validate_namespace_object_consumers(root: &Path) -> Result<Vec<String>> {
         "obj::native_namespace_name::cache(original)",
         "cache.is_current(",
         "owns_namespace_name_token(target)",
-        "obj::native_namespace_name::retire(original)",
+        "obj::native_namespace_name::retire_using(",
     ] {
         if !runtime_getter.contains(entry) {
             problems.push(format!("Runtime namespace object lookup must authenticate the original cache against the actual lifecycle and closed ledger: missing `{entry}`"));
@@ -1094,11 +1165,11 @@ fn validate_native_list_storage_consumers(root: &Path) -> Result<Vec<String>> {
     for (path, required) in [
         (
             "rust/tcl-vm/src/value/native_list_storage.rs",
-            "range_action(",
+            "NativeListRangeSelection",
         ),
         (
             "runtime/rust/src/list/native_list_storage.rs",
-            "range_action(",
+            "NativeListRangeSelection",
         ),
         ("rust/tcl-vm/src/native_list_backing.rs", "replace_layout("),
         (
@@ -1116,7 +1187,11 @@ fn validate_native_list_storage_consumers(root: &Path) -> Result<Vec<String>> {
         ),
         ("runtime/rust/src/list.rs", "fn checked_generation("),
     ] {
-        if !read(root, path)?.contains(required) {
+        let source = read(root, path)?;
+        let compact: String = source.split_whitespace().collect();
+        if !source.contains(required)
+            || (required == "NativeListRangeSelection" && !compact.contains("selection.action("))
+        {
             problems.push(format!(
                 "native List storage in `{path}` bypasses original owner `{required}`"
             ));
@@ -1862,7 +1937,9 @@ mod tests {
         let contract = std::fs::read_to_string(root.join(CONTRACT_PATH)).expect("contract");
         let contract = contract
             .lines()
-            .filter(|line| !line.starts_with("| glob matching |"))
+            .filter(|line| {
+                !(line.starts_with('|') && line.contains("`rust/tcl-syntax/src/glob.rs`"))
+            })
             .collect::<Vec<_>>()
             .join("\n");
         let makefile = std::fs::read_to_string(root.join(MAKEFILE_PATH)).expect("Makefile");

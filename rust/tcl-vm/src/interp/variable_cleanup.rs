@@ -18,7 +18,9 @@
 
 //! Mandatory retirement in the actual original variable arena.
 
-use super::native_operation_currency::{CleanupRestoration, NativeOperationScope, SavedExecutionTarget};
+use super::native_operation_currency::{
+    CleanupRestoration, NativeOperationScope, SavedExecutionTarget,
+};
 use super::{GuardDomain, InterpId, InterpState, Local, TakenVarTraces, VarTraceCell, Vm};
 use crate::vars::{VarState, VariableRetirement, WeakJimVariableCell};
 use std::rc::{Rc, Weak};
