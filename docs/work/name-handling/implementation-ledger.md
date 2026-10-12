@@ -95,8 +95,10 @@ temporary work directory and its links only when the consumer census is complete
   and zero unlinked tests; after formatting and two reviewed LSP updates, 348
   implementation evidence digests require review. Exact output is retained at
   experiments/name-handling/results/proof-source-currency/20261012-reviewed-lsp/.
-  Syntax/LSP reviews cover 39 entries; meaning/test review is still required
-  for two LSP entries before any final source binding is renewed.
+  Syntax/LSP reviews cover39 original entries. Two LSP records now describe
+  exact conditional-family/current-source coverage. Scoped renewals applied14
+  syntax and22 further LSP bindings, preserving original provider/capture/test
+  statuses; the last whole-gate348 count precedes these renewals.
 
 ## Concrete next work
 
@@ -205,3 +207,13 @@ ownership; use small jobs and update this snapshot before handoff.
   startup remains refused. Compiled foreach first hit eager indexing of absent
   locals; lazy storage selection then exposed SIGABRT. Separate iterator
   ownership remains unresolved; no real-startup or foreach pass is claimed.
+
+- Broad cleanup has begun outside naming changes: five verified stale prose
+  passages in F5CLI and VSCode grammar/test comments were corrected, with
+  executable tokens/grammar rules unchanged. See evidence-review/broad-cleanup-sample.md.
+  The remaining635 search hits are candidates requiring contextual audit, not
+  proof of chaff; repository-wide final cleanup remains unfinished.
+- Callback pattern acceptance audit: evidence-review/callback-pattern-acceptance.md
+  joins pinned Snit/httpd/Wiki sites to exactC/Jim outcomes and existing shared
+  consumers. Proposed composed held-out positive/negative pair remains unexecuted;
+  Clay/Snit host/frame provenance and F5 outcomes remain unmeasured.

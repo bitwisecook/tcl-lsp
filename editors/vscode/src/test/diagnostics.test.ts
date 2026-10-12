@@ -488,15 +488,8 @@ suite("Diagnostics", () => {
 
       await activate(cleanUri);
 
-      // Positive proof the deep pass ran and published for THIS uri: the server
-      // emits `[timing] deep diagnostics (uri=…, diags=0)` after every publish,
-      // even for a clean file with the optimiser off.  `waitForDeepDiagnostics`
-      // throws on timeout, so an analysis that silently never ran fails loudly
-      // instead of going green on a vacuous empty set.  `waitForDiagnostics` is
-      // the wrong instrument here whatever its timeout does: a clean file never
-      // satisfies `minCount: 1`, so it can only ever burn the full deadline —
-      // proving nothing before, and failing a passing case now that it rejects.
-      // The marker is the only positive signal that the pass ran at all.
+      // Await the URI's deep-pass marker: an empty diagnostic set alone
+      // does not show that analysis completed.
       await waitForDeepDiagnostics(cleanUri, { since });
       const diagnostics = vscode.languages.getDiagnostics(cleanUri);
 

@@ -22,8 +22,7 @@
 //! group), plus dispatch into the BIG-IP engine crates (`tcl-bigip`,
 //! `tcl-bigip-query`, `tcl-bigip-remote`, `tcl-bigip-pcap`).
 //!
-//! A verb whose engine is not yet implemented returns a clear
-//! "not yet implemented" error (exit code 2).
+//! Dispatch errors are printed and return exit code 2.
 
 #![forbid(unsafe_code)]
 

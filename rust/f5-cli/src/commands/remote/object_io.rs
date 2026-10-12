@@ -64,12 +64,7 @@ fn percent_encode(s: &str) -> String {
 ///
 /// The one source of truth for the set: `cli.rs` builds both subcommands'
 /// `value_parser` from [`OBJECT_KINDS`], and [`kind_to_endpoint`] resolves
-/// against these rows. The set used to be written out three times — twice in
-/// clap and once in the match plus its error string — and the copies had
-/// drifted: clap allowed four kinds while the three monitor and data-group
-/// kinds were implemented, endpoint-mapped, and named as supported in an
-/// error the user could never reach, because clap rejected the value first
-/// (#2073).
+/// against these rows.
 ///
 /// Sorted, so the generated help and the error text list kinds in one order.
 pub const OBJECT_KINDS: &[(&str, (&str, &str))] = &[
