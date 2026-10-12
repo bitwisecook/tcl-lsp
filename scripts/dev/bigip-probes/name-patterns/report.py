@@ -366,10 +366,7 @@ def build_records(run_path, root=ROOT):
                     r"^ltm rule ([^\s{]+)", configuration, re.MULTILINE
                 )
                 provider["configured_profiles"] = (
-                    ["tcp", "http"]
-                    if context == "tmm-traffic-event"
-                    and "profiles { tcp" in configuration
-                    else []
+                    ["tcp", "http"] if "profiles { tcp" in configuration else []
                 )
                 provider["invoking_action"] = (
                     "definition"
@@ -391,6 +388,18 @@ def build_records(run_path, root=ROOT):
                         provider["evidence"].append(
                             _descriptor(run / "interpreter-facts.json", root)
                         )
+                invocation_events = case.get("invocation_events", {})
+                if invocation_events and context == "tmm-procedure":
+                    event = invocation_events.get(
+                        invocation, invocation_events.get("*")
+                    )
+                    if not context.startswith("tmm-") or event not in {
+                        "RULE_INIT",
+                        "HTTP_REQUEST",
+                    }:
+                        raise ValueError("Invalid authored invocation event")
+                    provider["event"] = event
+                    provider["invoking_action"] = "call measure from " + event
                 event_name = re.search(r"event-name ([^\s}]+)", configuration)
                 if context == "icall" and event_name:
                     provider["configured_event_name"] = event_name[1]

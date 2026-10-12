@@ -60,6 +60,28 @@ Learned the hard way; all of these cost a cycle.
   The [resolution appliance handoff](resolution-2286/README.md) provides isolated
   static/global controls and actual responding-TMM coverage.
 
+## Naming oracle captures
+
+`name-patterns/` retains complete inputs, applied configuration, invocation
+receipts and raw result bytes under `experiments/name-handling/`. `report.py`
+derives answer records without deploying or promoting them. `register.py`
+prepares narrowly scoped records for the existing canonical proof authority;
+review those records before merging them. Sealed run directories are immutable.
+
+`persistence.py --run <unique-tag>` measures once-seeded TMM state and paired
+connections. `namespace_owner.py --run <unique-tag>` checks the requested,
+caller and global procedure locations independently. These are adapted controls,
+not unchanged portable corpus answers. The APL counterpart uses
+`apl.py --run <unique-tag> --kind owner --phase prepare`, actual Chrome template
+selection, retained DOM option values, then `--phase finish` and
+`browser_receipt.py <run-directory>`. Rendering the form executes callbacks;
+it does not execute the application implementation.
+
+Use the infrastructure discovery instructions to identify the current appliance
+and credentials. Each probe requires absence before creation, exact owned-object
+cleanup and absence afterward. Never save probe configuration. Retrieve and
+verify the run before removing its owned remote staging directory.
+
 ## Traffic lab
 
 `irules/traffic-lab/` needs a second host as client and backend. On the lab

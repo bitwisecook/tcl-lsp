@@ -1,0 +1,70 @@
+ltm rule __tcl_lsp_probe_nh20261012persist1_provider {
+proc __nh_nh20261012persist1_target {value} {list NATIVE $value}
+proc record {nh_context nh_case nh_stage nh_code nh_value nh_invocation} {
+set nh_options_available unavailable
+set nh_return_options {}
+set nh_unit [TMM::cmp_group]:[TMM::cmp_unit]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_value metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
+    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        log local0. "NHO|nh20261012persist1|$nh_case|$nh_context|$nh_stage|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+
+}
+proc measure {invocation} {
+set nh_invocation $invocation
+# NHO|nh20261012persist1|native-computed-ordinary-head|tmm-procedure|
+set nh_setup {}
+set nh_operation [binary format H* 7365742068656164205f5f6e685f6e68323032363130313270657273697374315f7461726765743b202468656164204f5244494e415259]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure native-computed-ordinary-head setup $nh_setup_code $nh_setup_result $nh_invocation
+if {$nh_setup_code == 0} {set nh_code [catch {eval $nh_operation} nh_value]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure native-computed-ordinary-head lookup $nh_code $nh_value $nh_invocation
+}
+# NHO|nh20261012persist1|native-catalogue-versus-call|tmm-procedure|
+set nh_setup {}
+set nh_operation [binary format H* 736574206e206e616d6573706163650a736574206265666f7265205b6c697374205b696e666f20636f6d6d616e6473205f5f6e685f6e68323032363130313270657273697374315f7461726765745d205b696e666f2070726f6373205f5f6e685f6e68323032363130313270657273697374315f7461726765745d205b696e666f20636f6d6d616e6473202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f7461726765745d205b696e666f2070726f6373202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f7461726765745d205b246e207768696368202d636f6d6d616e64205f5f6e685f6e68323032363130313270657273697374315f7461726765745d205b246e207768696368202d636f6d6d616e64202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f7461726765745d5d0a7365742063205b6361746368207b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f74617267657420434154414c4f477d20765d0a6c69737420636174616c6f67756520246265666f7265206e61746976652d63616c6c2024632024760a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure native-catalogue-versus-call setup $nh_setup_code $nh_setup_result $nh_invocation
+if {$nh_setup_code == 0} {set nh_code [catch {eval $nh_operation} nh_value]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure native-catalogue-versus-call lookup $nh_code $nh_value $nh_invocation
+}
+# NHO|nh20261012persist1|native-computed-rename|tmm-procedure|
+set nh_setup {}
+set nh_operation [binary format H* 736574206265666f7265205b6361746368207b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f746172676574204245464f52457d2062765d0a73657420722072656e616d650a736574207263205b6361746368207b2472202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f746172676574202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f7461726765745f6d6f7665647d2072765d0a736574206f6c64205b6361746368207b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f746172676574204f4c447d206f765d0a736574206e6577205b6361746368207b63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f7461726765745f6d6f766564204e45577d206e765d0a73657420726573746f7265206e6f742d6e65656465640a73657420726573746f726564207b7d0a6966207b247263203d3d20307d207b73657420726573746f7265205b6361746368207b2472202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f7461726765745f6d6f766564202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e68323032363130313270657273697374315f70726f76696465723a3a5f5f6e685f6e68323032363130313270657273697374315f7461726765747d20726573746f7265645d7d0a6c697374206265666f726520246265666f7265202462762072656e616d652024726320247276206f6c6420246f6c6420246f76206e657720246e657720246e7620726573746f72652024726573746f72652024726573746f7265640a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure native-computed-rename setup $nh_setup_code $nh_setup_result $nh_invocation
+if {$nh_setup_code == 0} {set nh_code [catch {eval $nh_operation} nh_value]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure native-computed-rename lookup $nh_code $nh_value $nh_invocation
+}
+# NHO|nh20261012persist1|worker-cells-read|tmm-procedure|
+set nh_setup {}
+set nh_operation [binary format H* 736574206e206e616d6573706163650a73657420726f7773207b7d0a666f72656163682063656c6c205b6c697374203a3a5f5f6e685f6e68323032363130313270657273697374313a3a63656c6c203a3a5f5f6e685f6e68323032363130313270657273697374315f676c6f62616c207374617469633a3a5f5f6e685f6e68323032363130313270657273697374315f7374617469635d207b7365742063205b6361746368207b736574202463656c6c7d20765d3b206c617070656e6420726f7773202463656c6c2024632024767d0a7365742063205b6361746368207b6576616c205b6c697374203a3a5f5f6e685f6e68323032363130313270657273697374313a3a5f5f6e685f6e68323032363130313270657273697374315f64796e616d69635d7d20765d0a6c6973742063656c6c732024726f77732064796e616d6963202463202476206e616d657370616365205b246e2063757272656e745d206c6576656c205b696e666f206c6576656c5d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure worker-cells-read setup $nh_setup_code $nh_setup_result $nh_invocation
+if {$nh_setup_code == 0} {set nh_code [catch {eval $nh_operation} nh_value]
+call /Common/__tcl_lsp_probe_nh20261012persist1_provider::record tmm-procedure worker-cells-read lookup $nh_code $nh_value $nh_invocation
+}
+}
+}

@@ -1,0 +1,247 @@
+{
+  "receipts_sha256": "3eb08b63c2bcf9836474d766c75a9f2c0e8eac0faafdbd294cf69f1144a35a61",
+  "verified_original_sealed_files": 13945,
+  "initial_inventory_files": 328,
+  "staging_paths": [
+    {
+      "run_id": "nh20261012exact1",
+      "original_provenance_sha256": "cfc57add70eded2252466b70a096608acdeba2cebdca98606bfa0d6581a868f8",
+      "original_seal_sha256": "811a69974f31b1e5f73589835d5bd7cd5b63a543009bbbcdd826126828f20368",
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012exact1",
+      "transcripts": [
+        {
+          "attempt": "initial",
+          "stdout_sha256": "3ed421ecf0e1e173e183ae6dd27eeb4b469cb49ecbcccef87840cbe9bccdecef",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 135
+        },
+        {
+          "attempt": "retry",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        },
+        {
+          "attempt": "retry2",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        }
+      ],
+      "initial_exit_evidence": "Retained initial helper asserts this command result0 before executing its separately retained failing ltm rule listing; final receipt explicitly records retry2 exit0."
+    },
+    {
+      "run_id": "nh20261012aplexact1",
+      "original_provenance_sha256": "074a547c7096759e4ec300e88c905e47dc986eeb1c6c2a50be0dfed0137cd186",
+      "original_seal_sha256": "8ab53f8a2610a8ac750f1fb233dd9d17152b9badbff2bb61600f98819518df44",
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012aplexact1",
+      "transcripts": [
+        {
+          "attempt": "initial",
+          "stdout_sha256": "062b9ed4db411ed2878abbef222bf5dfc8de54a8d6844d2848d29d9b8ea364d4",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 1
+        },
+        {
+          "attempt": "retry",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        },
+        {
+          "attempt": "retry2",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        }
+      ],
+      "initial_exit_evidence": "Retained initial helper asserts this command result0 before executing its separately retained failing ltm rule listing; final receipt explicitly records retry2 exit0."
+    },
+    {
+      "run_id": "nh20261012exact2",
+      "original_provenance_sha256": "ada314b00b592a1db06d974abded3fd1ef89302332d7ae8759f1cda90693ab05",
+      "original_seal_sha256": "8cc8a035edb9d6c4f45942ba54cb0ec95635ee5fdd5ece20e0f332b590933e12",
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012exact2",
+      "transcripts": [
+        {
+          "attempt": "initial",
+          "stdout_sha256": "56b0c4f54f06a50dbdb2095893935680d646c72f8ecdf5af4a221a537d0cab94",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 180
+        },
+        {
+          "attempt": "retry",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        },
+        {
+          "attempt": "retry2",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        }
+      ],
+      "initial_exit_evidence": "Retained initial helper asserts this command result0 before executing its separately retained failing ltm rule listing; final receipt explicitly records retry2 exit0."
+    },
+    {
+      "run_id": "nh20261012persist1",
+      "original_provenance_sha256": "58e21ea0e1de0e27acb8ed04732ee5feb95a8e48d430479617755a11f8add703",
+      "original_seal_sha256": "0198f587559c0eaf62fe68f42328f0eb07d36a01b022abdaa1ccbc0e1d7f9aa8",
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012persist1",
+      "transcripts": [
+        {
+          "attempt": "initial",
+          "stdout_sha256": "2c7ef8403a33588d43f2f229c8b2d9f3bd28656b9777f1be6100c20aa3faf6de",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 4
+        },
+        {
+          "attempt": "retry",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        },
+        {
+          "attempt": "retry2",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        }
+      ],
+      "initial_exit_evidence": "Retained initial helper asserts this command result0 before executing its separately retained failing ltm rule listing; final receipt explicitly records retry2 exit0."
+    },
+    {
+      "run_id": "nh20261012nsowner1",
+      "original_provenance_sha256": "47e3e5cff02ab6860d337fb59293a0ce70ff1bdbf9168e751fda7364502ccd0f",
+      "original_seal_sha256": "3f5c3e4f073d03ce4d8e5387e1e731ceeb703d2c4a7bb6fc8544bdd89dda4886",
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012nsowner1",
+      "transcripts": [
+        {
+          "attempt": "initial",
+          "stdout_sha256": "111a86d204b407512f0f24421ca82158d65c15033547be21882557fc39c78082",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 7
+        },
+        {
+          "attempt": "retry",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        },
+        {
+          "attempt": "retry2",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        }
+      ],
+      "initial_exit_evidence": "Retained initial helper asserts this command result0 before executing its separately retained failing ltm rule listing; final receipt explicitly records retry2 exit0."
+    },
+    {
+      "run_id": "nh20261012aplnsowner1",
+      "original_provenance_sha256": "128833295568ccf11a638e3bfa7e3387ddfd76d47c8bfa0353960743d995deda",
+      "original_seal_sha256": "f39cb429f3679a285f675c30f4afde4e23f30f024f57b5092424b2b21c99f132",
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012aplnsowner1",
+      "transcripts": [
+        {
+          "attempt": "initial",
+          "stdout_sha256": "426f04f188abe8c2d1b5cd26f79e6473af9d45cbae23ef4d4b3b358ec4ab4d16",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 1
+        },
+        {
+          "attempt": "retry",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        },
+        {
+          "attempt": "retry2",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "listed_files": 0
+        }
+      ],
+      "initial_exit_evidence": "Retained initial helper asserts this command result0 before executing its separately retained failing ltm rule listing; final receipt explicitly records retry2 exit0."
+    }
+  ],
+  "final_filtered_listings": [
+    {
+      "kind": "ltm rule",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "ltm virtual",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "ltm pool",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "sys application template",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "sys application service",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "cli script",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "sys icall script",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "sys icall handler periodic",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "sys folder",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    },
+    {
+      "kind": "auth partition",
+      "stdout_sha256": "adeda48f4f88a8d2b6c3e74866c686cc0453bc82fc3020feecb3cc6512a7052e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "listing_exit": 0,
+      "matching_lines": 0
+    }
+  ],
+  "helper_digests": {
+    "executed-helper.py": "b67e3f5e0b46c52bf511e8e4307dc6492e57999009b4ef82536edd31b55a89b2",
+    "executed-helper-retry.py": "95f6bae8c8e164f5b4681a27a3f0f95c62f708c2b6806c2e48346ba057c99bc3",
+    "executed-helper-retry2.py": "0fd4c9893d52972be5246c06c258f5daa5afeaec4c8fb7604eeaf225f08a71e1"
+  },
+  "scope": "Initial inventories and helper control flow establish the six initial commands reached successful absence checks before the failed listing. Explicit receipts describe retry2, when staging inventories were already empty. Filtered configuration output establishes only absence of the task prefix in ten successful exact tmsh list commands at that capture time; no complete unfiltered inventory, runtime namespace cleanup or native retirement claim."
+}

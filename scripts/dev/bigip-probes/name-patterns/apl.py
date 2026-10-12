@@ -28,6 +28,7 @@ import capture
 import cases
 import broader_cases
 import campaign
+import namespace_owner
 
 
 def receipt(job, label, command):
@@ -43,7 +44,7 @@ def main():
     parser.add_argument("--run", required=True)
     parser.add_argument(
         "--kind",
-        choices=["capabilities", "patterns", "broader", "wiki", "exact"],
+        choices=["capabilities", "patterns", "broader", "wiki", "exact", "owner"],
         default="capabilities",
     )
     parser.add_argument("--phase", choices=["prepare", "finish"], required=True)
@@ -54,7 +55,9 @@ def main():
     capture.TAG = tag
     root = capture.ROOT / "experiments/name-handling"
     dest = (
-        root / ("f5/answers" if args.kind == "broader" else "patterns/f5/answers") / tag
+        root
+        / ("f5/answers" if args.kind in {"broader", "owner"} else "patterns/f5/answers")
+        / tag
     )
     job = dest / "iapp-apl-0"
     name = "/Common/__tcl_lsp_probe_" + tag
@@ -79,6 +82,7 @@ def main():
         Path(cases.__file__),
         Path(broader_cases.__file__),
         Path(campaign.__file__),
+        Path(namespace_owner.__file__),
     ]:
         (dest / module.name).write_bytes(module.read_bytes())
     provenance = {
@@ -105,6 +109,8 @@ def main():
         selected = cases.build_cases(tag)
     elif args.kind == "exact":
         selected = cases.hosted_cases()
+    elif args.kind == "owner":
+        selected = [namespace_owner.build_case(tag)]
     elif args.kind == "wiki":
         selected = cases.wiki_cases()
         for item in selected:

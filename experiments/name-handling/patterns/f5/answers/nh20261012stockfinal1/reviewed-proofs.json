@@ -1,0 +1,854 @@
+[
+  {
+    "id": "naming.bigip-pattern.factory-body-near-miss.stock-8.4.whole-portable-source-v1.nh20261012stock2.invocation-once",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.factory-body-near-miss.stock-8.4.whole-portable-source-v1.nh20261012stock2.invocation-once.md",
+    "problem_statement": "Related question naming.corpus-pattern.factory-body-near-miss; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant whole-portable-source-v1 of case factory-body-near-miss produce in stock-8.4, run nh20261012stock2, unit None, invocation 'once'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c65\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a2272657475726e20246e616d65220a202020202870726f63656475726520223a3a6e683a3a72656422206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case factory-body-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.4; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.4\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case factory-body-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.4; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.4\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c65\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a2272657475726e20246e616d65220a202020202870726f63656475726520223a3a6e683a3a72656422206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "extra-0",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+        "sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-4/input.tcl",
+        "sha256": "a4e9b7cd0657fedd81182a62b9e9f1afe20672b8f09892e9d3e811f3570bc806",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-4/input.tcl",
+        "sha256": "a4e9b7cd0657fedd81182a62b9e9f1afe20672b8f09892e9d3e811f3570bc806",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-4/runtime.stdout",
+        "sha256": "64a29a31d2736c5c1b1a56fa77ec21169c35c390abd3353debf4c40f92a84386",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-4/runtime.stdout",
+        "sha256": "64a29a31d2736c5c1b1a56fa77ec21169c35c390abd3353debf4c40f92a84386",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-4/runtime.stderr",
+        "sha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-4/invocation.json",
+        "sha256": "cf267010ee4851013b9b286d707f0657e60027ef463ac70b21df5666bdb4577a",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/version.stdout",
+        "sha256": "ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/platform.stdout",
+        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/tmm-roster.stdout",
+        "sha256": "cb0fe6d1755c09c463803511977340d2446041bb60637e08ee3587cc31f0fd7b",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/failover.stdout",
+        "sha256": "e6b20405ef1239992b4f4cb8948e6435448f242922eb1f3a3a22caf45ba459fd",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/provenance.json",
+        "sha256": "0f3d02031f60f889ed66a69df59e85047b36619ee77ec2a170719ed911728c64",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Exact retained capture or provider receipt.",
+        "json_pointer": "/reviews/0"
+      },
+      {
+        "id": "extra-0",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/records.json",
+        "sha256": "83fe3917e965e51b2ae0f5bb1aa7aa210ad264d75e60861127089a6153530dee",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/0"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  },
+  {
+    "id": "naming.bigip-pattern.string-prefix-near-miss.stock-8.4.whole-portable-source-v1.nh20261012stock2.invocation-once",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.string-prefix-near-miss.stock-8.4.whole-portable-source-v1.nh20261012stock2.invocation-once.md",
+    "problem_statement": "Related question naming.corpus-pattern.string-prefix-near-miss; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant whole-portable-source-v1 of case string-prefix-near-miss produce in stock-8.4, run nh20261012stock2, unit None, invocation 'once'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f22\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f220a202020207768696c6520657865637574696e670a223a3a6e683a3a74776f20776f726473207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c202224746172676574207b6120627d207b6320647d22220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case string-prefix-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.4; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.4\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case string-prefix-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.4; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.4\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f22\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f220a202020207768696c6520657865637574696e670a223a3a6e683a3a74776f20776f726473207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c202224746172676574207b6120627d207b6320647d22220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "extra-0",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+        "sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-13/input.tcl",
+        "sha256": "c8af0008e31ba93cf701d6717eec330790f7eb92e90f861b4f4e3a2160c4dd7c",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-13/input.tcl",
+        "sha256": "c8af0008e31ba93cf701d6717eec330790f7eb92e90f861b4f4e3a2160c4dd7c",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-13/runtime.stdout",
+        "sha256": "c254f9f8dd226949b9c3635f2cdfb254aed742cd02d55d3a3061287ae36bfd4f",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-13/runtime.stdout",
+        "sha256": "c254f9f8dd226949b9c3635f2cdfb254aed742cd02d55d3a3061287ae36bfd4f",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-13/runtime.stderr",
+        "sha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.4-13/invocation.json",
+        "sha256": "cafa614826f3e3a89ae0e6d5c8c68bb35d0d78680a6c513736fe92fff9d45738",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/version.stdout",
+        "sha256": "ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/platform.stdout",
+        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/tmm-roster.stdout",
+        "sha256": "cb0fe6d1755c09c463803511977340d2446041bb60637e08ee3587cc31f0fd7b",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/failover.stdout",
+        "sha256": "e6b20405ef1239992b4f4cb8948e6435448f242922eb1f3a3a22caf45ba459fd",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/provenance.json",
+        "sha256": "0f3d02031f60f889ed66a69df59e85047b36619ee77ec2a170719ed911728c64",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Exact retained capture or provider receipt.",
+        "json_pointer": "/reviews/1"
+      },
+      {
+        "id": "extra-0",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/records.json",
+        "sha256": "83fe3917e965e51b2ae0f5bb1aa7aa210ad264d75e60861127089a6153530dee",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/1"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  },
+  {
+    "id": "naming.bigip-pattern.factory-body-near-miss.stock-8.5.whole-portable-source-v1.nh20261012stock2.invocation-once",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.factory-body-near-miss.stock-8.5.whole-portable-source-v1.nh20261012stock2.invocation-once.md",
+    "problem_statement": "Related question naming.corpus-pattern.factory-body-near-miss; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant whole-portable-source-v1 of case factory-body-near-miss produce in stock-8.5, run nh20261012stock2, unit None, invocation 'once'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c65\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a2272657475726e20246e616d65220a202020202870726f63656475726520223a3a6e683a3a72656422206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case factory-body-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.5\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case factory-body-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.5\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c65\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"63616e2774207265616420226e616d65223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a2272657475726e20246e616d65220a202020202870726f63656475726520223a3a6e683a3a72656422206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "extra-0",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+        "sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-4/input.tcl",
+        "sha256": "e66d7ccf7bc645d1108b3269c75286242cd1932b8635daeb025c93aea7b98992",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-4/input.tcl",
+        "sha256": "e66d7ccf7bc645d1108b3269c75286242cd1932b8635daeb025c93aea7b98992",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-4/runtime.stdout",
+        "sha256": "2a7151cdf2a69463b2b2627c70310c1929ba652e3859a4309da9d4a565dd7703",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-4/runtime.stdout",
+        "sha256": "2a7151cdf2a69463b2b2627c70310c1929ba652e3859a4309da9d4a565dd7703",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-4/runtime.stderr",
+        "sha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-4/invocation.json",
+        "sha256": "f1b37b776ebfb49366e2a14e6dc8e3d808fd78149378d7160a0abe082f53fed2",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/version.stdout",
+        "sha256": "ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/platform.stdout",
+        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/tmm-roster.stdout",
+        "sha256": "cb0fe6d1755c09c463803511977340d2446041bb60637e08ee3587cc31f0fd7b",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/failover.stdout",
+        "sha256": "e6b20405ef1239992b4f4cb8948e6435448f242922eb1f3a3a22caf45ba459fd",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/provenance.json",
+        "sha256": "0f3d02031f60f889ed66a69df59e85047b36619ee77ec2a170719ed911728c64",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Exact retained capture or provider receipt.",
+        "json_pointer": "/reviews/2"
+      },
+      {
+        "id": "extra-0",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/records.json",
+        "sha256": "83fe3917e965e51b2ae0f5bb1aa7aa210ad264d75e60861127089a6153530dee",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/2"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  },
+  {
+    "id": "naming.bigip-pattern.string-prefix-near-miss.stock-8.5.whole-portable-source-v1.nh20261012stock2.invocation-once",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.string-prefix-near-miss.stock-8.5.whole-portable-source-v1.nh20261012stock2.invocation-once.md",
+    "problem_statement": "Related question naming.corpus-pattern.string-prefix-near-miss; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant whole-portable-source-v1 of case string-prefix-near-miss produce in stock-8.5, run nh20261012stock2, unit None, invocation 'once'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f22\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f220a202020207768696c6520657865637574696e670a223a3a6e683a3a74776f20776f726473207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c202224746172676574207b6120627d207b6320647d22220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case string-prefix-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.5\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case string-prefix-near-miss, variant whole-portable-source-v1, run nh20261012stock2, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: The unchanged original program was evaluated sequentially in the recorded fresh stock Tcl process. Its complete errorInfo locates the authored final command at outer eval body line 4, after the original definition prefix completed. The empty wrapper setup is only a successful no-op, not an ownership guard or proof of prefix semantics. Fresh-process invocation supplies isolation; source and stack establish prefix completion. This answer is the exact original final-operation completion/result in this stock context; no new execution, other interpreter context or unrecorded error options are inferred.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": \"/usr/bin/tclsh8.5\", \"interpreter_patchlevel\": null, \"tcltest_version\": null, \"execution_namespace\": null, \"invoking_action\": null}. Null means not observed by this receipt. ",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 1; result encoding utf-8; exact result hex \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f22\". Error metadata and availability: {\"errorcode\": {\"encoding\": \"utf-8\", \"hex\": \"4e4f4e45\"}, \"errorinfo\": {\"encoding\": \"utf-8\", \"hex\": \"696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f220a202020207768696c6520657865637574696e670a223a3a6e683a3a74776f20776f726473207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c202224746172676574207b6120627d207b6320647d22220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22\"}, \"return_options\": null, \"unavailable_fields\": [\"return_options\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "extra-0",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+        "sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-13/input.tcl",
+        "sha256": "7eba93d3628350f226db2259e4710277eeb58d56dad75d232f2ef881ff6eba73",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-13/input.tcl",
+        "sha256": "7eba93d3628350f226db2259e4710277eeb58d56dad75d232f2ef881ff6eba73",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-13/runtime.stdout",
+        "sha256": "e16734b2acb42e250e528f29dce46671f99beebdbe07f1d0c9da408fd7cb13f7",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-13/runtime.stdout",
+        "sha256": "e16734b2acb42e250e528f29dce46671f99beebdbe07f1d0c9da408fd7cb13f7",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-13/runtime.stderr",
+        "sha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/stock-8.5-13/invocation.json",
+        "sha256": "ed01062e2c606ff21d81ce757bc03fad4e24df223dee60cbad43eea3cce0fb56",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/version.stdout",
+        "sha256": "ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/platform.stdout",
+        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/tmm-roster.stdout",
+        "sha256": "cb0fe6d1755c09c463803511977340d2446041bb60637e08ee3587cc31f0fd7b",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/failover.stdout",
+        "sha256": "e6b20405ef1239992b4f4cb8948e6435448f242922eb1f3a3a22caf45ba459fd",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/provenance.json",
+        "sha256": "0f3d02031f60f889ed66a69df59e85047b36619ee77ec2a170719ed911728c64",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Exact retained capture or provider receipt.",
+        "json_pointer": "/reviews/3"
+      },
+      {
+        "id": "extra-0",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/nh20261012stock2/reviewed-reachability.json",
+        "sha256": "6f6904eb44e36a7d54c982b69c6efa7653d09a1b3adb9f43e97ec72688fecdf0",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stockfinal1/records.json",
+        "sha256": "83fe3917e965e51b2ae0f5bb1aa7aa210ad264d75e60861127089a6153530dee",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/3"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  }
+]

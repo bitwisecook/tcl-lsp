@@ -1,0 +1,449 @@
+{
+  "capture_run_id": "nh20261012nsowner1",
+  "source_records_sha256": "33dc654ae53a29598bf5982542a4a4d582707afe0db10a0e88b508c5b23e6211",
+  "checks": {
+    "verified_descriptor_files": 195,
+    "verified_raw_rows": 293,
+    "verified_setup_lookup_cleanup_identities": 29,
+    "verified_exact_config_absence_receipts": 9
+  },
+  "findings": [
+    {
+      "record_pointer": "/0",
+      "context": "iapp-implementation",
+      "tmm_unit": null,
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "global",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/1",
+      "context": "icall",
+      "tmm_unit": null,
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "global",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/2",
+      "context": "stock-8.4",
+      "tmm_unit": null,
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/3",
+      "context": "stock-8.5",
+      "tmm_unit": null,
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/4",
+      "context": "tmm-RULE_INIT",
+      "tmm_unit": "0:0",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/5",
+      "context": "tmm-RULE_INIT",
+      "tmm_unit": "0:1",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/6",
+      "context": "tmm-RULE_INIT",
+      "tmm_unit": "0:2",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/7",
+      "context": "tmm-RULE_INIT",
+      "tmm_unit": "0:3",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/8",
+      "context": "tmm-procedure",
+      "tmm_unit": "0:0",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/9",
+      "context": "tmm-procedure",
+      "tmm_unit": "0:1",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/10",
+      "context": "tmm-procedure",
+      "tmm_unit": "0:2",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/11",
+      "context": "tmm-procedure",
+      "tmm_unit": "0:3",
+      "invocation_id": "once",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/12",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "0",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/13",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "1",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/14",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "10",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/15",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "11",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/16",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "12",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/17",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "13",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/18",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "14",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/19",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "15",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/20",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "2",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/21",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "3",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/22",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "4",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/23",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "5",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/24",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "6",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/25",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "7",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/26",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "8",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/27",
+      "context": "tmm-traffic-event",
+      "tmm_unit": "0:0",
+      "invocation_id": "9",
+      "execution_namespace": "::",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "requested",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_namespace::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 2,
+      "cleanup_all_exact_candidates_absent": true
+    },
+    {
+      "record_pointer": "/28",
+      "context": "tmsh-cli-script",
+      "tmm_unit": null,
+      "invocation_id": "once",
+      "execution_namespace": "::script",
+      "inside_namespace": "::__tcl_lsp_probe_nh20261012nsowner1_namespace",
+      "owner_scope": "global",
+      "observed_owner_heads": [
+        "::__tcl_lsp_probe_nh20261012nsowner1_target"
+      ],
+      "candidate_count": 3,
+      "distinct_candidates": 3,
+      "cleanup_all_exact_candidates_absent": true
+    }
+  ],
+  "selected_proofs": 14,
+  "projection": "UTF-8 only where marked; otherwise ASCII byte projection, binary-scan-tcl-value encoding unchanged."
+}

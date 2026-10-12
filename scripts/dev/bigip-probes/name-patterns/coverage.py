@@ -47,9 +47,9 @@ REMAINING = {
     "F5-N08": "Alias anchoring, late binding, destination parent creation, describe/delete and child ownership across contexts; retain duplicate prefix/data and post-rename description as distinct stages.",
     "F5-N09": "Repeated lookup after callback mutation, command traces and namespace-unknown/unknown error options. Unknown replacement must stay in an isolated child.",
     "F5-N10": "Active old frames/compiled descendants, namespace path/import/OO/trace tokens and caches after deletion/recreation. Variable-cell and namespace-code examples alone do not settle these identities.",
-    "F5-N11": "Separately installed providers with identical proc tails: bare local, relative rule::proc and absolute partition/rule::proc through call; provider/caller/partition and replacement/deletion routes.",
+    "F5-N11": "Existing canonical owner-route controls retain folders/partitions and replacement. The exact native computed-head/catalogue/owned-rename receipts are reviewed per recorded context/unit; keep activated native definitions distinct from ordinary Tcl proc slots and literal loader rejection. Unmeasured new route variants require their own retained providers.",
     "F5-N12": "Protocol-prefix identity under same-tail shadows, absolute/relative/computed heads, required profiles/events and actual flow execution; CLI/stock errors are independent controls.",
-    "F5-N13": "RULE_INIT-to-procedure/event persistence, cross-rule/per-connection/per-TMM isolation, ordered write/unset/recreate and independent requests without setup resets. Repeated setup per request is not persistence evidence.",
+    "F5-N13": "Targeted once-seeded RULE_INIT/native-procedure/HTTP and paired-connection storage receipts have completed independent review. Preserve four initial TMM units versus actual traffic units, independent same-connection/fresh-connection identities, exact owned-cell cleanup and cross-rule canonical controls. Entered suspended frames and restart/reload after deletion remain unmeasured.",
     "F5-N14": "Mathfunc namespace/shadow/mutation and supported OO method/forward/metaclass context; capability failure versus intended expr/method lookup must remain separate.",
     "F5-N15": "Missing command/variable/namespace and link/rename/import conflicts with actual inner completion/result/error options; unavailable options stay explicit, especially real-tcltest isolated children.",
     "F5-N16": "Literal accepted names versus dynamically evaluated names, braced/quoted/substituted/list prefixes, brace-newline and displayed-name roundtrips. Literal load acceptance requires its own retained configuration.",
@@ -173,6 +173,16 @@ def build_coverage(root=ROOT):
     inputs = [
         {"path": bundle_path.relative_to(root).as_posix(), "sha256": _sha(bundle_path)}
     ]
+    for source_path in [
+        root / BROAD_BASE / "REQUEST.md",
+        root / "scripts/dev/bigip-probes/name-patterns/coverage.py",
+    ]:
+        inputs.append(
+            {
+                "path": source_path.relative_to(root).as_posix(),
+                "sha256": _sha(source_path),
+            }
+        )
     reports = []
     problems = []
     records = []
@@ -268,6 +278,18 @@ def build_coverage(root=ROOT):
                 "receipt_counts": dict(Counter(r["status"] for r in observations)),
                 "receipts": observations,
                 "remaining": REMAINING[question["question_id"]],
+                "related_native_context_boundaries": [
+                    _receipt(record, path, index, root)
+                    for record, path, index in records
+                    if question["question_id"] in {"F5-N11", "F5-N13"}
+                    and record.get("case_id") == "call"
+                    and path.parent.name in {"nh20261012cap2", "nh20261012aplcap1"}
+                    and not record.get("provider", {})
+                    .get("context", "")
+                    .startswith("tmm-")
+                    and record.get("lookup", {}).get("result_hex")
+                    == b'invalid command name "call"'.hex()
+                ],
                 "context_rows": [
                     {
                         "context": context,
@@ -278,12 +300,26 @@ def build_coverage(root=ROOT):
                                 if _context(r["context"]) == context
                             )
                         ),
-                        "reached_variant_count": sum(
-                            r["status"] == "observed" and r["lookup_reached"] is True
-                            for r in observations
-                            if _context(r["context"]) == context
+                        "reached_variant_count": len(
+                            {
+                                (r["case_id"], r["variant_id"])
+                                for r in observations
+                                if _context(r["context"]) == context
+                                and r["status"] == "observed"
+                                and r["lookup_reached"] is True
+                            }
                         ),
-                        "remaining": "The full numbered question remains broader than these bounded variants; unobserved contexts remain pending.",
+                        "bounded_variant_count": len(
+                            {
+                                (r["case_id"], r["variant_id"])
+                                for r in observations
+                                if _context(r["context"]) == context
+                            }
+                        ),
+                        "remaining": "Native rule/call context unavailable on independent exact call capability inputs; these boundary receipts do not answer native semantics."
+                        if question["question_id"] in {"F5-N11", "F5-N13"}
+                        and not context.startswith("tmm-")
+                        else "The full numbered question remains broader than these bounded variants; unobserved variants remain pending.",
                     }
                     for context in bundle["contexts"]
                 ],
@@ -311,18 +347,36 @@ def _cell(value):
 
 
 def _link(path, root):
-    return "[" + path + "](" + str(root / path) + ")"
+    label = "/".join(Path(path).parts[-2:]) if "/answers/" in path else path
+    return "[" + label + "](" + str(root / path) + ")"
 
 
 def _receipt_links(receipts, root):
+    """Bound Markdown links; complete unit/invocation inventory stays in JSON."""
+    if not receipts:
+        return "No matching returned receipt."
+    representatives = []
+    for state in [
+        "observed",
+        "unreached",
+        "unavailable",
+        "unsupported",
+        "infrastructure-failure",
+    ]:
+        selected = next((r for r in receipts if r["status"] == state), None)
+        if selected is not None:
+            representatives.append(selected)
+        if len(representatives) == 2:
+            break
+    if not representatives:
+        representatives = receipts[:1]
     return (
-        "; ".join(
+        "Representative receipts: "
+        + "; ".join(
             _link(r["path"], root)
             + " `"
             + r["json_pointer"]
             + "` ("
-            + _cell(r["run_id"])
-            + ", "
             + _cell(r["context"])
             + ", unit "
             + _cell(r["unit"])
@@ -331,9 +385,9 @@ def _receipt_links(receipts, root):
             + ", "
             + _cell(r["status"])
             + ")"
-            for r in receipts
+            for r in representatives
         )
-        or "No matching returned receipt."
+        + ". Full independent unit/invocation inventory: [coverage.json](coverage.json)."
     )
 
 
@@ -364,6 +418,31 @@ def _document(data, kind, root):
             + report["sha256"]
             + "` |"
         )
+    matrix_states = Counter(
+        r["original_matrix"]["status"] for r in data["pattern_rows"]
+    )
+    accepted = sum(
+        r["accepted_answer_pointer"] is not None for r in data["pattern_rows"]
+    )
+    attempted = sum(
+        r["original_matrix"].get("attempt_record") is not None
+        for r in data["pattern_rows"]
+    )
+    lines.extend(
+        [
+            "",
+            "Original 400-row matrix states: "
+            + ", ".join(
+                str(n) + " " + state for state, n in sorted(matrix_states.items())
+            )
+            + ". Accepted original pointers: "
+            + str(accepted)
+            + "; measured attempt pointers without original answer: "
+            + str(attempted)
+            + ". Related receipt counts below count actual units/invocations separately and do not change these original states.",
+            "",
+        ]
+    )
     rows = data["pattern_rows"] if kind == "patterns" else data["broad_rows"]
     if kind == "patterns":
         lines.extend(
@@ -373,8 +452,8 @@ def _document(data, kind, root):
                 "",
                 "The table has all 50 questions × 8 contexts. Both stock interpreters remain distinct in receipt details. A pending exact answer can have useful measured adapted controls.",
                 "",
-                "| Question | Context | Original matrix status | Returned receipt states | Original-source candidates | Exact answer |",
-                "| --- | --- | --- | --- | --- | --- |",
+                "| Question | Context | Original matrix status | Returned receipt states | Bounded input variants | Original-source candidates | Original pointer |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for row in rows:
@@ -398,26 +477,43 @@ def _document(data, kind, root):
                         row["context"],
                         row["original_matrix"]["status"],
                         counts,
+                        len({(r["case_id"], r["variant_id"]) for r in row["receipts"]}),
                         candidates,
-                        row["exact_answer"],
+                        (
+                            _link(
+                                (
+                                    row["accepted_answer_pointer"]
+                                    or row["original_matrix"].get("attempt_record")
+                                )["path"],
+                                root,
+                            )
+                            + " `"
+                            + (
+                                row["accepted_answer_pointer"]
+                                or row["original_matrix"].get("attempt_record")
+                            )["json_pointer"]
+                            + "` ("
+                            + (
+                                "answer"
+                                if row["accepted_answer_pointer"]
+                                else "attempt"
+                            )
+                            + ")"
+                        )
+                        if row["accepted_answer_pointer"]
+                        or row["original_matrix"].get("attempt_record")
+                        else "No original pointer; related receipts in JSON",
                     ]
                 )
                 + " |"
             )
-        for question_id in dict.fromkeys(r["question_id"] for r in rows):
-            selected = [r for r in rows if r["question_id"] == question_id]
-            lines.extend(["", "## " + question_id, "", selected[0]["question"], ""])
-            for row in selected:
-                lines.extend(
-                    [
-                        "### " + row["context"],
-                        "",
-                        _receipt_links(row["receipts"], root),
-                        "",
-                        row["remaining"],
-                        "",
-                    ]
-                )
+        lines.extend(
+            [
+                "",
+                "Full authored questions, exact answer/attempt descriptors, related variant classifications and every independent unit/invocation receipt remain in [coverage.json](coverage.json). The matrix pointer table preserves original states without promoting related observations.",
+                "",
+            ]
+        )
     else:
         lines.extend(
             [
@@ -461,8 +557,16 @@ def _document(data, kind, root):
                     "",
                     "Starting inputs: " + row["starting_input"],
                     "",
-                    "| Context | Returned receipt states | Reached bounded variants |",
-                    "| --- | --- | --- |",
+                    "Existing native evidence and remaining controls: "
+                    + _link(
+                        BROAD_BASE + "/answers/native-appliance-question-review.md",
+                        root,
+                    )
+                    if row["question_id"] in {"F5-N11", "F5-N13"}
+                    else "Bounded receipt counts retain all independent units and invocations.",
+                    "",
+                    "| Context | Returned receipt states | Bounded input variants | Reached bounded variants | Boundary/scope |",
+                    "| --- | --- | --- | --- | --- |",
                     *[
                         "| "
                         + _cell(c["context"])
@@ -475,7 +579,11 @@ def _document(data, kind, root):
                             or "none"
                         )
                         + " | "
+                        + str(c["bounded_variant_count"])
+                        + " | "
                         + str(c["reached_variant_count"])
+                        + " | "
+                        + _cell(c["remaining"])
                         + " |"
                         for c in row["context_rows"]
                     ],
@@ -524,6 +632,7 @@ def write_coverage(tag, root=ROOT):
     data = build_coverage(root)
     for path, kind in targets:
         path.mkdir(parents=True)
+        (path / "coverage.py").write_bytes(Path(__file__).read_bytes())
         (path / "coverage.json").write_text(
             json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )

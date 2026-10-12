@@ -4,25 +4,26 @@
 44 canonical questions, plus five appliance-specific questions from two
 pinned public rule-call sites. Each question records CLI, iApp implementation,
 TMM `RULE_INIT`, TMM procedure, traffic event, appliance stock tclsh, iCall and
-APL separately. Eleven of the 400 context rows are `observed`, from reviewed
-exact whole-source corpus runs on appliance stock Tcl; 389 rows remain
-`not-tested` for an accepted exact-input/context answer. The
-[stock review](answers/stock-original-source-review.md) links all 21 successful
-8.4/8.5 receipts and identifies each selected matrix pointer. A null `reached`
-means no accepted measurement; it does not mean an observed failure to reach
-the case. Related adapted and narrower measurements are retained separately.
+APL separately. Accepted original-source answers and measured attempts are distinct
+in the [current matrix](questions.json). The [hosted review](answers/hosted-original-source-review.md),
+[stock corpus review](answers/stock-original-source-review.md) and
+[stock Wiki review](answers/stock-wiki-review.md) identify exact accepted inputs
+and primary pointers. `attempt_record` retains measured guard/setup/program
+boundaries while `answer_record` remains null when the original final lookup
+is unreached or its reachability is unproved. Related adapted controls have
+independent variant scope.
 
 Returned adapted controls, original-source review candidates and remaining
 questions are indexed in [the answer directory](answers/README.md) and its
-[coverage snapshot](answers/nh20261012coverage1/answers.md). The snapshot links
+[coverage snapshot](answers/nh20261012coverage2/answers.md). The snapshot links
 individual units/invocations and preserves load, setup and lookup boundaries;
 it does not silently promote a related variant into an original matrix row.
-That immutable snapshot predates the eleven reviewed stock row updates.
+The current snapshot retains the reviewed original-source matrix and later bounded controls. [Historical snapshot 1](answers/nh20261012coverage1/answers.md) remains unchanged and predates those updates.
 
 Use the [main request](../../f5/REQUEST.md),
 [answer protocol](../../f5/ANSWER-TEMPLATE.md), and
 [isolated appliance infrastructure](../../../../scripts/dev/bigip-probes/README.md).
-Return answer documents and raw inputs/results to this directory's
+Literal loader controls and actual APL callbacks have separate [retained reports](answers/README.md); dynamic source evaluation does not stand in for literal acceptance. Return answer documents and raw inputs/results to this directory's
 [answers](answers/README.md) on branch `work`. The appliance chat owns actual
 execution; this bundle contains no appliance runner or deployment instruction.
 
@@ -88,7 +89,7 @@ and error options in separate fields. Mark unavailable error options explicitly.
 The [answer template](answer-template.md) includes an individual machine-readable
 record shape. Add immutable run directories rather than overwriting prior
 answers. Update only the answered question/context's `answer_record` pointer
-and status in `questions.json`; contradictory measurements remain separate.
+and status; retain non-answering measured attempts in a separate `attempt_record` in `questions.json`; contradictory measurements remain separate.
 Before promoting a canonical provider answer, verify exact question, original
 input/wrapper hashes, version, context, load and reached operation. A successful
 reduction cannot establish corpus prevalence or static recogniser coverage.

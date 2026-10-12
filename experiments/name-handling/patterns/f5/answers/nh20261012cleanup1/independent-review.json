@@ -1,0 +1,382 @@
+{
+  "receipts_sha256": "8092ee371f5bb1639fcdeba3a0871501c01b0ce0b624e687f2472d9e29229cc8",
+  "checked_receipts": 17,
+  "verified_original_sealed_files": 12001,
+  "anchors": [
+    {
+      "run_id": "nh20261012aplcap1",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplcap1/provenance.json",
+        "sha256": "2b0360d86bca5a4a9b86fd79fb5ae6484106e495e43838a6ff907275e5746d4f"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplcap1/MANIFEST.sha256",
+        "sha256": "26420803dc0032ca24b47c9952b113e258bc927b2339eb8b278a8dad94d76369"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplcap1.stdout",
+        "sha256": "a0086ae1eb8f93ae2a160c20eb4d7ab667813de28c02de51f377808072322b8c"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplcap1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 1,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012aplcap1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012aplpat1",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/provenance.json",
+        "sha256": "ab6fb9fbb4596ab7504196bef3ed3249ed3a06d35542245827bf5c71dd9993ed"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplpat1/MANIFEST.sha256",
+        "sha256": "185e696c8264e6c1dbf475f5d891ce01db6e67ab7510b479d92208e9701f3640"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplpat1.stdout",
+        "sha256": "150a1350c3e40e8a708b62245b1ebd3d0c4dc33a0dbfb4bca26460495b1bb567"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplpat1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 1,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012aplpat1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012aplwiki1",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/provenance.json",
+        "sha256": "f210fd9f1534f74c6b533d97e22a0d918236ab402705a76b9cfa83ddeeaa1e55"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/MANIFEST.sha256",
+        "sha256": "ea01550e033c36bb10d658b654b40ec4159b6401a5435632bd91ab7969ba07d3"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplwiki1.stdout",
+        "sha256": "65a979ad659489ff72bee5ea359d3bb2f7eb835705873a722cc012283ba45832"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplwiki1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 1,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012aplwiki1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012app1",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012app1/provenance.json",
+        "sha256": "238b3388910f46def2c3d2ef6c6cd4395f1bd60252a1f767e6b3f8859a0b5f60"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012app1/MANIFEST.sha256",
+        "sha256": "678d7c4cb66711b8908603299442b3be228b647a32bb37b201cd9fa988d291d9"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app1.stdout",
+        "sha256": "7dc597879dd36d15ec05692df55574d135defffef49375269d4f07eb02b90664"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 7,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012app1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012app2",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012app2/provenance.json",
+        "sha256": "364e321e4a03d6c7c21817efa17f9394b02a9e877237b75ec441da993ead3e39"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012app2/MANIFEST.sha256",
+        "sha256": "bd344640e1aa2fb86cdf0148ff8e754f240f3a071b8db763bf2e610701668599"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app2.stdout",
+        "sha256": "7a8cc7fc138e2c7a39b5588ef13f1972a780793f88393d50c7498654a9ec5713"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 7,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012app2",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012app3",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012app3/provenance.json",
+        "sha256": "e2f718494a3315196f478347a98bf71a6d45ffee55ff8614e5a946c4c1793e05"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012app3/MANIFEST.sha256",
+        "sha256": "6ca2911d2b5a4daa6e365b0130d248aba177adb381bc1e99b81e67dcaa8d95dc"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app3.stdout",
+        "sha256": "8b16e25d5d9df33e6bffe86d16131f41e446cf4822f872473536b8f598637714"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012app3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 8,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012app3",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012cap1",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap1/provenance.json",
+        "sha256": "2a1b3f239ac1f60bda5ab31c1b9c10f2036cfa8c97c861115ab13ec9710b590e"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap1/MANIFEST.sha256",
+        "sha256": "1de18bb7c5d5212651b85fe931c55b643889a6e9a4f6a01e7af84af7a8d049e9"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap1.stdout",
+        "sha256": "7ca54a270780f7cb3b68d15169489a96709f1b74471cb0131f0e4659d2a80cf8"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 7,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012cap1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012cap2",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap2/provenance.json",
+        "sha256": "e7c88b8114a9fe2c04610005c06490a6ca7fce5f8eee978773c45afcb2159829"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap2/MANIFEST.sha256",
+        "sha256": "864548c71c5dc181ae4decb9b13c8b55123776aa3ff6d18f0997e017e28d75fd"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap2.stdout",
+        "sha256": "5757034cd00a14952f1747361d3c352bf2a1b14883f4e9d8157667dbc2014d1e"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 16,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012cap2",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012cap3",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/provenance.json",
+        "sha256": "486b6e2aa0d4d336f60c3d3095b313b2925059d20440aa62206081c05d7db71c"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cap3/MANIFEST.sha256",
+        "sha256": "4ce222e32a0508ab8aa8c9f3ec5ada1806a874b89bfc1a1d0b8503971f3ce66a"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap3.stdout",
+        "sha256": "71d4bfab8827c948654e4813e39be6fdd8d41e6c08ee3510e1d5c7dc9f59688f"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012cap3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 12,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012cap3",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012pat1",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat1/provenance.json",
+        "sha256": "7f26fef112d86ff652b97f9c00598f865f76b973205dba694b0a0956e4b6f8e3"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat1/MANIFEST.sha256",
+        "sha256": "bd6cc27310cfe7558f332f58e5449d55e76956023ed4b41d0226f72b1616ec56"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012pat1.stdout",
+        "sha256": "00b03d8bcaa38b670772183e436153faafa78e3525371465188d21e0b1816673"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012pat1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 16,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012pat1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012pat3",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat3/provenance.json",
+        "sha256": "bc1d76100f37e3728910e69c57d23c0ebdb13d196298c8318383007e1cbaa259"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012pat3/MANIFEST.sha256",
+        "sha256": "9e0e3705ab908d78da4eda2ec955c776ddf4aa0df8a0c0c49c62576dba1d3183"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012pat3.stdout",
+        "sha256": "776b536ceceec2bab624c41d5215980ddc190ba93dfe2c6c47b5989f3c2986dd"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012pat3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 10,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012pat3",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012stock2",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/provenance.json",
+        "sha256": "0f3d02031f60f889ed66a69df59e85047b36619ee77ec2a170719ed911728c64"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/MANIFEST.sha256",
+        "sha256": "c4c7888190efc8ca6f7339be59605825ee475d41a6ae8fa13b46f49da7cb48da"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012stock2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012stock2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 0,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012stock2",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012stock3",
+      "original_provenance": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock3/provenance.json",
+        "sha256": "299d19c6c7d8caf5cd616dc27bcd3e9bf1e3abe50d7e799d352c477b631d05cb"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock3/MANIFEST.sha256",
+        "sha256": "33f4ce645e968e9e40fb3e92e15448953326a5e9b27b6ef7e0f3b312e085441d"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012stock3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012stock3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 0,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012stock3",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012aplbroad1",
+      "original_provenance": {
+        "path": "experiments/name-handling/f5/answers/nh20261012aplbroad1/provenance.json",
+        "sha256": "196f74e3398296a2d4b22a9407a9cfe21015014cd417463f11af46a39a4a4742"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/f5/answers/nh20261012aplbroad1/MANIFEST.sha256",
+        "sha256": "c42abc99cf7db1923ae016f4017d5e0921fdd5dfdab59d5ecd9c6f2d9e0c4ce7"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplbroad1.stdout",
+        "sha256": "f5f7a0e60b597560a5e8230bcde465b51424619be7fd0044bfe4a1bd7c640f44"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012aplbroad1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 1,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012aplbroad1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012broad1",
+      "original_provenance": {
+        "path": "experiments/name-handling/f5/answers/nh20261012broad1/provenance.json",
+        "sha256": "8dcc591477356fe3062b826af8bf4d8b24c1713ac1133223682749af7d388592"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/f5/answers/nh20261012broad1/MANIFEST.sha256",
+        "sha256": "aa68aac28cccaba025838117f2a16d609770852a197771444ad7d9449a1c15f7"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012broad1.stdout",
+        "sha256": "f8d16f87aaa6fc01f652d0974313ce41ef9dc4bfdc7a381bc431ed47b040feb5"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012broad1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 43,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012broad1",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012broad2",
+      "original_provenance": {
+        "path": "experiments/name-handling/f5/answers/nh20261012broad2/provenance.json",
+        "sha256": "b2d33cce84ce08ec6a19ed1008a5c3f20fcf7303e2ebecf7d2cf28a12ab9dc2f"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/f5/answers/nh20261012broad2/MANIFEST.sha256",
+        "sha256": "54ed28e3dbb3cf6d41d43d346f6d191a9fd3466ab5d35f5749806f31703fb036"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012broad2.stdout",
+        "sha256": "0c346467ebfbb0de6d2dcac15f11a710556601e32e82f96aa02f6021916aeb43"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012broad2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 46,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012broad2",
+      "captured_absence_exit": 0
+    },
+    {
+      "run_id": "nh20261012literal1",
+      "original_provenance": {
+        "path": "experiments/name-handling/f5/answers/nh20261012literal1/provenance.json",
+        "sha256": "e94d8f7bc12e56b1dd77da0039a3303c2b2f5e0a1b0f53c5a33f1840b1f1376c"
+      },
+      "original_seal": {
+        "path": "experiments/name-handling/f5/answers/nh20261012literal1/MANIFEST.sha256",
+        "sha256": "dc9aa70799db1fc08499f4a88c88bb6dc4418f6c46574adb6330738186f4ee72"
+      },
+      "stdout": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012literal1.stdout",
+        "sha256": "ca4ce4c2760048de87eb2416fa21517c524dd0b564fd9c25d465f0ddd2db6d47"
+      },
+      "stderr": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012cleanup1/nh20261012literal1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "listed_files": 55,
+      "remote_staging": "/var/tmp/tcl_lsp_nh20261012literal1",
+      "captured_absence_exit": 0
+    }
+  ],
+  "limits": "After-removal command exit0 proves exact staging path absent at that captured time. Inventory is maxdepth2 and no remote file digest was measured. Empty stock inventories do not prove a directory or file existed before cleanup. No runtime namespace, native catalogue or configuration cleanup claim is inferred."
+}
