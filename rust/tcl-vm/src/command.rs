@@ -2355,46 +2355,84 @@ pub(crate) fn completion_option_rows_checked(
     vm: &mut Vm,
     options: &Value,
 ) -> Result<Vec<(Value, Value)>, TclError> {
+    completion_option_rows_using(vm, options, &mut None)
+}
+
+pub(crate) trait OriginalCompletionOptions {
+    fn current(&self, vm: &mut Vm, value: &Value) -> Result<(), TclError>;
+    fn list(&self, vm: &mut Vm, value: &Value) -> Result<Vec<Value>, TclError>;
+    fn string(&self, vm: &mut Vm, value: &Value) -> Result<std::rc::Rc<[u8]>, TclError>;
+}
+
+fn completion_option_rows_using(
+    vm: &mut Vm, options: &Value,
+    original: &mut Option<&dyn OriginalCompletionOptions>,
+) -> Result<Vec<(Value, Value)>, TclError> {
+    if let Some(original) = original { original.current(vm, options)?; }
     if let Some(cause) = vm.execution_refusal.clone() {
         return Err(TclError::from_execution_failure(cause));
     }
-    options
-        .check_native_header()
-        .map_err(|error| completion_option_failure(vm, error))?;
+    options.check_native_header().map_err(|error| completion_option_failure(vm, error))?;
     if let Some(pairs) = options.with_cached_dictionary_representation(|pairs, _| pairs.to_vec()) {
+        if let Some(original) = original { original.current(vm, options)?; }
         return Ok(pairs);
     }
-    let items = tcl_syntax::value::ValueOps::list_elements(vm, options)
-        .map_err(|error| completion_option_failure(vm, error))?;
+    let items = match original {
+        Some(original) => original.list(vm, options)?,
+        None => tcl_syntax::value::ValueOps::list_elements(vm, options)
+            .map_err(|error| completion_option_failure(vm, error))?,
+    };
     if items.len() % 2 != 0 {
-        return Err(completion_option_failure(
-            vm,
-            tcl_syntax::value::ValueError::MissingDictionaryValue,
-        ));
+        return Err(completion_option_failure(vm, tcl_syntax::value::ValueError::MissingDictionaryValue));
     }
-    Ok(items
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| (pair[0].clone(), pair[1].clone()))
-        .collect())
+    let pairs = items.as_chunks::<2>().0.iter().map(|pair| (pair[0].clone(), pair[1].clone())).collect();
+    drop(items);
+    if let Some(original) = original { original.current(vm, options)?; }
+    Ok(pairs)
 }
 
 /// Checked exact-byte lookup. An absent member is independent of a getter or
 /// conversion failure; no diagnostic message contributes option identity.
-pub(crate) fn opt_get_checked(
-    vm: &mut Vm,
-    options: &Value,
-    key: &[u8],
+pub(crate) fn opt_get_checked(vm: &mut Vm, options: &Value, key: &[u8]) -> Result<Option<Value>, TclError> {
+    opt_get_checked_using(vm, options, key, None)
+}
+
+pub(crate) fn opt_get_checked_using(
+    vm: &mut Vm, options: &Value, key: &[u8], mut original: Option<&dyn OriginalCompletionOptions>,
 ) -> Result<Option<Value>, TclError> {
-    for (name, value) in completion_option_rows_checked(vm, options)? {
-        let bytes = tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)
-            .map_err(|error| completion_option_failure(vm, error))?;
-        if bytes.as_ref() == key {
-            return Ok(Some(value));
+    if original.is_none() {
+        for (name, value) in completion_option_rows_using(vm, options, &mut None)? {
+            let bytes = tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)
+                .map_err(|error| completion_option_failure(vm, error))?;
+            if bytes.as_ref() == key { return Ok(Some(value)); }
         }
+        return Ok(None);
     }
-    Ok(None)
+    let mut rows = completion_option_rows_using(vm, options, &mut original)?.into_iter();
+    let mut found = None;
+    for (name, value) in rows.by_ref() {
+        let bytes = match original {
+            Some(original) => original.string(vm, &name)?,
+            None => tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)
+                .map_err(|error| completion_option_failure(vm, error))?,
+        };
+        let matches = bytes.as_ref() == key;
+        drop(bytes);
+        if matches {
+            drop(name);
+            if let Some(original) = original { original.current(vm, options)?; }
+            found = Some(value);
+            break;
+        }
+        // Preserve the original reverse local-binding retirement order.
+        drop(value);
+        if let Some(original) = original { original.current(vm, options)?; }
+        drop(name);
+        if let Some(original) = original { original.current(vm, options)?; }
+    }
+    drop(rows);
+    if let Some(original) = original { original.current(vm, options)?; }
+    Ok(found)
 }
 
 /// Read a carried integer at the actual current primitive getter owner.

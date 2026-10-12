@@ -382,6 +382,7 @@ impl tcl_engine_api::OriginalObject for VmOriginalObject {
 struct VmRegistrar<'a> {
     vm: &'a mut Vm,
     host_commands: HostCommandNames,
+    original: &'a tcl_vm::embed::OriginalOperandProjection,
 }
 
 struct VmPublicationService(tcl_vm::NativePublicationService);
@@ -516,16 +517,25 @@ fn provide_package(vm: &mut Vm, name: &str, version: &str) -> Result<(), EngineE
 }
 
 fn read_variable(vm: &mut Vm, name: &str) -> Result<Value, EngineError> {
-    let value = vm
-        .read_variable(name)
-        .map_err(|error| internal_error(vm, error))?;
-    from_vm_value(&value, vm.native_scalar_carrier_dialect())
+    with_engine_projection(vm, |vm, original| read_variable_using(vm, original, name))
+}
+
+fn read_variable_using(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, name: &str) -> Result<Value, EngineError> {
+    check_projection(vm, original)?;
+    let reached = vm.read_variable(name).map_err(|error| projection_error(vm, original, error));
+    check_projection(vm, original)?;
+    let value = reached?;
+    let reached = from_vm_value_using(vm, original, &value);
+    if let Err(error) = &reached { retain_engine_failure(vm, original, error); }
+    drop(value);
+    check_projection(vm, original)?;
+    reached
 }
 
 fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineError> {
     let original = vm
         .capture_original_scalar_ingress()
-        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+        .map_err(EngineError::execution_failure)?;
     let dialect = vm.native_scalar_carrier_dialect();
     let reached = (|| {
         let imported = {
@@ -539,11 +549,11 @@ fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineErro
             .write_variable(name, imported)
             .map_err(|error| internal_error(vm, error));
         vm.check_original_scalar_ingress(&original)
-            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+            .map_err(EngineError::execution_failure)?;
         reached
     })();
     vm.finish_original_scalar_ingress(original)
-        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+        .map_err(EngineError::execution_failure)?;
     reached
 }
 
@@ -558,54 +568,119 @@ fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
 fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
     let completion = match vm.eval_source(script) {
         Ok(completion) => completion,
-        Err(error) => error
-            .into_completion()
-            .map_err(|failure| EngineError::ExecutionRefusal(failure.to_string()))?,
+        Err(error) => error.into_completion().map_err(host_failure)?,
     };
+    with_engine_projection(vm, |vm, original| {
+        let reached = evaluate_completion_using(vm, original, &completion);
+        if let Err(error) = &reached { retain_engine_failure(vm, original, error); }
+        drop(completion);
+        check_projection(vm, original)?;
+        reached
+    })
+}
+
+fn evaluate_using(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, script: &str) -> Result<HostOutcome, EngineError> {
+    check_projection(vm, original)?;
+    let reached = vm.eval_source(script).map_err(|error| projection_error(vm, original, error));
+    check_projection(vm, original)?;
+    let completion = reached?;
+    let reached = evaluate_completion_using(vm, original, &completion);
+    if let Err(error) = &reached { retain_engine_failure(vm, original, error); }
+    drop(completion);
+    check_projection(vm, original)?;
+    reached
+}
+
+fn evaluate_completion_using(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, completion: &Completion<tcl_vm::Value>) -> Result<HostOutcome, EngineError> {
+    check_projection(vm, original)?;
     let code = match completion.code {
         Code::Ok => CompletionCode::Ok,
         Code::Return => CompletionCode::Return,
         Code::Break => CompletionCode::Break,
         Code::Continue => CompletionCode::Continue,
         Code::Error => {
-            let failure = script_error(vm, &completion);
-            if matches!(
-                failure,
-                EngineError::Script { .. } | EngineError::ScriptBytes { .. }
-            ) {
-                // The host command takes the error as its own, so `$errorCode`
-                // and `$errorInfo` are what a `catch` of the script would leave.
-                vm.publish_caught_error(&completion)
-                    .map_err(|error| internal_error(vm, error))?;
+            let failure = TclVmEngine::completion_to_result_using(vm, original, completion)
+                .expect_err("an error completion has no normal value");
+            if matches!(failure, EngineError::Script { .. } | EngineError::ScriptBytes { .. }) {
+                vm.publish_caught_error(completion).map_err(|error| projection_error(vm, original, error))?;
+                check_projection(vm, original)?;
             }
             return Err(failure);
         }
         Code::Other(other) => CompletionCode::Other(other),
     };
-    let value = from_vm_value(&completion.result, vm.native_scalar_carrier_dialect())?;
+    let value = from_vm_value_using(vm, original, &completion.result)?;
     Ok(if code == CompletionCode::Return {
-        HostOutcome::returning(
-            value,
-            from_vm_value(&completion.options, vm.native_scalar_carrier_dialect())?,
-        )
-    } else {
-        HostOutcome::completing(code, value)
-    })
-}
-
-/// The error a failed completion is, with the `-errorcode` its options carry and
-/// a budget the VM reported as the budget it outran.
-fn script_error(vm: &mut Vm, completion: &Completion<tcl_vm::Value>) -> EngineError {
-    TclVmEngine::completion_to_result(vm, completion)
-        .expect_err("an error completion has no normal value")
+        HostOutcome::returning(value, from_vm_value_using(vm, original, &completion.options)?)
+    } else { HostOutcome::completing(code, value) })
 }
 
 /// Export an internal VM failure without rebuilding its guest completion.
 fn internal_error(vm: &mut Vm, error: tcl_vm::TclError) -> EngineError {
     match error.into_completion() {
-        Ok(completion) => script_error(vm, &completion),
-        Err(failure) => EngineError::ExecutionRefusal(failure.to_string()),
+        Ok(completion) => with_engine_projection(vm, |vm, original| {
+            let reached = TclVmEngine::completion_to_result_using(vm, original, &completion);
+            if let Err(error) = &reached { retain_engine_failure(vm, original, error); }
+            let current = check_projection(vm, original);
+            drop(completion);
+            current?;
+            check_projection(vm, original)?;
+            reached
+        }).expect_err("an internal Guest error has no ordinary Engine value"),
+        Err(failure) => host_failure(failure),
     }
+}
+
+fn host_failure(failure: tcl_vm::TclHostFailure) -> EngineError {
+    match failure {
+        tcl_vm::TclHostFailure::Execution(first) => EngineError::execution_failure(first),
+        tcl_vm::TclHostFailure::ValueAccess(first) => EngineError::execution_failure(
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(first),
+        ),
+        tcl_vm::TclHostFailure::PrimitiveErrorStateRequired(error) =>
+            EngineError::ExecutionRefusal(format!("primitive error state is unavailable at this context-free conversion: {error:?}")),
+    }
+}
+
+fn projection_error(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, error: tcl_vm::TclError) -> EngineError {
+    match error.into_completion() {
+        Err(failure) => host_failure(vm.retain_original_operand_failure(original, failure)
+            .into_completion().expect_err("retained Host cause has no Guest completion")),
+        Ok(completion) => {
+            let reached = TclVmEngine::completion_to_result_using(vm, original, &completion);
+            drop(completion);
+            match vm.check_original_operand_projection(original) {
+                Ok(()) => reached.expect_err("Guest error has no ordinary Engine value"),
+                Err(first) => host_failure(first.into_completion().expect_err("original check is operational")),
+            }
+        }
+    }
+}
+
+fn check_projection(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection) -> Result<(), EngineError> {
+    vm.check_original_operand_projection(original).map_err(|error| projection_error(vm, original, error))
+}
+
+fn retain_engine_failure(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, error: &EngineError) {
+    if let Some(first) = error.native_execution_failure() {
+        let _ = vm.retain_original_operand_failure(original, tcl_vm::TclHostFailure::Execution(first.clone()));
+    } else if let EngineError::ExecutionRefusal(reason) = error {
+        drop(vm.refuse_host_command(reason.clone()));
+    }
+}
+
+fn with_engine_projection<T>(vm: &mut Vm, work: impl FnOnce(&mut Vm, &tcl_vm::embed::OriginalOperandProjection) -> Result<T, EngineError>) -> Result<T, EngineError> {
+    let original = vm.capture_original_operand_projection().map_err(|error| internal_error(vm, error))?;
+    let reached = work(vm, &original);
+    if let Err(error) = &reached { retain_engine_failure(vm, &original, error); }
+    if let Err(first) = check_projection(vm, &original) {
+        drop(reached);
+        let _ = vm.finish_original_operand_projection(original);
+        return Err(first);
+    }
+    let retired = vm.finish_original_operand_projection(original).map_err(|error| internal_error(vm, error));
+    if let Err(first) = retired { drop(reached); return Err(first); }
+    reached
 }
 
 /// The message the VM reports when a body outruns `kind` of budget.
@@ -700,7 +775,7 @@ impl CommandRegistrar for VmRegistrar<'_> {
     }
 
     fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
-        read_variable(self.vm, name)
+        read_variable_using(self.vm, self.original, name)
     }
 
     fn set_variable(&mut self, name: &str, value: Value) -> Result<(), EngineError> {
@@ -712,7 +787,7 @@ impl CommandRegistrar for VmRegistrar<'_> {
     }
 
     fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
-        evaluate(self.vm, script)
+        evaluate_using(self.vm, self.original, script)
     }
 }
 
@@ -728,138 +803,177 @@ pub fn register_host_command(vm: &mut Vm, name: &str, command: Rc<dyn HostComman
     }
 }
 
+fn host_error_completion(vm: &mut Vm, error: EngineError) -> Completion<tcl_vm::Value> {
+    match error {
+        EngineError::Script { message, code } => {
+            let options = code.map_or_else(tcl_vm::Value::empty, |code| {
+                tcl_vm::Value::list(vec![
+                    tcl_vm::Value::string("-code"), tcl_vm::Value::int(1),
+                    tcl_vm::Value::string("-level"), tcl_vm::Value::int(0),
+                    tcl_vm::Value::string("-errorcode"), tcl_vm::Value::string(code),
+                ])
+            });
+            Completion::new(Code::Error, tcl_vm::Value::string(message), options)
+        }
+        EngineError::ScriptBytes { message, code, options } => {
+            let options = options.map_or_else(|| error_options(code), tcl_vm::Value::from_string_bytes);
+            Completion::new(Code::Error, tcl_vm::Value::from_string_bytes(message), options)
+        }
+        EngineError::ExecutionFailure(first) => vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(*first)),
+        EngineError::ExecutionRefusal(reason) => vm.refuse_host_command(reason),
+        EngineError::BudgetExceeded(kind) => Completion::new(Code::Error, tcl_vm::Value::string(budget_message(kind)), tcl_vm::Value::empty()),
+        error => vm.refuse_host_command(error.to_string()),
+    }
+}
+
+fn retirement_error_completion(vm: &mut Vm, error: EngineError) -> Completion<tcl_vm::Value> {
+    match error {
+        EngineError::ExecutionFailure(first) => vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(*first)),
+        error => vm.refuse_host_command(error.to_string()),
+    }
+}
+
+fn projection_unwind(vm: &mut Vm, error: tcl_vm::TclError) -> Completion<tcl_vm::Value> {
+    match error.into_completion() {
+        Ok(completion) => completion,
+        Err(first) => vm.refuse_tcl_host_failure(first),
+    }
+}
+
+impl HostCommandShim {
+    fn invoke_projected(&self, vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, scalar: &tcl_vm::NativeScalarIngress, source: &[tcl_vm::Value]) -> Result<Completion<tcl_vm::Value>, EngineError> {
+        let dialect = vm.native_scalar_carrier_dialect();
+        let interpreter = vm.native_object_bridge_identity();
+        let view = self.command.argument_view();
+        let mut originals: Vec<Rc<dyn tcl_engine_api::OriginalObject>> = Vec::new();
+        let mut arguments = Vec::new();
+        let reached = (|| {
+            if view == tcl_engine_api::HostArgumentView::OriginalObjects {
+                for value in source {
+                    vm.check_original_projected_value(original, value).map_err(|error| projection_error(vm, original, error))?;
+                    originals.push(Rc::new(VmOriginalObject {
+                        value: VmOriginalValue::Header(value.native_lifetime_lease()), dialect, interpreter,
+                    }));
+                }
+            }
+            for value in source {
+                vm.check_original_projected_value(original, value).map_err(|error| projection_error(vm, original, error))?;
+                let reached = match view {
+                    tcl_engine_api::HostArgumentView::MaterializedStrings => from_vm_value_using(vm, original, value),
+                    tcl_engine_api::HostArgumentView::NativeObjectSnapshots => from_vm_object_value(value),
+                    tcl_engine_api::HostArgumentView::OriginalObjects => Ok(Value::Empty),
+                };
+                if let Err(error) = &reached { retain_engine_failure(vm, original, error); }
+                check_projection(vm, original)?;
+                arguments.push(reached?);
+            }
+            vm.check_original_scalar_ingress(scalar).map_err(EngineError::execution_failure)?;
+            let mut registrar = VmRegistrar { vm, host_commands: Rc::clone(&self.host_commands), original };
+            let outcome = if view == tcl_engine_api::HostArgumentView::OriginalObjects {
+                self.command.invoke_original_completion_with_registrar(&mut registrar, &originals)
+            } else {
+                self.command.invoke_with_registrar(&mut registrar, &arguments).map(|outcome| {
+                    Completion::new(to_vm_code(outcome.code),
+                        tcl_engine_api::OriginalObjectResult::Value(outcome.value),
+                        tcl_engine_api::OriginalObjectResult::Value(outcome.options))
+                })
+            };
+            if let Err(error) = &outcome { retain_engine_failure(registrar.vm, original, error); }
+            // Retain the original callback cause before its returned ownership retires.
+            let current = check_projection(registrar.vm, original);
+            let scalar_current = registrar.vm.check_original_scalar_ingress(scalar).map_err(EngineError::execution_failure);
+            if let Err(first) = current.and(scalar_current) {
+                drop(outcome);
+                check_projection(registrar.vm, original)?;
+                return Err(first);
+            }
+            let reached = match outcome {
+                Ok(result) => {
+                    let reached = {
+                        let actual = ActualScalarImport { vm: RefCell::new(&mut *registrar.vm), original: scalar };
+                        recover_original_completion(&result, dialect, interpreter, &actual)
+                    };
+                    if let Err(error) = &reached { retain_engine_failure(registrar.vm, original, error); }
+                    let current = check_projection(registrar.vm, original);
+                    drop(result);
+                    check_projection(registrar.vm, original)?;
+                    current?;
+                    reached
+                }
+                Err(error) => Ok(host_error_completion(registrar.vm, error)),
+            };
+            reached
+        })();
+        if let Err(error) = &reached { retain_engine_failure(vm, original, error); }
+        drop(arguments);
+        drop(originals);
+        check_projection(vm, original)?;
+        reached
+    }
+}
+
 impl NativeCommand for HostCommandShim {
     fn retire(&self, vm: &mut Vm) -> Completion<tcl_vm::Value> {
-        let mut registrar = VmRegistrar {
-            vm,
-            host_commands: Rc::clone(&self.host_commands),
+        let original = match vm.capture_original_operand_projection() {
+            Ok(original) => original,
+            Err(error) => return projection_unwind(vm, error),
         };
-        match self.command.retire_with_registrar(&mut registrar) {
-            Ok(()) => Completion::new(Code::Ok, tcl_vm::Value::empty(), tcl_vm::Value::empty()),
-            Err(error) => registrar.vm.refuse_host_command(error.to_string()),
+        let reached = {
+            let mut registrar = VmRegistrar { vm, host_commands: Rc::clone(&self.host_commands), original: &original };
+            self.command.retire_with_registrar(&mut registrar)
+        };
+        if let Err(error) = &reached {
+            // Every retirement failure remains Host, including Script/Budget;
+            // latch it before mandatory original-owner settlement.
+            drop(retirement_error_completion(vm, error.clone()));
+        }
+        let current = check_projection(vm, &original);
+        let retired = vm.finish_original_operand_projection(original);
+        match current {
+            Err(first) => retirement_error_completion(vm, first),
+            Ok(()) => match retired {
+                Err(first) => projection_unwind(vm, first),
+                Ok(()) => match reached {
+                    Ok(()) => Completion::new(Code::Ok, tcl_vm::Value::empty(), tcl_vm::Value::empty()),
+                    Err(error) => retirement_error_completion(vm, error),
+                },
+            },
         }
     }
 
     fn invoke(&self, vm: &mut Vm, arguments: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
-        let original = match vm.capture_original_scalar_ingress() {
+        let scalar = match vm.capture_original_scalar_ingress() {
             Ok(original) => original,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
+            Err(first) => return vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(first)),
         };
-        let dialect = vm.native_scalar_carrier_dialect();
-        let interpreter = vm.native_object_bridge_identity();
-        let originals: Vec<Rc<dyn tcl_engine_api::OriginalObject>> =
-            if self.command.argument_view() == tcl_engine_api::HostArgumentView::OriginalObjects {
-                arguments
-                    .iter()
-                    .map(|value| {
-                        Rc::new(VmOriginalObject {
-                            value: VmOriginalValue::Header(value.native_lifetime_lease()),
-                            dialect,
-                            interpreter,
-                        }) as Rc<dyn tcl_engine_api::OriginalObject>
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-        let arguments: Vec<Value> = match arguments
-            .iter()
-            .map(|value| match self.command.argument_view() {
-                tcl_engine_api::HostArgumentView::MaterializedStrings => {
-                    from_vm_value(value, dialect)
-                }
-                tcl_engine_api::HostArgumentView::NativeObjectSnapshots => {
-                    from_vm_object_value(value)
-                }
-                tcl_engine_api::HostArgumentView::OriginalObjects => Ok(Value::Empty),
-            })
-            .collect::<Result<_, _>>()
-        {
-            Ok(arguments) => arguments,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        if let Err(error) = vm.check_original_scalar_ingress(&original) {
-            return vm.refuse_host_command(error.to_string());
-        }
-        let mut registrar = VmRegistrar {
-            vm,
-            host_commands: Rc::clone(&self.host_commands),
-        };
-        let outcome =
-            if self.command.argument_view() == tcl_engine_api::HostArgumentView::OriginalObjects {
-                self.command
-                    .invoke_original_completion_with_registrar(&mut registrar, &originals)
-            } else {
-                self.command
-                    .invoke_with_registrar(&mut registrar, &arguments)
-                    .map(|outcome| {
-                        Completion::new(
-                            to_vm_code(outcome.code),
-                            tcl_engine_api::OriginalObjectResult::Value(outcome.value),
-                            tcl_engine_api::OriginalObjectResult::Value(outcome.options),
-                        )
-                    })
-            };
-        if let Err(error) = registrar.vm.check_original_scalar_ingress(&original) {
-            return registrar.vm.refuse_host_command(error.to_string());
-        }
-        let completion = match outcome {
-            Ok(result) => {
-                let actual = ActualScalarImport {
-                    vm: RefCell::new(&mut *registrar.vm),
-                    original: &original,
-                };
-                match recover_original_completion(&result, dialect, interpreter, &actual) {
-                    Ok(completion) => completion,
-                    Err(error) => actual
-                        .vm
-                        .borrow_mut()
-                        .refuse_host_command(error.to_string()),
-                }
+        let original = match vm.capture_original_operand_projection() {
+            Ok(original) => original,
+            Err(error) => {
+                let completion = projection_unwind(vm, error);
+                let _ = vm.finish_original_scalar_ingress(scalar);
+                return completion;
             }
-            // A script error crosses as the Tcl error it is: the message
-            // verbatim, and its `-errorcode` in the completion's options so
-            // `catch` and `$errorCode` see what the host command set.
-            Err(EngineError::Script { message, code }) => {
-                let options = code.map_or_else(tcl_vm::Value::empty, |code| {
-                    tcl_vm::Value::list(vec![
-                        tcl_vm::Value::string("-code"),
-                        tcl_vm::Value::int(1),
-                        tcl_vm::Value::string("-level"),
-                        tcl_vm::Value::int(0),
-                        tcl_vm::Value::string("-errorcode"),
-                        tcl_vm::Value::string(code),
-                    ])
-                });
-                Completion::new(Code::Error, tcl_vm::Value::string(message), options)
-            }
-            Err(EngineError::ScriptBytes {
-                message,
-                code,
-                options,
-            }) => {
-                let options =
-                    options.map_or_else(|| error_options(code), tcl_vm::Value::from_string_bytes);
-                Completion::new(
-                    Code::Error,
-                    tcl_vm::Value::from_string_bytes(message),
-                    options,
-                )
-            }
-            Err(EngineError::ExecutionRefusal(reason)) => registrar.vm.refuse_host_command(reason),
-            Err(EngineError::BudgetExceeded(kind)) => Completion::new(
-                Code::Error,
-                tcl_vm::Value::string(budget_message(kind)),
-                tcl_vm::Value::empty(),
-            ),
-            Err(error) => registrar.vm.refuse_host_command(error.to_string()),
         };
-        drop(arguments);
-        drop(originals);
-        if let Err(error) = registrar.vm.check_original_scalar_ingress(&original) {
-            return registrar.vm.refuse_host_command(error.to_string());
+        let reached = self.invoke_projected(vm, &original, &scalar, arguments);
+        if let Err(error) = &reached { retain_engine_failure(vm, &original, error); }
+        if let Err(first) = check_projection(vm, &original) {
+            drop(reached);
+            let _ = check_projection(vm, &original);
+            let _ = vm.finish_original_operand_projection(original);
+            let _ = vm.finish_original_scalar_ingress(scalar);
+            return host_error_completion(vm, first);
         }
-        completion
+        if let Err(first) = vm.finish_original_scalar_ingress(scalar) {
+            drop(reached);
+            let _ = check_projection(vm, &original);
+            let _ = vm.finish_original_operand_projection(original);
+            return vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(first));
+        }
+        if let Err(first) = vm.finish_original_operand_projection(original) {
+            drop(reached);
+            return projection_unwind(vm, first);
+        }
+        reached.unwrap_or_else(|error| host_error_completion(vm, error))
     }
 }
 
@@ -1333,7 +1447,7 @@ impl ActualScalarImport<'_> {
         self.vm
             .borrow_mut()
             .check_original_scalar_ingress(self.original)
-            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+            .map_err(EngineError::execution_failure)
     }
     fn scalar(
         &self,
@@ -1346,7 +1460,7 @@ impl ActualScalarImport<'_> {
         self.vm
             .borrow_mut()
             .import_original_native_scalar(self.original, facts, resident)
-            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
+            .map_err(EngineError::execution_failure)
     }
 }
 
@@ -1542,6 +1656,27 @@ fn from_vm_object_value(value: &tcl_vm::Value) -> Result<Value, EngineError> {
     })
 }
 
+fn from_vm_value_using(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, value: &tcl_vm::Value) -> Result<Value, EngineError> {
+    vm.check_original_projected_value(original, value).map_err(|error| projection_error(vm, original, error))?;
+    if let Some(bytes) = value.byte_array_representation() {
+        let payload = Value::byte_array(bytes);
+        let result = if let Some(string) = value.resident_string_bytes() {
+            payload.with_resident_string_storage(string, export_storage(value))
+        } else { payload };
+        check_projection(vm, original)?;
+        return Ok(result);
+    }
+    if let Some(cache) = value.native_scalar_cache() {
+        let payload = Value::NativeScalar(export_scalar_cache(cache, value.native_scalar_descriptor_origin())?);
+        let string = vm.original_operand_native_raw_string(original, value)
+            .map_err(|error| projection_error(vm, original, error))?;
+        return Ok(payload.with_resident_string_storage(string, export_storage(value)));
+    }
+    vm.original_operand_native_raw_string(original, value)
+        .map(Value::string_bytes).map_err(|error| projection_error(vm, original, error))
+}
+
+#[cfg(test)]
 fn from_vm_value(
     value: &tcl_vm::Value,
     dialect: tcl_registry::InvocationDialect,
@@ -1567,6 +1702,7 @@ fn from_vm_value(
     Ok(Value::string_bytes(native_string_bytes(value, dialect)?))
 }
 
+#[cfg(test)]
 fn native_string_bytes(
     value: &tcl_vm::Value,
     dialect: tcl_registry::InvocationDialect,
@@ -1680,35 +1816,29 @@ impl TclVmEngine {
     /// budget errors the VM reports as ordinary Tcl errors back to
     /// [`EngineError::BudgetExceeded`] — the host must be able to tell "your
     /// hook is too expensive" from "your hook is wrong".
-    fn completion_to_result(
-        vm: &mut Vm,
-        completion: &Completion<tcl_vm::Value>,
-    ) -> Result<Value, EngineError> {
-        let dialect = vm.native_scalar_carrier_dialect();
+    #[cfg(test)]
+    fn completion_to_result(vm: &mut Vm, completion: &Completion<tcl_vm::Value>) -> Result<Value, EngineError> {
+        with_engine_projection(vm, |vm, original| Self::completion_to_result_using(vm, original, completion))
+    }
+
+    fn completion_to_result_using(vm: &mut Vm, original: &tcl_vm::embed::OriginalOperandProjection, completion: &Completion<tcl_vm::Value>) -> Result<Value, EngineError> {
+        check_projection(vm, original)?;
         if completion.code.is_ok() || completion.code == Code::Return {
-            return from_vm_value(&completion.result, dialect);
+            return from_vm_value_using(vm, original, &completion.result);
         }
-        let code = vm
-            .completion_option_bytes_checked(completion, b"-errorcode")
-            .map_err(|error| internal_error(vm, error))?;
-        let message = native_string_bytes(&completion.result, dialect)?;
+        let code = vm.original_completion_option_bytes(original, completion, b"-errorcode")
+            .map_err(|error| projection_error(vm, original, error))?;
+        let message = vm.original_operand_native_raw_string(original, &completion.result)
+            .map_err(|error| projection_error(vm, original, error))?;
         match message.as_ref() {
-            b"command count limit exceeded" => {
-                Err(EngineError::BudgetExceeded(BudgetKind::Commands))
-            }
+            b"command count limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::Commands)),
             b"time limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::WallClock)),
             b"value size limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::ValueSize)),
             _ => {
-                let options = native_string_bytes(&completion.options, dialect)?;
-                if options.is_empty() {
-                    Err(EngineError::script_bytes(message.to_vec(), code))
-                } else {
-                    Err(EngineError::ScriptBytes {
-                        message: message.to_vec(),
-                        code,
-                        options: Some(options.to_vec()),
-                    })
-                }
+                let options = vm.original_operand_native_raw_string(original, &completion.options)
+                    .map_err(|error| projection_error(vm, original, error))?;
+                if options.is_empty() { Err(EngineError::script_bytes(message.to_vec(), code)) }
+                else { Err(EngineError::ScriptBytes { message: message.to_vec(), code, options: Some(options.to_vec()) }) }
             }
         }
     }
@@ -1832,7 +1962,10 @@ impl Engine for TclVmEngine {
         let procedure = format!("::spectcl::unit::{}", self.units);
         self.vm
             .try_define_procedure(&procedure, unit.parameters, unit.body)
-            .map_err(|error| EngineError::Compile(error.to_string()))?;
+            .map_err(|error| match error {
+                tcl_vm::VmCompilationError::Host(first) => EngineError::execution_failure(first),
+                tcl_vm::VmCompilationError::Tcl(error) => EngineError::Compile(error.to_string()),
+            })?;
         // The VM's command table is keyed by the canonical *unrooted* name, so
         // that is what the whitelist sweep compares against.
         let token = self
@@ -1872,12 +2005,13 @@ impl Engine for TclVmEngine {
         let original = self
             .vm
             .capture_original_scalar_ingress()
-            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+            .map_err(EngineError::execution_failure)?;
         let dialect = self.vm.native_scalar_carrier_dialect();
-        let reached = (|| {
+        let wall_clock = self.budget.wall_clock;
+        let reached = with_engine_projection(&mut self.vm, |vm, projected| {
             let arguments: Vec<tcl_vm::Value> = {
                 let actual = ActualScalarImport {
-                    vm: RefCell::new(&mut self.vm),
+                    vm: RefCell::new(&mut *vm),
                     original: &original,
                 };
                 let imported = arguments
@@ -1887,34 +2021,40 @@ impl Engine for TclVmEngine {
                 actual.check()?;
                 imported?
             };
-            let _grammar = self.claim_grammar();
+            let _grammar = GrammarGuard::claim(vm.runtime_version().number_syntax());
             // Fuel is per invocation, so refill before every call rather than
             // letting a long-lived engine starve its own later hooks.
-            self.vm.reset_command_count();
-            if let Some(wall_clock) = self.budget.wall_clock {
-                self.vm.set_wall_clock_budget(Some(wall_clock));
+            vm.reset_command_count();
+            if let Some(wall_clock) = wall_clock {
+                vm.set_wall_clock_budget(Some(wall_clock));
             }
-            let invoked = self.vm.try_invoke_command(&handle.procedure, &arguments);
-            let current = self.vm.check_original_scalar_ingress(&original);
+            let invoked = vm.try_invoke_command(&handle.procedure, &arguments);
+            let current = vm.check_original_scalar_ingress(&original);
+            let projected_current = check_projection(vm, projected);
             drop(arguments);
-            let retired = self.vm.check_original_scalar_ingress(&original);
+            let retired = vm.check_original_scalar_ingress(&original);
             let completed = (|| {
-                current.map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
-                retired.map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+                projected_current?;
+                current.map_err(EngineError::execution_failure)?;
+                retired.map_err(EngineError::execution_failure)?;
                 let completion = invoked
                     .as_ref()
-                    .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
-                Self::completion_to_result(&mut self.vm, completion)
+                    .map_err(|error| EngineError::execution_failure(error.clone()))?;
+                Self::completion_to_result_using(vm, projected, completion)
             })();
+            if let Err(error) = &completed { retain_engine_failure(vm, projected, error); }
+            let current = check_projection(vm, projected);
             drop(invoked);
-            self.vm
+            current?;
+            vm
                 .check_original_scalar_ingress(&original)
-                .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+                .map_err(|error| EngineError::execution_failure(error.clone()))?;
+            check_projection(vm, projected)?;
             completed
-        })();
+        });
         self.vm
             .finish_original_scalar_ingress(original)
-            .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+            .map_err(EngineError::execution_failure)?;
         reached
     }
 
@@ -2322,10 +2462,10 @@ mod tests {
         let error = engine
             .invoke(&handle, &[Value::Empty, Value::Empty])
             .unwrap_err();
-        assert_eq!(
-            error,
-            EngineError::ExecutionRefusal("host provider unavailable".into())
-        );
+        assert!(matches!(error.native_execution_failure(),
+            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(actual))
+                if actual.reason == "host provider unavailable"
+        ));
         assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
         // Refusal cleanup permits a separate accepted operation without replaying
         // the first invocation or publishing its internal empty unwind carrier.
@@ -2356,10 +2496,10 @@ mod tests {
         let error = engine
             .eval_in_invocation("record BEFORE; catch {host_refuse} result; record AFTER")
             .unwrap_err();
-        assert_eq!(
-            error,
-            EngineError::ExecutionRefusal("host provider unavailable".into())
-        );
+        assert!(matches!(error.native_execution_failure(),
+            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(actual))
+                if actual.reason == "host provider unavailable"
+        ));
         assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
         assert!(error.script_message_bytes().is_none());
         assert!(error.script_options_bytes().is_none());
@@ -2388,10 +2528,10 @@ mod tests {
                 _ => unreachable!(),
             }
             .expect_err("actual reached host trace refusal");
-            assert_eq!(
-                error,
-                EngineError::ExecutionRefusal("host provider unavailable".into())
-            );
+            assert!(matches!(error.native_execution_failure(),
+                Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(actual))
+                    if actual.reason == "host provider unavailable"
+            ));
             assert!(error.script_message_bytes().is_none());
             assert!(error.script_options_bytes().is_none());
             assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
@@ -2444,9 +2584,11 @@ mod tests {
                     .unwrap_err();
                 assert_eq!(
                     error,
-                    EngineError::ExecutionRefusal(
-                        NativeFatalCondition::DictionarySearchConcurrentMutation.to_string()
-                    )
+                    EngineError::execution_failure(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::FatalCondition(
+                            NativeFatalCondition::DictionarySearchConcurrentMutation
+                        )
+                    ))
                 );
                 assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
                 let next = engine.compile(unit("record NEXT;return OK")).unwrap();
@@ -3340,7 +3482,7 @@ mod tests {
             .refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(cause));
         assert!(matches!(
             TclVmEngine::completion_to_result(&mut engine.vm, &completion),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(first)) if *first == tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(cause)
         ));
         assert!(key.resident_string_bytes().is_none());
         assert!(value.resident_string_bytes().is_none());
@@ -3497,7 +3639,7 @@ mod tests {
         );
         assert!(matches!(
             TclVmEngine::completion_to_result(&mut vm, &completion),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(_))
         ));
         assert_eq!(completion.options.native_object_identity(), identity);
         assert!(completion.options.resident_string_bytes().is_none());
@@ -3509,3 +3651,7 @@ mod tests {
 #[cfg(test)]
 #[path = "c84_wide_transport_tests.rs"]
 mod c84_wide_transport_tests;
+
+#[cfg(test)]
+#[path = "original_projection_tests.rs"]
+mod original_projection_tests;

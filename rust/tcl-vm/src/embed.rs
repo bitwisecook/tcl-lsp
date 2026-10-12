@@ -169,6 +169,12 @@ fn original_operand_error(vm: &mut Vm, error: tcl_cmd_core::CmdError) -> TclErro
     }
 }
 
+impl crate::command::OriginalCompletionOptions for OriginalOperandProjection {
+    fn current(&self, vm: &mut Vm, value: &Value) -> Result<(), TclError> { vm.check_original_projected_value(self, value) }
+    fn list(&self, vm: &mut Vm, value: &Value) -> Result<Vec<Value>, TclError> { vm.original_operand_list(self, value) }
+    fn string(&self, vm: &mut Vm, value: &Value) -> Result<Rc<[u8]>, TclError> { vm.original_operand_string_bytes(self, value) }
+}
+
 impl Vm {
     /// Observe the actual caller before any value getter. Captured operation/context,
     /// frame, namespace and per-operand header checks grant no entry or provider.
@@ -204,6 +210,28 @@ impl Vm {
     /// Returns the first failure retained before unused backing cleanup.
     pub fn original_operand_raw_bytes(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<Rc<[u8]>, TclError> {
         original.original.raw_bytes(self, value).map_err(|error| original_operand_error(self, error))
+    }
+
+    /// Read the same actual native String recipe with formatter None, retaining
+    /// the original caller and header inside its canonical worker.
+    ///
+    /// # Errors
+    /// Refuses unavailable native recipes and preserves the first reached cause.
+    pub fn original_operand_native_raw_string(&mut self, original: &OriginalOperandProjection, value: &Value) -> Result<Rc<[u8]>, TclError> {
+        use tcl_cmd_core::CmdError;
+        original.original.current_for_value(self, value).map_err(|error| original_operand_error(self, error))?;
+        let protocol = self.native_scalar_carrier_dialect().native_string_protocol()
+            .ok_or_else(|| original_operand_error(self, tcl_syntax::value::ValueError::CommandProtocolUnavailable("original native raw String recipe").into()))?;
+        let vm = RefCell::new(&mut *self);
+        let reached = value.native_string_bytes_checked_for_value_retaining::<CmdError>(
+            protocol, None,
+            &mut |actual| original.original.current_for_value(&mut vm.borrow_mut(), actual),
+            &|error| original.original.retain(&mut vm.borrow_mut(), &error.clone().into()),
+        );
+        if let Err(error) = &reached { original.original.retain(&mut vm.borrow_mut(), error); }
+        original.original.current_for_value(&mut vm.borrow_mut(), value)
+            .map_err(|error| original_operand_error(&mut vm.borrow_mut(), error))?;
+        reached.map_err(|error| original_operand_error(&mut vm.borrow_mut(), error))
     }
 
     /// Reach the existing selected String worker without granting its provider.
@@ -822,6 +850,21 @@ impl Vm {
             return Err(TclError::from_execution_failure(cause));
         }
         Ok(bytes)
+    }
+
+    /// Project a returned completion option under the same original host owner.
+    /// Dictionary/List/key and selected value String workers remain shared.
+    ///
+    /// # Errors
+    /// Keeps option parse errors separate from the first full Host cause.
+    pub fn original_completion_option_bytes(&mut self, original: &OriginalOperandProjection, completion: &Completion<Value>, key: &[u8]) -> Result<Option<Vec<u8>>, TclError> {
+        let reached = crate::command::opt_get_checked_using(self, &completion.options, key, Some(original));
+        self.check_original_operand_projection(original)?;
+        let value = reached?;
+        let reached = value.as_ref().map(|value| self.original_operand_string_bytes(original, value).map(|bytes| bytes.to_vec())).transpose();
+        drop(value);
+        self.check_original_operand_projection(original)?;
+        reached
     }
 
     /// Publish `$errorInfo` and `$errorCode` for `completion`, an error a host
