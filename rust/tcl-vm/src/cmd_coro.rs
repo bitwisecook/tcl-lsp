@@ -86,6 +86,8 @@ impl CoroSystem {
 /// One suspended (or in-flight) coroutine: its frozen activation stack and the
 /// per-flow context to reinstate on resume.
 struct CoroState {
+    /// Actual resume command birth, transported with its existing state.
+    command_generation: u64,
     /// The frozen bytecode-activation stack — the continuation.
     acts: Vec<Frame>,
     /// The saved per-flow execution context (call/ns tails, error/script state).
@@ -173,22 +175,36 @@ pub(crate) fn is_coroutine(vm: &Vm, fqn: &str) -> bool {
 /// Drop a coroutine's state on command deletion (`rename $coro {}`).
 /// No finally blocks run. The actual parked activation owners retire at the
 /// shared teardown boundary; command publication is removed by the caller.
-pub(crate) fn on_command_deleted(vm: &mut Vm, key: &CommandSidecarKey) {
+pub(crate) fn on_command_deleted_original(
+    vm: &mut Vm,
+    key: &CommandSidecarKey,
+    generation: u64,
+    original: &crate::interp::command_cleanup::OriginalCommandCleanup,
+) {
+    let selected = vm
+        .coro
+        .live
+        .get(key)
+        .is_some_and(|state| state.command_generation == generation);
+    if !selected {
+        return;
+    }
     let Some(mut state) = vm.coro.live.remove(key) else {
         return;
     };
     let currencies = state.original_currencies();
-    let original = vm.original_activation_cleanup(&currencies);
-    // A suspended coroutine's locals are about to disappear with its frozen
-    // frames; fire their `unset` traces first (C unsets a deleted coroutine's
-    // variables). A running coroutine's frames are on the live stack instead, so
-    // their traces fire the normal way as those frames pop.
+    let reached = vm.original_activation_cleanup(&currencies);
     if state.status == CoroStatus::Suspended {
-        let _ = vm.fire_parked_unset_traces(&mut state.parked, &mut state.acts);
+        let _ = original.in_original(vm, |vm| {
+            vm.fire_parked_unset_traces(&mut state.parked, &mut state.acts)
+        });
     }
-    vm.retire_parked_lambda_registrations(&mut state.acts);
-    drop(state);
-    let _ = vm.check_original_scopes(&original);
+    let _ = original.in_original(vm, |vm| {
+        vm.retire_parked_lambda_registrations(&mut state.acts)
+    });
+    let _ = original.in_original(vm, |_| drop(state));
+    let _ = original.in_original(vm, |vm| vm.check_original_scopes(&reached));
+    let _ = original.check(vm);
 }
 
 /// Move a coroutine's state to a new key on `rename $coro $new`.
@@ -284,9 +300,22 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         if let Err(error) = original_names.check(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
         }
+        let Some(command_generation) =
+            vm.command_generation_for_cleanup(&CommandSidecarKey::visible(&fqn))
+        else {
+            return crate::command::completion_from_cmd_error(
+                vm,
+                tcl_cmd_core::CmdError::from(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original coroutine command generation",
+                    ),
+                ),
+            );
+        };
         vm.coro.live.insert(
             CommandSidecarKey::visible(&fqn),
             CoroState {
+                command_generation,
                 acts: vec![frame],
                 parked: ParkedFlow::default(),
                 status: CoroStatus::Fresh,

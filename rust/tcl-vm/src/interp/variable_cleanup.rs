@@ -18,7 +18,7 @@
 
 //! Mandatory retirement in the actual original variable arena.
 
-use super::native_operation_currency::{NativeOperationContext, NativeOperationScope};
+use super::native_operation_currency::{CleanupRestoration, NativeOperationScope, SavedExecutionTarget};
 use super::{GuardDomain, InterpId, InterpState, Local, TakenVarTraces, VarTraceCell, Vm};
 use crate::vars::{VarState, VariableRetirement, WeakJimVariableCell};
 use std::rc::{Rc, Weak};
@@ -30,9 +30,8 @@ use tcl_syntax::value::ValueError;
 /// Physical storage observation is separate from an entered operation. Neither
 /// this receipt nor a weak cell creates a native Var/reference or name purpose.
 pub(super) struct OriginalVariableCleanup {
-    owner: u64,
+    target: SavedExecutionTarget,
     interpreter: InterpId,
-    context: Weak<NativeOperationContext>,
     arena: Weak<()>,
     world: Weak<std::cell::RefCell<super::NativeNameWorld>>,
     frame: Weak<crate::frame::ActivationIdentity>,
@@ -65,9 +64,6 @@ impl OriginalVariableCleanup {
     }
 
     pub(super) fn enter(vm: &mut Vm) -> Self {
-        let owner = vm.owner_nonce;
-        let interpreter = vm.cur;
-        let context = Rc::downgrade(&vm.native_operation_context);
         let arena = vm.var_arena.weak_birth();
         let world = Rc::downgrade(&vm.name_world);
         let level = vm.current_level();
@@ -79,10 +75,11 @@ impl OriginalVariableCleanup {
         if let Err(first) = &operation {
             retain(vm, first);
         }
+        let target = SavedExecutionTarget::capture(vm);
+        let interpreter = target.interpreter();
         Self {
-            owner,
+            target,
             interpreter,
-            context,
             arena,
             world,
             frame,
@@ -105,16 +102,13 @@ impl OriginalVariableCleanup {
     }
 
     fn physical(&self, vm: &Vm) -> bool {
-        self.owner == vm.owner_nonce
-            && self.context.upgrade().is_some_and(|context| {
-                vm.st_of(self.interpreter).is_some_and(|state| {
-                    Rc::ptr_eq(&context, &state.native_operation_context)
-                        && state.var_arena.has_original_birth(&self.arena)
-                        && self
-                            .world
-                            .upgrade()
-                            .is_some_and(|world| Rc::ptr_eq(&world, &state.name_world))
-                })
+        self.target.owns_target(vm)
+            && vm.st_of(self.interpreter).is_some_and(|state| {
+                state.var_arena.has_original_birth(&self.arena)
+                    && self
+                        .world
+                        .upgrade()
+                        .is_some_and(|world| Rc::ptr_eq(&world, &state.name_world))
             })
     }
 
@@ -178,42 +172,20 @@ impl OriginalVariableCleanup {
         if !self.physical(vm) {
             return Err(Self::unavailable(vm));
         }
-        let run = |vm: &mut Vm| {
-            let attached = self.operation.as_ref().ok().map(|operation| {
-                NativeOperationScope::enter_saved_cleanup(
-                    vm,
-                    operation.currency(),
-                    self.interpreter,
-                )
-            });
-            if let Some(Err(first)) = &attached {
-                retain(vm, &CmdError::from_execution_refusal(first.clone()));
-            }
-            let result = work(vm);
-            let _ = self.check(vm);
-            drop(attached);
-            result
-        };
-        if vm.cur == self.interpreter {
-            // No interpreter restoration may erase a callback's child selection.
-            return Ok(run(vm));
+        let reached = self
+            .target
+            .retire_in_original(vm, CleanupRestoration::PreserveCallbackSelection, |vm| {
+                let metadata = work(vm);
+                if let Err(first) = self.check(vm) {
+                    retain(vm, &first);
+                }
+                metadata
+            })
+            .map_err(CmdError::from_execution_refusal)?;
+        if let Some(first) = reached.first_cause {
+            retain(vm, &CmdError::from_execution_refusal(first));
         }
-        let mut callback_current = None;
-        let result = vm.in_interp(self.interpreter, |vm| {
-            let result = run(vm);
-            if vm.cur != self.interpreter {
-                callback_current = Some(vm.cur);
-            }
-            result
-        });
-        if let Some(selected) = callback_current {
-            // The ordinary cross-interpreter helper restored its caller. The
-            // cleanup callback's actual current child is independently retained.
-            if vm.cur != selected && vm.st_of(selected).is_some() {
-                vm.switch_to(selected);
-            }
-        }
-        Ok(result)
+        Ok(reached.metadata)
     }
 
     /// Every release leaves storage access, while later pure steps still use
@@ -942,7 +914,7 @@ impl OriginalVariableCleanup {
                 .unwrap_or_default();
             for (name, raw) in names {
                 let binding = super::VarBinding {
-                    owner,
+                    target,
                     name: name.clone(),
                 };
                 if self.check(vm).is_ok() {
@@ -980,7 +952,7 @@ impl OriginalVariableCleanup {
                 break;
             };
             let binding = super::VarBinding {
-                owner,
+                target,
                 name: name.clone(),
             };
             let original_nonlink = self.state_mut(vm).is_ok_and(|state| {

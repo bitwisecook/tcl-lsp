@@ -51,6 +51,26 @@ impl NativeCommandCreationProtocol {
         self.0
     }
 
+    /// Original C deleteProc/import ordering. Jim's hash-entry/refcount owner
+    /// has a separate schedule and receives no C import-retirement recipe.
+    /// Actual dying-token/recursive deletion guards remain embedding evidence.
+    #[must_use]
+    pub const fn c_deletion_order(
+        self,
+    ) -> Option<tcl_cmd_core::native_command_retirement::NativeCommandRetirementOrder> {
+        use tcl_cmd_core::native_command_retirement::NativeCommandRetirementOrder;
+        use tcl_dialect::TclVersion;
+        match self.0 {
+            NativeStringProtocol::C(TclVersion::V8_4 | TclVersion::V8_5) => {
+                Some(NativeCommandRetirementOrder::ImplementationBeforeImports)
+            }
+            NativeStringProtocol::C(TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1) => {
+                Some(NativeCommandRetirementOrder::ImportsBeforeImplementation)
+            }
+            NativeStringProtocol::Jim084 => None,
+        }
+    }
+
     /// Select the actual public constructor facade, independently of a stored
     /// command's cleanup purpose. Jim has no counted Engine constructor recipe.
     #[must_use]
@@ -228,5 +248,43 @@ mod tests {
         let mut foreign = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         foreign.tcl_version = Some(tcl_dialect::TclVersion::V9_1);
         assert!(foreign.native_command_creation_protocol().is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_deletion_order_tests {
+    use super::*;
+
+    #[test]
+    fn original_c_deletion_order_preserves_release_split_and_independent_jim_owner() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Pure source recipe; no live command/Namespace, callback or Native role.
+        use tcl_cmd_core::native_command_retirement::NativeCommandRetirementOrder::*;
+        for (environment, expected) in [
+            ("tcl8.4", Some(ImplementationBeforeImports)),
+            ("tcl8.5", Some(ImplementationBeforeImports)),
+            ("tcl8.6", Some(ImportsBeforeImplementation)),
+            ("tcl9.0", Some(ImportsBeforeImplementation)),
+            ("tcl9.1", Some(ImportsBeforeImplementation)),
+            ("jim", None),
+        ] {
+            let dialect = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(environment).analyser_profile(),
+            );
+            assert_eq!(
+                dialect
+                    .native_command_creation_protocol()
+                    .unwrap()
+                    .c_deletion_order(),
+                expected
+            );
+        }
+        for environment in ["tcl", "irules"] {
+            let dialect = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(environment).analyser_profile(),
+            );
+            assert!(dialect.native_command_creation_protocol().is_none());
+        }
     }
 }

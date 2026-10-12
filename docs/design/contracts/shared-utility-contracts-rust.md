@@ -3899,3 +3899,60 @@ selection, including deferred finalization, and keeps direct-current mandatory
 retirement free of an extra preservation hold. Neither mode issues a fresh
 scope, revives withdrawn currency or replaces independent command, variable,
 frame, namespace or Method guards.
+
+
+### Original command deletion and physical cleanup
+
+`NativeCommandCreationProtocol::c_deletion_order` selects implementation-before-import
+retirement for C8.4/C8.5 and imports-before-implementation for C8.6/C9. Jim and
+neutral storage retain their separate worker. `NativeCommandNameProtocol` owns
+independent original deletion epoch stages: C8.4 outer entry, C8.5 outer and
+recursive entry, C8.6 entry plus actual final unlink, and C9 recursive or final
+unlink. Namespace lookup invalidation follows the outer trace pass after C8.4.
+These source predicates supply no live command, namespace or cached lookup role.
+The Core `native_command_retirement::retire_original_command` coordinator runs
+both already-owned stages in the selected order and preserves the first full
+error; each embedding still owns actual roles and mandatory cleanup.
+
+The VM `interp::command_cleanup::OriginalCommandCleanup` captures the actual
+interpreter, operation context and command world before callbacks. Its weak
+physical observations add no Native, command, Proc or namespace reference.
+The selected C dying-generation guard precedes delete traces. Recursive deletion
+unlinks that exact generation without repeating implementation/import disposal;
+the outer driver still retires the captured implementation. Same-generation
+rename, hide and expose remain independently effectful. Every later table step
+uses the shared SavedExecutionTarget mandatory-retirement kernel and the original
+physical command world. Command and variable retirement select the explicit
+PreserveCallbackSelection calling convention; OO cleanup selects RestoreCaller,
+including direct-current work. The shared kernel transports reached mandatory
+metadata and the retained first cause after actual restoration and finalization.
+Independent world, arena, frame, namespace and Method checks retain their own
+purposes and grant no new Native role. Trace firing-stack and gate epilogues update their actual original state.
+A coroutine's actual published generation is transported with its existing parked
+state; old retirement cannot remove a same-key coroutine of a later generation.
+
+Raw unlink receives its actual selected retirement stage from this driver.
+It preserves existing neutral and replacement invalidation workers and does not
+use a global epoch marker to suppress a callback's ordinary hide/rename. The
+original compiler hook, namespace observation and release predicate precede the
+trace; the posttrace namespace effect follows the actual surviving generation
+after a legal move, retaining the original observation if no visible holder
+remains. Outer compiler deletion follows the trace even if recursive unlink
+removed the old table entry. No namespace is reconstructed from a hidden spelling.
+
+Thirteen controls bind pure order/epoch rules and genuine software table, trace,
+implementation, child and coroutine producers. Original C/Jim full-function LF
+joins describe the inspected source and provide no matching Native callback,
+reference-count, cache or assertion outcome. The C86+ native namespace temporary
+reference, imported-command client-data/reference disposal and Jim refcount-driven
+physical schedule retain their independent owners. Fixed destination publication,
+whole namespace traversal and complete command/interpreter lifecycle remain
+separate contracts. No earlier owned-image result binds these changed workers.
+
+The actual saved OO cleanup continuation transports the same captured execution
+target from entry or readonly observation through saved metadata and reattachment;
+it never recaptures the callback-selected interpreter on resume. Two genuine
+software controls cover mandatory metadata after refusal and default caller
+restoration, including scope expiry and same-target saved cleanup. The shared
+physical kernel and its own ordinary-result disposal tests are independently
+owned by the current SavedExecutionTarget contract.

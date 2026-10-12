@@ -133,6 +133,7 @@ use namespace_stack::NamespaceResolutionTail;
 mod variable_container;
 mod variable_trace_outcomes;
 mod variable_cleanup;
+pub(crate) mod command_cleanup;
 
 pub(crate) use jim_local::OriginalJimLocalCommand;
 use native_procedure_artifacts::{CachedProcedureArtifact, ProcedureCacheKey};
@@ -5185,6 +5186,11 @@ impl Vm {
             .then_some(CommandTokenIdentity { key, generation })
     }
 
+    pub(crate) fn command_generation_for_cleanup(&self, key: &CommandSidecarKey) -> Option<u64> {
+        self.command_token_identity(key)
+            .map(|token| token.generation)
+    }
+
     fn command_at_sidecar_key(&self, key: &CommandSidecarKey) -> Option<Command> {
         match key {
             CommandSidecarKey::Visible(name) => self.visible_command_at_key(name),
@@ -5621,23 +5627,29 @@ impl Vm {
         command: &Command,
         replacing_retained: bool,
         replacing_real_command: bool,
+        original: &command_cleanup::OriginalCommandCleanup,
     ) {
         // Delete callbacks are arbitrary Tcl. If one moves the old
         // generation, replacing the original slot still has to retire
         // that exact command before the new generation is published.
         // An unchanged non-retained command uses Tcl's atomic
         // replacement lifecycle so its imports retarget below.
-        if let Some(live_token) = self.command_token_at_generation(token.generation) {
-            if replacing_retained && replacing_real_command {
-                self.retire_registered_real_command(&live_token, command);
-            } else if replacing_retained {
-                self.retire_downstream_imports(&live_token);
-            } else if replacing_real_command && live_token.key == token.key {
-                self.retire_replaced_real_command(&live_token, command);
-            } else if replacing_real_command {
-                self.retire_registered_real_command(&live_token, command);
-            }
+        if original.unlink_recursive_c_delete(self, token) {
+            return;
         }
+        let _ = original.in_original(self, |vm| {
+            if let Some(live_token) = vm.command_token_at_generation(token.generation) {
+                if replacing_retained && replacing_real_command {
+                    vm.retire_real_command_after_trace(&live_token, command);
+                } else if replacing_retained {
+                    vm.retire_downstream_imports(&live_token);
+                } else if replacing_real_command && live_token.key == token.key {
+                    vm.retire_replaced_real_command(&live_token, command);
+                } else if replacing_real_command {
+                    vm.retire_real_command_after_trace(&live_token, command);
+                }
+            }
+        });
     }
 
     pub(crate) fn register_command_in_slot(&mut self, slot: CommandSlot, cmd: Command) -> String {
@@ -5650,6 +5662,7 @@ impl Vm {
         cmd: Command,
         incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
     ) -> String {
+        let original_cleanup = command_cleanup::OriginalCommandCleanup::enter(self);
         let jim_table_key = self.jim_command_table_key_for_slot(&slot, incoming);
         if self.uses_native_jim_lookup() && self.name_world.borrow().jim_local_depth != 0 {
             return self.register_jim_local_command(slot, cmd, jim_table_key);
@@ -5682,16 +5695,26 @@ impl Vm {
             .then(|| self.commands.get(name).cloned())
             .flatten();
         if replacing_command {
-            self.detach_active_sidecars(&CommandSidecarKey::visible(name));
-            self.on_command_removed(name);
-            if let (Some(token), Some(command)) = (&replaced_token, &replaced_command) {
-                self.retire_command_replaced_by_callback(
-                    token,
-                    command,
-                    replacing_retained,
-                    replacing_real_command,
-                );
+            let recursive = replaced_token
+                .as_ref()
+                .is_some_and(|token| original_cleanup.unlink_recursive_c_delete(self, token));
+            if !recursive {
+                self.detach_active_sidecars(&CommandSidecarKey::visible(name));
+                self.on_command_removed(name);
+                if let (Some(token), Some(command)) = (&replaced_token, &replaced_command) {
+                    self.retire_command_replaced_by_callback(
+                        token,
+                        command,
+                        replacing_retained,
+                        replacing_real_command,
+                        &original_cleanup,
+                    );
+                }
             }
+        }
+        if original_cleanup.check(self).is_err() {
+            let _ = original_cleanup.in_original(self, |_| drop(cmd));
+            return original_key;
         }
         // A callback above may have renamed the dying command, which moves the
         // structured slot reservation with it. Re-reserve the requested
@@ -6048,18 +6071,15 @@ impl Vm {
     /// resolution, which is what a whitelist sweep over
     /// [`Self::registered_command_entries`] needs.
     pub(crate) fn remove_registered_command(&mut self, name: &str) {
-        let imported = self.imported_commands.contains_key(name);
-        let token = self.command_token_identity(&CommandSidecarKey::visible(name));
+        let key = CommandSidecarKey::visible(name);
+        let token = self.command_token_identity(&key);
         let command = self.visible_command_at_key(name);
         let (Some(token), Some(command)) = (token, command) else {
             return;
         };
         self.invalidate_compiled_command_semantics_for_key(name);
-        if imported {
-            self.on_command_removed(name);
-            if self.command_token_identity(&token.key).as_ref() == Some(&token) {
-                self.take_command_sidecar_unchecked(&token.key);
-            }
+        if self.import_binding_at_sidecar_key(&key).is_some() {
+            self.retire_import_binding(&key);
         } else {
             self.retire_registered_real_command(&token, &command);
         }
@@ -6275,10 +6295,6 @@ impl Vm {
         }
         let key = CommandSidecarKey::visible(&transaction.old_key);
         if transaction.source_import_binding.is_some() {
-            // The import deleteProc owns both its own trace-before-unlink
-            // ordering and its downstream import references. Returning true
-            // tells `rename` not to fire the old location's trace a second
-            // time after a re-entrant callback may have installed a new token.
             self.retire_import_binding(&key);
             return true;
         }
@@ -6287,26 +6303,10 @@ impl Vm {
             .get(&transaction.old_key)
             .cloned()
             .expect("the prepared delete source remains registered");
-        let source_token = self
+        let source = self
             .command_token_identity(&key)
             .expect("the prepared delete source has a token identity");
-        // C calls the source command's delete trace before walking its
-        // ImportRef list. Both the source and every import therefore remain
-        // table-visible during this callback.
-        self.on_command_removed_for(&key);
-        // C removes the table entry through the dying `cmdPtr->hPtr`
-        // (`Tcl_DeleteCommandFromToken`, `tclBasic.c` 9.0.4:3865-3873). A
-        // callback may move that exact token before returning, so follow its
-        // generation instead of assuming its original table location remains.
-        let Some(live_token) = self.command_token_at_generation(source_token.generation) else {
-            // The callback deleted this token. A same-name replacement has a
-            // newer generation and must stand.
-            return true;
-        };
-        let live_command = self
-            .command_at_sidecar_key(&live_token.key)
-            .unwrap_or(command);
-        self.retire_registered_real_command(&live_token, &live_command);
+        self.retire_registered_real_command(&source, &command);
         true
     }
 
@@ -6337,24 +6337,13 @@ impl Vm {
         if let CommandSidecarKey::Visible(name) = key {
             self.materialise_retained_binding(name);
         }
-        let imported = self.import_binding_at_sidecar_key(key).is_some();
-        let command = self.command_at_sidecar_key(key)?.clone();
-        if imported {
+        let command = self.command_at_sidecar_key(key)?;
+        if self.import_binding_at_sidecar_key(key).is_some() {
             self.retire_import_binding(key);
-            return Some(command);
+        } else {
+            let source = self.command_token_identity(key)?;
+            self.retire_registered_real_command(&source, &command);
         }
-
-        let source_token = self.command_token_identity(key)?;
-        self.on_command_removed_for(key);
-        let Some(live_token) = self.command_token_at_generation(source_token.generation) else {
-            // A delete callback deleted this exact command. Whatever now holds
-            // its spelling is a different generation and remains registered.
-            return Some(command);
-        };
-        let live_command = self
-            .command_at_sidecar_key(&live_token.key)
-            .unwrap_or_else(|| command.clone());
-        self.retire_registered_real_command(&live_token, &live_command);
         Some(command)
     }
 
@@ -6368,18 +6357,28 @@ impl Vm {
         key: &str,
         invalidate_lookup: bool,
     ) -> Option<Command> {
+        self.take_command_unchecked_key_with_retirement(key, invalidate_lookup, false)
+    }
+
+    fn take_command_unchecked_key_with_retirement(
+        &mut self,
+        key: &str,
+        invalidate_lookup: bool,
+        original_retirement: bool,
+    ) -> Option<Command> {
         let retired = self.visible_command_generation(key).is_some_and(|token| {
             let retired = self
                 .name_world
                 .borrow_mut()
                 .command_name_retiring
                 .remove(&token);
-            if !retired {
+            if !retired && !original_retirement {
                 self.note_native_command_name_node_changed(token);
             }
             retired
         });
         if !retired
+            && !original_retirement
             && invalidate_lookup
             && let Some(slot) = self.command_slot(key)
         {
@@ -6391,7 +6390,7 @@ impl Vm {
                 .command_compiler_deletion_published
                 .remove(&token)
         });
-        if !deletion_published {
+        if !deletion_published && !original_retirement {
             self.note_native_command_token_changed(&CommandSidecarKey::visible(key));
         }
         if self.commands.contains_key(key) {
@@ -6405,6 +6404,17 @@ impl Vm {
             .command_identity
             .generations
             .remove(key);
+        self.builtin_identities.remove(key);
+        // Clear the `TclOO` root marking with the entry it describes, exactly
+        // as the builtin identity above is cleared. A rename re-declares it at
+        // the destination; leaving it stranded under the vacated name would
+        // gate an unrelated command that later takes that name.
+        self.registry_object_roots.remove(key);
+        let command = self.commands.remove(key);
+        if command.is_some() {
+            self.note_command_unbound(key);
+            self.forget_command_storage_key(key);
+        }
         if let Some(token) = removed_generation {
             let remains_bound = self
                 .name_world
@@ -6417,17 +6427,6 @@ impl Vm {
                 self.note_jim_command_unpublished(token);
             }
         }
-        self.builtin_identities.remove(key);
-        // Clear the `TclOO` root marking with the entry it describes, exactly
-        // as the builtin identity above is cleared. A rename re-declares it at
-        // the destination; leaving it stranded under the vacated name would
-        // gate an unrelated command that later takes that name.
-        self.registry_object_roots.remove(key);
-        let command = self.commands.remove(key);
-        if command.is_some() {
-            self.note_command_unbound(key);
-            self.forget_command_storage_key(key);
-        }
         command
     }
 
@@ -6435,11 +6434,15 @@ impl Vm {
     /// implementation lifecycle or command traces. The caller owns both and
     /// uses this only after following the token's generation through any
     /// re-entrant relocation.
-    fn take_command_sidecar_unchecked(&mut self, key: &CommandSidecarKey) -> Option<Command> {
+    fn take_command_sidecar_for_retirement(
+        &mut self,
+        key: &CommandSidecarKey,
+        original_retirement: bool,
+    ) -> Option<Command> {
         match key {
             CommandSidecarKey::Visible(name) => {
                 self.materialise_retained_binding(name);
-                self.take_command_unchecked_key(name)
+                self.take_command_unchecked_key_with_retirement(name, true, original_retirement)
             }
             CommandSidecarKey::Hidden(name) => {
                 if let Some(token) = self.hidden.generations.get(name).copied() {
@@ -6452,7 +6455,7 @@ impl Vm {
                         .borrow_mut()
                         .command_name_retiring
                         .remove(&token);
-                    if !retired {
+                    if !retired && !original_retirement {
                         self.note_native_command_name_node_changed(token);
                     }
                 }
@@ -12520,175 +12523,6 @@ impl Vm {
         self.retire_import_tree_snapshot(&node);
     }
 
-    /// Retire one previously-snapshotted import if that exact command token is
-    /// still installed. Delete traces run before unlinking, matching C's
-    /// imported-command deleteProc ordering and keeping the alias observable to
-    /// the callback.
-    fn retire_import_tree_snapshot(&mut self, node: &ImportRetirementNode) {
-        let key = &node.token.key;
-        if let CommandSidecarKey::Visible(name) = key {
-            self.materialise_retained_binding(name);
-        }
-        let still_expected = self.command_token_identity(key).as_ref() == Some(&node.token)
-            && self.import_binding_at_sidecar_key(key) == Some(node.binding.clone());
-        if still_expected {
-            self.on_command_removed_for(key);
-        }
-
-        let Some(live) = self.import_retirement_node_by_generation(node.binding.generation) else {
-            return;
-        };
-        let live_key = &live.token.key;
-        if let CommandSidecarKey::Visible(name) = live_key {
-            self.materialise_retained_binding(name);
-        }
-
-        // C recursively retires one child's complete subtree before advancing
-        // to the next ImportRef. The parent is still table-visible throughout
-        // its descendants' callbacks; an earlier sibling is gone by the time
-        // a later sibling fires.
-        for child in self.direct_import_retirement_nodes(&live.token) {
-            self.retire_import_tree_snapshot(&child);
-        }
-
-        // A child's delete trace can rename/hide/expose this parent token.
-        // The generation, not the location captured before recursion, is the
-        // stable identity across that callback-bearing phase.
-        let Some(live) = self.import_retirement_node_by_generation(node.binding.generation) else {
-            return;
-        };
-        let live_key = &live.token.key;
-        if let CommandSidecarKey::Visible(name) = live_key {
-            self.materialise_retained_binding(name);
-        }
-        let still_same_import = self.command_token_identity(live_key).as_ref() == Some(&live.token)
-            && self.import_binding_at_sidecar_key(live_key) == Some(live.binding.clone());
-        if !still_same_import {
-            return;
-        }
-
-        self.invalidate_compiled_command_semantics_for_key(live_key.name());
-
-        if live_key != key {
-            // Rename/hide/expose moved any remaining trace sidecars with the
-            // token. The original delete trace already fired, so remove only
-            // that generation's relocated state without invoking it again.
-            self.drop_relocated_command_sidecars(live_key, live.token.generation);
-        }
-
-        self.take_command_sidecar_unchecked(live_key);
-        self.drop_alias_backref_key(live_key);
-    }
-
-    /// Complete the true deletion of a real command identity. Imported aliases
-    /// disappear with the source, whereas an atomic same-name replacement uses
-    /// [`Self::replace_import_implementations`] and keeps them alive.
-    fn retire_real_command(
-        &mut self,
-        source: &CommandTokenIdentity,
-        command: &Command,
-    ) -> Option<CommandTokenIdentity> {
-        self.retire_command_implementation(source, command, false);
-        // Coroutine local-unset traces and TclOO destructors are arbitrary Tcl
-        // callbacks. They can rename this exact token before import teardown,
-        // or replace/delete it. Follow the generation after that phase so the
-        // import graph is selected by identity rather than a stale location.
-        let live_source = self.command_token_at_generation(source.generation);
-        self.retire_downstream_imports(live_source.as_ref().unwrap_or(source));
-        // Imported-command delete traces are callbacks too and can relocate or
-        // replace their source. The caller must unlink only this final
-        // generation, wherever it now lives.
-        self.command_token_at_generation(source.generation)
-    }
-
-    /// Complete and unlink one real command generation that is still present
-    /// in a command table. Every callback-bearing lifecycle phase re-resolves
-    /// the generation; a newer replacement at any visited spelling survives.
-    fn retire_registered_real_command(&mut self, source: &CommandTokenIdentity, command: &Command) {
-        self.drop_relocated_command_sidecars(&source.key, source.generation);
-        let Some(final_token) = self.retire_real_command(source, command) else {
-            return;
-        };
-        self.drop_relocated_command_sidecars(&final_token.key, final_token.generation);
-        self.take_command_sidecar_unchecked(&final_token.key);
-        self.drop_alias_backref_key(&final_token.key);
-    }
-
-    /// Release implementation-owned state for an atomic same-name
-    /// replacement while keeping the command token available for the new
-    /// implementation and retargeting its imports below.
-    fn retire_replaced_real_command(&mut self, source: &CommandTokenIdentity, command: &Command) {
-        self.retire_command_implementation(source, command, true);
-    }
-
-    /// Single owner for implementation state attached to a real command
-    /// token. Every true deletion and atomic replacement reaches this seam, so
-    /// coroutine continuations and `TclOO` records cannot survive a less common
-    /// namespace/embedder/hidden-table path.
-    fn retire_command_implementation(
-        &mut self,
-        source: &CommandTokenIdentity,
-        command: &Command,
-        replacing: bool,
-    ) {
-        if self
-            .name_world
-            .borrow_mut()
-            .command_name_retiring
-            .insert(source.generation)
-        {
-            self.note_native_command_name_node_changed(source.generation);
-            if let CommandSidecarKey::Visible(key) = &source.key
-                && let Some(slot) = self.command_slot(key)
-            {
-                self.note_native_namespace_command_lookup(slot.namespace);
-            }
-        }
-        if let Command::Proc(procedure) = command {
-            procedure.retire();
-        }
-        if let Command::Native(native) = command {
-            let completion = native.retire(self);
-            if completion.code != Code::Ok && self.execution_refusal.is_none() {
-                let _ = self.refuse_host_command(
-                    "native command retirement cannot return a guest completion".into(),
-                );
-            }
-        }
-        crate::cmd_coro::on_command_deleted(self, &source.key);
-        // TclOO state belongs to the command token, so every true command
-        // retirement — explicit deletion, namespace teardown, interpreter
-        // cleanup, or embedder removal — reaches the same destructor owner.
-        // `oo_destroy` is idempotent and its raw table unlink re-enters here
-        // only after marking the object destroyed.
-        if let Command::Object(object) = command {
-            if replacing {
-                crate::cmd_oo::oo_command_replaced(self, *object);
-            } else {
-                crate::cmd_oo::oo_command_deleted(self, *object);
-            }
-        }
-        if let Command::Ensemble(token) = command {
-            self.untrack_namespace_ensemble(token);
-            token.mark_deleted();
-        }
-        if let Command::ChildInterp(child) = command {
-            // The naming command owns the child interpreter. Replacement and
-            // rename-to-empty retire it at this shared lifecycle seam, after
-            // command delete traces have observed the child as still alive.
-            self.children.retain(|_, candidate| candidate != child);
-            self.retire_interp(*child);
-        }
-    }
-
-    /// Delete every import token that directly or transitively references
-    /// `source`, without retiring the implementation token at `source`.
-    fn retire_downstream_imports(&mut self, source: &CommandTokenIdentity) {
-        for node in self.direct_import_retirement_nodes(source) {
-            self.retire_import_tree_snapshot(&node);
-        }
-    }
-
     /// Retarget imports when their source command is renamed.  The command
     /// table stores an import as a cloned dispatcher, whereas C stores the
     /// source command token; rewrite the provenance explicitly so dispatch,
@@ -14568,6 +14402,7 @@ impl Vm {
             Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
+        let original_cleanup = command_cleanup::OriginalCommandCleanup::enter(self);
         let reached = (|| {
             if let Some(refused) = self.refused_completion() {
                 return refused;
@@ -14600,7 +14435,9 @@ impl Vm {
                 .actual_native_invocation_dialect()
                 .native_variable_trace_protocol()
             else {
-                self.trace_in_progress.set(saved);
+                if let Ok(state) = original_cleanup.state_mut(self) {
+                    state.trace_in_progress.set(saved);
+                }
                 entry.firing.set(false);
                 return self.refuse_host_command(
                     "command trace callback protocol is unavailable".to_owned(),
@@ -14610,7 +14447,9 @@ impl Vm {
                 protocol.command_callback_source(interp_trace_in_progress, &script),
             );
             let res = self.eval_value_at_level(self.current_level(), &source);
-            self.trace_in_progress.set(saved);
+            if let Ok(state) = original_cleanup.state_mut(self) {
+                state.trace_in_progress.set(saved);
+            }
             entry.firing.set(false);
             res
         })();
@@ -14634,32 +14473,23 @@ impl Vm {
         new_display: &[u8],
         op: &str,
     ) {
-        // C's per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`: a rename/delete of
-        // *this* command from inside its own callback does not fire again. A
-        // different command's traces still do.
         if self.cmd_traces.is_empty() || self.firing_cmd_traces.contains(key) {
             return;
         }
         let Some(entries) = self.cmd_traces.get(key).cloned() else {
             return;
         };
+        let original = command_cleanup::OriginalCommandCleanup::enter(self);
+        if original.check(self).is_err() {
+            return;
+        }
+        let depth = self.firing_cmd_traces.len();
         self.firing_cmd_traces.push(key.clone());
-        // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
-        // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
-        // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
-        // newest-last.
         for entry in entries.into_iter().rev() {
-            if !entry.ops.iter().any(|o| o == op) {
-                continue;
+            if original.check(self).is_err() {
+                break;
             }
-            // C's `CallCommandTraces` walks the list hanging off the token it
-            // was handed (tclBasic.c 9.0.4:3972-3993) and `Tcl_UntraceCommand`
-            // unlinks a record at once, so a trace an earlier callback removed
-            // does not fire in this pass — but a callback
-            // that re-creates the command under this name only takes the
-            // *table* entry over, leaving the dying token's list to finish
-            // firing. Hence the per-entry flag rather than a table lookup.
-            if entry.untraced() {
+            if !entry.ops.iter().any(|o| o == op) || entry.untraced() {
                 continue;
             }
             let _ = self.run_command_trace_callback(
@@ -14670,8 +14500,16 @@ impl Vm {
                     Value::string(op),
                 ],
             );
+            let _ = original.check(self);
         }
-        self.firing_cmd_traces.pop();
+        if let Ok(state) = original.state_mut(self) {
+            // The actual caller-owned slot, including its legitimate rename,
+            // is removed from its original stack; a child stack stays intact.
+            if state.firing_cmd_traces.len() > depth {
+                state.firing_cmd_traces.remove(depth);
+            }
+        }
+        let _ = original.check(self);
     }
 
     /// A command at `key` is about to be deleted or overwritten: fire its
@@ -14682,56 +14520,91 @@ impl Vm {
     }
 
     fn on_command_removed_for(&mut self, key: &CommandSidecarKey) {
-        let native_hook = self.native_hook_at_sidecar(key);
-        // A key is a location, not an eternal command identity.  Do this
-        // before delete callbacks: they may create, hide, expose, or rename a
-        // replacement binding with the same key while this operation is still
-        // in flight.  That replacement must not inherit the old handle.
-        self.detach_active_sidecars(key);
-        let dying = self
-            .command_token_identity(key)
-            .map(|identity| identity.generation);
-        let mut removed_trace = false;
-        if !self.cmd_traces.is_empty() {
-            let display = self.rooted_command_sidecar_display_bytes(key);
-            self.fire_command_traces_for(key, &display, b"", "delete");
-            removed_trace |= self.drop_retired_cmd_traces(key, dying);
+        let original = command_cleanup::OriginalCommandCleanup::enter(self);
+        let selected = original.in_original(self, |vm| {
+            let hook = vm.native_hook_at_sidecar(key);
+            vm.detach_active_sidecars(key);
+            let dying = vm
+                .command_token_identity(key)
+                .map(|identity| identity.generation);
+            let namespace = match key {
+                CommandSidecarKey::Visible(key) => vm.command_slot(key).map(|slot| slot.namespace),
+                CommandSidecarKey::Hidden(_) => None,
+            };
+            let invalidate_namespace = vm
+                .actual_native_invocation_dialect()
+                .native_command_name_protocol()
+                .is_some_and(|protocol| protocol.deletion_invalidates_namespace_after_trace());
+            (
+                hook,
+                dying,
+                namespace,
+                invalidate_namespace,
+                vm.rooted_command_sidecar_display_bytes(key),
+            )
+        });
+        let Ok((native_hook, dying, namespace, invalidate_namespace, display)) = selected else {
+            return;
+        };
+        if original.check(self).is_ok() {
+            let _ = original.in_original(self, |vm| {
+                vm.fire_command_traces_for(key, &display, b"", "delete")
+            });
         }
-        let step_compilation_was_disabled = self.step_trace_active();
-        if !self.exec_traces.is_empty()
-            && let Some(removed) = self.exec_traces.remove(key)
-        {
-            removed_trace = true;
-            for entry in &removed {
-                entry.untraced.set(true);
+        let _ = original.in_original(self, |vm| {
+            if let Some(dying) = dying {
+                vm.drop_relocated_command_sidecars(key, dying);
+            } else {
+                let mut removed_trace = vm.drop_retired_cmd_traces(key, None);
+                let step_compilation_was_disabled = vm.step_trace_active();
+                if let Some(removed) = vm.exec_traces.remove(key) {
+                    removed_trace = true;
+                    for entry in &removed {
+                        entry.untraced.set(true);
+                    }
+                    if removed.iter().any(|entry| is_step_capable(&entry.ops)) {
+                        vm.bump_trace_deopt_epoch();
+                    }
+                    drop(removed);
+                }
+                vm.publish_native_inline_trace_transition(step_compilation_was_disabled);
+                if removed_trace {
+                    vm.invalidate_guard_domain(GuardDomain::CommandTrace);
+                }
             }
-            // Dropping a step-capable trace this way (delete/overwrite,
-            // not `trace remove`) needs the same epoch bump.
-            if removed.iter().any(|t| is_step_capable(&t.ops)) {
-                self.bump_trace_deopt_epoch();
+            // The release predicate belongs to the entered owner; the
+            // command's namespace follows an actual same-generation move.
+            // A replacement at the old spelling supplies neither observation.
+            let reached_namespace = dying
+                .and_then(|generation| vm.command_token_at_generation(generation))
+                .and_then(|token| match token.key {
+                    CommandSidecarKey::Visible(key) => {
+                        vm.command_slot(&key).map(|slot| slot.namespace)
+                    }
+                    CommandSidecarKey::Hidden(_) => None,
+                })
+                .or(namespace);
+            if invalidate_namespace && let Some(namespace) = reached_namespace {
+                vm.note_native_namespace_command_lookup(namespace);
             }
-        }
-        self.publish_native_inline_trace_transition(step_compilation_was_disabled);
-        if removed_trace {
-            self.invalidate_guard_domain(GuardDomain::CommandTrace);
-        }
-        // C advances compileEpoch after command-delete traces, while retaining
-        // the old token's compileProc even when a callback moved its spelling.
-        // A callback's freshly admitted cache must see this later mutation.
-        if let Some(dying) = dying
-            && self.command_token_at_generation(dying).is_some()
-            && self
-                .name_world
-                .borrow_mut()
-                .command_compiler_deletion_published
-                .insert(dying)
-        {
-            self.note_native_compiler_cache_mutation(
-                tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken {
-                    hook: native_hook,
-                },
-            );
-        }
+            if let Some(dying) = dying {
+                // The actual hook was selected before the trace. Recursive
+                // unlink does not replace that old compiler mutation owner.
+                if vm
+                    .name_world
+                    .borrow_mut()
+                    .command_compiler_deletion_published
+                    .insert(dying)
+                {
+                    vm.note_native_compiler_cache_mutation(
+                        tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken {
+                            hook: native_hook,
+                        },
+                    );
+                }
+            }
+        });
+        let _ = original.check(self);
     }
 
     /// Drop the command traces the dying token carried — C's "free the whole

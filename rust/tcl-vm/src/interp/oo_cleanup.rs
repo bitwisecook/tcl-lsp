@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Mandatory OO payload retirement in the actual original physical interpreter.
-use super::native_operation_currency::{NativeOperationContext, NativeOperationCurrency, NativeOperationScope};
+use super::native_operation_currency::{CleanupRestoration, NativeOperationCurrency, NativeOperationScope, SavedExecutionTarget};
 use super::{CommandSidecarKey, InterpId, InterpState, Vm};
 use crate::cmd_oo::OoState;
 use crate::command::Command;
-use std::rc::{Rc, Weak};
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::OoId;
 use tcl_syntax::value::ValueError;
@@ -23,9 +22,8 @@ pub(crate) fn retain_error(vm: &mut Vm, error: &CmdError) {
 /// Physical storage and original currency are independent of a live OO target.
 /// Entry refusal never skips retirement of already-owned original payloads.
 pub(crate) struct OriginalOoCleanup {
-    owner: u64,
+    target: SavedExecutionTarget,
     interpreter: InterpId,
-    context: Weak<NativeOperationContext>,
     operation: Option<NativeOperationScope>,
     entry_failure: Option<CmdError>,
     namespace_traversal: Option<tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown>,
@@ -37,9 +35,8 @@ pub(crate) struct OriginalOoCleanup {
 /// It creates no entered invocation and owns no frame, Method or Native payload.
 #[derive(Clone)]
 struct SavedOriginalOoCleanup {
-    owner: u64,
+    target: SavedExecutionTarget,
     interpreter: InterpId,
-    context: Weak<NativeOperationContext>,
     currency: Option<NativeOperationCurrency>,
     entry_failure: Option<CmdError>,
     namespace_traversal: Option<tcl_syntax::native_namespace_name::NativeNamespaceCommandTeardown>,
@@ -69,9 +66,8 @@ impl SavedOriginalOoCleanup {
             None => (None, self.entry_failure.clone()),
         };
         OriginalOoCleanup {
-            owner: self.owner,
+            target: self.target.clone(),
             interpreter: self.interpreter,
-            context: self.context.clone(),
             operation,
             entry_failure,
             namespace_traversal: self.namespace_traversal,
@@ -82,9 +78,6 @@ impl SavedOriginalOoCleanup {
 }
 impl OriginalOoCleanup {
     pub(crate) fn enter(vm: &mut Vm) -> Self {
-        let owner = vm.owner_nonce;
-        let interpreter = vm.cur;
-        let context = Rc::downgrade(&vm.native_operation_context);
         let namespace_traversal = vm
             .name_policy_protocol()
             .and_then(|policy| policy.recipe().namespace_command_teardown());
@@ -102,10 +95,11 @@ impl OriginalOoCleanup {
                 (None, Some(first))
             }
         };
+        let target = SavedExecutionTarget::capture(vm);
+        let interpreter = target.interpreter();
         Self {
-            owner,
+            target,
             interpreter,
-            context,
             operation,
             entry_failure,
             namespace_traversal,
@@ -115,14 +109,15 @@ impl OriginalOoCleanup {
     }
     /// Readonly physical cleanup observations; never issue a new execution owner.
     fn observe(vm: &mut Vm) -> Self {
-        let owner = vm.owner_nonce;
-        let interpreter = vm.cur;
-        let context = Rc::downgrade(&vm.native_operation_context);
-        let namespace_traversal = vm.name_policy_protocol()
+        let namespace_traversal = vm
+            .name_policy_protocol()
             .and_then(|policy| policy.recipe().namespace_command_teardown());
-        let method_cache_selected = vm.actual_native_invocation_dialect()
-            .native_tcloo_method_cache_protocol().is_some();
-        let property_recipe = vm.actual_native_invocation_dialect()
+        let method_cache_selected = vm
+            .actual_native_invocation_dialect()
+            .native_tcloo_method_cache_protocol()
+            .is_some();
+        let property_recipe = vm
+            .actual_native_invocation_dialect()
             .native_property_lookup_protocol();
         let (operation, entry_failure) = match NativeOperationScope::current_entered(vm) {
             Ok(operation) => (operation, None),
@@ -132,15 +127,23 @@ impl OriginalOoCleanup {
                 (None, Some(first))
             }
         };
-        Self { owner, interpreter, context, operation, entry_failure,
-            namespace_traversal, method_cache_selected, property_recipe }
+        let target = SavedExecutionTarget::capture(vm);
+        let interpreter = target.interpreter();
+        Self {
+            target,
+            interpreter,
+            operation,
+            entry_failure,
+            namespace_traversal,
+            method_cache_selected,
+            property_recipe,
+        }
     }
 
     fn saved(&self) -> SavedOriginalOoCleanup {
         SavedOriginalOoCleanup {
-            owner: self.owner,
+            target: self.target.clone(),
             interpreter: self.interpreter,
-            context: self.context.clone(),
             currency: self
                 .operation
                 .as_ref()
@@ -152,11 +155,7 @@ impl OriginalOoCleanup {
         }
     }
     fn physical(&self, vm: &Vm) -> bool {
-        self.owner == vm.owner_nonce
-            && self.context.upgrade().is_some_and(|context| {
-                vm.st_of(self.interpreter)
-                    .is_some_and(|state| Rc::ptr_eq(&context, &state.native_operation_context))
-            })
+        self.target.owns_target(vm)
     }
     fn missing(vm: &mut Vm) -> CmdError {
         let error = CmdError::from(ValueError::CommandProtocolUnavailable(
@@ -191,24 +190,20 @@ impl OriginalOoCleanup {
         if !self.physical(vm) {
             return Err(Self::missing(vm));
         }
-        Ok(vm.in_interp(self.interpreter, |vm| {
-            let saved = self.operation.as_ref().map(|operation| {
-                NativeOperationScope::enter_saved_cleanup(
-                    vm,
-                    operation.currency(),
-                    self.interpreter,
-                )
-            });
-            if let Some(Err(first)) = &saved {
-                retain_error(vm, &CmdError::from_execution_refusal(first.clone()));
-            }
-            let result = work(vm);
-            if let Err(first) = self.check(vm) {
-                retain_error(vm, &first);
-            }
-            drop(saved);
-            result
-        }))
+        let reached = self
+            .target
+            .retire_in_original(vm, CleanupRestoration::RestoreCaller, |vm| {
+                let metadata = work(vm);
+                if let Err(first) = self.check(vm) {
+                    retain_error(vm, &first);
+                }
+                metadata
+            })
+            .map_err(CmdError::from_execution_refusal)?;
+        if let Some(first) = reached.first_cause {
+            retain_error(vm, &CmdError::from_execution_refusal(first));
+        }
+        Ok(reached.metadata)
     }
     pub(crate) fn oo_mut<'a>(&self, vm: &'a mut Vm) -> Result<&'a mut OoState, CmdError> {
         Ok(&mut self.state_mut(vm)?.oo)
@@ -316,3 +311,6 @@ pub(crate) fn select_cleanup_fixture_interpreter(vm: &mut Vm, target: InterpId) 
 pub(crate) fn withdraw_cleanup_fixture_name_world(vm: &mut Vm) {
     vm.name_world.borrow_mut().retire();
 }
+
+#[cfg(test)]
+mod original_target_tests;

@@ -66,8 +66,10 @@ pub(crate) struct NativeNameWorld {
     pub(super) command_reference_epochs: HashMap<NsId, u64>,
     /// Command-node epochs survive placement changes without retaining implementations.
     pub(super) command_name_epochs: HashMap<u64, u64>,
-    /// Nodes whose deleteProc phase advanced the epoch before final unlink.
+    /// Atomic replacement already advanced this node before neutral raw unlink.
     pub(super) command_name_retiring: HashSet<u64>,
+    /// Actual C CMD_IS_DELETED guard, separate from cache epoch publication.
+    pub(super) command_deletion_active: HashSet<u64>,
     /// Delete-trace completion has published this token's compiler mutation.
     pub(super) command_compiler_deletion_published: HashSet<u64>,
     /// Exact Jim namespace objects, independent of constructed analytical paths.
@@ -123,6 +125,7 @@ impl NativeNameWorld {
             command_reference_epochs: HashMap::new(),
             command_name_epochs: HashMap::new(),
             command_name_retiring: HashSet::new(),
+            command_deletion_active: HashSet::new(),
             command_compiler_deletion_published: HashSet::new(),
             jim_namespace_objects: HashMap::from([(ROOT_NS, NameBytes::default())]),
             jim_root_namespace_object: None,

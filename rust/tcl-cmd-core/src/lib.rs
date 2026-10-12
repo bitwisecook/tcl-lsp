@@ -60,6 +60,7 @@ pub mod namespace;
 pub mod native_append;
 pub mod native_boolean_truth;
 pub mod native_cat;
+pub mod native_command_retirement;
 pub mod native_dictionary;
 pub mod native_each_loop;
 pub mod native_frame_error;

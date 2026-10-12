@@ -15,6 +15,37 @@ use crate::native_compiler_words::NativeCompilerWords;
 pub struct NativeCommandNameProtocol(tcl_dialect::TclVersion);
 
 impl NativeCommandNameProtocol {
+    /// Actual C command-node epoch stage; no live node or table is supplied.
+    #[must_use]
+    pub const fn deletion_epoch_before_trace(self, recursive: bool) -> bool {
+        use tcl_dialect::TclVersion;
+        match self.0 {
+            TclVersion::V8_4 => !recursive,
+            TclVersion::V8_5 | TclVersion::V8_6 => true,
+            TclVersion::V9_0 | TclVersion::V9_1 => false,
+        }
+    }
+
+    /// Reached hash unlink advances C8.6 only on the final outer branch;
+    /// C9 advances both recursive and final branches. The adapter supplies
+    /// actual hash occupancy, independently of this source predicate.
+    #[must_use]
+    pub const fn deletion_epoch_after_unlink(self, recursive: bool) -> bool {
+        use tcl_dialect::TclVersion;
+        match self.0 {
+            TclVersion::V8_4 | TclVersion::V8_5 => false,
+            TclVersion::V8_6 => !recursive,
+            TclVersion::V9_0 | TclVersion::V9_1 => true,
+        }
+    }
+
+    /// Original namespace lookup invalidation follows the outer trace pass.
+    /// C8.4 has no TclInvalidateNsCmdLookup at this deletion site.
+    #[must_use]
+    pub const fn deletion_invalidates_namespace_after_trace(self) -> bool {
+        !matches!(self.0, tcl_dialect::TclVersion::V8_4)
+    }
+
     /// Actual selected object-type release.
     #[must_use]
     pub const fn version(self) -> tcl_dialect::TclVersion {
@@ -353,3 +384,39 @@ pub fn native_compiled_command_name_literal(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod original_deletion_epoch_tests {
+    use super::*;
+
+    #[test]
+    fn original_command_deletion_epoch_predicates_keep_outer_recursive_and_unlink_stages() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Pure source predicates only; no Native callbacks/cache observations.
+        use tcl_dialect::TclVersion;
+        for (version, outer, recursive, final_unlink, nested_unlink, namespace) in [
+            (TclVersion::V8_4, true, false, false, false, false),
+            (TclVersion::V8_5, true, true, false, false, true),
+            (TclVersion::V8_6, true, true, true, false, true),
+            (TclVersion::V9_0, false, false, true, true, true),
+            (TclVersion::V9_1, false, false, true, true, true),
+        ] {
+            let protocol = crate::InvocationDialect::for_version(version)
+                .native_command_name_protocol()
+                .unwrap();
+            assert_eq!(protocol.deletion_epoch_before_trace(false), outer);
+            assert_eq!(protocol.deletion_epoch_before_trace(true), recursive);
+            assert_eq!(protocol.deletion_epoch_after_unlink(false), final_unlink);
+            assert_eq!(protocol.deletion_epoch_after_unlink(true), nested_unlink);
+            assert_eq!(
+                protocol.deletion_invalidates_namespace_after_trace(),
+                namespace
+            );
+        }
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").analyser_profile(),
+        );
+        assert!(jim.native_command_name_protocol().is_none());
+    }
+}
