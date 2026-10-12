@@ -256,7 +256,7 @@ impl NativeIndexOps for Vm {
         original: &Value,
         command: tcl_cmd_core::native_option_index::OptionCommand,
     ) -> Result<Option<i64>, CmdError> {
-        use crate::expr::original_numeric_context::{
+        use crate::expr::{
             original_numeric_command_ops, with_original_numeric_command,
         };
         use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
@@ -301,7 +301,7 @@ impl NativeIndexOps for Vm {
             (OptionCommand::Sort, ListNumericKind::Integer) => Purpose::ListSortInteger,
             (OptionCommand::Sort, ListNumericKind::Real) => Purpose::ListSortReal,
         };
-        use crate::expr::original_numeric_context::{
+        use crate::expr::{
             original_numeric_command_ops, with_original_numeric_command,
         };
         with_original_numeric_command(self, CmdError::from, |vm, context| {

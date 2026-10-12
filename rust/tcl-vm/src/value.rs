@@ -5400,7 +5400,7 @@ impl Value {
         } else {
             original.clone()
         };
-        value.native_list_replace_prepared_using(
+        value.native_list_replace_prepared_using::<ValueError>(
             0,
             usize::MAX,
             elements,

@@ -47,7 +47,7 @@ use tcl_registry::native_tcloo_method_definition::{
 };
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 mod native_bootstrap;
 pub(crate) mod native_context;

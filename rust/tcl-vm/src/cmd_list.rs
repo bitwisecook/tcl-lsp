@@ -591,7 +591,7 @@ fn original_comparison_result(
     original: &<Vm as tcl_cmd_core::index::NativeIndexOps>::IndexOperation,
     result: &Value,
 ) -> Result<core::cmp::Ordering, tcl_cmd_core::CmdError> {
-    use crate::expr::original_numeric_context::{OriginalNumericCommandContext, original_numeric_command_ops};
+    use crate::expr::{OriginalNumericCommandContext, original_numeric_command_ops};
     use tcl_cmd_core::CmdError;
     use tcl_registry::native_numeric_error::NativeNumericCommandPurpose;
     use tcl_syntax::{scalar_getter::NativeScalarGetterValue, value::ValueError};
