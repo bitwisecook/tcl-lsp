@@ -181,13 +181,15 @@ pub(super) fn handle_proc_with_words(
     {
         return;
     }
-    let raw_name = &texts[name_at];
+    let Some(raw_name) = ctx.declaration_word(&texts[name_at], argv[name_at].span) else {
+        return;
+    };
     let Some(scope) = ctx.current_namespace(ns_prefix) else {
         return;
     };
     let Some((qualified, simple, body_scope, source_name)) = ctx.procedure_name_in_context(
         &scope,
-        raw_name,
+        &raw_name,
         ctx.original_name_key(argv[name_at].span).as_ref(),
     ) else {
         return;
@@ -278,13 +280,15 @@ pub(super) fn handle_opt_proc(
     if texts.len() < 4 {
         return;
     }
-    let raw_name = &texts[1];
+    let Some(raw_name) = ctx.declaration_word(&texts[1], argv[1].span) else {
+        return;
+    };
     let Some(scope) = ctx.current_namespace(ns_prefix) else {
         return;
     };
     let Some((qualified, simple, body_scope, source_name)) = ctx.procedure_name_in_context(
         &scope,
-        raw_name,
+        &raw_name,
         ctx.original_name_key(argv[1].span).as_ref(),
     ) else {
         return;
@@ -770,7 +774,9 @@ pub(super) fn maybe_record_factory_candidate(
     if ctx.skip_heads.contains(head) {
         return;
     }
-    let name = &texts[1];
+    let Some(name) = ctx.declaration_word(&texts[1], argv[1].span) else {
+        return;
+    };
     if name.is_empty() || name.contains('$') || name.contains('[') {
         return;
     }

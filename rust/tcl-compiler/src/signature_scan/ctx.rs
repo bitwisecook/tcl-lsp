@@ -343,15 +343,51 @@ impl ScanCtx<'_> {
 
     /// Pure source assistance; the policy never supplies a runtime lookup receipt.
     pub(super) fn name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
-        self.authoring_profile().and_then(|profile| {
-            tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
-        })
+        self.source_name_purpose()?.policy()
     }
 
-    pub(super) fn original_name_key(
-        &self,
-        span: tcl_lexer::Span,
-    ) -> Option<super::scope::SignatureSourceNameKey> {
+    fn source_name_purpose(&self) -> Option<super::original_name::OriginalSourceNamePurpose> {
+        use super::original_name::OriginalSourceNamePurpose;
+        let profile = self.authoring_profile();
+        let policy = profile.and_then(|profile| {
+            tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+        });
+        if let Some(bindings) = self.original_bindings {
+            if let Some(input) = bindings.original_logical_source_name_advice_input() {
+                let owner = bindings.source_metadata_owner();
+                if owner.source_analysis_input() != Some(input)
+                    || bindings.original_source_lexer_config() != Some(self.config)
+                {
+                    return None;
+                }
+                owner.metadata_context_for_source(
+                    self.registry?,
+                    self.config,
+                    Some(input.unit_profile()),
+                )?;
+                return Some(OriginalSourceNamePurpose::for_analysis_input(
+                    input, None, policy?,
+                ));
+            }
+            // Supplied Native, unavailable and hosted inputs cannot acquire
+            // Logical or standalone naming from their presentation profile.
+            return policy.map(OriginalSourceNamePurpose::Native);
+        }
+        match profile {
+            None => Some(OriginalSourceNamePurpose::Symbolic),
+            Some(profile)
+                if tcl_registry::InvocationDialect::of_profile(profile).family()
+                    == Some(tcl_dialect::model::Family::Tcl)
+                    && tcl_registry::InvocationDialect::of_profile(profile).tcl_version.is_none()
+                    && tcl_registry::InvocationDialect::of_profile(profile).core_point.is_none() =>
+            {
+                Some(OriginalSourceNamePurpose::Symbolic)
+            }
+            Some(_) => policy.map(OriginalSourceNamePurpose::Native),
+        }
+    }
+
+    fn original_name_word(&self, span: tcl_lexer::Span) -> Option<&tcl_lexer::NativeWord> {
         let mut selected = self.original_words.iter().filter(|word| {
             word.span() == span
                 || word
@@ -363,11 +399,27 @@ impl ScanCtx<'_> {
         if selected.next().is_some() {
             return None;
         }
-        super::scope::SignatureSourceNameKey::from_original_native_word(
-            word,
-            self.rules,
-            self.name_policy()?,
-        )
+        Some(word)
+    }
+
+    pub(super) fn original_name_key(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<super::scope::SignatureSourceNameKey> {
+        self.source_name_purpose()?
+            .key(self.original_name_word(span)?, self.rules)
+    }
+
+    pub(super) fn declaration_word(&self, written: &str, span: tcl_lexer::Span) -> Option<String> {
+        let purpose = self.source_name_purpose()?;
+        if matches!(
+            purpose,
+            super::original_name::OriginalSourceNamePurpose::Symbolic
+        ) && self.original_image.is_some()
+        {
+            return purpose.symbolic_word(self.original_name_word(span)?, self.rules);
+        }
+        Some(written.to_owned())
     }
 
     pub(super) fn formal_count(
@@ -473,7 +525,11 @@ impl ScanCtx<'_> {
         span: tcl_lexer::Span,
     ) -> Option<(String, Option<SignatureSourceCommand>)> {
         let Some(policy) = self.name_policy() else {
-            return Some((crate::naming::qualify(&namespace.display()?, written), None));
+            let written = self.declaration_word(written, span)?;
+            return Some((
+                crate::naming::qualify(&namespace.display()?, &written),
+                None,
+            ));
         };
         let original = self.original_name_key(span);
         let bytes = match &original {
@@ -521,6 +577,10 @@ impl ScanCtx<'_> {
         let parent = self.current_namespace(namespace)?;
         match self.original_name_key(span) {
             Some(key) => parent.child_from_key(&key),
+            None if self.name_policy().is_none() => {
+                let original = self.declaration_word(written, span)?;
+                parent.child(&original, None)
+            }
             None if self.original_image.is_none() => parent.child(written, self.name_policy()),
             None => None,
         }
@@ -620,3 +680,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod original_source_name_purpose_tests;

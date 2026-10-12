@@ -8,6 +8,92 @@ use tcl_core_types::NameBytes;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span};
 use tcl_syntax::{naming::NamePolicyProtocol, word_rules::WordValueRules};
 
+/// Positively selected Logical source naming, independent of authored Native
+/// recipes and actual compilation entries. The descriptor grants only a word
+/// projection; complete invocation and availability joins remain with callers.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LogicalSourceNamePurpose {
+    _private: (),
+}
+
+impl LogicalSourceNamePurpose {
+    pub(crate) fn for_input(
+        input: &crate::analyser::ResolvedAnalysisInput,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+    ) -> Option<Self> {
+        (input.has_logical_source_name_context()
+            && entry.is_none_or(|entry| {
+                entry.native_entry.is_none()
+                    && !matches!(
+                        entry.execution_name_policy,
+                        Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(_))
+                    )
+            }))
+        .then_some(Self { _private: () })
+    }
+}
+
+/// The source input selects one original word owner. Symbolic standalone
+/// metadata has no name policy, Native key, command cell or execution receipt.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum OriginalSourceNamePurpose {
+    Native(NamePolicyProtocol),
+    Logical(NamePolicyProtocol, LogicalSourceNamePurpose),
+    Symbolic,
+}
+
+impl OriginalSourceNamePurpose {
+    pub(crate) fn for_analysis_input(
+        input: &crate::analyser::ResolvedAnalysisInput,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        policy: NamePolicyProtocol,
+    ) -> Self {
+        LogicalSourceNamePurpose::for_input(input, entry).map_or(Self::Native(policy), |logical| {
+            Self::Logical(policy, logical)
+        })
+    }
+
+    pub(crate) const fn policy(self) -> Option<NamePolicyProtocol> {
+        match self {
+            Self::Native(policy) | Self::Logical(policy, _) => Some(policy),
+            Self::Symbolic => None,
+        }
+    }
+
+    pub(crate) fn key(
+        self,
+        original: &NativeWord,
+        rules: WordValueRules,
+    ) -> Option<SignatureSourceNameKey> {
+        match self {
+            Self::Native(policy) => {
+                SignatureSourceNameKey::from_original_native_word(original, rules, policy)
+            }
+            Self::Logical(policy, _) => {
+                SignatureSourceNameKey::from_original_logical_source_word(original, rules, policy)
+            }
+            Self::Symbolic => None,
+        }
+    }
+
+    pub(crate) fn symbolic_word(
+        self,
+        original: &NativeWord,
+        rules: WordValueRules,
+    ) -> Option<String> {
+        if !matches!(self, Self::Symbolic)
+            || rules != WordValueRules::from_config(&original.config())
+        {
+            return None;
+        }
+        let value = tcl_syntax::word_rules::original_static_word_unicode_value(original)?;
+        if value.contains(&0) {
+            return None;
+        }
+        String::from_utf8(value).ok()
+    }
+}
+
 /// One complete original static naming word and its independently formed units.
 ///
 /// Its private producer preserves the source channel, complete lexical

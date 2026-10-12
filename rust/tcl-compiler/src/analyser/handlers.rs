@@ -1676,15 +1676,11 @@ impl Analyser {
     pub(super) fn selected_logical_declaration_advice(&self) -> bool {
         // naming.minifier.complete-logical-metadata
         // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
-        self.resolved_analysis_input()
-            .has_logical_source_name_context()
-            && self.source_analysis_entry.as_ref().is_none_or(|entry| {
-                entry.native_entry.is_none()
-                    && !matches!(
-                        entry.execution_name_policy,
-                        Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(_))
-                    )
-            })
+        crate::signature_scan::original_name::LogicalSourceNamePurpose::for_input(
+            &self.resolved_analysis_input(),
+            self.source_analysis_entry.as_deref(),
+        )
+        .is_some()
     }
 
     pub(super) fn declaration_name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {

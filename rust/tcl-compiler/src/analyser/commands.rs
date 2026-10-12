@@ -1158,16 +1158,14 @@ impl Analyser {
             return;
         };
         let rules = self.word_rules();
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                &self.resolved_analysis_input(),
+                self.source_analysis_entry.as_deref(),
+                policy,
+            );
         for word in native {
-            let key = if self.selected_logical_declaration_advice() {
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
-                    word, rules, policy,
-                )
-            } else {
-                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-                    word, rules, policy,
-                )
-            };
+            let key = purpose.key(word, rules);
             let Some(key) = key else {
                 continue;
             };
