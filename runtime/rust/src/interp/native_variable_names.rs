@@ -227,7 +227,7 @@ impl Interp {
         stage: OriginalCNameStage<'_>,
     ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
         match stage {
-            None => ValueOps::native_string_bytes(self, &original).map_err(Into::into),
+            None => self.native_object_string_bytes(original).map_err(Into::into),
             Some(_) => self.native_object_string_bytes_using(
                 original,
                 &|| self.check_original_c_name_operation_using(&[original], stage),

@@ -71,14 +71,14 @@ impl Interp {
             }
             obj::check_native_liveness(original)
         };
-        let bytes_for = || {
+        let bytes_for = |actual: &mut Interp| {
             if stage.is_some() {
-                self.native_object_string_bytes_using(original, &check, &|error| match retain {
+                actual.native_object_string_bytes_using(original, &check, &|error| match retain {
                     Some(retain) => retain(error),
                     None => error,
                 })
             } else {
-                self.native_string_bytes(&original)
+                actual.native_string_bytes(&original)
             }
         };
         if stage.is_some() {
@@ -93,7 +93,7 @@ impl Interp {
                     "native namespace-name object issuer",
                 ));
             }
-            let bytes = bytes_for()?;
+            let bytes = bytes_for(self)?;
             let current =
                 tcl_runtime_api::NsId(u32::try_from(current).map_err(|_| {
                     ValueError::CommandProtocolUnavailable("namespace context width")
@@ -105,7 +105,7 @@ impl Interp {
         };
         let recipe = protocol.recipe();
         let mut bytes = if recipe.absolute_references_global() {
-            Some(bytes_for()?)
+            Some(bytes_for(self)?)
         } else {
             None
         };
@@ -125,9 +125,9 @@ impl Interp {
             ))?;
         let interpreter = reference.interpreter();
         let reference_guard = stage.is_some().then(|| reference.clone());
-        let reference_current = || {
+        let reference_current = |actual: &Interp| {
             check()?;
-            if reference_guard.as_ref().is_some_and(|reference| !self.namespaces().owns_namespace_name_token(reference)) {
+            if reference_guard.as_ref().is_some_and(|reference| !actual.namespaces().owns_namespace_name_token(reference)) {
                 return Err(match retain {
                     Some(retain) => retain(ValueError::CommandProtocolUnavailable(
                         "changed original namespace reference incarnation",
@@ -140,7 +140,7 @@ impl Interp {
             Ok(())
         };
         if stage.is_some() {
-            reference_current()?;
+            reference_current(self)?;
         }
         if let Some(cache) = obj::native_namespace_name::cache(original) {
             if cache.version() != recipe.version() {
@@ -158,17 +158,18 @@ impl Interp {
                 }
             }
             if !recipe.missing_installs_unresolved() {
+                let current = || reference_current(self);
                 obj::native_namespace_name::retire_using(
                     original,
-                    stage.map(|_| &reference_current as &dyn Fn() -> Result<(), ValueError>),
+                    stage.map(|_| &current as &dyn Fn() -> Result<(), ValueError>),
                 )?;
             }
         }
         if bytes.is_none() {
-            bytes = Some(bytes_for()?);
+            bytes = Some(bytes_for(self)?);
         }
         if stage.is_some() {
-            reference_current()?;
+            reference_current(self)?;
         }
         let bytes = bytes.expect("native namespace string was materialised");
         let context = tcl_runtime_api::NsId(u32::try_from(reference_ns).map_err(|_| {
@@ -177,7 +178,7 @@ impl Interp {
         let selected = Namespaces::find_namespace_bytes_checked(self, context, &bytes)?
             .map(|ns| ns.0 as usize);
         if stage.is_some() {
-            reference_current()?;
+            reference_current(self)?;
         }
         if let Some(namespace) = selected {
             let target = self
@@ -188,19 +189,21 @@ impl Interp {
                 ))?;
             let reference = (!bytes.starts_with(b"::") || recipe.absolute_references_global())
                 .then_some(reference);
+            let current = || reference_current(self);
             obj::native_namespace_name::install_using(
                 original,
                 Cache::resolved(recipe.version(), target, reference),
                 protocol,
-                stage.map(|_| &reference_current as &dyn Fn() -> Result<(), ValueError>),
+                stage.map(|_| &current as &dyn Fn() -> Result<(), ValueError>),
                 retain,
             )?;
         } else if recipe.missing_installs_unresolved() {
+            let current = || reference_current(self);
             obj::native_namespace_name::install_using(
                 original,
                 Cache::unresolved(interpreter),
                 protocol,
-                stage.map(|_| &reference_current as &dyn Fn() -> Result<(), ValueError>),
+                stage.map(|_| &current as &dyn Fn() -> Result<(), ValueError>),
                 retain,
             )?;
         }

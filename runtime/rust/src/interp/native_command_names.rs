@@ -451,7 +451,7 @@ impl Interp {
         original: *mut TclObj,
         extra: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
     ) -> Result<std::rc::Rc<[u8]>, ValueError> {
-        let Some(extra) = extra else { return self.native_string_bytes(&original); };
+        let Some(extra) = extra else { return self.native_object_string_bytes(original); };
         let reached = self.native_object_string_bytes_using(
             original, &|| extra(self).map_err(|error| self.original_command_stage_refusal(error)),
             &|error| self.original_command_stage_refusal(error),

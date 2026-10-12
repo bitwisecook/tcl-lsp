@@ -1392,7 +1392,7 @@ impl Interp {
                 variable_original
                     .check(self)
                     .map_err(|error| self.report_cmd_error(error))?;
-                reached
+                return reached;
             }
         }
         self.set_result(

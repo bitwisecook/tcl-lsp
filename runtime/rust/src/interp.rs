@@ -4004,8 +4004,8 @@ impl Interp {
         // Reentrant getters may replace the slot. Retire only this actual
         // capture, and drop its object owners after the table borrow ends.
         if let Err(error) = &loops {
-            if error.native_access_refusal().is_some() {
-                self.refuse_completion_value_access(error.clone());
+            if let Some(first) = error.native_execution_refusal() {
+                self.refuse_native_execution(first.clone());
             }
         }
         if self.uses_original_c_command_retirement() {
