@@ -252,10 +252,9 @@ what `scripts/perf/results/` renders to with the release highlighted.**
 check rather than an approximation, and it runs again inside `tag` — a
 graph set that has drifted from its inputs cannot reach a release.
 
-Two things this deliberately leaves to a human: the prose changelog
-(a judgement, not a derivation) and pushing the notes branch / opening
-the PR (`prepare` stops at a local commit and prints both commands,
-the same way `publish_zed.sh` stops before touching an external repo).
+The maintainer writes the prose changelog. By default, `prepare` stops at a
+local commit and prints commands to push the notes branch and open the PR.
+`prepare --push` pushes the branch; opening the PR remains a separate step.
 
 The measurement host matters.  `scripts/perf/README.md` documents that CI
 and macOS take different code paths, so the *committed* result — taken

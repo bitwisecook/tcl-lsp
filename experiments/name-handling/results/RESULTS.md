@@ -5,6 +5,15 @@ executable uses the selected native core at allocation time and real matching
 upstream libraries. Completed assertion results, host refusals and unexecuted
 suite regions remain separate evidence.
 
+## Actual C8.6 constructor and startup
+
+The [constructor controls](native-c86-mathfunc-bootstrap/README.md) compare actual
+C API and Native process results for the original 29-name constructor roster,
+procedure birth shapes, replacement currency and matching real initialisation.
+All ten fresh-process controls complete; Native real init reaches its marker.
+These startup controls do not establish general naming conformance. The real
+C8.6 naming suites are being measured separately with upstream harness settings.
+
 ## Actual native runtime: Tcl 8.5.19
 
 [Current six-suite report](runtime-current-tcl8.5.19/RESULTS.md),

@@ -33,7 +33,7 @@ with its equivalent real suites. Verify the Jim pin against upstream when needed
 F5 answers come from the other BIG-IP chat via branch documents. The pushed
 50-question/8-context bundle is `experiments/name-handling/patterns/f5/`;
 755f78207 answers are integrated:93 observed, 244 unreached, 63 unavailable. All 30
-seals / 26,097 entries verified;93 original observed pointers match input/context. General questions are under
+resealed manifests / 26,091 retained entries verified;93 original observed pointers match input/context. General questions are under
 `experiments/name-handling/f5/`. Do not borrow C/Jim or adjacent appliance answers.
 
 Remove lab device/transport details and unrelated inventories from current F5

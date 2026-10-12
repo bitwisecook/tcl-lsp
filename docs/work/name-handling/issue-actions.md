@@ -49,3 +49,5 @@ Use [issues.md](issues.md) for the related open/closed issue catalogue and
 Pending provider answers and failed setup do not establish runtime bugs. New
 issues require exact input/source/reached-stage/output evidence. F5 answers
 remain independent until returned by the appliance chat.
+
+Current #2286 receipt: [published retained-binding check](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6131216111), commit `5597256ba`. Owner regression1/1 passes; nine-control filter remains6pass/3fail. Issue remains open; no warning repair claimed.

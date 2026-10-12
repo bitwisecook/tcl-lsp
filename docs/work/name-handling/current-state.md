@@ -1,6 +1,6 @@
 # Current state
 
-Branch: `work`. Latest published checkpoint at this snapshot: `56cf7d243`.
+Branch: `work`. Latest published checkpoint at this snapshot: `225be128d`.
 Inspect git for subsequent commits and uncommitted ownership. This document is
 current coordination material; delete it and its references before merge.
 
