@@ -16,6 +16,14 @@ use tcl_registry::world_effect::{EffectAccessMode, WorldStateDomain};
 const MAX_DEPTH: usize = 64;
 const MAX_COMMANDS: usize = 2048;
 
+#[cfg(test)]
+fn trace_body_inventory(stage: &str, offset: Option<u32>, passed: bool, count: usize) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_none() {
+        return;
+    }
+    eprintln!("ORIGINAL_BODY_INVENTORY stage={stage} offset={offset:?} passed={passed} count={count}");
+}
+
 pub(super) struct BodyEffectProjection {
     pub(super) effects_complete: bool,
     pub(super) inventory: OriginalSourceTransitionAdviceTape,
@@ -109,7 +117,17 @@ impl AdviceInvocationContext<'_> {
             source_body: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
         };
+        #[cfg(test)]
+        trace_body_inventory(
+            "immediate.inventory", advice.original_words().first().map(|word| word.span().start()),
+            walk.inventory.is_some(), advice.original_words().len(),
+        );
         let expressions_complete = walk.expressions(graph, advice, schema, 0).is_some();
+        #[cfg(test)]
+        trace_body_inventory(
+            "immediate.expressions", advice.original_words().first().map(|word| word.span().start()),
+            expressions_complete, walk.visited,
+        );
         if !expressions_complete && walk.inventory.is_some() {
             // The conditional source question survives unavailable effects;
             // execution state is still widened by the caller independently.
@@ -117,6 +135,15 @@ impl AdviceInvocationContext<'_> {
         }
         let regions_complete = (expressions_complete || walk.inventory.is_some())
             && walk.regions(graph, advice, schema, 0).is_some();
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            let offset = advice.original_words().first().map(|word| word.span().start());
+            trace_body_inventory("immediate.regions", offset, regions_complete, walk.visited);
+            if let Some(inventory) = &walk.inventory {
+                trace_body_inventory("immediate.retained_advice", offset, regions_complete, inventory.advice.len());
+                trace_body_inventory("immediate.represented", offset, regions_complete, inventory.represented.len());
+            }
+        }
         let mut inventory = if regions_complete {
             walk.inventory.unwrap_or_default()
         } else {
@@ -148,14 +175,26 @@ impl BodyWalk<'_, '_> {
                 self.context.config,
                 self.context.context,
                 advice.clone(),
-            )?;
+            );
+        #[cfg(test)]
+        trace_body_inventory(
+            "regions.original_vector", advice.original_words().first().map(|word| word.span().start()),
+            words.is_some(), advice.original_words().len(),
+        );
+        let words = words?;
         let interpreter = schema.semantics.body_interpreter.resolve_with(|ordinal| {
             std::str::from_utf8(words.arguments().get(ordinal)?.literal_bytes()?).ok()
         });
         if interpreter != tcl_registry::world_effect::InterpreterScope::Current {
             return None;
         }
-        let regions = words.source_script_bodies_for_mutation_coverage(self.context.context)?;
+        let regions = words.source_script_bodies_for_mutation_coverage(self.context.context);
+        #[cfg(test)]
+        trace_body_inventory(
+            "regions.coverage", advice.original_words().first().map(|word| word.span().start()),
+            regions.is_some(), regions.as_ref().map_or(0, Vec::len),
+        );
+        let regions = regions?;
         // Checked empty coverage supplies no evaluated child mutation and remains
         // complete. Reference-only bodies are one such complete case.
         let original = graph.clone();
@@ -232,6 +271,11 @@ impl BodyWalk<'_, '_> {
         depth: usize,
     ) -> Option<()> {
         let (roles, complete) = schema.authored_source_argument_roles();
+        #[cfg(test)]
+        trace_body_inventory(
+            "expressions.roles", advice.original_words().first().map(|word| word.span().start()),
+            complete, roles.len(),
+        );
         if !complete {
             return None;
         }
@@ -259,6 +303,13 @@ impl BodyWalk<'_, '_> {
                 .get(expression_span.as_range())?;
             // Cooked values and incomplete expressions cannot lend their
             // original positions to the checked expression/script bridge.
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+                trace_body_inventory(
+                    "expressions.original_value", Some(expression_span.start()),
+                    argument.value.as_deref() == Some(source.as_bytes()), source.len(),
+                );
+            }
             if argument.value.as_deref() != Some(source.as_bytes()) {
                 return None;
             }
@@ -268,7 +319,13 @@ impl BodyWalk<'_, '_> {
                 .expression_parse_context(self.context.context.commands().profile());
             context.lexer_grammar = self.context.config.grammar_over(context.lexer_grammar);
             let substitutions =
-                tcl_syntax::expr::checked_expression_substitutions(source, &context)?;
+                tcl_syntax::expr::checked_expression_substitutions(source, &context);
+            #[cfg(test)]
+            trace_body_inventory(
+                "expressions.checked", Some(expression_span.start()),
+                substitutions.is_some(), substitutions.as_ref().map_or(0, |parts| parts.commands.len()),
+            );
+            let substitutions = substitutions?;
             if !substitutions.variables.is_empty() || !substitutions.commands.is_empty() {
                 graph.record_uncertainty(advice.original_words());
             }
@@ -285,7 +342,10 @@ impl BodyWalk<'_, '_> {
                     .checked_add(command.end())?
                     .checked_sub(1)?;
                 let mut branch = original.clone();
-                self.script(&mut branch, Span::new(start, end), depth.checked_add(1)?)?;
+                let walked = self.script(&mut branch, Span::new(start, end), depth.checked_add(1)?);
+                #[cfg(test)]
+                trace_body_inventory("expressions.child", Some(start), walked.is_some(), (end - start) as usize);
+                walked?;
                 Self::retain_possible_effects(graph, &original, branch, advice.original_words());
             }
         }
@@ -302,7 +362,12 @@ impl BodyWalk<'_, '_> {
             self.context.config,
             tcl_lexer::SourceSegmentationPurpose::NestedScript,
         )
-        .ok()?;
+        .ok();
+        #[cfg(test)]
+        trace_body_inventory("script.plan", Some(span.start()), plan.is_some(), plan.as_ref().map_or(0, |plan| plan.commands.len()));
+        let plan = plan?;
+        #[cfg(test)]
+        trace_body_inventory("script.complete", Some(span.start()), plan.fatal_tail.is_none(), plan.commands.len());
         if plan.fatal_tail.is_some() {
             return None;
         }
