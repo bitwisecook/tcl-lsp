@@ -4074,3 +4074,14 @@ supplied input to the original invocation metadata before selecting runtime,
 compiler or source layout advice. Sharing a registry does not permit another
 lexer configuration or availability context to donate that source purpose.
 Native body-topology routes retain their existing separate owners.
+
+Original Logical argv-child declarations retain the complete original parent
+vector, source image, full input/configuration, namespace and declaration frame.
+The existing checked substitution collector supplies each complete child vector.
+Literal prefixes and lookup-stable literal child commands permit later whole-word
+children in the same conditional source world. Variable, template, expansion,
+ambiguous nested or unknown callback prefixes stop this projection. The existing
+declaration-layout issuer records only these child words under the same original
+owner; it creates no RootScript frame, runtime lookup, handler or Native receipt.
+Actual Native entries and rejected current Native owners retain their separate
+protocols.

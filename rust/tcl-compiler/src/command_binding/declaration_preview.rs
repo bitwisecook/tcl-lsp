@@ -652,6 +652,9 @@ impl SourceCommandBindings {
             let Some(tokens) = declaration_tokens(&site, &observations[0]) else {
                 continue;
             };
+            self.retain_original_argument_layouts(
+                &site, &tokens, &observations, registry, &mut pending,
+            );
             pending.extend(unanimous_nested_layouts(
                 &site,
                 &tokens,
@@ -722,6 +725,7 @@ impl SourceCommandBindings {
                 retained.push(observation.clone());
             }
         }
+        self.retain_original_argument_layouts(site, tokens, &observations, registry, pending);
         let originals = parent_declaration_layouts(site, tokens, &observations, registry);
         pending.extend(unanimous_nested_layouts_from_parents(
             site, &originals, registry,
@@ -731,6 +735,101 @@ impl SourceCommandBindings {
                 .as_ref()
                 .is_some_and(OriginalDeclarationLayout::retains_successor)
         })
+    }
+
+    /// Original argv children in the same unentered Logical declaration world.
+    /// Literal prefixes do not change lookup; an unknown getter, substitution
+    /// result or callback ends this projection before any later child. Native
+    /// entries retain their independent before-argv and actual dispatch owners.
+    fn retain_original_argument_layouts(
+        &mut self,
+        site: &CommandAllocationSite,
+        tokens: &crate::ir::CommandTokens,
+        parents: &[DeclarationLayoutObservation],
+        registry: &tcl_registry::CommandRegistry,
+        pending: &mut Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)>,
+    ) {
+        use crate::ir::{Provenance, WordExpr};
+        let Some(input) = parents.first().and_then(|parent| {
+            parent.snapshot.state.logical_source_name_advice_input()
+        }).cloned() else {
+            return;
+        };
+        let config = input.lexer_config();
+        if input.borrowed_context_registry().commands().snapshot().semantic_key()
+                != registry.snapshot().semantic_key()
+            || self.lexer_config != Some(config)
+            || self.root_origin.as_ref() != Some(&site.source)
+            || parents.is_empty()
+            || parents.iter().any(|parent| {
+                parent.issuer != DeclarationLayoutIssuer::OriginalDeclaration
+                    || parent.config != config
+                    || parent.words.as_ref() != tokens.words()
+                    || !parent.entry.owns_source(&site.source, site.offset)
+                    || !parent.entry.owns_original_context(&parent.snapshot.state.source_variables)
+                    || parent.snapshot.state.variable_frame != *parent.entry.frame()
+                    || parent.snapshot.state.logical_source_name_advice_input() != Some(&input)
+                    || parent.snapshot.state.baseline.metadata_context.source_analysis_input()
+                        != Some(&input)
+                    || parent.snapshot.state.baseline.registry_snapshot
+                        != Some(registry.snapshot().semantic_key())
+                    || parent.snapshot.state.baseline.native_entry.is_some()
+                    || parent.snapshot.state.baseline.execution_name_policy.is_some()
+                    || parent.snapshot.state.baseline.hosted_execution_context.is_some()
+            })
+            || site.source.original_lexical_command(tokens.words(), site.offset, config).is_none()
+        {
+            return;
+        }
+        let Some(calls) = crate::word_subst::checked_argument_lifted_calls(tokens, config) else {
+            return;
+        };
+        for word in tokens.words() {
+            let WordExpr::CommandSubstitution { source, .. } = word else {
+                if matches!(word, WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }) {
+                    continue;
+                }
+                return;
+            };
+            if source.provenance != Provenance::Source {
+                return;
+            }
+            // The complete canonical collector supplies the child vector. A
+            // nested or ambiguous command prefix needs its own original world.
+            let children = calls.iter().filter(|call| {
+                source.span.start() <= call.span.start()
+                    && call.span.start() <= source.span.end()
+            }).collect::<Vec<_>>();
+            let [child] = children.as_slice() else {
+                return;
+            };
+            let Some(child) = child.tokens.as_ref() else {
+                return;
+            };
+            let Some(head) = child.words().first() else {
+                return;
+            };
+            let offset = head.source().span.start();
+            if child.synthetic.is_some()
+                || head.source().provenance != Provenance::Source
+                || parents.iter().any(|parent| {
+                    child.words().iter().any(|word| {
+                        !parent.entry.owns_source(&site.source, word.source().span.start())
+                            || !parent.entry.owns_source(&site.source, word.source().span.end())
+                    })
+                })
+                || site.source.original_lexical_command(child.words(), offset, config).is_none()
+            {
+                return;
+            }
+            let command = NestedLayoutCommand {
+                site: CommandAllocationSite { source: Arc::clone(&site.source), offset },
+                tokens: Box::new(child.clone()),
+            };
+            if !self.retain_nested_layout_command(&command, parents, registry, pending) {
+                return;
+            }
+        }
     }
 
     fn retain_declared_body_layouts(
@@ -2959,5 +3058,129 @@ mod tests {
         let selected = syntax.commands(&indexed, first_close).unwrap();
         assert_eq!(selected[0].tokens.argv_texts, ["puts", "${a{b}"]);
         assert!(syntax.commands(&indexed, config).unwrap().is_empty());
+    }
+}
+
+
+#[cfg(test)]
+mod original_argument_declaration_tests {
+    use super::*;
+
+    fn logical(source: &str) -> SourceCommandBindings {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile, profile,
+            tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                .unwrap().default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        SourceCommandBindings::analyse_with_options(
+            source, input.lexer_config(), input.borrowed_context_registry().commands(),
+            super::super::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        )
+    }
+
+    fn puts_parent(bindings: &SourceCommandBindings) -> (CommandAllocationSite, crate::ir::CommandTokens, Vec<DeclarationLayoutObservation>) {
+        let (site, rows) = bindings.declaration_layouts.iter().find(|(_, rows)| {
+            rows.first().is_some_and(|row| row.words.first().is_some_and(|word| word.legacy_text() == "puts"))
+        }).unwrap();
+        let rows = original_declaration_layouts(rows).unwrap().cloned().collect::<Vec<_>>();
+        let tokens = declaration_tokens(site, &rows[0]).unwrap();
+        (site.clone(), tokens, rows)
+    }
+
+    #[test]
+    fn original_argv_declaration_retains_real_child_world_without_dispatch_or_frame() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let source = "proc subject {} {puts [list FIRST] [package require Tcl]}";
+        let bindings = logical(source);
+        let (site, mut tokens, _) = puts_parent(&bindings);
+        bindings.stamp_original_tokens(&mut tokens);
+        let config = bindings.lexer_config.unwrap();
+        let calls = crate::word_subst::checked_argument_lifted_calls(&tokens, config).unwrap();
+        assert_eq!(calls.len(), 2);
+        let input = bindings.original_logical_source_name_advice_input().unwrap();
+        for call in calls {
+            let child = call.tokens.unwrap();
+            let binding = child.source_binding.as_ref().unwrap();
+            assert!(binding.original_logical_declaration_targets.is_some());
+            let targets = binding.original_logical_declaration_call_targets(
+                &child, input, input.borrowed_context_registry().commands(),
+            ).unwrap();
+            assert_eq!(targets.len(), 1);
+            assert!(targets[0].registry_backed);
+            assert!(targets[0].implementation_allocation.is_none());
+            assert!(binding.lookup_state.is_none());
+            assert!(binding.unknown);
+            assert!(binding.targets.is_empty());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert_ne!(binding.runtime_reachability(), super::super::SourceRuntimeReachability::Reached);
+        }
+        assert!(!bindings.has_actual_procedure_entry_at(&site.source, site.offset));
+    }
+
+    #[test]
+    fn original_argv_declaration_stops_after_unknown_callback_or_variable_prefix() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        for source in [
+            "proc subject {value} {puts $value [package require Tcl]}",
+            "proc subject {} {puts [unknown] [package require Tcl]}",
+        ] {
+            let bindings = logical(source);
+            let (_, mut tokens, _) = puts_parent(&bindings);
+            bindings.stamp_original_tokens(&mut tokens);
+            let package = crate::word_subst::checked_argument_lifted_calls(
+                &tokens, bindings.lexer_config.unwrap(),
+            ).unwrap().into_iter().find(|call| call.command == "package").unwrap();
+            let child = package.tokens.unwrap();
+            let binding = child.source_binding.as_ref().unwrap();
+            assert!(binding.original_logical_declaration_targets.is_none(), "{source}");
+            assert!(binding.lookup_state.is_none());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+        }
+    }
+
+    #[test]
+    fn original_argv_declaration_requires_original_parent_input_source_config_and_vector() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let bindings = logical("proc subject {} {puts [package require Tcl]}");
+        let (site, tokens, rows) = puts_parent(&bindings);
+        let calls = crate::word_subst::checked_argument_lifted_calls(
+            &tokens, bindings.lexer_config.unwrap(),
+        ).unwrap();
+        let child_offset = calls[0].tokens.as_ref().unwrap().words()[0].source().span.start();
+        let child_site = CommandAllocationSite { source: Arc::clone(&site.source), offset: child_offset };
+        let registry = bindings.original_logical_source_name_advice_input().unwrap()
+            .context_registry();
+        for axis in 0..5 {
+            let mut changed = bindings.clone();
+            changed.declaration_layouts.remove(&child_site);
+            let mut parent = tokens.clone();
+            let mut originals = rows.clone();
+            match axis {
+                0 => changed.lexer_config = None,
+                1 => {
+                    let mut config = changed.lexer_config.unwrap();
+                    config.strict_quoting = !config.strict_quoting;
+                    changed.lexer_config = Some(config);
+                }
+                2 => { parent.word_exprs.pop(); },
+                3 => changed.root_origin = logical("proc foreign {} {puts [package require Tcl]}").root_origin,
+                4 => {
+                    let snapshot = Arc::make_mut(&mut originals[0].snapshot);
+                    Arc::make_mut(&mut snapshot.state.baseline).logical_source_input = None;
+                }
+                _ => unreachable!(),
+            }
+            changed.retain_original_argument_layouts(
+                &site, &parent, &originals, registry.commands(), &mut Vec::new(),
+            );
+            assert!(!changed.declaration_layouts.contains_key(&child_site), "axis {axis}");
+        }
     }
 }
