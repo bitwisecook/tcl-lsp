@@ -34,6 +34,7 @@ impl Value {
         Ok(())
     }
 
+    #[cfg(test)]
     /// Prepare exact original children before retiring any previous primary.
     pub(crate) fn ensure_native_jim_dictionary_substitution(
         &self,

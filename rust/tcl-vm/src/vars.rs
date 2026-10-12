@@ -152,9 +152,6 @@ impl VarTable {
     pub(crate) fn values(&self) -> impl Iterator<Item = &VarId> {
         self.keys().filter_map(|key| self.bindings.get(key))
     }
-    pub(crate) fn into_values(self) -> impl Iterator<Item = VarId> {
-        self.into_iter().map(|(_, value)| value)
-    }
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&NameBytes, &VarId)> {
         self.keys()
             .filter_map(|key| self.bindings.get_key_value(key))
@@ -599,6 +596,7 @@ impl VarArena {
         Some(removed)
     }
 
+    #[cfg(test)]
     /// Discard an element only while its table slot still names `expected`.
     /// Garbage-collecting an undefined trace shell is not a Tcl-level array
     /// mutation and therefore does not invalidate an active search.

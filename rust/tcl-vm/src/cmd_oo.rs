@@ -2800,6 +2800,7 @@ fn oo_destroy_entered(
     result
 }
 
+#[cfg(test)]
 /// Retire the original command/name/property and whole record payloads.
 /// Each owning payload leaves its storage access before release.
 fn teardown_checked(vm: &mut Vm, obj_key: OoId) -> Result<(), tcl_cmd_core::CmdError> {
@@ -2982,7 +2983,7 @@ pub(crate) fn oo_command_exposed(vm: &mut Vm, object: OoId, new_key: String) {
 
 /// Run the `TclOO` delete lifecycle after the command mutation owner's delete
 /// trace. The ordinary command mutation owner removes the table entry through
-/// [`Vm::remove_command_exact`]; [`teardown_checked`] reaches that same exact-key seam.
+/// [`Vm::remove_command_exact`]; [`teardown_original`] reaches that same exact-key seam.
 pub(crate) fn oo_command_deleted(vm: &mut Vm, object: OoId) {
     let owner = crate::interp::oo_cleanup::OriginalOoCleanup::enter(vm);
     if let Ok(state) = owner.oo_mut(vm) {
@@ -2998,7 +2999,7 @@ pub(crate) fn oo_command_deleted(vm: &mut Vm, object: OoId) {
 /// Run the `TclOO` lifecycle for a command implementation being replaced in
 /// place. Tcl keeps the command-table token for the new implementation, while
 /// the old object/class is destroyed (including descendants and destructors).
-/// Detaching only this root key makes [`teardown_checked`] leave that table entry to
+/// Detaching only this root key makes [`teardown_original`] leave that table entry to
 /// the registration owner; cascaded objects retain their keys and are deleted
 /// normally.
 pub(crate) fn oo_command_replaced(vm: &mut Vm, object: OoId) {

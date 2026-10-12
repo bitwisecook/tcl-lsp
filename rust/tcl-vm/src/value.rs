@@ -4426,14 +4426,6 @@ impl Value {
         Ok(outcome)
     }
 
-    /// Apply the reached C8.4 expression integer conversion to this same
-    /// original header, retaining its spelling and existing integer primary.
-    pub(crate) fn prepare_native_expression_integer84(
-        &self,
-        dialect: tcl_registry::InvocationDialect,
-    ) -> Result<bool, tcl_syntax::value::ValueError> {
-        self.prepare_native_expression_integer84_with_environment(dialect, None)
-    }
 
     pub(crate) fn prepare_native_expression_integer84_with_environment(
         &self,

@@ -61,15 +61,6 @@ impl Value {
         Ok(())
     }
 
-    pub(crate) fn install_jim_command_cache(
-        &self,
-        cache: JimCommandCache,
-        dialect: tcl_registry::InvocationDialect,
-    ) -> Result<(), ValueError> {
-        self.require_jim_lookup_origin(dialect)?;
-        self.replace_primary(IntRep::JimCommand(cache));
-        Ok(())
-    }
 
     pub(crate) fn install_jim_command_cache_checked<E: From<ValueError>>(
         &self,

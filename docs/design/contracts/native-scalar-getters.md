@@ -296,8 +296,8 @@ The existing provider comparisons retain their own narrower measured purposes.
 without querying a native Host. `numeric_policy_context` is callback-free
 policy data and supplies no environment or execution receipt. Use these for
 routing; a native branch enters `OriginalNumericOps` before any Host query.
-The explicit pure `numeric_context` route still queries its supplied environment
-and cannot replace the checked execution facade.
+The test-only `numeric_context` facade queries its supplied environment.
+Production Native consumers use the checked execution facade.
 
 `OriginalNumericOps::entered` captures or inherits the actual operation scope.
 `getter`, `probe`, `number` and `failure` retain the same original object,

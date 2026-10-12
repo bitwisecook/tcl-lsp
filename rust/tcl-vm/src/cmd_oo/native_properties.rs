@@ -291,7 +291,7 @@ impl Vm {
     ) -> Result<(), CmdError> {
         mutation::invalidate(self, target, class, true)
     }
-    pub(super) fn install_original_property_members(
+    fn install_original_property_members(
         &mut self,
         target: OoId,
         class: bool,

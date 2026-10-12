@@ -2475,6 +2475,7 @@ impl Vm {
         context.simulation.map(|_| context)
     }
 
+    #[cfg(test)]
     pub(crate) fn numeric_context(&self) -> crate::expr::NumericContext<'_> {
         let policy = self.numeric_policy_context();
         crate::expr::NumericContext {
@@ -16124,6 +16125,7 @@ impl Vm {
         }
     }
 
+    #[cfg(test)]
     /// Compile original procedure source and formal storage in an actual namespace.
     /// Capture the native definition owner before acquiring any working clone.
     /// C copies shared body bytes into a fresh string; Jim retains the original.
@@ -19208,13 +19210,6 @@ impl Vm {
         original.destroy(self, name.as_ref(), raw_id, reported_name1);
     }
 
-    /// Discard one cell owned by a dying frame/namespace without firing newly
-    /// installed traces. Array children are purged recursively; link cells are
-    /// unbound without touching their targets.
-    fn purge_variable_cell(&mut self, raw_id: VarId) {
-        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
-        original.purge(self, raw_id);
-    }
 
     /// Remove every callback pinned to one stable variable cell. Lifecycle
     /// paths that intentionally do not execute callbacks still must release
@@ -19239,12 +19234,6 @@ impl Vm {
         original.detach(self, resolved)
     }
 
-    fn fire_taken_unset(&mut self, name: impl AsRef<[u8]>, reported_name1: Option<&[u8]>, cell: VarTraceCell, include_array: bool)
-        -> Result<(), tcl_runtime_api::NativeExecutionError>
-    {
-        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
-        original.fire_taken(self, name.as_ref(), reported_name1, cell, include_array)
-    }
 
     /// Unset a single variable by name, the shared core of the `unset` command
     /// and the unset opcodes. An `a(k)` array element is removed via
