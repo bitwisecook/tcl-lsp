@@ -322635,7 +322635,7 @@
         {
           "id": "naming-embedding-original-host-publication-and-fact-transport-engine-definition",
           "path": "runtime/rust/src/engine.rs",
-          "sha256": "fd986cfdcaf22555643412eaea72bbe5d847354465771ce1e02f227c6eb0cbea",
+          "sha256": "e81d9a690ddb49d98bc4a24bf1046c9017311471e59afdef76fab167f7584c61",
           "role": "implementation",
           "description": "Current shared Engine publication/completion adapter and software assertion definitions; no external provider or executed assertion claim."
         },
@@ -322903,7 +322903,7 @@
           "id": "receiver-current642-f20d1e8bacc1908f",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/oo_cleanup.rs",
-          "sha256": "a98a6a4aeaa4ba5562ab85bf1f9a6131fba485d810970f0ebeb244bdfd722fb2",
+          "sha256": "317d5cd9718f49a0a02b72098212431364ab14878f12d10d2f6ad4adee9ad462",
           "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
         },
         {
@@ -323323,7 +323323,7 @@
           "id": "original-source-consumer-480fa275cf1a",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
+          "sha256": "474c1283ba6a97ed1069f9c20712a94159793ba89699c200d0adc6e55777ce30",
           "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
         },
         {
@@ -323421,14 +323421,14 @@
           "id": "receiver-current642b-4bf240c5071b5c46",
           "role": "implementation",
           "path": "rust/tcl-vm/src/cmd_oo/native_bootstrap.rs",
-          "sha256": "1e75209ac8fdded3d9624f543c9bbd2c9c9d347fdbef9ec44265bf0a21109224",
+          "sha256": "2ee400961d8694daf181ba7223c69af461f4b63e2f6f9be7c65aacbf0fbf0b7d",
           "description": "Actual authored OO/definition/variable-cleanup/bootstrap source and registered software control inspected for its selected current ownership/currency/typed-error purpose. This hash supplies no executed assertion, Native observation, callback/reference equivalence or independent lookup purpose."
         },
         {
           "id": "receiver-current642b-53f795563bcf7ade",
           "role": "implementation",
           "path": "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs",
-          "sha256": "aa21d69558b65bf30b32188920cf6972881287fe3542b47c47919885f41e89e9",
+          "sha256": "2b7e7721c5412c35dd3a6389069b2f425e32f6370003ef048894559c351bc208",
           "description": "Actual authored OO/definition/variable-cleanup/bootstrap source and registered software control inspected for its selected current ownership/currency/typed-error purpose. This hash supplies no executed assertion, Native observation, callback/reference equivalence or independent lookup purpose."
         },
         {
@@ -323661,6 +323661,69 @@
           "path": "rust/tcl-vm/src/interp/selected_frame/tests.rs",
           "sha256": "c9b059e1a83109538e744390af71d5c13b743521ac96c35212d44bafc29a3b53",
           "description": "Current original VM package operation/table/operand receipts, canonical original String/List access, actual database protocol, callback first cause and mandatory saved physical table/loading/file/global-frame cleanup, with finite software owner controls. Source definitions establish no executed assertions, external package callback/private-getter chronology, Native reference equivalence or generic ordinary-procedure activation closure."
+        },
+        {
+          "id": "original-command-retirement-source-865be03fb9468cf5",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_alias_roles.rs",
+          "sha256": "8fe0ab633a6d7a9db828c66a887674fb02a49e21c97d15ca7908e28428055dc7",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-40feb0192d79a06c",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_command_retirement.rs",
+          "sha256": "b2c417bb26f95a94065850c5db742e669999a53ecdc03dc804520e1a839db930",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-a85e2ccfc6403191",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "sha256": "693d49952e249300b0697d62cad6bb6fc0dc1148aa029f4cdf46eb58535eac7b",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-d032405367ab0195",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/native_command_retirement.rs",
+          "sha256": "13bd02a75545cb45f1973990f04abab4a939ab6955d4253ae9574822f5678362",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-513047f73078006a",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/native_command_creation.rs",
+          "sha256": "fe84906cfdb09fd18750577405d5ef7753b62adf7ef02b560b3a97daf06778b5",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-5bc32cbf11776d1c",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/native_command_literal.rs",
+          "sha256": "e2f5932e923c938b8bb5b11a4b6dbd5f6b6f6bcb89b12d860e6e7ca5b0b9ad33",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-f9008d848a427aac",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/command_cleanup.rs",
+          "sha256": "c137ceacbee06f66c82243ad599b0606e3e74cf1093cbf7766b4fd9a023110ff",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-4d901f1295309fe2",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "sha256": "59f9d9598e3d759e95b3a7b67e3d15b19783074e31c065db05d08e797eb57e7f",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-2412f2d56428793e",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/oo_cleanup/original_target_tests.rs",
+          "sha256": "f54086adbc6118a3115d8eadbcc6e0f492b5d77a9e37fbc5a770be518b1711f3",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
         }
       ],
       "source_anchors": [],
@@ -323703,7 +323766,7 @@
         {
           "path": "runtime/rust/src/engine.rs",
           "symbol": "host_command_proc",
-          "purpose": "Retain actual callback registrar scope and declared argument view. Counted strings and supported snapshots have separate conversions; unavailable original-object bridge refuses before materializing an alternative callback view."
+          "purpose": "Capture existing Rust HostCommand, command-map and panic-slot dispatch roles under a short HostEntry read, end the raw borrow before the first getter/callback, and preserve genuine Native argument/result/error ownership."
         },
         {
           "path": "runtime/rust/src/engine.rs",
@@ -324484,6 +324547,86 @@
           "path": "rust/tcl-vm/src/interp.rs",
           "symbol": "Vm::finalize_slot_using",
           "purpose": "The actual original dying interpreter retires its world after reached callbacks, preserves latest selected child and transports any retained full cause."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement.rs",
+          "symbol": "Interp::retire_original_command_generation",
+          "purpose": "Capture the actual command generation, original operation and physical frame/namespace before callbacks; use the canonical release-order driver for mandatory implementation/import retirement and retain the first full cause through matching unlink."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement.rs",
+          "symbol": "Interp::retire_original_command_for_creation",
+          "purpose": "Use the same existing active deletion owner with the genuine creation-purpose import preservation contract, separately from ordinary true deletion."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement.rs",
+          "symbol": "Interp::retire_original_namespace_command_table",
+          "purpose": "Retire captured original namespace command generations and imports through the genuine same-target command driver; callback replacements cannot refresh its generation."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement.rs",
+          "symbol": "OriginalDeletion::check",
+          "purpose": "Keep original execution currency, frame incarnation and namespace allocation checks independent of mandatory command-table retirement."
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "symbol": "ObjCommand::retire_original_delete_procedure",
+          "purpose": "Withdraw the actual once-only delete procedure before callback entry independently of the existing dispatch Rc. Runtime-owned HostEntry availability is withdrawn before its private backing destructor; Jim final-record retirement remains separate."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_alias_roles.rs",
+          "symbol": "NativeAliasHeader::take_role",
+          "purpose": "Extract the actual existing alias ownership role before callback-bearing release outside the header borrow; allocation-only reports grant no Native hold or renewed access."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/native_command_retirement.rs",
+          "symbol": "retire_original_command",
+          "purpose": "One selected two-stage coordinator always reaches both mandatory implementation/import owners in the canonical order and preserves the first full typed refusal."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_command_creation.rs",
+          "symbol": "NativeCommandCreationProtocol::c_deletion_order",
+          "purpose": "Pure inspected C84/C85 versus C86+ retirement-order descriptor; Jim has its independent owner and receives no C import-order recipe."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_command_literal.rs",
+          "symbol": "NativeCommandNameProtocol::deletion_epoch_before_trace",
+          "purpose": "Pure selected outer/recursive pre-trace command-cache epoch recipe; no live token or callback authority."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_command_literal.rs",
+          "symbol": "NativeCommandNameProtocol::deletion_epoch_after_unlink",
+          "purpose": "Pure selected ordinary/recursive unlink epoch recipe, including C90/C91 recursive updates after the visible slot is absent."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup.rs",
+          "symbol": "OriginalCommandCleanup::real",
+          "purpose": "Retire the captured original command and imports under the shared canonical order after actual traces, following the same generation through rename and preserving callback replacements."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup.rs",
+          "symbol": "OriginalCommandCleanup::in_original",
+          "purpose": "Thin command-purpose adapter delegates physical switch, attachment, reached metadata and first-cause settlement to the canonical SavedExecutionTarget retirement owner with callback selection preserved."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup.rs",
+          "symbol": "OriginalCommandCleanup::unlink_recursive_c_delete",
+          "purpose": "Mandatory actual original-token unlink consumes the pure recursive epoch recipe even after a previous unlink; it does not replay outer implementation retirement."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/oo_cleanup.rs",
+          "symbol": "OriginalOoCleanup::in_original",
+          "purpose": "Thin OO-purpose retirement adapter delegates the captured target to the shared SavedExecutionTarget owner with documented caller restoration; reached metadata after refusal grants no result-publication authority."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/oo_cleanup.rs",
+          "symbol": "SavedOriginalOoCleanup::attach",
+          "purpose": "Transport the same saved target and currency into mandatory matching cleanup after Scope expiry, independently of a fresh invocation grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_bootstrap.rs",
+          "symbol": "install_abstract_class",
+          "purpose": "Construct the actual selected C9 abstract object/class/command in canonical rooted storage before public lookup and held compilation-entry projection; logical and absent recipes remain separate."
         }
       ],
       "tests": [
@@ -329796,6 +329939,162 @@
           "selector": "interp::native_operation_currency::tests::original_retirement_finalizer_follows_later_callback_child_and_retires_only_original_world",
           "status": "linked",
           "assertion": "A supplied fixed software finalization callback selects a later actual child through SAME physical worker; only original dying world retires, earlier/later child frames and state survive; no Native/Jim defer chronology is asserted. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+        },
+        {
+          "path": "runtime/rust/src/engine.rs",
+          "selector": "engine::original_active_host_deletion_tests::original_host_entry_self_deletion_releases_box_before_return_without_borrowing_it",
+          "status": "linked",
+          "assertion": "The actual Runtime HostEntry bridge captures its existing Rust dispatch roles before callback entry. Self-deletion releases the private registration Box before the callback returns without retaining its raw borrow; once-only same-name recreation serves a later fresh-script invocation. Rust backing observations supply no Native client-data-free or held-word lifetime evidence. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/engine.rs",
+          "selector": "engine::original_active_host_deletion_tests::original_import_trace_refuses_fresh_host_entry_after_actual_backing_retirement",
+          "status": "linked",
+          "assertion": "Actual C84/C85 import traces attempt a fresh invocation after the original Runtime-owned HostEntry backing retires. The private availability guard prevents Host code entry, retains the full command-protocol refusal and completes original source/import retirement. This private Box contract is separate from Native token-null or client-data lifetime. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_active_object_deletion_separates_callback_from_dispatch_role_and_recreation",
+          "status": "linked",
+          "assertion": "Actual registered software ObjCommand callbacks distinguish selected C immediate delete-procedure withdrawal from Jim final-dispatch-record retirement, check once-only deletion and preserve a callback-created same-name replacement for a later fresh-script invocation. Allocation-only Weak observations and software dispatch cleanup do not establish Native held-word cache, client-data freeing, reference counts or general active-command lifetime. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_import_retirement_uses_release_order_and_depth_first_original_generations",
+          "status": "linked",
+          "assertion": "Actual software source/import chains retire original generations depth first; C84/C85 implementation callbacks precede import traces and C86/C90/C91 import traces precede implementation callbacks. The real registration callback runs once and all original source/import slots disappear. These software callbacks do not extend Native active ObjCommand observations to imports. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_alias_metadata_views_do_not_duplicate_stored_native_roles",
+          "status": "linked",
+          "assertion": "Actual alias report observers retain allocation-only header views without duplicating the stored native member or prefix roles. Deletion retires those real stored roles and refuses later header access even while a Rust command observer remains. Software reference-zero assertions do not measure external alias-header lifetime. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_active_alias_keeps_only_its_genuine_forwarded_argument_roles",
+          "status": "linked",
+          "assertion": "An actual active alias uses only the genuine forwarded argument roles while its registration is deleted. The retired stored-header description cannot be reused; reached forwarding result and final actual member retirement remain checked without a protective Native hold. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_deletion_retains_first_cause_and_finishes_actual_import_cleanup",
+          "status": "linked",
+          "assertion": "Actual command deletion retains first Host, restored context or withdrawn frame refusal while completing mandatory original import cleanup. It leaves the prior result unchanged and does not replace the first full cause during later matching cleanup. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_namespace_and_forget_routes_retire_captured_command_generations",
+          "status": "linked",
+          "assertion": "Actual namespace-forget removes only original downstream imports while preserving the source implementation; actual namespace deletion later retires both selected source commands once. Namespace and import purposes remain distinct from active callback lifetime. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_recursive_and_moved_deletion_preserves_same_name_replacement",
+          "status": "linked",
+          "assertion": "Actual recursive deletion and callback rename follow the original generation and invoke its delete callback once. Mandatory retirement removes the moved original while preserving a genuine same-spelling replacement and its independent later invocation/deletion. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_hidden_and_oo_automatic_cleanup_withdraw_real_implementation_roles",
+          "status": "linked",
+          "assertion": "Actual hidden-generation deletion withdraws its real implementation role, and actual C86+ OO automatic namespace teardown retires a registered helper once. These genuine software consumers grant no external OO, namespace or hidden-token chronology. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_creation_delete_reuses_active_driver_and_preserves_actual_import_roster",
+          "status": "linked",
+          "assertion": "Actual active command recreation uses the existing creation-purpose deletion driver. Selected C withdraws the original callback before creation returns and preserves the real import roster for the replacement; Jim keeps deferred record retirement. This software creation contract is separate from measured active ordinary deletion. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_command_creation.rs",
+          "selector": "native_command_creation::original_deletion_order_tests::original_c_deletion_order_preserves_release_split_and_independent_jim_owner",
+          "status": "linked",
+          "assertion": "The pure Registry recipe selects C84/C85 implementation-before-imports and C86/C90/C91 imports-before-implementation, declines a C order for Jim, and abstains for unsupported logical profiles. It enters no interpreter or live command and observes no callback or Native role. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/native_command_retirement.rs",
+          "selector": "native_command_retirement::tests::original_command_retirement_keeps_both_owned_stages_and_first_full_error",
+          "status": "linked",
+          "assertion": "The pure Core coordinator reaches both owned retirement stages in the selected order even when the first fails, preserving the first full typed refusal over the later error. It uses no interpreter, command token or Native callback. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_true_command_deletion_keeps_release_order_and_visible_source_imports",
+          "status": "linked",
+          "assertion": "Actual VM registered command and public import producers reach the selected trace/implementation/import software order, retire the original implementation once, and clear the original visible table and deletion gate. Pure source recipes supply no executed external callbacks. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_recursive_delete_unlinks_once_and_outer_owner_retires_captured_implementation",
+          "status": "linked",
+          "assertion": "Actual VM trace-triggered recursive deletion unlinks once and leaves outer cleanup responsible for the captured original implementation. It preserves an actual same-name recreation generation and completes original imports without replaying deletion. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_command_cleanup_keeps_first_cause_and_retires_only_original_child_table",
+          "status": "linked",
+          "assertion": "Actual VM command cleanup retains the first full cause on the captured physical table while preserving a distinct child command generation. Mandatory original table/import/trace-gate cleanup completes, and actual callback child selection remains selected after cleanup. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_command_retirement_follows_actual_rename_without_repeating_delete_trace",
+          "status": "linked",
+          "assertion": "Actual VM delete traces rename the selected original command. Cleanup follows that generation, does not repeat its delete trace, and completes original import and deletion-gate retirement. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_delete_namespace_effect_follows_same_generation_cross_namespace_rename",
+          "status": "linked",
+          "assertion": "Actual VM cross-namespace rename during deletion follows the surviving original generation for post-trace namespace/path effects. The real original command is retired without fresh-spelling replacement donation; this software cache observation grants no Native namespace temporary or callback chronology. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_delete_trace_epilogue_preserves_child_stack_and_original_trace_gate",
+          "status": "linked",
+          "assertion": "Actual VM delete-trace child selection preserves the child trace stack/gate and clears only the original parent trace/import/command state. The captured original Scope reports the full refusal and mandatory retirement retains actual callback selection. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_command_deletion_cache_epoch_stages_follow_actual_outer_trace_and_recursive_unlink",
+          "status": "linked",
+          "assertion": "Actual VM outer and recursive software callbacks observe command-epoch changes at the selected pre-trace and actual-unlink stages. C84, C85, C86 and C90/C91 schedules remain distinct, including no duplicate final bump after recursive unlink. These selected source predicates are not external Native cache observations. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_coroutine_retirement_leaves_a_genuine_same_key_recreated_state",
+          "status": "linked",
+          "assertion": "An actual VM parked coroutine is deleted from a real trace callback that recreates the same command spelling. Matching old-generation cleanup leaves the new coroutine state and its actual resumed NEW_DONE result intact, without claiming Native coroutine cache or reference-count parity. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-registry/src/native_command_literal.rs",
+          "selector": "native_command_literal::original_deletion_epoch_tests::original_command_deletion_epoch_predicates_keep_outer_recursive_and_unlink_stages",
+          "status": "linked",
+          "assertion": "The pure Registry epoch predicates keep outer, recursive, actual-unlink and post-trace namespace stages separate for each C release and decline a Jim command-name recipe. They create no command, cache, callback or Native observation. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/oo_cleanup/original_target_tests.rs",
+          "selector": "interp::oo_cleanup::original_target_tests::original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration",
+          "status": "linked",
+          "assertion": "The actual VM OO cleanup adapter returns reached mandatory metadata after a callback selects a child, restores its documented original caller and activation depth, and retains the original full cause. Entered and observed setup purposes remain distinct; no ordinary continuation authority follows from reached metadata. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/oo_cleanup/original_target_tests.rs",
+          "selector": "interp::oo_cleanup::original_target_tests::original_oo_saved_cleanup_transports_same_target_after_scope_expiry_and_first_cause",
+          "status": "linked",
+          "assertion": "The actual VM saved OO cleanup target transports the same physical description after the entered Scope expires. A pre-existing Host cause permits mandatory matching retirement but prevents a fresh operation; reached metadata and first cause survive attach/drop without a refreshed receipt. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/command_cleanup/tests.rs",
+          "selector": "interp::command_cleanup::tests::original_repeated_recursive_unlinked_command_advances_only_selected_epoch_stages",
+          "status": "linked",
+          "assertion": "Actual VM repeated recursive deletion consumes the same original token twice after its visible slot is gone. Selected C90/C91 recursive unlink epochs still advance on each call, while C84 and C85/C86 retain their source-specific entry schedules; outer implementation retirement and deletion gate cleanup occur once. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_oo/native_bootstrap/abstract_tests.rs",
+          "selector": "cmd_oo::native_bootstrap::abstract_tests::original_abstract_public_rooted_lookup_joins_canonical_token_and_registry_marker",
+          "status": "linked",
+          "assertion": "Actual C90/C91 software OO bootstrap initialization, public rooted lookup and held compilation entry agree on the canonical abstract object command token, generation and Registry marker. C86 absence and logical-owner abstention are checked. This executes the actual software initializer contract, unlike the pure Registry descriptor control, and supplies no external Native bootstrap outcome. This binds the current source definition only; no passed assertion or new Native observation is attached."
         }
       ],
       "replay": {
@@ -590585,6 +590884,27 @@
           "path": "rust/tcl-registry/tests/data/native_active_object_command_deletion/671/ELF-RETENTION.json",
           "sha256": "9c8e467b52fc52eeaf7b19d5574770d0f8b6560c70b4a86679a8b5ac3445843f",
           "description": "Six exact compressed/uncompressed linked-probe byte identities and actual complete decompression checks."
+        },
+        {
+          "id": "original-command-retirement-source-480fa275cf1ac98c",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp.rs",
+          "sha256": "474c1283ba6a97ed1069f9c20712a94159793ba89699c200d0adc6e55777ce30",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-40feb0192d79a06c",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_command_retirement.rs",
+          "sha256": "b2c417bb26f95a94065850c5db742e669999a53ecdc03dc804520e1a839db930",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "original-command-retirement-source-a85e2ccfc6403191",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "sha256": "693d49952e249300b0697d62cad6bb6fc0dc1148aa029f4cdf46eb58535eac7b",
+          "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
         }
       ],
       "source_anchors": [
@@ -590769,8 +591089,26 @@
           "evidence": "active671-whole-source-jim"
         }
       ],
-      "tests": [],
-      "owners": [],
+      "tests": [
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement/tests.rs",
+          "selector": "interp::native_command_retirement::tests::original_active_object_deletion_separates_callback_from_dispatch_role_and_recreation",
+          "status": "linked",
+          "assertion": "Actual registered software ObjCommand callbacks distinguish selected C immediate delete-procedure withdrawal from Jim final-dispatch-record retirement, check once-only deletion and preserve a callback-created same-name replacement for a later fresh-script invocation. Allocation-only Weak observations and software dispatch cleanup do not establish Native held-word cache, client-data freeing, reference counts or general active-command lifetime. The retained Native probe separately holds one caller word through two actual vector evaluations and keeps independent stack client records alive; this software control uses a fresh script for its later invocation and does not reproduce the held-word or freed-address experiment. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        }
+      ],
+      "owners": [
+        {
+          "path": "runtime/rust/src/interp/native_command_retirement.rs",
+          "symbol": "Interp::retire_original_command_generation",
+          "purpose": "Capture the actual command generation, original operation and physical frame/namespace before callbacks; use the canonical release-order driver for mandatory implementation/import retirement and retain the first full cause through matching unlink."
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "symbol": "ObjCommand::retire_original_delete_procedure",
+          "purpose": "Withdraw the actual once-only delete procedure before callback entry independently of the existing dispatch Rc. Runtime-owned HostEntry availability is withdrawn before its private backing destructor; Jim final-record retirement remains separate."
+        }
+      ],
       "replay": {
         "command": [],
         "limitations": "Restore the exact probe/runner, captured SDK/header/static-library/CLI inputs and explicit per-process environment, original ELF hashes and independently supplied hash-only system dependencies. Preserve two separate initialized active-case interpreters, the independent metadata interpreter, legacy C callback or actual Jim vector door and stack-backed observer records through teardown. Every original runner output is immutable; a separate output directory and capture are needed for a new execution. No replay was performed by record preparation, and no client-data free/refcount, Procedure/OO/import/recursive/rename/hide, Rust or BIG-IP equivalence is implied."
