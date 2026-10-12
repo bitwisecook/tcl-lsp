@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+thread 'command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof' (211066) panicked at rust/tcl-compiler/src/command_binding/declaration_flow.rs:2850:13:
+assertion `left == right` failed: proc p {n} {set anchor 1; while {$n > 0} {set x 1; incr n -1}; puts $x}
+  left: true
+ right: false
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-compiler --lib`

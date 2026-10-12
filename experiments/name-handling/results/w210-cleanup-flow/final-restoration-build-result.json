@@ -1,0 +1,8 @@
+{
+  "name": "final-restoration-build",
+  "command": "final-restoration-build-command.sh",
+  "started_utc": "2026-10-12T21:10:35.843569+00:00",
+  "elapsed_seconds": 178.476,
+  "exit_code": 0,
+  "owner_sha256": "d083b85429c02709a48229cbb512c13ba6ecdd7048a1808820ebd9e55515f0c7"
+}

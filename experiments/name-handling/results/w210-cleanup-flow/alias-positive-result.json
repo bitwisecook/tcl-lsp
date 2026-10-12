@@ -1,0 +1,11 @@
+{
+  "name": "alias-positive",
+  "command": "alias-positive-command.sh",
+  "started_utc": "2026-10-12T20:57:08.490606+00:00",
+  "elapsed_seconds": 120.597,
+  "exit_code": 0,
+  "counts": {
+    "passed": 1,
+    "failed": 0
+  }
+}

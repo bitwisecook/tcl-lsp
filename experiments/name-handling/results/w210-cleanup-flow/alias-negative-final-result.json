@@ -1,0 +1,11 @@
+{
+  "name": "alias-negative-final",
+  "command": "alias-negative-final-command.sh",
+  "started_utc": "2026-10-12T21:05:25.157652+00:00",
+  "elapsed_seconds": 63.592,
+  "exit_code": 0,
+  "counts": {
+    "passed": 1,
+    "failed": 0
+  }
+}

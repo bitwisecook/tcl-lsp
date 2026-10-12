@@ -1,0 +1,209 @@
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_flow.rs b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+index 2ed83b483..218b41acd 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_flow.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+@@ -504,6 +504,7 @@ impl super::SourceCommandBindings {
+ #[derive(Clone, Default, PartialEq, Eq)]
+ struct State {
+     defined: BTreeSet<String>,
++    uncertain_writes: BTreeSet<String>,
+     aliases: BTreeSet<String>,
+     caller_frame_aliases: BTreeSet<String>,
+     unknown_writers: bool,
+@@ -514,6 +515,8 @@ impl State {
+     fn join(&mut self, other: &Self) -> bool {
+         let old = self.clone();
+         self.defined.retain(|name| other.defined.contains(name));
++        self.uncertain_writes
++            .extend(other.uncertain_writes.iter().cloned());
+         self.incoming.retain(|name| other.incoming.contains(name));
+         self.aliases.extend(other.aliases.iter().cloned());
+         self.caller_frame_aliases
+@@ -537,6 +540,7 @@ struct Node {
+     quoted_mentions: BTreeSet<String>,
+     availability: NodeAvailability,
+     writes: Vec<String>,
++    uncertain_writes: Vec<String>,
+     possible_output_writes: Vec<String>,
+     removes: Vec<String>,
+     aliases: Vec<String>,
+@@ -577,6 +581,7 @@ struct Exits {
+     broken: usize,
+     continued: usize,
+     other: usize,
++    cleanup_entry: Option<usize>,
+ }
+ impl Exits {
+     const fn all(id: usize) -> Self {
+@@ -587,6 +592,7 @@ impl Exits {
+             broken: id,
+             continued: id,
+             other: id,
++            cleanup_entry: None,
+         }
+     }
+     fn route(self, route: Route) -> Vec<usize> {
+@@ -908,7 +914,7 @@ impl Builder<'_> {
+         };
+         let flow_entry = match &selected.flow {
+             ScriptBodyFlow::None | ScriptBodyFlow::Deferred => {
+-                return body_exits.route(selected.completion);
++                return self.handler_completion_flow(selected, body_exits);
+             }
+             ScriptBodyFlow::Sequence(arguments) => {
+                 self.sequence(site, &selected.effective, arguments, body_exits)
+@@ -965,6 +971,7 @@ impl Builder<'_> {
+                     broken: after,
+                     continued: after,
+                     other: exits.other,
++                    cleanup_entry: exits.cleanup_entry,
+                 };
+                 self.body(
+                     site,
+@@ -1003,6 +1010,37 @@ impl Builder<'_> {
+         vec![flow_entry]
+     }
+ 
++    fn handler_completion_flow(
++        &mut self,
++        selected: &crate::registry_invocation::DeclarationInvocationFlow,
++        exits: Exits,
++    ) -> Vec<usize> {
++        let mut successors = exits.route(selected.completion);
++        if let Some(cleanup) = exits.cleanup_entry
++            && selected.completion.abrupt_possible()
++            && (!selected.writes.is_empty() || !selected.possible_output_writes.is_empty())
++        {
++            // Successful output roles do not describe partial stores
++            // on failure, including a completion caught by cleanup.
++            let uncertain = self.placeholder();
++            self.nodes[uncertain].uncertain_writes = selected
++                .writes
++                .iter()
++                .chain(&selected.possible_output_writes)
++                .cloned()
++                .collect();
++            self.nodes[uncertain].successors = vec![cleanup];
++            for successor in &mut successors {
++                if *successor == cleanup {
++                    *successor = uncertain;
++                }
++            }
++            successors.sort_unstable();
++            successors.dedup();
++        }
++        successors
++    }
++
+     fn lifecycle_flow(
+         &mut self,
+         site: &CommandAllocationSite,
+@@ -1019,13 +1057,14 @@ impl Builder<'_> {
+         .route(selected.completion);
+         let repeat = self.placeholder();
+         self.nodes[repeat].successors = vec![complete];
+-        let captured = |normal| Exits {
++        let captured = |normal, cleanup_entry| Exits {
+             normal,
+             error: normal,
+             returned: normal,
+             broken: normal,
+             continued: normal,
+             other: exits.other,
++            cleanup_entry,
+         };
+         let phases = &lifecycle.invocation.selection;
+         let phase_body = |builder: &mut Self, operand: BodyOperand, exits: Exits| {
+@@ -1048,10 +1087,10 @@ impl Builder<'_> {
+             )
+         };
+         let cleanup = phases.cleanup.map_or(repeat, |operand| {
+-            phase_body(self, operand, captured(repeat))
++            phase_body(self, operand, captured(repeat, exits.cleanup_entry))
+         });
+         let body = phases.body.map_or(cleanup, |operand| {
+-            phase_body(self, operand, captured(cleanup))
++            phase_body(self, operand, captured(cleanup, Some(cleanup)))
+         });
+         let setup = phases.setup.map_or(body, |operand| {
+             phase_body(
+@@ -1059,7 +1098,7 @@ impl Builder<'_> {
+                 operand,
+                 Exits {
+                     normal: body,
+-                    ..captured(cleanup)
++                    ..captured(cleanup, Some(cleanup))
+                 },
+             )
+         });
+@@ -1809,7 +1848,9 @@ impl Builder<'_> {
+             if !report.unknown_reads
+                 && !report.aliases.contains(&store.name)
+                 && warning_paths[*id].as_ref().is_some_and(|state| {
+-                    !state.unknown_writers && !state.aliases.contains(&store.name)
++                    !state.unknown_writers
++                        && !state.uncertain_writes.contains(&store.name)
++                        && !state.aliases.contains(&store.name)
+                 })
+             {
+                 report.conditional_overwrites.push(DeclaredOverwrite {
+@@ -1848,7 +1889,10 @@ impl Builder<'_> {
+                 report.conditional_handler_literals.insert(site, literals);
+             }
+             for (name, span) in &node.authored_reads {
+-                if !state.defined.contains(name) && !state.aliases.contains(name) {
++                if !state.defined.contains(name)
++                    && !state.uncertain_writes.contains(name)
++                    && !state.aliases.contains(name)
++                {
+                     report
+                         .warning_reads
+                         .entry(name.clone())
+@@ -1916,6 +1960,7 @@ impl Builder<'_> {
+                 state.defined.remove(name);
+             }
+             state.defined.extend(node.writes.iter().cloned());
++            Self::transfer_uncertain_writes(node, &mut state);
+             for &successor in &node.successors {
+                 let changed = if let Some(existing) = &mut states[successor] {
+                     existing.join(&state)
+@@ -1967,6 +2012,7 @@ impl Builder<'_> {
+             for (name, span) in &node.reads {
+                 if !state.unknown_writers
+                     && !state.defined.contains(name)
++                    && !state.uncertain_writes.contains(name)
+                     && !state.aliases.contains(name)
+                 {
+                     report
+@@ -2014,7 +2060,10 @@ impl Builder<'_> {
+                     && accumulator_paths[id]
+                         .as_ref()
+                         .is_some_and(|state| state.defined.contains(name));
+-                if !state.unknown_writers && (state.defined.contains(name) || accumulator_defined) {
++                if !state.unknown_writers
++                    && !state.uncertain_writes.contains(name)
++                    && (state.defined.contains(name) || accumulator_defined)
++                {
+                     report
+                         .declared_defined_reads
+                         .entry(name.clone())
+@@ -2138,6 +2187,19 @@ impl Builder<'_> {
+                 state.literals.insert(name.clone(), value);
+             }
+         }
++        Self::transfer_uncertain_writes(node, state);
++    }
++
++    fn transfer_uncertain_writes(node: &Node, state: &mut State) {
++        for name in node.writes.iter().chain(&node.removes).chain(&node.aliases) {
++            state.uncertain_writes.remove(name);
++        }
++        for name in &node.uncertain_writes {
++            state.uncertain_writes.insert(name.clone());
++            state.defined.remove(name);
++            state.incoming.remove(name);
++            state.literals.remove(name);
++        }
+     }
+ 
+     fn declared_successors(

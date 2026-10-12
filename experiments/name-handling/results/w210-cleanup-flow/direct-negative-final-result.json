@@ -1,0 +1,11 @@
+{
+  "name": "direct-negative-final",
+  "command": "direct-negative-final-command.sh",
+  "started_utc": "2026-10-12T21:04:24.791859+00:00",
+  "elapsed_seconds": 20.478,
+  "exit_code": 0,
+  "counts": {
+    "passed": 1,
+    "failed": 0
+  }
+}

@@ -1,0 +1,11 @@
+
+running 1 test
+test command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof ... FAILED
+
+failures:
+
+failures:
+    command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9558 filtered out; finished in 0.21s
+

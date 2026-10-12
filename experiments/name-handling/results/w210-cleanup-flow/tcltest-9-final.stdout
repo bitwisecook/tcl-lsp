@@ -1,0 +1,21 @@
+
+running 9 tests
+test analyser::diagnostics::tests::tcltest_import_is_namespace_scoped ... ok
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion ... FAILED
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... ok
+test analyser::diagnostics::tests::tcltest_test_body_is_walked_when_imported ... ok
+test lowering::tests::immediate_tcltest_body_remains_a_runtime_barrier ... ok
+test ssa::tests::structural_body_indices_tcltest_via_registry ... ok
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads ... ok
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque ... ok
+test analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads ... ok
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 9550 filtered out; finished in 123.88s
+

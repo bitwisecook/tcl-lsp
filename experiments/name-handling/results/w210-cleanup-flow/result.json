@@ -1,0 +1,169 @@
+{
+  "question": "Can the shared scoped cleanup flow withdraw the false prepared warning without hiding genuine absent reads?",
+  "answer": "Yes for the bounded existing direct/alias controls: final Tcltest9 is8pass/1fail, with original-program0vs2 separate. Graph20 is17pass/3fail; exact before-owner baseline reproduces both loop assertion failures under the same shared dependency snapshot. The third procedure lookup failure is unclassified.",
+  "production_owner": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+  "production_change": "The authenticated lifecycle supplies its cleanup destination to the shared declaration exits. Only abrupt output-handler edges actually entering that destination carry per-target uncertainty. Joins retain it; described normal stores/removals settle it. Uncertain targets cannot donate missing/defined/value advice. Ordinary command and loop edges supply no cleanup destination.",
+  "authority_limits": "Original declaration SourceAdvice only. No command-name exclusion, disabled W210, Native entry, completed store, Normal execution, dispatch or edit permission. No canonical proof or oracle bytes changed.",
+  "final_checks": [
+    {
+      "name": "declaration-flow-final",
+      "command": "declaration-flow-final-command.sh",
+      "started_utc": "2026-10-12T21:01:06.550803+00:00",
+      "elapsed_seconds": 184.545,
+      "exit_code": 101,
+      "counts": {
+        "passed": 17,
+        "failed": 3
+      }
+    },
+    {
+      "name": "direct-negative-final",
+      "command": "direct-negative-final-command.sh",
+      "started_utc": "2026-10-12T21:04:24.791859+00:00",
+      "elapsed_seconds": 20.478,
+      "exit_code": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      }
+    },
+    {
+      "name": "alias-negative-final",
+      "command": "alias-negative-final-command.sh",
+      "started_utc": "2026-10-12T21:05:25.157652+00:00",
+      "elapsed_seconds": 63.592,
+      "exit_code": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      }
+    },
+    {
+      "name": "final-restoration-build",
+      "command": "final-restoration-build-command.sh",
+      "started_utc": "2026-10-12T21:10:35.843569+00:00",
+      "elapsed_seconds": 178.476,
+      "exit_code": 0,
+      "owner_sha256": "d083b85429c02709a48229cbb512c13ba6ecdd7048a1808820ebd9e55515f0c7"
+    },
+    {
+      "name": "tcltest-9-final",
+      "command": "tcltest-9-final-command.sh",
+      "started_utc": "2026-10-12T21:13:50.684439+00:00",
+      "elapsed_seconds": 124.108,
+      "exit_code": 101,
+      "counts": {
+        "passed": 8,
+        "failed": 1
+      }
+    }
+  ],
+  "baseline_checks": [
+    {
+      "name": "baseline-zero-trip",
+      "command": "baseline-zero-trip-command.sh",
+      "started_utc": "2026-10-12T21:07:35.457495+00:00",
+      "elapsed_seconds": 179.755,
+      "exit_code": 101,
+      "owner_sha256": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+      "counts": {
+        "passed": 0,
+        "failed": 1
+      }
+    },
+    {
+      "name": "baseline-first-entry",
+      "command": "baseline-first-entry-command.sh",
+      "started_utc": "2026-10-12T21:10:35.213206+00:00",
+      "elapsed_seconds": 0.381,
+      "exit_code": 101,
+      "owner_sha256": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+      "counts": {
+        "passed": 0,
+        "failed": 1
+      }
+    }
+  ],
+  "baseline_scope": "Only declaration_flow.rs temporarily restored to exact before bytes; the22-file current shared dependency snapshot is otherwise identical. Both loop controls fail on exact before source with the same failing inputs and values. No extrapolation to older commits or attribution of the first broader attempt.",
+  "first_source_checks": [
+    {
+      "name": "tcltest-9",
+      "command": "tcltest-9-command.sh",
+      "started_utc": "2026-10-12T20:51:39.703368+00:00",
+      "elapsed_seconds": 300.006,
+      "exit_code": 124,
+      "completed_counts": {
+        "passed": 7,
+        "failed": 1,
+        "unfinished": 1
+      }
+    },
+    {
+      "name": "alias-positive",
+      "command": "alias-positive-command.sh",
+      "started_utc": "2026-10-12T20:57:08.490606+00:00",
+      "elapsed_seconds": 120.597,
+      "exit_code": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      }
+    },
+    {
+      "name": "declaration-flow",
+      "command": "declaration-flow-command.sh",
+      "started_utc": "2026-10-12T20:56:52.434188+00:00",
+      "elapsed_seconds": 2.364,
+      "exit_code": 101,
+      "counts": {
+        "passed": 17,
+        "failed": 3
+      }
+    }
+  ],
+  "first_source_limits": "The first source used generic abrupt-output uncertainty. Its first9 run timed out after7pass/1fail with one positive alias test unfinished; that single test subsequently passed. Its graph20 is17pass/3fail. This is separate from the final cleanup-only source and its measured final9.",
+  "remaining_failures": [
+    {
+      "control": "tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+      "profile": "tcl8.4",
+      "w210_actual": 0,
+      "w210_expected": 2,
+      "scope": "Distinct original-program admission; no cleanup repair or higher-profile answer claimed."
+    },
+    {
+      "control": "original_declaration_graph_keeps_zero_trip_and_no_match_successors",
+      "input": "proc p {rows} {set anchor 1; foreach i $rows {set x 1}; puts $x}",
+      "actual": false,
+      "expected": true,
+      "baseline": "Same failure measured on exact before owner under current shared dependencies."
+    },
+    {
+      "control": "declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof",
+      "input": "proc p {n} {set anchor 1; while {$n > 0} {set x 1; incr n -1}; puts $x}",
+      "actual": true,
+      "expected": false,
+      "baseline": "Same failure measured on exact before owner under current shared dependencies."
+    },
+    {
+      "control": "original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+      "failure": "CompilationUnit.ir_module.procedures.get(\"::f\").unwrap() findsNone before graph assertions.",
+      "baseline": "Not measured; status remains unclassified."
+    }
+  ],
+  "source_status": {
+    "scoped_files": 22,
+    "after_equals_final_frozen": true,
+    "before_owner_sha256": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+    "first_owner_sha256": "9fe819acbd27842cfb4a1d191087a5f440b0be7a48c8f4545e3dd4ddb2aaf309",
+    "final_owner_sha256": "d083b85429c02709a48229cbb512c13ba6ecdd7048a1808820ebd9e55515f0c7",
+    "restored_final_binary_equals_pre_baseline_final": true
+  },
+  "inventory_scope": "22 explicitly retained Rust owners/dependencies including changed clock/runtime/VM dependencies. Downstream references.rs append is excluded. These hashes do not claim all workspace Rust unchanged.",
+  "checks_not_repeated": "Prior two source-owner/currentness controls were not repeated because their owners were unchanged and the coordinator excluded repetition. Packaged consumers, full gates and C/Jim/runtime conformance were not executed here.",
+  "oracle_provenance": {
+    "inspected_upstream": "tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+    "sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+    "execution": false
+  },
+  "scope": "One cleanup diagnostic defect. Original-program acquisition, broader loop/name/frame acceptance, the unclassified procedure lookup, full gates and proof currency remain separate obligations."
+}

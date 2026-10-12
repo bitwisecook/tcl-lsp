@@ -1,0 +1,11 @@
+{
+  "name": "declaration-flow",
+  "command": "declaration-flow-command.sh",
+  "started_utc": "2026-10-12T20:56:52.434188+00:00",
+  "elapsed_seconds": 2.364,
+  "exit_code": 101,
+  "counts": {
+    "passed": 17,
+    "failed": 3
+  }
+}

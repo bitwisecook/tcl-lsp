@@ -1,0 +1,12 @@
+{
+  "name": "baseline-first-entry",
+  "command": "baseline-first-entry-command.sh",
+  "started_utc": "2026-10-12T21:10:35.213206+00:00",
+  "elapsed_seconds": 0.381,
+  "exit_code": 101,
+  "owner_sha256": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  }
+}

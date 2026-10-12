@@ -1,0 +1,25 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 02s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+thread 'command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof' (209126) panicked at rust/tcl-compiler/src/command_binding/declaration_flow.rs:2912:13:
+assertion `left == right` failed: proc p {n} {set anchor 1; while {$n > 0} {set x 1; incr n -1}; puts $x}
+  left: true
+ right: false
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors' (209134) panicked at rust/tcl-compiler/src/command_binding/declaration_flow.rs:2800:13:
+assertion `left == right` failed: proc p {rows} {set anchor 1; foreach i $rows {set x 1}; puts $x}
+  left: false
+ right: true
+
+thread 'command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants' (209158) panicked at rust/tcl-compiler/src/command_binding/declaration_flow.rs:2684:66:
+called `Option::unwrap()` on a `None` value
+error: test failed, to rerun pass `-p tcl-compiler --lib`

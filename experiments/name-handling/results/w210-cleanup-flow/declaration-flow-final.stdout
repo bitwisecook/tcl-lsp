@@ -1,0 +1,32 @@
+
+running 20 tests
+test command_binding::declaration_flow::tests::array_index_effects_do_not_become_scalar_read_permission ... ok
+test command_binding::declaration_flow::tests::authored_read_occurrences_preserve_unknown_runtime_and_array_effects ... ok
+test command_binding::declaration_flow::tests::c86_indexed_conditions_preserve_original_terminal_scripts ... ok
+test command_binding::declaration_flow::tests::declaration_selection_keeps_absent_dispatch_separate_from_invalid_reached_owner ... ok
+test command_binding::declaration_flow::tests::conditional_missing_read_warning_keeps_first_entry_and_rejects_unknown_prefixes ... ok
+test command_binding::declaration_flow::tests::declared_aliases_and_terminal_paths_keep_distinct_read_occurrences ... ok
+test command_binding::declaration_flow::tests::conditional_reachability_preserves_terminal_and_unavailable_paths ... ok
+test command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof ... FAILED
+test command_binding::declaration_flow::tests::indexed_conditions_preserve_declared_zero_trip_reads ... ok
+test command_binding::declaration_flow::tests::conditional_output_candidates_do_not_become_physical_stores ... ok
+test command_binding::declaration_flow::tests::original_call_entry_precedes_its_unknown_dispatch ... ok
+test command_binding::declaration_flow::tests::original_declaration_flow_cache_retains_full_inventory_and_query_identity ... ok
+test command_binding::declaration_flow::tests::lifecycle_subcommand_schedules_its_original_phase_scripts ... ok
+test command_binding::declaration_flow::tests::original_declaration_graph_preserves_nested_missing_local_reads ... ok
+test command_binding::declaration_flow::tests::original_diagnostic_frame_keeps_root_values_and_expanded_loop_bindings ... ok
+test command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors ... FAILED
+test command_binding::declaration_flow::tests::unentered_declaration_suffix_does_not_grant_original_dispatch ... ok
+test command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants ... FAILED
+test command_binding::declaration_flow::tests::original_declaration_overwrite_advice_is_conditional_and_ordered ... ok
+test command_binding::declaration_flow::tests::quoted_data_mentions_do_not_supply_executed_reads ... ok
+
+failures:
+
+failures:
+    command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof
+    command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors
+    command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants
+
+test result: FAILED. 17 passed; 3 failed; 0 ignored; 0 measured; 9539 filtered out; finished in 2.15s
+

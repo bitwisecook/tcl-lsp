@@ -6,18 +6,16 @@ centralisation. This is temporary coordination material; remove before merge.
 
 ## #2286 — keep open
 
-Final frozen `tcltest_` filter: six pass, three fail. The reported shared-frame
-fixtures pass across the five C profiles, but direct, captured-alias and the
-real-oracle-program missing-read controls fail at their first C8.4 assertion:
-zero W210 instead of the expected 1/1/2. Later negative variants are unreached.
-The [existing GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6129658416)
-correctly withholds closure. Repair the actual selection/declaration-read
-boundary and execute both reported fixtures and adversarial controls.
+Final current `tcltest_` filter: eight pass, one fails. Direct and alias
+missing-read controls pass across C8.4–9.1: the genuine absent warning remains
+and the unsupported prepared-cleanup warning is removed. The unchanged original
+program still reports0versus2 at C8.4, so #2286 remains open.
 
-Evidence: [latest exact source/log receipt](../../../experiments/name-handling/results/c-source-namespace-advice/outcomes.json),
-[static failure questions](../../../experiments/name-handling/results/static-name-advice/README.md),
-[real C Tcltest input/results](../../../experiments/name-handling/tcltest-shared-frame/README.md).
-Do not infer runtime execution or package installation from source advice.
+[Exact source, commands and results](../../../experiments/name-handling/results/w210-cleanup-flow/README.md)
+retain final9, graph20 at17pass/3fail, two loop failures reproduced with exact
+before-source under the same dependency snapshot, and an unclassified procedure
+lookup refusal. Source advice grants no Native entry, completed store, Normal
+execution or edit permission. Published issue receipt awaits this checkpoint.
 
 ## #2287 — verified and closed
 
@@ -49,7 +47,3 @@ Use [issues.md](issues.md) for the related open/closed issue catalogue and
 Pending provider answers and failed setup do not establish runtime bugs. New
 issues require exact input/source/reached-stage/output evidence. F5 answers
 remain independent until returned by the appliance chat.
-
-Current #2286 receipt: [published retained-binding check](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6131216111), commit `5597256ba`. Owner regression1/1 passes; nine-control filter remains6pass/3fail. Issue remains open; no warning repair claimed.
-
-Current #2286 [producer/consumer receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6132237889): `d74cac0ae` owner controls2/2 pass, packaged regressions2/2 pass, diagnostic filter6/3 remains red (direct/alias2vs1; original0vs2). #2286 open; #2287 closed with no observed packaged regression.

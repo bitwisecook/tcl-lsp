@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized] target(s) in 0.13s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+thread 'analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion' (211951) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13340:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-compiler --lib`

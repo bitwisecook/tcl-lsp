@@ -24,8 +24,8 @@ Rust receipts retain separate authority.
 - [The retained native lifecycle question](../../design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md)
   measures all five C packages and Jim's distinct global-test protocol. It does
   not execute the full tclopt constructors or assert Rust diagnostics.
-- Final frozen Tcltest diagnostic checks pass six controls and fail three
-  genuine missing-read controls at their first C8.4 assertion. #2286 remains
+- Final current Tcltest diagnostic checks pass eight controls and fail the
+  original-program missing-read control0versus2 at C8.4. #2286 remains
   open. Real matching init/Tcltest observations and exact compiler receipts are
   linked from [current-state.md](current-state.md).
 - Both complete packaged highlighting regressions now pass, including the
