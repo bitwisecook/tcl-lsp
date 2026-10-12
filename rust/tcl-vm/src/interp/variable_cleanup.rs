@@ -914,7 +914,7 @@ impl OriginalVariableCleanup {
                 .unwrap_or_default();
             for (name, raw) in names {
                 let binding = super::VarBinding {
-                    target,
+                    owner,
                     name: name.clone(),
                 };
                 if self.check(vm).is_ok() {
@@ -952,7 +952,7 @@ impl OriginalVariableCleanup {
                 break;
             };
             let binding = super::VarBinding {
-                target,
+                owner,
                 name: name.clone(),
             };
             let original_nonlink = self.state_mut(vm).is_ok_and(|state| {
