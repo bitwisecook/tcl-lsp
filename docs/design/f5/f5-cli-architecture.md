@@ -122,8 +122,9 @@ Internal layering:
 - `edit_plan.rs` — routes identity writes through
   `rewrite.rs`'s `rename_object` with kind-scoping, materialises or
   extends compound list blocks (`rules`, `profiles`, `persist`,
-  `policies`, `members`) on `+=` / `=`, applies field-edit
-  splices bottom-up, and detects overlapping edits.
+  `policies`, `members`) on `+=` / `=`, reconstructs field edits
+  from source spans in ascending order, and
+  rejects overlapping edits.
 - `builtins/` — the function library (`ip`, `partition`,
   `rename`, `rename_partition`, …), split into per-category modules
   (`net.rs`, `string.rs`, `rename.rs`, `graph.rs`, …); a registry binds
@@ -165,8 +166,8 @@ the same graph.  Lint rules in `rust/tcl-bigip/src/lint.rs` see a
   produces the same map.
 - Within each CIDR, host bits map either **direct** (identity, default)
   or **shuffle** (a deterministic Fisher-Yates permutation seeded by a
-  per-CIDR key derived from `--seed`).  Shuffle is capped at /20-worth
-  of host bits (1M permutation entries); wider widths fall back to
+  per-CIDR key derived from `--seed`).  Shuffle is capped at 20 host bits
+  (1,048,576 permutation entries); wider host widths fall back to
   direct silently.
 - The full assignment + IP cache lives in a TOML sidecar
   (`<output>.redact.toml` by default).  `f5 redact --map-file PATH`

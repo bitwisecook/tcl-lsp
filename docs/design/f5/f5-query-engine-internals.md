@@ -59,9 +59,8 @@ module:
    `Vec<Value>`.  Assignment nodes emit `EditOp` into
    `ctx.edits.ops` rather than mutating in place.
 5. **Apply + render** — `runner::run_query` applies the edit
-   plan to each source's text via `edit_plan::apply`, re-parses
-   the rewritten text, and hands the values + sources to
-   `output::render`.
+   plan to each source's text via `edit_plan::apply` and hands the
+   values + sources to `output::render`.
 
 Multi-statement queries (`a ; b ; c`) loop over statements; each
 statement sees the edits applied by the previous one.
@@ -126,10 +125,9 @@ statement sees the edits applied by the previous one.
                                           stdout / files
 ```
 
-The reparse step inside `edit_plan::apply` (not shown — it round-
-trips `new_source` through `parse_bigip_conf` to validate) is
-what makes mutation safe: the engine never ships output a fresh
-parse couldn't read back in.
+The runner rebuilds the BIG-IP root from the current source before each
+statement, so later statements see preceding edits. `edit_plan::apply`
+returns rewritten bytes without a final output-validation reparse.
 
 ## Module-by-module reference
 
@@ -635,12 +633,12 @@ builtins in `builtins/inputs_load.rs`, and the
   2. Apply identity-field renames (`name`, `full-path`) through
      `rewrite.rs`, which touches every reference site, not just the
      stanza header.
-  3. Apply the field-level edits sorted by `(start_offset, end_offset)`
-     descending, so a later splice never shifts a span an earlier one
-     still needs.
+  3. Sort field-level edits by `(start_offset, end_offset)` ascending,
+     reject overlapping spans, then construct new text from unchanged
+     source slices and replacement text. Source offsets remain unchanged.
 
-  After splicing it re-parses through `parse_bigip_conf` to validate.
-  Malformed output aborts with the offending edit named in the error.
+  The result is returned as rewritten bytes; `apply` does not reparse
+  the output to validate it.
 
 The `name` / `full-path` pair is what dispatches between the
 identity-rename branch and the field-edit branch.
@@ -661,12 +659,10 @@ of later edits.  Split the work across statements with `;`.
               │  EditOp (name)  │                          ▼
               ├─────────────────┤                 ┌─────────────────┐
               │     ops         ├── 3 ─────────►  │  rewritten      │
-              │  EditOp (field) │  splice in      │  bytes          │
-              │  EditOp (field) │  reverse offset └────────┬────────┘
-              │  EditOp (field) │  order                   │
-              └─────────────────┘                          ▼
-                                                  parse_bigip_conf()
-                                                           │
+              │  EditOp (field) │  reconstruct    │  bytes          │
+              │  EditOp (field) │  in ascending   └────────┬────────┘
+              │  EditOp (field) │  offset order            │
+              └─────────────────┘                          │
                                                            ▼
                                                   ┌─────────────────┐
                                                   │ AppliedSource   │
@@ -676,9 +672,9 @@ of later edits.  Split the work across statements with `;`.
                                                   └─────────────────┘
 ```
 
-Sort key for step 3 is `(start_offset, end_offset)` *descending*
-so each splice writes into bytes downstream of every span the
-later splices still need to find.
+Sort key for step 3 is `(start_offset, end_offset)` ascending. Overlap
+checks precede reconstruction; each unchanged slice comes from the original
+source, so replacement lengths cannot shift a later edit's input span.
 
 ### `output.rs` — Renderers
 
@@ -879,14 +875,13 @@ same connection either way.
    `rewrite.rs`, which touches every reference site, not just the stanza
    header.
 4. Sorts the remaining field-level edits by `(start_offset, end_offset)`
-   *descending*, so a later splice never shifts a byte span an earlier one
-   still needs.
-5. Splices each op into the source bytes.
-6. Re-parses the spliced source through `parse_bigip_conf` — malformed
-   output aborts with the offending edit named in the error.
+   ascending and rejects overlapping spans.
+5. Constructs new text from unchanged source slices and replacement text,
+   preserving input offsets independently of replacement lengths.
 
-The reparse in step 6 is what makes mutating queries safe: the engine never
-ships output that a fresh `parse_bigip_conf` could not read back in.
+`apply` returns the rewritten bytes without reparsing them. The runner
+parses the current source when it builds the root for a subsequent statement;
+this is separate from output validation.
 
 Mixing a `PrefixRewrite` with non-identity field edits in the *same*
 statement is rejected, because the rewrite shifts the byte offsets the
