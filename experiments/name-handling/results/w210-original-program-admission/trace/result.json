@@ -1,0 +1,122 @@
+{
+  "question": "What is the first current original-program source/input/header read-domain refusal, and are retained-source preference or Standalone embedded replay actually reached?",
+  "answer": "Both retained module projection and separate Standalone embedded replay are reached. Every original procedure header read request preserves matching SuppliedSource input and original source ownership; each read-domain call refuses at original_procedure_read_declaration. The inner predicate is unmeasured. The earlier Standalone header mismatch is absent.",
+  "test": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+  "profile": "tcl8.4",
+  "w210": {
+    "actual": 0,
+    "expected": 2
+  },
+  "check": {
+    "name": "original-program",
+    "command": "original-program-command.sh",
+    "started_utc": "2026-10-12T21:42:16.212418+00:00",
+    "elapsed_seconds": 209.358,
+    "exit_code": 101,
+    "counts": {
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "trace_observations": {
+    "fixture_sha256": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef",
+    "fixture_bytes": 1380,
+    "default_hasher_source_hash": "37b290e8a91613f4",
+    "module_preference": "RetainedProjection",
+    "source_reinterpretation_observed": false,
+    "standalone_embedded_replay_events": 39,
+    "standalone_replay_retains_supplied_baseline_input": true,
+    "factory_requests": [
+      {
+        "span": [
+          1076,
+          1227
+        ],
+        "result": "Refused",
+        "stage": "procedure-read-declaration"
+      },
+      {
+        "span": [
+          58,
+          345
+        ],
+        "result": "Refused",
+        "stage": "procedure-read-declaration"
+      },
+      {
+        "span": [
+          441,
+          716
+        ],
+        "result": "Refused",
+        "stage": "procedure-read-declaration"
+      },
+      {
+        "span": [
+          760,
+          1033
+        ],
+        "result": "Refused",
+        "stage": "procedure-read-declaration"
+      }
+    ],
+    "all_header_lookup_owner": "SuppliedSource",
+    "all_header_input_equal": true,
+    "all_header_native_entry_present": false,
+    "all_header_lookup_present": true,
+    "all_header_compiler_lookup_present": false,
+    "all_header_declaration_observations_present": true,
+    "all_header_unknown": false,
+    "all_header_may_be_absent": false,
+    "all_header_realm": "RuleLoader",
+    "preceding_stages_pass": [
+      "body-config",
+      "resolved-input",
+      "retained-realm",
+      "realm-input-image-config",
+      "original-header-binding",
+      "original-recorded-command"
+    ],
+    "inputless_other_source_initialisations": 4,
+    "other_source_initialisation_limit": "Hashes differ from the original whole input. These are separate carriers and cannot be presumed the refusing header owners.",
+    "raw_trace_lines": 90,
+    "replay_event_limit": "39 events count entries into the Standalone embedded-replay wrapper, not decoded nested invocations, native entries or executed effects."
+  },
+  "first_observed_refusal": "script_binds::authored_procedure_read_advice at the existing original_procedure_read_declaration ?; factory internals were not instrumented.",
+  "interpretation_limits": "Actual replay is observed despite retained module preference, but its caller purpose/causal effect on the refusing read-domain factory remains unmeasured. No Standalone-to-supplied patch is justified by this receipt.",
+  "restoration": {
+    "three_temporary_owners_equal_before": true,
+    "other_scoped_paths_unchanged": true,
+    "other_scoped_paths": 25,
+    "restored_owner_sha256": {
+      "rust/tcl-compiler/src/provider_fixtures.rs": "6d4facc342f6fd1f99590398f90691c380d12a308a7818d1d6b09f26f4ab3161",
+      "rust/tcl-compiler/src/command_binding.rs": "b9edda77ce2d50ba1713911a9f23f1bd75989d1324e51260226590d39722aabd",
+      "rust/tcl-compiler/src/script_binds.rs": "79b67e1d58c31aba77a1e9b643bea6126839d730973ada8f310b572d8d60ed0f"
+    },
+    "production_cleanup_sha256": "d083b85429c02709a48229cbb512c13ba6ecdd7048a1808820ebd9e55515f0c7",
+    "post_restore_build": false,
+    "binary_currency": "Instrumented binary retained only; not current for restored sources. No post-restore build was authorised."
+  },
+  "source_scope": {
+    "scoped_paths": 28,
+    "new_getter_paths": [
+      "runtime/rust/src/cmd_clock.rs",
+      "rust/tcl-platform/src/lib.rs",
+      "rust/tcl-host-native/src/lib.rs",
+      "rust/tcl-registry/src/commands/tcl/clock_.rs",
+      "rust/tcl-registry/src/commands/tcl/mod.rs"
+    ],
+    "unlinked_context_paths": [
+      "runtime/rust/src/cmd_clock.rs",
+      "runtime/rust/src/interp.rs"
+    ],
+    "claim": "Explicit scoped source hashes only. Standalone runtime Rust files are unlinked context and do not enter the compiler/VM test closure."
+  },
+  "scope": "One existing original control executed once, three temporary test-gated trace owners restored exactly. No guard, Native entry/frame/Normal result/edit permission/canonical proof or oracle-source change, semantic repair, additional tests or broad gate claim.",
+  "next_measurement_proposal": {
+    "owner": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+    "owner_sha256": "aa7aa950137ebea78be511866a1b4c4d27f61cc301d3ed8d4b47517c02dacb66",
+    "plan": "next-inner-factory-trace.md",
+    "status": "read_only_review_proposed_unexecuted"
+  }
+}

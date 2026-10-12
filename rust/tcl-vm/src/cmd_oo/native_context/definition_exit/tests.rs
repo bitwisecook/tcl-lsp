@@ -27,8 +27,9 @@ fn provided() -> Vm {
     crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.1"))
 }
 fn class(vm: &mut Vm, name: &str) -> OoId {
-    let completion =
-        vm.invoke_command("oo::class", &[Value::string("create"), Value::string(name)]);
+    let completion = vm
+        .try_invoke_command("oo::class", &[Value::string("create"), Value::string(name)])
+        .expect("actual C9.1 class construction");
     assert_eq!(completion.code, Code::Ok);
     crate::cmd_oo::resolve_object_value(vm, &Value::string(name))
         .unwrap()

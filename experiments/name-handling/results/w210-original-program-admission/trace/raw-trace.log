@@ -1,0 +1,90 @@
+W210_ORIGINAL_FIXTURE begin source_hash=37b290e8a91613f4 bytes=1380
+W210_ORIGINAL_FIXTURE ingress owner=SuppliedSource input_addr=0x7f3921f44e58 native_entry=false config_hash=31f47cc31c6d114c
+W210_ORIGINAL_SOURCE initial source_hash=37b290e8a91613f4 purpose=WholeInput input=true standalone=false baseline_addr=0x7f391c7565d0
+W210_ORIGINAL_SOURCE initial source_hash=37b290e8a91613f4 purpose=WholeInput input=true standalone=false baseline_addr=0x7f391d77fa80
+W210_ORIGINAL_MODULE begin source_hash=37b290e8a91613f4 kind=Script retained=true input=true
+W210_ORIGINAL_MODULE path=RetainedProjection source_hash=37b290e8a91613f4
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..178 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=183..224 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..195 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=200..242 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..92 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=97..118 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..24 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=29..189 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=194..231 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=0..23 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=24..56 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=58..345 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=346..373 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=375..440 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=441..716 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=717..758 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=760..1033 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=1034..1074 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=1076..1227 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=1228..1268 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=1269..1379 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..92 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=97..118 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..178 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=183..224 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..24 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=29..189 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=194..231 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..195 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=200..242 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..92 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=97..118 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..195 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=200..242 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..24 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=29..189 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=194..231 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=5..178 retained_input=true
+W210_ORIGINAL_REPLAY selection=Standalone source_hash=Some(4013429546884142068) span=183..224 retained_input=true
+W210_ORIGINAL_SOURCE initial source_hash=7fd91d1e4587dd92 purpose=WholeInput input=false standalone=false baseline_addr=0x7f391e97a630
+W210_ORIGINAL_SOURCE initial source_hash=5b8280f1a630402a purpose=WholeInput input=false standalone=false baseline_addr=0x7f391e5493c0
+W210_ORIGINAL_SOURCE initial source_hash=f8abac9f34104860 purpose=WholeInput input=false standalone=false baseline_addr=0x7f391e7ec4d0
+W210_ORIGINAL_SOURCE initial source_hash=83ae925660829ae9 purpose=WholeInput input=false standalone=false baseline_addr=0x7f391e954d10
+W210_ORIGINAL_READ attempt=body-config source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_READ attempt=resolved-input source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_READ attempt=retained-realm source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_READ attempt=realm-input-image-config source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_READ attempt=original-header-binding source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_READ attempt=original-recorded-command source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_HEADER lookup=true compiler=false declaration=true unknown=false absent=false request_addr=0x7f3921f469e0
+W210_ORIGINAL_HEADER kind=lookup owner=SuppliedSource snapshot_addr=0x7f391d20d3b0 baseline_addr=0x7f391c7565d0 source_hash=Some(4013429546884142068) input=true input_equal=true native_entry=false realm=RuleLoader
+W210_ORIGINAL_READ attempt=procedure-read-declaration source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_READ result=Refused stage=procedure-read-declaration source_hash=37b290e8a91613f4 span=1076..1227
+W210_ORIGINAL_READ attempt=body-config source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_READ attempt=resolved-input source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_READ attempt=retained-realm source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_READ attempt=realm-input-image-config source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_READ attempt=original-header-binding source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_READ attempt=original-recorded-command source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_HEADER lookup=true compiler=false declaration=true unknown=false absent=false request_addr=0x7f3921f469e0
+W210_ORIGINAL_HEADER kind=lookup owner=SuppliedSource snapshot_addr=0x7f391c92e410 baseline_addr=0x7f391c7565d0 source_hash=Some(4013429546884142068) input=true input_equal=true native_entry=false realm=RuleLoader
+W210_ORIGINAL_READ attempt=procedure-read-declaration source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_READ result=Refused stage=procedure-read-declaration source_hash=37b290e8a91613f4 span=58..345
+W210_ORIGINAL_READ attempt=body-config source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_READ attempt=resolved-input source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_READ attempt=retained-realm source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_READ attempt=realm-input-image-config source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_READ attempt=original-header-binding source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_READ attempt=original-recorded-command source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_HEADER lookup=true compiler=false declaration=true unknown=false absent=false request_addr=0x7f3921f469e0
+W210_ORIGINAL_HEADER kind=lookup owner=SuppliedSource snapshot_addr=0x7f391ce358b0 baseline_addr=0x7f391c7565d0 source_hash=Some(4013429546884142068) input=true input_equal=true native_entry=false realm=RuleLoader
+W210_ORIGINAL_READ attempt=procedure-read-declaration source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_READ result=Refused stage=procedure-read-declaration source_hash=37b290e8a91613f4 span=441..716
+W210_ORIGINAL_READ attempt=body-config source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_READ attempt=resolved-input source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_READ attempt=retained-realm source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_READ attempt=realm-input-image-config source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_READ attempt=original-header-binding source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_READ attempt=original-recorded-command source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_HEADER lookup=true compiler=false declaration=true unknown=false absent=false request_addr=0x7f3921f469e0
+W210_ORIGINAL_HEADER kind=lookup owner=SuppliedSource snapshot_addr=0x7f391ceb9ad0 baseline_addr=0x7f391c7565d0 source_hash=Some(4013429546884142068) input=true input_equal=true native_entry=false realm=RuleLoader
+W210_ORIGINAL_READ attempt=procedure-read-declaration source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_READ result=Refused stage=procedure-read-declaration source_hash=37b290e8a91613f4 span=760..1033
+W210_ORIGINAL_FIXTURE end w210=0 input=true realm=true

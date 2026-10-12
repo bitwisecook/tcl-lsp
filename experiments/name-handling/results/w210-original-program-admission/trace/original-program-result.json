@@ -1,0 +1,11 @@
+{
+  "name": "original-program",
+  "command": "original-program-command.sh",
+  "started_utc": "2026-10-12T21:42:16.212418+00:00",
+  "elapsed_seconds": 209.358,
+  "exit_code": 101,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  }
+}

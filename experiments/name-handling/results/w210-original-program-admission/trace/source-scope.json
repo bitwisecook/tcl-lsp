@@ -1,0 +1,15 @@
+{
+  "scoped_paths": 28,
+  "new_getter_paths": [
+    "runtime/rust/src/cmd_clock.rs",
+    "rust/tcl-platform/src/lib.rs",
+    "rust/tcl-host-native/src/lib.rs",
+    "rust/tcl-registry/src/commands/tcl/clock_.rs",
+    "rust/tcl-registry/src/commands/tcl/mod.rs"
+  ],
+  "unlinked_context_paths": [
+    "runtime/rust/src/cmd_clock.rs",
+    "runtime/rust/src/interp.rs"
+  ],
+  "claim": "Explicit scoped source hashes only. Standalone runtime Rust files are unlinked context and do not enter the compiler/VM test closure."
+}

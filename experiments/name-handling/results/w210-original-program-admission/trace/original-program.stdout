@@ -1,0 +1,11 @@
+
+running 1 test
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion ... FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9558 filtered out; finished in 8.70s
+

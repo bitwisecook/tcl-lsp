@@ -1,0 +1,5 @@
+{
+  "rust/tcl-compiler/src/provider_fixtures.rs": "6d4facc342f6fd1f99590398f90691c380d12a308a7818d1d6b09f26f4ab3161",
+  "rust/tcl-compiler/src/command_binding.rs": "b9edda77ce2d50ba1713911a9f23f1bd75989d1324e51260226590d39722aabd",
+  "rust/tcl-compiler/src/script_binds.rs": "79b67e1d58c31aba77a1e9b643bea6126839d730973ada8f310b572d8d60ed0f"
+}

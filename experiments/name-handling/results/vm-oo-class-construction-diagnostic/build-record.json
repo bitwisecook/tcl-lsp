@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--no-run",
+    "-j",
+    "2",
+    "--message-format=json-render-diagnostics"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "cache": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "environment_recipe": "/tmp/name-env.sh",
+  "exit_code": 0,
+  "elapsed_seconds": 108.996,
+  "source_scope_count": 4943,
+  "changed_source_paths": [],
+  "artifacts": [
+    {
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "sha256": "e6ec3c6a39e504dd3e879639b59907584ee32b5644b5bb92984491dad063bcf4",
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": true
+      }
+    }
+  ],
+  "finished_utc": "2026-10-12T21:52:09.738426+00:00"
+}

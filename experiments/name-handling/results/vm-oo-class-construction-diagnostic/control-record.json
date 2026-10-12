@@ -1,0 +1,19 @@
+{
+  "name": "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+  "command": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+    "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "log": "control-01.log",
+  "exit_code": 101,
+  "timed_out": false,
+  "exactly_one_test_executed": true,
+  "elapsed_seconds": 0.365,
+  "changed_source_paths": [],
+  "binary_sha256_before": "e6ec3c6a39e504dd3e879639b59907584ee32b5644b5bb92984491dad063bcf4",
+  "binary_sha256_after": "e6ec3c6a39e504dd3e879639b59907584ee32b5644b5bb92984491dad063bcf4",
+  "finished_utc": "2026-10-12T21:52:10.230253+00:00"
+}
