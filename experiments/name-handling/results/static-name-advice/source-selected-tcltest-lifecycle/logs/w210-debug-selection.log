@@ -1,0 +1,32 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 2m 49s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+running 1 test
+TEMP SELECT Some("test") entry=true config=true words=true
+TEMP COMMAND Some("test") selected=None
+TEMP SELECT Some("test") entry=true config=true words=true
+TEMP COMMAND Some("test") selected=None
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (122051) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9553 filtered out; finished in 2.15s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

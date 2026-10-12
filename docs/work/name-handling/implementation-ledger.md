@@ -92,7 +92,9 @@ temporary work directory and its links only when the consumer census is complete
   42 skips and zero failures. See the [current report](../../../experiments/name-handling/results/RESULTS.md).
 - All 140 missing annotated test/catalog bindings were reviewed and reconciled.
   The latest complete proof audit has 1,179 questions, zero pending candidates
-  and zero unlinked tests; 158 implementation evidence digests require review.
+  and zero unlinked tests; after formatting and two reviewed LSP updates, 348
+  implementation evidence digests require review. Exact output is retained at
+  experiments/name-handling/results/proof-source-currency/20261012-reviewed-lsp/.
   Syntax/LSP reviews cover 39 entries; meaning/test review is still required
   for two LSP entries before any final source binding is renewed.
 
@@ -188,3 +190,9 @@ ownership; use small jobs and update this snapshot before handoff.
 - Cargo: gate agent owns tmp/name-target-issues; clock agent must request its
   separate runtime cache before building. Source /tmp/name-env.sh; incremental
   and debug info disabled to prevent renewed disk exhaustion.
+
+- Existing static failure receipts are now retained in
+  experiments/name-handling/results/static-name-advice/: two question directories,
+  shared provenance, 45 verified hashes. The W210 earliest remaining boundary
+  is still a proposed reached-owner metadata join, not an executed diagnosis;
+  see evidence-review/w210-missing-read-boundary.md.

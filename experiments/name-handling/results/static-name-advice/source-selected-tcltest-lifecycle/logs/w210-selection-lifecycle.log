@@ -1,0 +1,10 @@
+
+running 5 tests
+test command_binding::lifecycle_advice::tests::lifecycle_repeat_join_withdraws_conflicting_cell_generations ... ok
+test command_binding::lifecycle_advice::tests::lifecycle_repeat_join_preserves_entry_and_withdraws_unbounded_issuance ... ok
+test command_binding::lifecycle_advice::tests::missing_authored_lifecycle_provider_retains_unknown_phase_coverage ... ok
+test command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source ... ok
+test command_binding::lifecycle_advice::tests::actual_lifecycle_coverage_and_unknown_world_cannot_donate_scoped_advice ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 9550 filtered out; finished in 3.43s
+

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "scripts/dev/check-name-resolution-proofs.py"
+  ],
+  "exit_code": 1,
+  "head": "ec140bb83",
+  "working_tree": "uncommitted semantic changes; not a frozen whole-tree validation",
+  "log_sha256": "634957e3640d2ad23869c4366bce296e8d4ef86bce2314a956389b9706857ca2",
+  "summary": {
+    "candidate_records": 7069,
+    "corpus_files": 31924,
+    "pending_candidates": 0,
+    "questions": 1179,
+    "structural_errors": 348,
+    "unlinked_tests": 0
+  },
+  "non_digest_errors": 0
+}
