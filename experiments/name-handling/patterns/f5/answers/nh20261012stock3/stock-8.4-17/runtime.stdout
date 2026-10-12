@@ -1,0 +1,6 @@
+NHO|nh20261012stock3|wiki-prefix-3|stock-8.4|setup|0|none|once|result|utf-8|0|1|
+oracle 8.4.13 library /usr/share/compat-tcl8.4 tcltest 2.2.8
+NHO|nh20261012stock3|wiki-prefix-3|stock-8.4|body-return|0|none|once|result|utf-8|0|1|61637475616c
+++++ wiki-prefix-3 PASSED
+:	Total	30	Passed	1	Skipped	29	Failed	0
+NHO|nh20261012stock3|wiki-prefix-3|stock-8.4|lookup|0|none|once|result|utf-8|0|1|

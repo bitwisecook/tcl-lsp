@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "ssh",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=10",
+    "-o",
+    "ForwardAgent=no",
+    "-o",
+    "IdentityAgent=none",
+    "-i",
+    "/Users/jimd/.ssh/github_rsa",
+    "bigip-211",
+    "/usr/bin/tclsh8.5"
+  ],
+  "exit_code": 0,
+  "stdin_sha256": "a843f3c706e08d6173f1f96b97755762f1b81e1b64ce4a58c30c095bba2c144a"
+}

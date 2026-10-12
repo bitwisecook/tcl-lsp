@@ -1,0 +1,5 @@
+# Oracle evidence validation
+
+The complete canonical proof check evaluated 2,327 question records and reports 139 inherited evidence-digest mismatches in existing non-BIG-IP records. Its exact failure set is unchanged from the retained prior checkpoint; no new failure or BIG-IP failure was reported. Both raw logs and the comparison are retained. This is a failed global gate, not a green build or permission to push.
+
+The Python helpers passed Ruff, format checking and compilation; the final matrix audit verifies 93 original-source answers, 244 unreached attempts and 63 unavailable measurements across all 400 rows. Individual review receipts and sealed coverage snapshots retain their independent checks. Final staging/configuration absence evidence is in [cleanup2](../nh20261012cleanup2/README.md). Earlier original-program interpreter cleanup remains bounded by [the hosted cleanup review](../original-hosted-cleanup-review.md). No implementation change, deep-suite execution or push is claimed.

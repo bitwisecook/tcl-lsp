@@ -1,0 +1,9 @@
+{
+  "action": "Chrome Application Services Create form template selection; callback values retained from live DOM",
+  "url": "https://192.168.9.24:8443/xui/",
+  "template": "/Common/__tcl_lsp_probe_nh20261012aplcap1",
+  "timestamp_utc": "2026-10-12T16:09:27.144828+00:00",
+  "source": "browser-options.json",
+  "projection": "Tcl splitlist option.value, then each equal two-element label/value pair; one observed NHO value per pair",
+  "rows": 80
+}

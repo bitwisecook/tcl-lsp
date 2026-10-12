@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "curl",
+    "-sS",
+    "--max-time",
+    "2",
+    "-D",
+    "/Users/jimd/src/tcl-lsp/experiments/name-handling/f5/answers/nh20261012nsowner1/tmm-traffic-event-0/traffic-9.headers",
+    "-H",
+    "X-NH-Invocation: 9",
+    "http://192.168.9.24:19912/"
+  ],
+  "exit_code": 0,
+  "run_marker_matches": true
+}

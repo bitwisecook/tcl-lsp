@@ -1,0 +1,6 @@
+01070151:3: Rule [/Common/__tcl_lsp_probe_nh20261012literal1_3_10] error: /Common/__tcl_lsp_probe_nh20261012literal1_3_10:34: error: [undefined procedure: __nh_nh20261012literal1_absent][__nh_nh20261012literal1_absent ]
+/Common/__tcl_lsp_probe_nh20261012literal1_3_10:61: error: [command is disabled: "interp"][interp slaves]
+/Common/__tcl_lsp_probe_nh20261012literal1_3_10:61: error: [command is disabled: "interp"][interp delete $child]
+/Common/__tcl_lsp_probe_nh20261012literal1_3_10:61: error: [command is disabled: "rename"][rename $command {}]
+
+Unexpected Error: Loading configuration process failed.

@@ -1,0 +1,7 @@
+NHO|nh20261012pat1|wiki-prefix-2|stock-8.4|setup|0|none|once|result|utf-8|0|1|
+oracle 8.4.13 library /usr/share/compat-tcl8.4 tcltest 2.2.8
+++++ wiki-prefix-2 SKIPPED: tcl85
+:	Total	30	Passed	0	Skipped	30	Failed	0
+Number of tests skipped for each constraint:
+	1	tcl85
+NHO|nh20261012pat1|wiki-prefix-2|stock-8.4|lookup|0|none|once|result|utf-8|0|1|

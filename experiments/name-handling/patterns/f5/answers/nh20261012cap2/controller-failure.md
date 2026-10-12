@@ -1,0 +1,1 @@
+The traffic controller stopped because readiness was not proved within its initial 15 second window. The retained remote transcripts show load and cleanup separately. APL was not attempted in this run. Final runtime log snapshot is supplementary asynchronous evidence; it does not erase earlier incomplete captures.

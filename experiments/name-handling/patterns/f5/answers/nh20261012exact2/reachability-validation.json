@@ -1,0 +1,52 @@
+{
+  "helper_path": "scripts/dev/bigip-probes/name-patterns/report.py",
+  "helper_sha256": "92d6164179ada054c048920fe364c5fc0e002f06b792dcc971e58ad01e709e1b",
+  "scope": "Fixed checks used temporary review JSON and retained captures; no raw run/source/appliance mutation.",
+  "results": [
+    {
+      "case": "valid68binary source-qualified final operations",
+      "outcome": "accepted",
+      "reviewed_final_operations": 68
+    },
+    {
+      "case": "binary stack without explicit ASCII projection",
+      "outcome": "rejected",
+      "reason": "Reviewed stack requires a reversible text projection"
+    },
+    {
+      "case": "altered ASCII projection text",
+      "outcome": "rejected",
+      "reason": "Reviewed error stack text differs from bytes"
+    },
+    {
+      "case": "unobserved TMM identity",
+      "outcome": "rejected",
+      "reason": "Review requires one exact measurement identity"
+    },
+    {
+      "case": "altered raw chunk identity",
+      "outcome": "rejected",
+      "reason": "Reviewed raw row identity differs"
+    },
+    {
+      "case": "earlier stack line outside final operation range",
+      "outcome": "rejected",
+      "reason": "Review does not locate the authored final operation"
+    },
+    {
+      "case": "strict binary metadata schema",
+      "outcome": "available",
+      "original_encoding_preserved": true
+    },
+    {
+      "case": "binary metadata extra suffix",
+      "outcome": "unavailable",
+      "original_encoding_preserved": true
+    },
+    {
+      "case": "binary metadata non-ASCII byte",
+      "outcome": "unavailable",
+      "original_encoding_preserved": true
+    }
+  ]
+}

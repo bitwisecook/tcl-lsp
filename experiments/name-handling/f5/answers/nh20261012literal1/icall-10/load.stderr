@@ -1,0 +1,22 @@
+01070734:3: Configuration error: ERROR iCall Script - /Common/__tcl_lsp_probe_nh20261012literal1_2_10: set nh_options_available unavailable
+set nh_return_options {}
+set nh_invocation once
+set nh_unit "none"
+set nh_setup_code 0
+set nh_setup_result {}
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
+    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encode
+Unexpected Error: Loading configuration process failed.

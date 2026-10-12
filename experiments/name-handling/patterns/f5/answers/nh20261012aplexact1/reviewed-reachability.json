@@ -1,0 +1,669 @@
+{
+  "schema_version": 1,
+  "run_id": "nh20261012aplexact1",
+  "scope": "Independent source-derived reachability review for five final-operation errors in actual browser-selected APL callbacks. Input bytes, materialisation and raw complete errorInfo are hash-anchored; whole-program raw captures remain unchanged.",
+  "reviews": [
+    {
+      "identity": {
+        "case_id": "alias-prefix-lifetime",
+        "context": "iapp-apl",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "canonical_question_id": "naming.corpus-pattern.alias-prefix-lifetime",
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+        "sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+        "kind": "authored-portable-reduction"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/0/operation",
+        "value_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+        "original_bytes_equal": true
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "ownership_guard": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206465736372697074696f6e7d7d",
+        "meaning": "Run ownership and pre-existing-name checks only; this is separate from the original program setup prefix."
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d697422",
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d6974220a202020207768696c6520657865637574696e670a223a3a6e683a3a72656e616d6564207b6320647d220a2020202028226576616c2220626f6479206c696e652035290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"::nh::emit\"\n    while executing\n\"::nh::renamed {c d}\"\n    (\"eval\" body line 5)\n    invoked from within\n\"eval $nh_operation\""
+        }
+      },
+      "raw_capture_sources": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "rows": [
+            {
+              "line": 1,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c616c6961732d7072656669782d6c69666574696d657c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c366637373665363537323733363836393730326436373735363137323634323036353738363536333735373436393666366532643665363136643635373337303631363336353230336133613733363337323639373037343230363136323733363536653734323037623762366536313664363537333730363136333635326436313665363432643633366636643664363136653634323033613361366536383764323037623636373236313664363532643736363137323639363136323663363532303634363537333633373236393730373436393666366537643764",
+              "stage": "setup",
+              "field": "result",
+              "completion_code": 0,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206465736372697074696f6e7d7d"
+            },
+            {
+              "line": 2,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c616c6961732d7072656669782d6c69666574696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c363936653736363136633639363432303633366636643664363136653634323036653631366436353230323233613361366536383361336136353664363937343232",
+              "stage": "lookup",
+              "field": "result",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d697422"
+            },
+            {
+              "line": 3,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c616c6961732d7072656669782d6c69666574696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+              "stage": "lookup",
+              "field": "metadata",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+            },
+            {
+              "line": 4,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c616c6961732d7072656669782d6c69666574696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+              "stage": "lookup",
+              "field": "errorcode",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "4e4f4e45"
+            },
+            {
+              "line": 5,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c616c6961732d7072656669782d6c69666574696d657c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c317c3639366537363631366336393634323036333666366436643631366536343230366536313664363532303232336133613665363833613361363536643639373432323061323032303230323037373638363936633635323036353738363536333735373436393665363730613232336133613665363833613361373236353665363136643635363432303762363332303634376432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033353239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+              "stage": "lookup",
+              "field": "errorinfo",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d6974220a202020207768696c6520657865637574696e670a223a3a6e683a3a72656e616d6564207b6320647d220a2020202028226576616c2220626f6479206c696e652035290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "final_authored_operation": {
+        "lines": [
+          5,
+          5
+        ],
+        "text": "list $description [::nh::renamed {c d}]",
+        "failing_command": "::nh::renamed {c d}",
+        "eval_body_line": 5,
+        "error_in_substitution": true
+      },
+      "review": {
+        "intended_lookup_reached": true,
+        "original_setup_prefix_completed": true,
+        "canonical_final_lookup_supported": true,
+        "reason": "The byte-identical original program was evaluated sequentially. The complete recorded errorInfo names the failing command within the authored final operation and attributes it to that operation's line in eval $nh_operation. Reaching that line establishes that preceding authored top-level commands completed without propagating a nonzero completion. The code1/result belongs to evaluating the final operation, including its substitutions; it does not assert that the outer command was dispatched after an argument-substitution error.",
+        "limits": "Successful setup here means the original prefix completed, not that it created every expected binding. This source-derived reachability review does not replace raw evidence, rewrite the original question, classify semantic unsupported behaviour, or apply to another context/invocation."
+      }
+    },
+    {
+      "identity": {
+        "case_id": "computed-qualified",
+        "context": "iapp-apl",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "canonical_question_id": "naming.corpus-pattern.computed-qualified",
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+        "sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+        "kind": "authored-portable-reduction"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/2/operation",
+        "value_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+        "original_bytes_equal": true
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "ownership_guard": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206e737d207b6672616d652d7661726961626c6520686561647d7d",
+        "meaning": "Run ownership and pre-existing-name checks only; this is separate from the original program setup prefix."
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d697422",
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d6974220a202020207768696c6520657865637574696e670a222468656164220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"::nh::emit\"\n    while executing\n\"$head\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\""
+        }
+      },
+      "raw_capture_sources": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "line_numbers": [
+            13,
+            14,
+            15,
+            16,
+            17
+          ],
+          "rows": [
+            {
+              "line": 13,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c636f6d70757465642d7175616c69666965647c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c3666373736653635373237333638363937303264363737353631373236343230363537383635363337353734363936663665326436653631366436353733373036313633363532303361336137333633373236393730373432303631363237333635366537343230376237623665363136643635373337303631363336353264363136653634326436333666366436643631366536343230336133613665363837643230376236363732363136643635326437363631373236393631363236633635323036653733376432303762363637323631366436353264373636313732363936313632366336353230363836353631363437643764",
+              "stage": "setup",
+              "field": "result",
+              "completion_code": 0,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65206e737d207b6672616d652d7661726961626c6520686561647d7d"
+            },
+            {
+              "line": 14,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c636f6d70757465642d7175616c69666965647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c363936653736363136633639363432303633366636643664363136653634323036653631366436353230323233613361366536383361336136353664363937343232",
+              "stage": "lookup",
+              "field": "result",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d697422"
+            },
+            {
+              "line": 15,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c636f6d70757465642d7175616c69666965647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+              "stage": "lookup",
+              "field": "metadata",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+            },
+            {
+              "line": 16,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c636f6d70757465642d7175616c69666965647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+              "stage": "lookup",
+              "field": "errorcode",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "4e4f4e45"
+            },
+            {
+              "line": 17,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c636f6d70757465642d7175616c69666965647c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323361336136653638336133613635366436393734323230613230323032303230373736383639366336353230363537383635363337353734363936653637306132323234363836353631363432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033343239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+              "stage": "lookup",
+              "field": "errorinfo",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a656d6974220a202020207768696c6520657865637574696e670a222468656164220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "final_authored_operation": {
+        "lines": [
+          4,
+          4
+        ],
+        "text": "$head",
+        "failing_command": "$head",
+        "eval_body_line": 4,
+        "error_in_substitution": false
+      },
+      "review": {
+        "intended_lookup_reached": true,
+        "original_setup_prefix_completed": true,
+        "canonical_final_lookup_supported": true,
+        "reason": "The byte-identical original program was evaluated sequentially. The complete recorded errorInfo names the failing command within the authored final operation and attributes it to that operation's line in eval $nh_operation. Reaching that line establishes that preceding authored top-level commands completed without propagating a nonzero completion. The code1/result belongs to evaluating the final operation, including its substitutions; it does not assert that the outer command was dispatched after an argument-substitution error.",
+        "limits": "Successful setup here means the original prefix completed, not that it created every expected binding. This source-derived reachability review does not replace raw evidence, rewrite the original question, classify semantic unsupported behaviour, or apply to another context/invocation."
+      }
+    },
+    {
+      "identity": {
+        "case_id": "factory-body-near-miss",
+        "context": "iapp-apl",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "canonical_question_id": "naming.corpus-pattern.factory-body-near-miss",
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+        "sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+        "kind": "authored-portable-reduction"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/4/operation",
+        "value_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+        "original_bytes_equal": true
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "ownership_guard": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d",
+        "meaning": "Run ownership and pre-existing-name checks only; this is separate from the original program setup prefix."
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a72656422",
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a726564220a202020207768696c6520657865637574696e670a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"::nh::red\"\n    while executing\n\"::nh::red\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\""
+        }
+      },
+      "raw_capture_sources": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "line_numbers": [
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "rows": [
+            {
+              "line": 27,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c666163746f72792d626f64792d6e6561722d6d6973737c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c3666373736653635373237333638363937303264363737353631373236343230363537383635363337353734363936663665326436653631366436353733373036313633363532303361336137333633373236393730373432303631363237333635366537343230376237623665363136643635373337303631363336353264363136653634326436333666366436643631366536343230336133613665363837643764",
+              "stage": "setup",
+              "field": "result",
+              "completion_code": 0,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+            },
+            {
+              "line": 28,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c666163746f72792d626f64792d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323361336136653638336133613732363536343232",
+              "stage": "lookup",
+              "field": "result",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a72656422"
+            },
+            {
+              "line": 29,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c666163746f72792d626f64792d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+              "stage": "lookup",
+              "field": "metadata",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+            },
+            {
+              "line": 30,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c666163746f72792d626f64792d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+              "stage": "lookup",
+              "field": "errorcode",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "4e4f4e45"
+            },
+            {
+              "line": 31,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c666163746f72792d626f64792d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323361336136653638336133613732363536343232306132303230323032303737363836393663363532303635373836353633373537343639366536373061323233613361366536383361336137323635363432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033343239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+              "stage": "lookup",
+              "field": "errorinfo",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a726564220a202020207768696c6520657865637574696e670a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "final_authored_operation": {
+        "lines": [
+          4,
+          4
+        ],
+        "text": "::nh::red",
+        "failing_command": "::nh::red",
+        "eval_body_line": 4,
+        "error_in_substitution": false
+      },
+      "review": {
+        "intended_lookup_reached": true,
+        "original_setup_prefix_completed": true,
+        "canonical_final_lookup_supported": true,
+        "reason": "The byte-identical original program was evaluated sequentially. The complete recorded errorInfo names the failing command within the authored final operation and attributes it to that operation's line in eval $nh_operation. Reaching that line establishes that preceding authored top-level commands completed without propagating a nonzero completion. The code1/result belongs to evaluating the final operation, including its substitutions; it does not assert that the outer command was dispatched after an argument-substitution error.",
+        "limits": "Successful setup here means the original prefix completed, not that it created every expected binding. This source-derived reachability review does not replace raw evidence, rewrite the original question, classify semantic unsupported behaviour, or apply to another context/invocation."
+      }
+    },
+    {
+      "identity": {
+        "case_id": "finite-factory",
+        "context": "iapp-apl",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "canonical_question_id": "naming.corpus-pattern.finite-factory",
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+        "sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+        "kind": "authored-portable-reduction"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/5/operation",
+        "value_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+        "original_bytes_equal": true
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "ownership_guard": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d",
+        "meaning": "Run ownership and pre-existing-name checks only; this is separate from the original program setup prefix."
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a72656422",
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a726564220a202020207768696c6520657865637574696e670a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"::nh::red\"\n    while executing\n\"::nh::red\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\""
+        }
+      },
+      "raw_capture_sources": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "line_numbers": [
+            33,
+            34,
+            35,
+            36,
+            37
+          ],
+          "rows": [
+            {
+              "line": 33,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c66696e6974652d666163746f72797c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c3666373736653635373237333638363937303264363737353631373236343230363537383635363337353734363936663665326436653631366436353733373036313633363532303361336137333633373236393730373432303631363237333635366537343230376237623665363136643635373337303631363336353264363136653634326436333666366436643631366536343230336133613665363837643764",
+              "stage": "setup",
+              "field": "result",
+              "completion_code": 0,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d7d"
+            },
+            {
+              "line": 34,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c66696e6974652d666163746f72797c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323361336136653638336133613732363536343232",
+              "stage": "lookup",
+              "field": "result",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a72656422"
+            },
+            {
+              "line": 35,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c66696e6974652d666163746f72797c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+              "stage": "lookup",
+              "field": "metadata",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+            },
+            {
+              "line": 36,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c66696e6974652d666163746f72797c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+              "stage": "lookup",
+              "field": "errorcode",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "4e4f4e45"
+            },
+            {
+              "line": 37,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c66696e6974652d666163746f72797c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323361336136653638336133613732363536343232306132303230323032303737363836393663363532303635373836353633373537343639366536373061323233613361366536383361336137323635363432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033343239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+              "stage": "lookup",
+              "field": "errorinfo",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a726564220a202020207768696c6520657865637574696e670a223a3a6e683a3a726564220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "final_authored_operation": {
+        "lines": [
+          4,
+          4
+        ],
+        "text": "list [::nh::red] [::nh::blue]",
+        "failing_command": "::nh::red",
+        "eval_body_line": 4,
+        "error_in_substitution": true
+      },
+      "review": {
+        "intended_lookup_reached": true,
+        "original_setup_prefix_completed": true,
+        "canonical_final_lookup_supported": true,
+        "reason": "The byte-identical original program was evaluated sequentially. The complete recorded errorInfo names the failing command within the authored final operation and attributes it to that operation's line in eval $nh_operation. Reaching that line establishes that preceding authored top-level commands completed without propagating a nonzero completion. The code1/result belongs to evaluating the final operation, including its substitutions; it does not assert that the outer command was dispatched after an argument-substitution error.",
+        "limits": "Successful setup here means the original prefix completed, not that it created every expected binding. This source-derived reachability review does not replace raw evidence, rewrite the original question, classify semantic unsupported behaviour, or apply to another context/invocation."
+      }
+    },
+    {
+      "identity": {
+        "case_id": "string-prefix-near-miss",
+        "context": "iapp-apl",
+        "tmm_unit": null,
+        "invocation_id": "once",
+        "variant_id": "whole-portable-source-v1"
+      },
+      "canonical_question_id": "naming.corpus-pattern.string-prefix-near-miss",
+      "original_input": {
+        "path": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+        "sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+        "kind": "authored-portable-reduction"
+      },
+      "executed_operation": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-cases.json",
+        "sha256": "76f88a6051d271b65c083e71d9aac71a1da23598e0f715f4b726b03a47f4e29c",
+        "json_pointer": "/13/operation",
+        "value_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+        "original_bytes_equal": true
+      },
+      "actual_input": {
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/input.tcl",
+        "sha256": "1b0d59d29241b8613a2db637da0649c7013477377c287cd855716fc3f1fa7dc7"
+      },
+      "ownership_guard": {
+        "reached": true,
+        "completion_code": 0,
+        "result_encoding": "utf-8",
+        "result_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65207461726765747d7d",
+        "meaning": "Run ownership and pre-existing-name checks only; this is separate from the original program setup prefix."
+      },
+      "whole_program": {
+        "completion_code": 1,
+        "result_encoding": "utf-8",
+        "result_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f22",
+        "errorinfo": {
+          "encoding": "utf-8",
+          "hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f220a202020207768696c6520657865637574696e670a223a3a6e683a3a74776f20776f726473207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c202224746172676574207b6120627d207b6320647d22220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22",
+          "text": "invalid command name \"::nh::two\"\n    while executing\n\"::nh::two words {a b} {c d}\"\n    (\"eval\" body line 1)\n    invoked from within\n\"eval \"$target {a b} {c d}\"\"\n    (\"eval\" body line 4)\n    invoked from within\n\"eval $nh_operation\""
+        }
+      },
+      "raw_capture_sources": [
+        {
+          "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplexact1/iapp-apl-0/invoke.stdout",
+          "sha256": "e496f0f86c6ff7a676152f08cf9e380a08d08304c258a0962c0089cb6a3787bf",
+          "line_numbers": [
+            71,
+            72,
+            73,
+            74,
+            75,
+            76
+          ],
+          "rows": [
+            {
+              "line": 71,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c737472696e672d7072656669782d6e6561722d6d6973737c696170702d61706c7c73657475707c307c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c3666373736653635373237333638363937303264363737353631373236343230363537383635363337353734363936663665326436653631366436353733373036313633363532303361336137333633373236393730373432303631363237333635366537343230376237623665363136643635373337303631363336353264363136653634326436333666366436643631366536343230336133613665363837643230376236363732363136643635326437363631373236393631363236633635323037343631373236373635373437643764",
+              "stage": "setup",
+              "field": "result",
+              "completion_code": 0,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6f776e6572736869702d677561726420657865637574696f6e2d6e616d657370616365203a3a73637269707420616273656e74207b7b6e616d6573706163652d616e642d636f6d6d616e64203a3a6e687d207b6672616d652d7661726961626c65207461726765747d7d"
+            },
+            {
+              "line": 72,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c737472696e672d7072656669782d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c726573756c747c7574662d387c307c317c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323361336136653638336133613734373736663232",
+              "stage": "lookup",
+              "field": "result",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f22"
+            },
+            {
+              "line": 73,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c737472696e672d7072656669782d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6d657461646174617c7574662d387c307c317c363537323732366637323633366636343635326437303732363537333635366537343230333132303635373237323666373236393665363636663264373037323635373336353665373432303331323037323635373437353732366532643666373037343639366636653733323037353665363137363631363936633631363236633635",
+              "stage": "lookup",
+              "field": "metadata",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65"
+            },
+            {
+              "line": 74,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c737472696e672d7072656669782d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72636f64657c7574662d387c307c317c3465346634653435",
+              "stage": "lookup",
+              "field": "errorcode",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 1,
+              "chunk_hex": "4e4f4e45"
+            },
+            {
+              "line": 75,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c737472696e672d7072656669782d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c307c327c36393665373636313663363936343230363336663664366436313665363432303665363136643635323032323361336136653638336133613734373736663232306132303230323032303737363836393663363532303635373836353633373537343639366536373061323233613361366536383361336137343737366632303737366637323634373332303762363132303632376432303762363332303634376432323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033313239306132303230323032303639366537363666366236353634323036363732366636643230373736393734363836393665306132323635373636313663323032323234373436313732363736353734323037623631323036323764323037623633323036343764323232323061323032303230323032383232363537363631366332323230363236663634373932303663363936653635323033343239306132303230323032303639366537363666366236353634323036363732",
+              "stage": "lookup",
+              "field": "errorinfo",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 0,
+              "chunk_count": 2,
+              "chunk_hex": "696e76616c696420636f6d6d616e64206e616d6520223a3a6e683a3a74776f220a202020207768696c6520657865637574696e670a223a3a6e683a3a74776f20776f726473207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c202224746172676574207b6120627d207b6320647d22220a2020202028226576616c2220626f6479206c696e652034290a20202020696e766f6b6564206672"
+            },
+            {
+              "line": 76,
+              "line_hex": "4e484f7c6e68323032363130313261706c6578616374317c737472696e672d7072656669782d6e6561722d6d6973737c696170702d61706c7c6c6f6f6b75707c317c6e6f6e657c6f6e63657c6572726f72696e666f7c7574662d387c317c327c366636643230373736393734363836393665306132323635373636313663323032343665363835663666373036353732363137343639366636653232",
+              "stage": "lookup",
+              "field": "errorinfo",
+              "completion_code": 1,
+              "encoding": "utf-8",
+              "chunk_index": 1,
+              "chunk_count": 2,
+              "chunk_hex": "6f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22"
+            }
+          ]
+        }
+      ],
+      "final_authored_operation": {
+        "lines": [
+          4,
+          4
+        ],
+        "text": "eval \"$target {a b} {c d}\"",
+        "failing_command": "::nh::two words {a b} {c d}",
+        "eval_body_line": 4,
+        "error_in_substitution": false
+      },
+      "review": {
+        "intended_lookup_reached": true,
+        "original_setup_prefix_completed": true,
+        "canonical_final_lookup_supported": true,
+        "reason": "The byte-identical original program was evaluated sequentially. The complete recorded errorInfo names the failing command within the authored final operation and attributes it to that operation's line in eval $nh_operation. Reaching that line establishes that preceding authored top-level commands completed without propagating a nonzero completion. The code1/result belongs to evaluating the final operation, including its substitutions; it does not assert that the outer command was dispatched after an argument-substitution error.",
+        "limits": "Successful setup here means the original prefix completed, not that it created every expected binding. This source-derived reachability review does not replace raw evidence, rewrite the original question, classify semantic unsupported behaviour, or apply to another context/invocation."
+      }
+    }
+  ]
+}

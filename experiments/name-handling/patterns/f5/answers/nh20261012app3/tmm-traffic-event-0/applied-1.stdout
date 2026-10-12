@@ -1,0 +1,3 @@
+ltm rule __tcl_lsp_probe_nh20261012app3_2_other {
+proc target {fixed value} {list OTHER $fixed $value}
+}

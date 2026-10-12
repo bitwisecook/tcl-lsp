@@ -4,14 +4,26 @@
 44 canonical questions, plus five appliance-specific questions from two
 pinned public rule-call sites. Each question records CLI, iApp implementation,
 TMM `RULE_INIT`, TMM procedure, traffic event, appliance stock tclsh, iCall and
-APL separately. All 400 context rows are `not-tested`: there is no accepted
-exact-case F5 answer for this bundle. A null `reached` means no measurement;
-it does not mean an observed failure to reach the case.
+APL separately. Accepted original-source answers and measured attempts are distinct
+in the [current matrix](questions.json). The [hosted review](answers/hosted-original-source-review.md),
+[stock corpus review](answers/stock-original-source-review.md) and
+[stock Wiki review](answers/stock-wiki-review.md) identify exact accepted inputs
+and primary pointers. `attempt_record` retains measured guard/setup/program
+boundaries while `answer_record` remains null when the original final lookup
+is unreached or its reachability is unproved. Related adapted controls have
+independent variant scope.
+
+Returned adapted controls, original-source review candidates and remaining
+questions are indexed in [the answer directory](answers/README.md) and its
+[coverage snapshot](answers/nh20261012coverage2/answers.md). The snapshot links
+individual units/invocations and preserves load, setup and lookup boundaries;
+it does not silently promote a related variant into an original matrix row.
+The current snapshot retains the reviewed original-source matrix and later bounded controls. [Historical snapshot 1](answers/nh20261012coverage1/answers.md) remains unchanged and predates those updates.
 
 Use the [main request](../../f5/REQUEST.md),
 [answer protocol](../../f5/ANSWER-TEMPLATE.md), and
 [isolated appliance infrastructure](../../../../scripts/dev/bigip-probes/README.md).
-Return answer documents and raw inputs/results to this directory's
+Literal loader controls and actual APL callbacks have separate [retained reports](answers/README.md); dynamic source evaluation does not stand in for literal acceptance. Return answer documents and raw inputs/results to this directory's
 [answers](answers/README.md) on branch `work`. The appliance chat owns actual
 execution; this bundle contains no appliance runner or deployment instruction.
 
@@ -41,6 +53,18 @@ rule under an assumption that an unexecuted branch or `catch` avoids the loader.
 Keep literal load controls separate from dynamically constructed command/script
 controls. A dynamic variant has different source bytes and must be retained.
 
+The prepared `campaign.py --exact-hosted` mode keeps original operation bytes
+and names, guards their absence, and retains each whole-source wrapper. CLI,
+iApp implementation and iCall are defaults; TMM `RULE_INIT`, procedure and
+traffic are explicitly selectable. TMM setup and original source travel as
+retained ASCII hex decoded with `binary format H*` and evaluated in the actual
+host frame. This dynamic source channel supplies no literal iRule loader
+answer. Each case is a separate configuration job, and runtime cleanup deletes
+only exact original names whose absence was proved before execution. Missing
+guard capabilities, collisions or Wiki package failure leave the source
+unreached. A traffic request supplies its own unit/invocation receipt, not a
+claim that every TMM executed.
+
 An iRule load result is independent of `RULE_INIT` or a reached traffic event.
 For a TMM procedure record its invoking event or `RULE_INIT`, caller/provider
 rule identities and exact `call` route. A CLI wrapper's execution namespace,
@@ -65,7 +89,7 @@ and error options in separate fields. Mark unavailable error options explicitly.
 The [answer template](answer-template.md) includes an individual machine-readable
 record shape. Add immutable run directories rather than overwriting prior
 answers. Update only the answered question/context's `answer_record` pointer
-and status in `questions.json`; contradictory measurements remain separate.
+and status; retain non-answering measured attempts in a separate `attempt_record` in `questions.json`; contradictory measurements remain separate.
 Before promoting a canonical provider answer, verify exact question, original
 input/wrapper hashes, version, context, load and reached operation. A successful
 reduction cannot establish corpus prevalence or static recogniser coverage.
@@ -86,4 +110,4 @@ answer the bundle's exact portable cases or its unmaterialised variants.
 
 The existing controls report BIG-IP 21.1.0.1 build 0.0.26, Point Release 1 in
 their explicitly recorded contexts. Do not extrapolate to another build,
-context or source. C Tcl and Jim observations supply no F5 answer.
+context or source. Desktop C Tcl and Jim observations supply no F5 answer.

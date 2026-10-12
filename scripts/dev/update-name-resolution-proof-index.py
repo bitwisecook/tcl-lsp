@@ -78,7 +78,7 @@ def render(record):
         ("Conclusion", "conclusion"),
         ("Scope", "scope"),
     ]:
-        text += f"## {heading}\n\n{record[field]}\n\n"
+        text += f"## {heading}\n\n{record[field].rstrip()}\n\n"
     text += "## Provider answers\n\n"
     for provider in record["providers"]:
         text += f"### {provider['id']}\n\nStatus: `{provider['status']}`. Version: {provider['version']}. Build: {provider['build']}. Channel: {provider['input_channel']}. Dialect: {provider['dialect']}.\n\n{provider['answer']}\n\n"

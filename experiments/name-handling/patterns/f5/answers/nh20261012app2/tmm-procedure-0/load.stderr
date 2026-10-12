@@ -1,0 +1,3 @@
+01070151:3: Rule [/Common/__tcl_lsp_probe_nh20261012app2_1_provider] error: /Common/__tcl_lsp_probe_nh20261012app2_1_provider:2: error: [command is disabled: "namespace"][namespace current]
+
+Unexpected Error: Loading configuration process failed.

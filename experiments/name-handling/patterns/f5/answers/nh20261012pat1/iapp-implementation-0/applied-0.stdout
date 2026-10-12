@@ -1,0 +1,1275 @@
+sys application template __tcl_lsp_probe_nh20261012pat1_3_0 {
+    actions {
+        definition {
+            html-help {
+            }
+            implementation {
+                set nh_unit "none"
+set nh_invocation once
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d65207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d65207b70726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d7d0a696e7465727020616c696173207b7d203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a6c6f63616c207b7d203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a656d6974207b6120627d0a72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a6c6f63616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a72656e616d65640a736574206465736372697074696f6e205b696e7465727020616c696173207b7d203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a6c6f63616c5d0a]
+set nh_operation [binary format H* 6c69737420246465736372697074696f6e205b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a72656e616d6564207b6320647d5d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d655d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d657d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e207b70726f6320656d6974207b7d207b72657475726e2066697273747d7d0a736574206e73203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e0a736574206865616420247b6e737d3a3a656d69740a72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e3a3a656d6974203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e3a3a6f6c640a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e3a3a656d6974207b7d207b72657475726e207265706c6163656d656e747d0a]
+set nh_operation [binary format H* 24686561640a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e5d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e7d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c6966696564207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c6966696564207b70726f6320656d6974207b7d207b72657475726e2066697273747d7d0a736574206e73203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c69666965640a736574206865616420247b6e737d3a3a656d69740a]
+set nh_operation [binary format H* 24686561640a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|computed-qualified|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|computed-qualified|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c69666965645d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c69666965647d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|computed-qualified|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d6170207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d6170207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a202020206e616d65737061636520656e73656d626c6520637265617465202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d61703a3a656d6974207b6120627d5d5d0a7d0a]
+set nh_operation [binary format H* 3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d61703a3a6661636164652073656e64207b6320647d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d61705d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d61707d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d697373207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d697373207b0a20202020666f7265616368206e616d65207b72656420626c75657d207b70726f6320246e616d65207b7d207b72657475726e20246e616d657d7d0a7d0a]
+set nh_operation [binary format H* 3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d6973733a3a7265640a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d6973735d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d6973737d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f7279207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f7279207b0a20202020666f7265616368206e616d65207b72656420626c75657d207b70726f6320246e616d65207b7d205b6c6973742072657475726e20246e616d655d7d0a7d0a]
+set nh_operation [binary format H* 6c697374205b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f72793a3a7265645d205b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f72793a3a626c75655d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|finite-factory|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|finite-factory|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f72795d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f72797d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|finite-factory|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f77726170706572207b7d0a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f666f7277617264207b7072656669787d207b75706c6576656c203120247072656669787d0a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6368616e6765207b6e616d657d207b7570766172203120246e616d652063656c6c3b207365742063656c6c206368616e6765647d0a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6f75746572207b7d207b0a20202020736574207b6120627d206f726967696e616c0a202020203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f666f7277617264205b6c697374203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6368616e6765207b6120627d5d0a20202020736574207b6120627d0a7d0a]
+set nh_operation [binary format H* 3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6f757465720a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|frame-wrapper|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|frame-wrapper|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f666f72776172645d5d7d207b72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f666f7277617264207b7d7d0a6966207b5b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6368616e67655d5d7d207b72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6368616e6765207b7d7d0a6966207b5b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6f757465725d5d7d207b72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6f75746572207b7d7d0a6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065727d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|frame-wrapper|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d697373207b7d0a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f666f7277617264207b7072656669787d207b6576616c20247072656669787d0a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6368616e6765207b6e616d657d207b7570766172203120246e616d652063656c6c3b207365742063656c6c206368616e6765647d0a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6f75746572207b7d207b0a20202020736574207b6120627d206f726967696e616c0a202020203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f666f7277617264205b6c697374203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6368616e6765207b6120627d5d0a20202020736574207b6120627d0a7d0a]
+set nh_operation [binary format H* 3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6f757465720a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|frame-wrapper-near-miss|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|frame-wrapper-near-miss|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f666f72776172645d5d7d207b72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f666f7277617264207b7d7d0a6966207b5b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6368616e67655d5d7d207b72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6368616e6765207b7d7d0a6966207b5b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6f757465725d5d7d207b72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735f6f75746572207b7d7d0a6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973735d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6672616d655f777261707065725f6e6561725f6d6973737d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|frame-wrapper-near-miss|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b207b0a20202020736574207b73746174652e6120622876616c7565297d206f726967696e616c0a2020202070726f63206368616e6765207b6e616d657d207b0a20202020202020207570766172203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b3a3a246e616d652073746174650a20202020202020207365742073746174652876616c756529206368616e6765640a202020207d0a7d0a3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b3a3a6368616e6765207b73746174652e6120627d0a]
+set nh_operation [binary format H* 736574207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b3a3a73746174652e6120622876616c7565297d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b5d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b7d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f707265666978207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f707265666978207b7d0a70726f63207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f7072656669783a3a74776f20776f7264737d207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a73657420746172676574207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f7072656669783a3a74776f20776f7264737d0a73657420707265666978205b6c6973742024746172676574207b6120627d5d0a]
+set nh_operation [binary format H* 6576616c205b6c696e73657274202470726566697820656e64207b6320647d5d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|list-prefix|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|list-prefix|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f7072656669785d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f7072656669787d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|list-prefix|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f707265666978207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f707265666978207b0a2020202070726f63205f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669785f656d6974207b76616c756520617267737d207b6c697374206c6f63616c202476616c75652024617267737d0a2020202073657420707265666978205b6e616d65737061636520636f6465205b6c697374205f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669785f656d6974207b6120627d5d5d0a7d0a70726f63203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669785f656d6974207b617267737d207b72657475726e20676c6f62616c7d0a]
+set nh_operation [binary format H* 6576616c205b6c696e7365727420243a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669783a3a70726566697820656e64207b6320647d5d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6c6c656e677468205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669785f656d69745d5d7d207b72656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669785f656d6974207b7d7d0a6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669785d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669787d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f7072656669785f64656c657465645f6e6561725f6d697373207b7d0a756e736574202d6e6f636f6d706c61696e206f626a6563740a6f6f3a3a636c61737320637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f7072656669785f64656c657465645f6e6561725f6d6973733a3a436c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d0a736574206f626a656374205b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f7072656669785f64656c657465645f6e6561725f6d6973733a3a436c617373206e65775d0a73657420707265666978205b246f626a656374207072656669785d0a246f626a6563742064657374726f790a6361746368207b6576616c20247072656669787d20726573756c740a]
+set nh_operation [binary format H* 737472696e67206d61746368207b696e76616c696420636f6d6d616e64206e616d65202a7d2024726573756c740a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b696e666f20657869737473206f626a6563745d7d207b6361746368207b246f626a6563742064657374726f797d7d0a6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f7072656669785f64656c657465645f6e6561725f6d6973735d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f7072656669785f64656c657465645f6e6561725f6d6973737d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f73656c665f707265666978207b7d0a756e736574202d6e6f636f6d706c61696e206f626a6563740a6f6f3a3a636c61737320637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f73656c665f7072656669783a3a436c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b73656c665d20656d6974207b6120627d7d0a7d0a736574206f626a656374205b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f73656c665f7072656669783a3a436c617373206e65775d0a]
+set nh_operation [binary format H* 6576616c205b246f626a656374207072656669785d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b696e666f20657869737473206f626a6563745d7d207b6361746368207b246f626a6563742064657374726f797d7d0a6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f73656c665f7072656669785d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f73656c665f7072656669787d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d697373207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d697373207b7d0a70726f63207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973733a3a74776f20776f7264737d207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a73657420746172676574207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973733a3a74776f20776f7264737d0a]
+set nh_operation [binary format H* 6576616c202224746172676574207b6120627d207b6320647d220a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973735d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973737d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f74636c746573745f7368617265645f6c6966656379636c65207b7d0a7061636b61676520726571756972652074636c746573740a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f74636c746573745f7368617265645f6c6966656379636c65207b0a202020206e616d65737061636520696d706f7274203a3a74636c746573743a3a2a0a20202020736574206f62736572766564207b7d0a2020202074657374206e616d652d636f727075732d31207b7d202d7365747570207b0a2020202020202020736574207061796c6f6164207b6120627d0a202020207d202d626f6479207b0a20202020202020206c617070656e64206f62736572766564205b736574207061796c6f61645d0a202020207d202d636c65616e7570207b0a20202020202020206c617070656e64206f62736572766564205b736574207061796c6f61645d0a2020202020202020756e736574207061796c6f61640a202020207d202d726573756c74207b7b6120627d7d0a7d0a]
+set nh_operation [binary format H* 6c69737420243a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f74636c746573745f7368617265645f6c6966656379636c653a3a6f62736572766564205b696e666f20657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f74636c746573745f7368617265645f6c6966656379636c653a3a7061796c6f61645d0a]
+set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_setup_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+if {$nh_setup_code == 0} {
+set nh_code [catch {eval $nh_operation} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+}
+set nh_cleanup [binary format H* 6966207b5b6e616d65737061636520657869737473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f74636c746573745f7368617265645f6c6966656379636c655d7d207b6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f74636c746573745f7368617265645f6c6966656379636c657d0a]
+set nh_code [catch {eval $nh_cleanup} nh_result]
+
+set nh_ec {}
+set nh_ei {}
+set nh_ec_present 0
+set nh_ei_present 0
+if {$nh_code == 1} {
+    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
+    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
+}
+foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
+    if {$nh_field != "result" && $nh_code != 1} {continue}
+    set nh_encoding utf-8
+    set nh_encoder encoding
+    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
+        set nh_encoded $nh_value
+        set nh_encoding binary-scan-tcl-value
+    }
+    binary scan $nh_encoded H* nh_hex
+    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
+    if {$nh_chunks == 0} {set nh_chunks 1}
+    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
+        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
+        puts "NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
+    }
+}
+            }
+            macro {
+            }
+            presentation {
+            }
+            role-acl none
+            run-as none
+        }
+    }
+    description none
+    ignore-verification false
+    partition Common
+    prerequisite-errors none
+    requires-bigip-version-max none
+    requires-bigip-version-min none
+    requires-modules none
+    signing-key none
+    tmpl-checksum none
+    tmpl-signature none
+    total-signing-status not-all-signed
+    verification-status none
+}

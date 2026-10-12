@@ -1,0 +1,141 @@
+- link "Log out":
+  - /url: "#"
+- generic: Hostname
+- text: bigip.bitwisecook.org
+- generic: IP Address
+- text: 192.168.9.24
+- generic: Date
+- text: Oct 12, 2026
+- generic: Time
+- text: 10:18 AM (PDT)
+- generic: User
+- link "admin":
+  - /url: /tmui/Control/jspmap/tmui/system/user/properties.jsp?name=admin
+- generic: Role
+- text: Administrator
+- generic: Session ID24108022713127
+- text: "Partition:"
+- combobox [disabled]:
+  - option "Common" [selected]
+  - option "All [Read Only]"
+- link "F5 Logo":
+  - /url: "#"
+  - img "F5 Logo"
+- generic "Current Redundancy State":
+  - link "ONLINE":
+    - /url: /tmui/Control/jspmap/tmui/devmgmt/device/properties.jsp?name=/Common/bigip1
+  - text: (
+  - link "ACTIVE":
+    - /url: /tmui/tmui/locallb/network/traffic_group/app/index.html#!/traffic_group/~Common~traffic-group-1
+  - text: )
+- generic "Current ConfigSync State":
+  - link "Standalone":
+    - /url: /tmui/Control/jspmap/tmui/devmgmt/device_trust/local_domain.jsp
+- list:
+  - link "Main":
+    - /url: "#"
+  - link "Help":
+    - /url: "#"
+  - link "About":
+    - /url: "#"
+- link "iApps":
+  - /url: "#"
+- text: ››
+- 'link "Application Services : Applications"':
+  - /url: /tmui/Control/jspmap/tmui/application/list.jsp
+- text: ›› New Application Service...
+- link "Statistics":
+  - /url: "#"
+- link "iApps":
+  - /url: "#"
+- list:
+  - link "Application Services":
+    - /url: /tmui/Control/jspmap/tmui/application/list.jsp
+  - link "Templates":
+    - /url: /tmui/Control/jspmap/tmui/application_template/list.jsp
+  - link "Package Management LX":
+    - /url: /restui/blocks/#!/packages?_bufvalue=sQI9I8AFsY5uzr%2F4feIjw8%2Bjozs%3D&_timenow=Mon+Oct+12+10%3A17%3A54+PDT+2026
+- link "Wizards":
+  - /url: "#"
+- link "DNS":
+  - /url: "#"
+- link "Local Traffic":
+  - /url: "#"
+- link "Traffic Intelligence":
+  - /url: "#"
+- link "Acceleration":
+  - /url: "#"
+- link "Access":
+  - /url: "#"
+- link "Device Management":
+  - /url: "#"
+- link "Shared Objects":
+  - /url: "#"
+- link "Security":
+  - /url: "#"
+- link "Distributed Cloud Services":
+  - /url: "#"
+- link "Network":
+  - /url: "#"
+- link "System":
+  - /url: "#"
+- iframe [active] [id="contentframe"] [name="contentframe"]:
+  - button "Submit"
+  - table:
+    - rowgroup:
+      - 'row "Template Selection: Basic"':
+        - 'cell "Template Selection: Basic"':
+          - generic: "Template Selection:"
+          - combobox [active]:
+            - option "Basic" [selected]
+            - option "Advanced"
+    - rowgroup
+    - rowgroup:
+      - row "Name":
+        - cell "Name"
+        - cell:
+          - textbox
+      - row "Template __tcl_lsp_probe_nh20261012aplnsowner1 Show deprecated templates":
+        - cell "Template"
+        - cell "__tcl_lsp_probe_nh20261012aplnsowner1 Show deprecated templates":
+          - combobox:
+            - option "None - Do not use a template"
+            - option "__tcl_lsp_probe_nh20261012aplnsowner1" [selected]
+            - option "f5.ibd"
+          - checkbox
+          - text: Show deprecated templates
+  - table:
+    - rowgroup:
+      - row "probe":
+        - cell "probe":
+          - generic: probe
+    - rowgroup:
+      - row "result0 NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|setup|0|none|once|result|utf-8|0|2|616273656e7420657865637574696f6e2d6e616d657370616365203a3a7363726970742063616e64696461746573207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574203a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574203a":
+        - cell "result0"
+        - cell "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|setup|0|none|once|result|utf-8|0|2|616273656e7420657865637574696f6e2d6e616d657370616365203a3a7363726970742063616e64696461746573207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574203a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574203a":
+          - combobox:
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|setup|0|none|once|result|utf-8|0|2|616273656e7420657865637574696f6e2d6e616d657370616365203a3a7363726970742063616e64696461746573207b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574203a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574203a" [selected]
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|setup|0|none|once|result|utf-8|1|2|3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f7461726765747d"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|lookup|0|none|once|result|utf-8|0|5|657865637574696f6e2d6e616d657370616365203a3a73637269707420696e736964652d6e616d657370616365203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f6e616d65737061636520646566696e6974696f6e73207b7b68656164203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|lookup|0|none|once|result|utf-8|1|5|6572315f74617267657420636f6d6d616e6473207b7d2070726f6373207b7d20696e766f636174696f6e2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574227d20626f64792031207b223a3a5f5f74636c5f6c73705f70726f62655f6e683230323631"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|lookup|0|none|once|result|utf-8|2|5|30313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574222069736e277420612070726f6365647572657d7d207b68656164203a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f74617267657420636f6d6d616e6473207b7d2070726f6373207b7d20696e766f636174696f6e2031207b696e76616c696420636f6d6d"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|lookup|0|none|once|result|utf-8|3|5|616e64206e616d6520223a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574227d20626f64792031207b223a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574222069736e277420612070726f6365647572657d7d207b68656164203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f7461"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|lookup|0|none|once|result|utf-8|4|5|7267657420636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f7461726765742070726f6373203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f74617267657420696e766f636174696f6e20302054415247455420626f64792030207b72657475726e205441524745547d7d7d"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|runtime-cleanup|0|none|once|result|utf-8|0|4|6e616d65737061636520302063616e64696461746573207b7b68656164203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f74617267657420636f6d6d616e6473207b7d2070726f6373207b7d20696e766f636174696f6e2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f6265"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|runtime-cleanup|0|none|once|result|utf-8|1|4|5f6e68323032363130313261706c6e736f776e6572315f6e616d6573706163653a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574227d7d207b68656164203a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f74617267657420636f6d6d616e6473207b7d2070726f6373207b7d20696e766f636174696f6e2031207b696e76616c696420636f6d6d616e64206e616d652022"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|runtime-cleanup|0|none|once|result|utf-8|2|4|3a3a7363726970743a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f746172676574227d7d207b68656164203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e736f776e6572315f74617267657420636f6d6d616e6473207b7d2070726f6373207b7d20696e766f636174696f6e2031207b696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313261706c6e"
+            - option "NHO|nh20261012aplnsowner1|namespace-definition-owner|iapp-apl|runtime-cleanup|0|none|once|result|utf-8|3|4|736f776e6572315f746172676574227d7d7d"
+      - row "result1 NHO|nh20261012aplnsowner1|version|iapp-apl|setup|0|none|once|result|utf-8|0|1|":
+        - cell "result1"
+        - cell "NHO|nh20261012aplnsowner1|version|iapp-apl|setup|0|none|once|result|utf-8|0|1|":
+          - combobox:
+            - option "NHO|nh20261012aplnsowner1|version|iapp-apl|setup|0|none|once|result|utf-8|0|1|" [selected]
+            - option "NHO|nh20261012aplnsowner1|version|iapp-apl|lookup|0|none|once|result|utf-8|0|1|382e342e3620382e34203a3a736372697074"
+            - option "NHO|nh20261012aplnsowner1|version|iapp-apl|runtime-cleanup|0|none|once|result|utf-8|0|1|30207b7d"
+  - table:
+    - rowgroup:
+      - row "Cancel Repeat Finished":
+        - cell "Cancel Repeat Finished":
+          - button "Cancel"
+          - button "Repeat"
+          - button "Finished"

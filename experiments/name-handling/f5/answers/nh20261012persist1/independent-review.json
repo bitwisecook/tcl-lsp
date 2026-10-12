@@ -1,0 +1,29 @@
+{
+  "actual_capture_run_id": "nh20261012persist1",
+  "checks": {
+    "verified_descriptor_files": 190,
+    "verified_raw_rows": 830,
+    "verified_records": 287,
+    "verified_alias_files": 8,
+    "verified_config_absence_receipts": 11,
+    "verified_keepalive_peer_rows": 11,
+    "verified_mutation_phase_reads": 6
+  },
+  "source_records_sha256": "bc1121d920aca505c25d388334ad24842d311e14c41b34a0f823d8b659561a24",
+  "selected_proofs": 95,
+  "selection": "All actual RULE_INIT identities; every init-procedure identity; HTTP native baseline invocation 0 and after mutations 8; all paired worker/connection state observations. Alias copies are one execution, not independent runs.",
+  "text_projection": "ASCII byte projection for retained binary-scan values; original encoding unchanged.",
+  "peer_ports": {
+    "keep-candidate-0": "51992",
+    "keep-candidate-1": "51993",
+    "keep-a-write": "51992",
+    "keep-b-read": "51993",
+    "keep-a-read": "51992",
+    "keep-worker-write": "51992",
+    "keep-worker-written": "51993",
+    "keep-worker-unset": "51992",
+    "keep-worker-missing": "51993",
+    "keep-worker-recreate": "51992",
+    "keep-worker-recreated": "51993"
+  }
+}
