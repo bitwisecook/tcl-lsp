@@ -114,13 +114,15 @@ impl<'a> SourceContext<'a> {
         }
         let metadata =
             crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
-        metadata.permits_logical_source_names().then_some(Self {
-            registry,
-            metadata,
-            config: module.lexer_config,
-            image: &module.source,
-            retained: module.retained_source_bindings.as_deref()?,
-        })
+        (module.original_invocation_source_purpose(registry, metadata)?
+            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            .then_some(Self {
+                registry,
+                metadata,
+                config: module.lexer_config,
+                image: &module.source,
+                retained: module.retained_source_bindings.as_deref()?,
+            })
     }
 
     pub(super) fn matches_procedure(self, procedure: &Procedure) -> bool {
@@ -833,6 +835,74 @@ mod tests {
             "[list a]",
             &registry,
             u32::MAX / 2
+        ));
+    }
+    #[test]
+    fn actual_jim_module_purpose_cannot_open_a_logical_inline_frame() {
+        // naming.optimisation.original-source-purpose
+        // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
+        let source = "proc p {x} {return $x}; p VALUE";
+        // Actual software Vm entry; no external Jim/provider execution.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let native = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &native.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            native
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        assert!(SourceContext::for_module(&native.ir_module, registry).is_none());
+        // Same assistance input, independently retained Logical source driver.
+        let input = metadata.source_analysis_input().unwrap();
+        let logical_entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&logical_entry),
+            std::sync::Arc::clone(&context),
+        );
+        let selected = SourceContext::for_module(&logical.ir_module, registry).unwrap();
+        assert!(reads_only_bound_names(
+            &logical.ir_module.procedures["::p"],
+            selected
         ));
     }
 }

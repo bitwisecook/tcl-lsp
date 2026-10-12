@@ -447,7 +447,13 @@ fn classify_write(
     {
         return None;
     }
-    let invocation = if semantics.metadata.permits_logical_source_names() {
+    let purpose = binding.original_invocation_source_purpose(
+        tokens,
+        semantics.metadata,
+        semantics.registry,
+    )?;
+    let invocation = if purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+    {
         crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
             semantics.registry,
             semantics.metadata,
@@ -483,9 +489,7 @@ fn classify_write(
                 .effective
                 .argument_literal(index, semantics.config.escapes, rules)
                 .or_else(|| {
-                    semantics
-                        .metadata
-                        .permits_logical_source_names()
+                    (purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
                         .then_some(())?;
                     semantics
                         .lattice
@@ -542,6 +546,11 @@ fn try_fold_chain_at(
     let stmts = &script.statements;
     let original = script.retained_source_tokens_for_statement(&stmts[start])?;
     let write = classify_write(original, semantics, stmts[start].span())?;
+    let logical = original
+        .source_binding
+        .as_ref()?
+        .original_invocation_source_purpose(original, semantics.metadata, semantics.registry)?
+        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
     let absent = !matches!(write, Write::Set { .. })
         && semantics
             .lattice
@@ -656,7 +665,7 @@ fn try_fold_chain_at(
     );
     // A selected Native layout is source advice; no chain result/erasure
     // owner has certified changing its original objects or intermediate writes.
-    fold.hint_only = !semantics.metadata.permits_logical_source_names();
+    fold.hint_only = !logical;
     fold.group = Some(group);
     ctx.report(fold);
 
@@ -665,7 +674,7 @@ fn try_fold_chain_at(
         let next_start = stmts.get(w + 1).map(|s| s.span().start() as usize);
         let del_span = statement_delete_rewrite_range(source, full, next_start);
         let mut del = Optimisation::new(code, dead_msg, del_span, "");
-        del.hint_only = !semantics.metadata.permits_logical_source_names();
+        del.hint_only = !logical;
         del.group = Some(group);
         ctx.report(del);
     }
@@ -1319,5 +1328,127 @@ mod tests {
             opts.iter().all(|o| o.code != DiagCode::O130),
             "dynamic trace target must block every chain fold, got {opts:?}",
         );
+    }
+    #[test]
+    fn actual_jim_chain_advice_cannot_become_a_logical_rewrite() {
+        // naming.optimisation.original-source-purpose
+        // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
+        let source = "set s {}; append s FIRST; append s SECOND";
+        // Actual software Vm entry; no external Jim/provider execution.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let native = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &native.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            native
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        assert!(
+            run_unit(&native, registry)
+                .iter()
+                .all(|advice| advice.hint_only)
+        );
+        // Same assistance input, independently retained Logical source driver.
+        let input = metadata.source_analysis_input().unwrap();
+        let logical_entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&logical_entry),
+            std::sync::Arc::clone(&context),
+        );
+        let advice = run_unit(&logical, registry);
+        assert!(!advice.is_empty());
+        assert!(advice.iter().all(|advice| !advice.hint_only));
+    }
+    #[test]
+    fn retained_authored_simulation_chain_layout_stays_hint_only() {
+        // naming.optimisation.original-source-purpose
+        // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
+        // Actual authored source entry/policy; no supplied Native interpreter.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let policy = tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0),
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            execution_name_policy: Some(policy),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "set s {}; append s FIRST; append s SECOND",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert_eq!(
+            unit.ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation)
+        );
+        let advice = run_unit(&unit, registry);
+        assert!(!advice.is_empty());
+        assert!(advice.iter().all(|advice| advice.hint_only));
     }
 }

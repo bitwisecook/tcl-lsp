@@ -1236,6 +1236,16 @@ impl InvocationSemantics<'_, '_> {
     }
 }
 
+/// One selected source-declaration local and its optional preceding read slot.
+/// These argument positions grant no frame selection, variable link or store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredSourceScopeAliasArgument {
+    /// Effective post-head argument naming the local declaration.
+    pub local: usize,
+    /// Adjacent selected VarRead ordinal, without an alias-target grant.
+    pub preceding_read: Option<usize>,
+}
+
 /// A command invocation resolved to target-neutral registry semantics.
 ///
 /// The structure retains caller word facts while exposing canonical names and
@@ -3733,6 +3743,56 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 Vec::new()
             },
         )
+    }
+
+    /// Scope-alias declaration positions from this selected descriptor and
+    /// its complete authored roles. Adjacent read positions remain role metadata;
+    /// command names, native links and successful frame entry are not inferred.
+    #[must_use]
+    pub fn authored_source_scope_alias_arguments(
+        &self,
+    ) -> Option<Vec<AuthoredSourceScopeAliasArgument>> {
+        if !matches!(
+            self.subcommand,
+            SubcommandResolution::NotApplicable
+                | SubcommandResolution::Exact(_)
+                | SubcommandResolution::UniquePrefix(_)
+        ) {
+            return None;
+        }
+        if !self.semantics.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
+            return Some(Vec::new());
+        }
+        let count = self.words.arguments().exact_argv_len()?;
+        let (roles, complete) = self.authored_source_argument_roles();
+        if !complete {
+            return None;
+        }
+        roles
+            .iter()
+            .filter(|(_, role)| *role == ArgRole::VarWrite)
+            .map(|(index, _)| {
+                let local = self
+                    .semantics
+                    .argument_offset
+                    .checked_add(usize::from(*index))?;
+                if local >= count {
+                    return None;
+                }
+                let preceding_read = index
+                    .checked_sub(1)
+                    .filter(|previous| roles.contains(&(*previous, ArgRole::VarRead)))
+                    .and_then(|previous| {
+                        self.semantics
+                            .argument_offset
+                            .checked_add(usize::from(previous))
+                    });
+                Some(AuthoredSourceScopeAliasArgument {
+                    local,
+                    preceding_read,
+                })
+            })
+            .collect()
     }
 
     /// Expression roles and whole-tail grammar from the already selected
@@ -10164,5 +10224,48 @@ impl ResolvedInvocation<'_, '_> {
                 arguments: first..count,
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod scope_alias_metadata_tests {
+    use crate::CommandRegistry;
+    #[test]
+    fn selected_scope_alias_positions_keep_complete_roles_and_effective_ordinals() {
+        // naming.analysis.selected-scope-alias-role-metadata
+        // docs/design/analysis/name-resolution-proofs/selected-scope-alias-role-metadata.md
+        // Selected authored descriptor positions only; no native link or frame.
+        let registry = CommandRegistry::build_default();
+        let query = Some(tcl_dialect::model::SurfaceQuery::core(
+            tcl_dialect::model::Family::Tcl,
+            "9.0",
+        ));
+        for (head, args, expected) in [
+            ("global", vec!["g", "h"], vec![(0, None), (1, None)]),
+            (
+                "variable",
+                vec!["name", "VALUE", "other"],
+                vec![(0, None), (2, None)],
+            ),
+            ("upvar", vec!["1", "source", "local"], vec![(2, Some(1))]),
+            (
+                "namespace",
+                vec!["upvar", "ns", "source", "local"],
+                vec![(3, Some(2))],
+            ),
+            ("my", vec!["variable", "local"], vec![(1, None)]),
+            ("puts", vec!["VALUE"], vec![]),
+        ] {
+            let selected = registry.resolve_invocation(head, &args, query).unwrap();
+            let positions = selected.authored_source_scope_alias_arguments().unwrap();
+            assert_eq!(
+                positions
+                    .into_iter()
+                    .map(|position| (position.local, position.preceding_read))
+                    .collect::<Vec<_>>(),
+                expected,
+                "{head}"
+            );
+        }
     }
 }

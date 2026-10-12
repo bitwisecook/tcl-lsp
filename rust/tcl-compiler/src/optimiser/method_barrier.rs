@@ -367,6 +367,8 @@ fn dispatch_metadata<'a>(
 ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
     if module.source_metadata_input.is_none()
         && module.source_entry.metadata_context.is_standalone()
+        && module.source_entry.native_entry.is_none()
+        && !module.source_entry.unknown_entry
     {
         module
             .source_entry
@@ -525,18 +527,28 @@ fn classify_tokens(
             }
             _ if target.registry_backed => {
                 let metadata = env.metadata.flatten();
-                let invocation = if let Some(metadata) =
-                    metadata.filter(|metadata| metadata.permits_logical_source_names())
-                {
-                    crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
-                        env.registry, metadata, tokens,
-                    )
-                } else {
-                    crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
-                        env.registry,
-                        metadata,
-                        tokens,
-                    )
+                let invocation = match metadata {
+                    Some(metadata) => match binding.original_invocation_source_purpose(
+                        tokens, metadata, env.registry,
+                    ) {
+                        Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical) =>
+                            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                                env.registry, metadata, tokens,
+                            ),
+                        Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution
+                            | crate::command_binding::OriginalInvocationSourcePurpose::Standalone
+                        | crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation) =>
+                            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                                env.registry, Some(metadata), tokens,
+                            ),
+                        None => None,
+                    },
+                    None if matches!(env.metadata, Some(None)) =>
+                        // The unprofiled standalone owner has no supplied receiver.
+                        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                            env.registry, None, tokens,
+                        ),
+                    None => None,
                 };
                 let Some(invocation) = invocation else {
                     facts.anywhere = true;
@@ -820,5 +832,76 @@ mod tests {
         }
         module.source_metadata_input = None;
         assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+    }
+    #[test]
+    fn actual_jim_dispatch_purpose_preserves_unknown_reachability() {
+        // naming.optimisation.original-source-purpose
+        // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
+        let source = "proc helper {} {dict create key value}";
+        // Actual software Vm entry; no external Jim/provider execution.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let native = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &native.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            native
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        let components = std::collections::HashMap::new();
+        assert!(
+            super::proc_dispatch_facts(&native.ir_module, registry, &components)["::helper"]
+                .anywhere
+        );
+        // Same assistance input, independently retained Logical source driver.
+        let input = metadata.source_analysis_input().unwrap();
+        let logical_entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&logical_entry),
+            std::sync::Arc::clone(&context),
+        );
+        assert!(
+            !super::proc_dispatch_facts(&logical.ir_module, registry, &components)["::helper"]
+                .anywhere
+        );
     }
 }

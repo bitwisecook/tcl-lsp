@@ -514,8 +514,66 @@ fn expr_call_type(
 /// than take the command's nominal (`String`) return type — otherwise a
 /// use-site / merge shimmer check fires on a nominally-`String`-typed
 /// alias.
+#[cfg(test)]
 fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String]) -> bool {
     crate::var_scoping::is_scope_alias_call(registry, command, args)
+}
+
+/// Widening advice from the same original selected invocation. Missing or
+/// foreign metadata supplies no effect-free alias declaration or nominal type.
+fn original_scope_alias_call(
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    statement: &Statement,
+) -> Option<bool> {
+    let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
+    let Statement::Call {
+        command,
+        canonical_command,
+        args,
+        tokens,
+        ..
+    } = statement
+    else {
+        return Some(false);
+    };
+    // Explicit standalone source compatibility carries no Native receiver.
+    if metadata.is_standalone()
+        && tokens
+            .as_ref()
+            .is_none_or(|tokens| tokens.source_binding.is_none())
+    {
+        return Some(crate::var_scoping::is_scope_alias_call(
+            registry,
+            canonical_command.as_deref().unwrap_or(command),
+            args,
+        ));
+    }
+    let tokens = tokens.as_ref()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let purpose = binding.original_invocation_source_purpose(tokens, metadata, registry)?;
+    let selected = match purpose {
+        crate::command_binding::OriginalInvocationSourcePurpose::Logical => {
+            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+        }
+        crate::command_binding::OriginalInvocationSourcePurpose::Execution
+        | crate::command_binding::OriginalInvocationSourcePurpose::Standalone
+        | crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation => {
+            crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens,
+            )
+        }
+    }?;
+    Some(
+        selected
+            .facts
+            .traits
+            .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS),
+    )
 }
 
 /// Retain executable type provenance only when no widening fact owns the key.
@@ -2544,18 +2602,10 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
             Statement::Barrier { .. } | Statement::NativeCall { .. } => {
                 DefTyping::Uniform(TypeLattice::overdefined())
             }
-            Statement::Call {
-                command,
-                canonical_command,
-                args,
-                defs,
-                ..
-            } if !defs.is_empty()
-                && is_scope_alias_call(
-                    ctx.registry,
-                    canonical_command.as_deref().unwrap_or(command),
-                    args,
-                ) =>
+            Statement::Call { defs, .. }
+                if !defs.is_empty()
+                    && original_scope_alias_call(ctx.registry, ctx.context, stmt)
+                        != Some(false) =>
             {
                 DefTyping::Uniform(TypeLattice::overdefined())
             }
@@ -5196,5 +5246,113 @@ mod reported_namespace_tests {
         ] {
             assert_eq!(function_namespace(qname), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod scope_alias_metadata_tests {
+    use crate::ir::Statement;
+    #[test]
+    fn original_alias_type_widening_requires_the_actual_invocation_and_input() {
+        // naming.analysis.selected-scope-alias-role-metadata
+        // docs/design/analysis/name-resolution-proofs/selected-scope-alias-role-metadata.md
+        // Genuine compiled source carriers; values/links and actual execution remain separate.
+        let source = "interp alias {} selectedGlobal {} global; selectedGlobal original";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        let module = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        )
+        .ir_module;
+        let registry = context.commands();
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, &module)
+                .unwrap();
+        let statement = module.top_level.statements.iter()
+            .find(|statement| matches!(statement, Statement::Call { command, .. } if command == "selectedGlobal"))
+            .expect("original Logical aliased invocation");
+        assert_eq!(
+            super::original_scope_alias_call(registry, Some(metadata), statement),
+            Some(true)
+        );
+        assert!(super::original_scope_alias_call(registry, None, statement).is_none());
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4");
+        assert!(
+            super::original_scope_alias_call(registry, Some(older.into()), statement).is_none()
+        );
+        let mut missing = statement.clone();
+        missing.tokens_mut().unwrap().source_binding = None;
+        assert!(super::original_scope_alias_call(registry, Some(metadata), &missing).is_none());
+        let mut changed = statement.clone();
+        changed.tokens_mut().unwrap().word_exprs.pop();
+        assert!(super::original_scope_alias_call(registry, Some(metadata), &changed).is_none());
+    }
+    #[test]
+    fn native_jim_alias_metadata_cannot_use_raw_logical_name_eligibility() {
+        // naming.analysis.selected-scope-alias-role-metadata
+        // docs/design/analysis/name-resolution-proofs/selected-scope-alias-role-metadata.md
+        // Real software entry and original source only; no external Jim execution.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            "global imported",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &unit.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        let statement = unit.ir_module.top_level.statements.first().unwrap();
+        let tokens = statement.tokens().unwrap();
+        assert_eq!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_invocation_source_purpose(tokens, metadata, registry,),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        assert!(super::original_scope_alias_call(registry, Some(metadata), statement).is_none());
     }
 }

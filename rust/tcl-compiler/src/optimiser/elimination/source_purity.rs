@@ -53,7 +53,12 @@ fn logical_procedure_is_pure(tokens: &CommandTokens, purity: PurityCtx<'_>) -> b
     else {
         return false;
     };
-    if !metadata.permits_logical_source_names() {
+    if tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.original_invocation_source_purpose(tokens, metadata, registry))
+        != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+    {
         return false;
     }
     let Some(calls) = crate::registry_invocation::original_logical_procedure_calls_for_module(
@@ -310,5 +315,101 @@ mod tests {
             context.commands(),
             &summary
         ));
+    }
+    #[test]
+    fn actual_jim_procedure_purity_does_not_borrow_logical_summary() {
+        // naming.optimisation.original-source-purpose
+        // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
+        let source = "proc pure {x} {return $x}; pure VALUE";
+        // Actual software Vm entry; no external Jim/provider execution.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let native = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &native.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            native
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        let pure = HashSet::from(["::pure".to_owned()]);
+        let statement = native.ir_module.top_level.statements.last().unwrap();
+        let tokens = native
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let purity = PurityCtx {
+            registry: Some(registry),
+            metadata: Some(metadata),
+            module: Some(&native.ir_module),
+            interproc_pure: &pure,
+            config: native.top_level.source_lexer_config(),
+        };
+        assert!(!logical_procedure_is_pure(tokens, purity));
+        // Same assistance input, independently retained Logical source driver.
+        let input = metadata.source_analysis_input().unwrap();
+        let logical_entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&logical_entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &logical.ir_module,
+        )
+        .unwrap();
+        let statement = logical.ir_module.top_level.statements.last().unwrap();
+        let tokens = logical
+            .ir_module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let purity = PurityCtx {
+            registry: Some(registry),
+            metadata: Some(metadata),
+            module: Some(&logical.ir_module),
+            interproc_pure: &pure,
+            config: logical.top_level.source_lexer_config(),
+        };
+        assert!(logical_procedure_is_pure(tokens, purity));
     }
 }

@@ -4177,7 +4177,10 @@ A supplied Native entry retains Execution purpose even when its raw assistance
 input permits Logical naming, as Jim does without a Native name protocol.
 Execution purpose grants no dispatch, handler entry, compilation or trace
 absence. Logical spelling advice requires the actual retained Logical source
-owner; Standalone requires the original explicit tagged owner. Missing purpose
+owner; Standalone requires the original explicit tagged owner. AuthoredSimulation
+requires the same retained entry/state and an explicitly retained naming policy
+whose authority is AuthoredSimulation; it remains software source advice and
+supplies no Native dispatch, admission or trace absence. Missing purpose
 declines without selecting from a profile or repairing from availability.
 
 Implicit descriptor-only operations have no actual invocation receiver and
@@ -4188,3 +4191,25 @@ this observer check. Explicit authored compatibility joins its original source
 metadata before using its separate spelling model. Constructed procedure keys
 remove exactly one root marker. Wasm mutation trust receives the exact selected
 descriptor label and retains its independent binding and mutation owner.
+
+
+Selected scope-alias source positions come from the resolved descriptor's
+scope-alias trait and complete authored argument roles. Effective VarWrite
+ordinals and immediately preceding VarRead ordinals remain role metadata;
+they do not identify a target cell, successful link, frame or variable contents.
+The authored Registry helpers preserve its exact descriptor lookup/root fallback
+and apply their lexical static-name filter after selection. Actual type widening
+uses the complete original invocation, input and retained purpose before the
+selected traits; missing or foreign ownership widens instead of issuing a
+nominal type from a reporting name.
+
+Logical inline-frame eligibility, procedure-purity fallback, source lattice
+constant substitution, executable chain advice and raise assistance require the
+original retained Logical purpose. A Native entry remains Execution even when
+its raw Jim assistance input permits Logical names. Original checked Native and
+AuthoredSimulation layouts remain source hints and keep their independent
+handler/layout owners. Method reachability uses that same actual invocation
+purpose; an unavailable selected branch remains unbounded. Explicit unprofiled
+Standalone dispatch compatibility stays separately tagged and cannot repair a
+supplied missing or Native entry. Source geometry and metadata do not confer a
+splice, erasure, cell, observer, dispatch or completion proof.

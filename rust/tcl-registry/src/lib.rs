@@ -193,6 +193,7 @@ pub mod native_unset_options;
 pub mod native_upvar_compilation;
 pub mod native_vwait;
 pub use native_try::{NativeTryClauseArgument, NativeTryClauseFailure};
+mod command_descriptor_key;
 pub mod native_regex;
 pub mod native_usage;
 pub mod native_variable_destruction;
@@ -214,7 +215,6 @@ pub mod remote_method;
 pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
-mod command_descriptor_key;
 pub use command_descriptor_key::CanonicalCommandDescriptorKey;
 pub mod result_stability;
 pub mod return_type;
@@ -468,11 +468,11 @@ pub use resolved_invocation::{
     AuthoredSourceCredentialArgument, AuthoredSourceCredentialPosition, AuthoredSourceDescriptors,
     AuthoredSourceExpressionArguments, AuthoredSourceLambdaCall, AuthoredSourceOption,
     AuthoredSourceOptionArguments, AuthoredSourceOptionBoundary, AuthoredSourceOptionRelationships,
-    AuthoredSourceOptionScan, AuthoredSourceProcedureArguments, AuthoredSourceSubcommandDiagnostic,
-    InvocationArgumentCount, InvocationFacts, InvocationOptions, InvocationResolutionUnresolved,
-    InvocationSemantics, NamedObjectFactory, OwnedSubcommandResolution, ResolvedForm,
-    ResolvedInvocation, ResolvedSubcommand, StructuredInvocationResolution, SubcommandResolution,
-    SubcommandResolutionKind,
+    AuthoredSourceOptionScan, AuthoredSourceProcedureArguments, AuthoredSourceScopeAliasArgument,
+    AuthoredSourceSubcommandDiagnostic, InvocationArgumentCount, InvocationFacts,
+    InvocationOptions, InvocationResolutionUnresolved, InvocationSemantics, NamedObjectFactory,
+    OwnedSubcommandResolution, ResolvedForm, ResolvedInvocation, ResolvedSubcommand,
+    StructuredInvocationResolution, SubcommandResolution, SubcommandResolutionKind,
 };
 pub use result_stability::ResultStability;
 pub use runtime_backing::{BodySource, RuntimeBacking};

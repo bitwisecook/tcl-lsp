@@ -138,18 +138,15 @@ pub fn is_scope_alias_call(
     command: &str,
     args: &[String],
 ) -> bool {
-    let Some(spec) = registry.get(command) else {
-        return false;
-    };
-    if spec
-        .traits
-        .contains(tcl_registry::prelude::Traits::CREATES_SCOPE_ALIAS)
-    {
-        return true;
-    }
-    args.first()
-        .and_then(|sub| spec.resolve_subcommand(sub))
-        .is_some_and(|sub| sub.creates_scope_alias)
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry
+        .resolve_invocation(command, &refs, registry.own_surface_query())
+        .is_some_and(|selected| {
+            selected
+                .semantics
+                .traits
+                .contains(tcl_registry::prelude::Traits::CREATES_SCOPE_ALIAS)
+        })
 }
 
 /// Indices (into `args`) of the variable names a scope-alias command binds
@@ -166,7 +163,7 @@ pub fn scope_alias_local_indices(
     if !is_scope_alias_call(registry, command, args) {
         return Vec::new();
     }
-    registry_role_indices(registry, command.trim_start_matches(':'), args)
+    registry_role_indices(registry, command, args)
         .into_iter()
         .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
         .collect()
@@ -186,8 +183,7 @@ pub fn global_scope_alias_local_indices(
     command: &str,
     args: &[String],
 ) -> Vec<usize> {
-    let canonical = command.trim_start_matches(':');
-    let Some(spec) = registry.get(canonical) else {
+    let Some(spec) = registry.get(command) else {
         return Vec::new();
     };
     if !spec
@@ -196,7 +192,7 @@ pub fn global_scope_alias_local_indices(
     {
         return Vec::new();
     }
-    registry_role_indices(registry, canonical, args)
+    registry_role_indices(registry, spec.name, args)
         .into_iter()
         .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
         .collect()
@@ -223,21 +219,24 @@ pub fn scope_alias_declaration_indices(
     if !is_scope_alias_call(registry, command, args) {
         return Vec::new();
     }
-    let canonical = command.trim_start_matches(':');
-    registry_role_indices(registry, canonical, args)
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some(selected) = registry.resolve_invocation(command, &refs, registry.own_surface_query())
+    else {
+        return Vec::new();
+    };
+    let Some(positions) = selected.authored_source_scope_alias_arguments() else {
+        return Vec::new();
+    };
+    positions
         .into_iter()
-        .filter(|&i| {
-            if args.get(i).is_none_or(|a| a.starts_with('$')) {
-                return false;
-            }
-            match canonical {
-                "upvar" => i > 0 && args.get(i - 1).is_some_and(|a| !a.starts_with('$')),
-                "namespace" | "namespace upvar" => {
-                    i > 0 && args.get(i - 1).is_some_and(|a| !a.starts_with('$'))
-                }
-                _ => true,
-            }
+        .filter(|position| {
+            args.get(position.local)
+                .is_some_and(|name| !name.starts_with('$'))
+                && position.preceding_read.is_none_or(|source| {
+                    args.get(source).is_some_and(|name| !name.starts_with('$'))
+                })
         })
+        .map(|position| position.local)
         .collect()
 }
 
@@ -522,5 +521,45 @@ mod tests {
                 "{dialect}"
             );
         }
+    }
+
+    #[test]
+    fn selected_alias_metadata_keeps_registry_root_fallback_and_source_read_filters() {
+        // naming.analysis.selected-scope-alias-role-metadata
+        // docs/design/analysis/name-resolution-proofs/selected-scope-alias-role-metadata.md
+        // Exact authored Registry descriptor query; no native qualified-name test.
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        assert_eq!(
+            global_scope_alias_local_indices(registry, "::global", &v(&["g"])),
+            [0]
+        );
+        assert!(global_scope_alias_local_indices(registry, ":global", &v(&["g"])).is_empty());
+        assert!(global_scope_alias_local_indices(registry, "::::global", &v(&["g"])).is_empty());
+        assert_eq!(
+            scope_alias_declaration_indices(registry, "upvar", &v(&["1", "source", "local"])),
+            [2]
+        );
+        assert!(
+            scope_alias_declaration_indices(registry, "upvar", &v(&["1", "$source", "local"]))
+                .is_empty()
+        );
+        assert_eq!(
+            scope_alias_declaration_indices(
+                registry,
+                "variable",
+                &v(&["first", "$value", "other"])
+            ),
+            [0, 2]
+        );
+        assert!(is_scope_alias_call(
+            registry,
+            "my",
+            &v(&["variable", "local"])
+        ));
+        assert!(!is_scope_alias_call(
+            registry,
+            "my",
+            &v(&["touch", "local"])
+        ));
     }
 }

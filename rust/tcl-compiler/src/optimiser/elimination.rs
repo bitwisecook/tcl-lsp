@@ -369,9 +369,13 @@ impl<'a> RaiseProof<'a> {
             |module| fu.invocation_metadata_context_for_module(registry, module),
         );
         let logical_source_assistance = metadata.is_some()
-            && fu.source_metadata_input().is_some_and(
-                crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
-            );
+            && ctx.ir_module.is_some_and(|module| {
+                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                    .and_then(|metadata| {
+                        module.original_invocation_source_purpose(registry, metadata)
+                    })
+                    == Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+            });
         Self {
             fu,
             metadata_available: metadata.is_some(),
@@ -2792,5 +2796,84 @@ mod tests {
         assert!(dead(
             "proc foo {} { puts hi }\nset x 1\nfoo\nset x 2\nputs $x\n"
         ));
+    }
+    #[test]
+    fn actual_jim_raise_proof_cannot_use_raw_logical_assistance() {
+        // naming.optimisation.original-source-purpose
+        // docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md
+        let source = "set value VALUE; set copy $value";
+        // Actual software Vm entry; no external Jim/provider execution.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let native = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &native.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            native
+                .ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        let mut context_native =
+            PassContext::new(&native.source, InterproceduralAnalysis::default());
+        context_native.registry = Some(registry);
+        context_native.ir_module = Some(&native.ir_module);
+        let proof = RaiseProof::new(&context_native, &native.top_level, None);
+        assert!(proof.metadata_available);
+        assert!(!proof.logical_source_assistance);
+        // Same assistance input, independently retained Logical source driver.
+        let input = metadata.source_analysis_input().unwrap();
+        let logical_entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(input).unwrap();
+        let logical = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&logical_entry),
+            std::sync::Arc::clone(&context),
+        );
+        let mut context_logical =
+            PassContext::new(&logical.source, InterproceduralAnalysis::default());
+        context_logical.registry = Some(registry);
+        context_logical.ir_module = Some(&logical.ir_module);
+        let proof = RaiseProof::new(&context_logical, &logical.top_level, None);
+        assert!(proof.metadata_available);
+        assert!(proof.logical_source_assistance);
+        context_logical.ir_module = None;
+        let proof = RaiseProof::new(&context_logical, &logical.top_level, None);
+        assert!(!proof.logical_source_assistance);
     }
 }

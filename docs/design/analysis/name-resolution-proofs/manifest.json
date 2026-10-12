@@ -593022,6 +593022,664 @@
         "command": [],
         "limitations": "Six source-defined fixed software controls permit later owned-executable reconfirmation. No assertion outcome or external C/Jim/BIG-IP process is attached; metadata geometry cannot certify Native namespace/command lookup."
       }
+    },
+    {
+      "id": "naming.analysis.selected-scope-alias-role-metadata",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/selected-scope-alias-role-metadata.md",
+      "problem_statement": "Scope-alias consumers can repeat command/subcommand policy or strip arbitrary root punctuation before querying the Registry. A type-widening caller can also use a command reporting label while losing the original selected invocation and source owner.",
+      "question": "How do selected scope-alias traits and complete effective argument-role positions share the Registry owner, and how does actual type widening retain the original invocation/input/purpose without deriving a variable link or Native authority from a descriptor name?",
+      "conclusion": "ResolvedInvocation exposes selected scope-alias local VarWrite positions and optional adjacent VarRead positions only after complete authored role/cardinality and selector checks. The adjacent position is role metadata, not an alias target. Authored public helpers use the Registry descriptor/root fallback and apply static source filters after selection; they carry no original Native operands. The sole production alias recogniser in type propagation joins the original tokens, complete source input and binding-owned Execution, Logical, Standalone or AuthoredSimulation purpose before reading selected traits. Logical uses its separate source owner; the other purposes require their existing checked selected invocation. Missing, changed or foreign ownership returns unavailable and widens relevant Call definitions. Explicit tokenless/unbound Standalone compatibility stays separately labelled. Fixed controls cover selected global/variable/upvar/namespace/my effective ordinals, lexical source-read filters, Registry descriptor root fallback, a real Logical aliased call and missing/foreign/changed original carriers, plus a held real Jim software entry whose raw Logical eligibility cannot select Logical policy. These are unexecuted software source definitions; no external Native/provider result is attached.",
+      "scope": "Finite Registry selected-role query, public authored var_scoping helpers and the actual type-infer Call widening consumer. Argument positions and traits do not prove a completed alias, target cell, selected frame, physical contents, successful completion, optimisation equivalence or Native execution. The three public declaration-position helpers have no production callers in the current source; this contract does not claim a Native bypass in them or whole type soundness.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "External tcl8.4 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "External tcl8.5 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "External tcl8.6 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "External tcl9.0 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "External tcl9.1 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "External jim results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "External bigip results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "selected-scope-alias-role-metadata-source-0",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "sha256": "eb570751f7f0465ffcbab002f3458533ddcef010fc670e25dee540014fadfb32",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-1",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "sha256": "2aa9e5f263a7e3b4816beb7925dfd8df0e12144f69af66aa7d9df8cea07e115f",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-2",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "sha256": "914ceb69a4e2ab42af4b0ac99ede3a8c3374fc7743090488fe29b7cf0126e181",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-3",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "sha256": "812947b77edb4b2f1fcd13b6a7b46f4bf737838abedea5c1f4f1ac1c77324cd7",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-4",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/environment_ingress.rs",
+          "sha256": "bf9d288a2a0f7f5d664a4f6b83b548238f138be994920ee2c47544e1db4310b7",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-5",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/inlining/frame.rs",
+          "sha256": "1134b72f2d9460108479113de8b2b9c91b33fefac410ec1ebb1b438d49a955ff",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-6",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/inlining/mod.rs",
+          "sha256": "d65b2d7f142c6c46beaab76082c0bb523c0362b57bd5ca049500d027742652a7",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-7",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/ir.rs",
+          "sha256": "141881e65e31d98be82d0b384d67a4e6a75da110503351d8c53d53df506c8b5b",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-8",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/lib.rs",
+          "sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-9",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+          "sha256": "37d28f1e1afcf2a981099b668be459eff67356cf084c63f068b370bfd328532a",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-10",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+          "sha256": "a5a2f76dde3ee81e20a76cda3fcb50753736bccbfa1669f8f1b7f198d6490935",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-11",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs",
+          "sha256": "117909b1c52fd15aadb818a693a52534a61f9d72c30cf4212e7e09e4036f94f0",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-12",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs",
+          "sha256": "f6728a143b66ce3eeb5b9b31bf7c5442b2201234e4fced91cf914ffcc11a18d0",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-13",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+          "sha256": "83faed96f49ebc8e385578f2f27d850d68ab389300fabfebb5aaacd2d77f7932",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-14",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "sha256": "4c78580ab0c59db1246b98162fb5e44e12559b35c5aaf3d6a134a257583f69f1",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-15",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "sha256": "63d24e95ece5ed55bbb1c1589174b2f71cdd1e17197cdc4e660369a149a48a27",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-16",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+          "sha256": "d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-17",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs",
+          "sha256": "bb50fb19ef6a215cd9e062e08cffdcdbcaa16e42490e847ebdf5d63c0caf0494",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-18",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/type_infer.rs",
+          "sha256": "236668647bc9dfd600de45bd4edb77acc9086c13cde394638370a4a63e239333",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-19",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/var_scoping.rs",
+          "sha256": "136cba927762e19de34f24ce3fd501990712bd4b1cb12412e026e27c632735c4",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-20",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/invocation_words.rs",
+          "sha256": "a29147645f597d20cd3246b75a3d2affa3eb0f82b082d8969230b3920dc0ce5c",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-21",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/lib.rs",
+          "sha256": "51e694f4609dd94828b00d3cac9d9aff73d723d97677e9cb537aa573f5b2e593",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-22",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/registry.rs",
+          "sha256": "e1a5885d0e0e8a312240f35f283f618a32f794a6c4d80490607deaf67fe33d4a",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-23",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "sha256": "a83d715a322d2d1b852d1271c2c1182183117bf5e0b7b5e766d0f1e72065fffd",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-24",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/traits.rs",
+          "sha256": "40770443520ebe20297a4b5aa53990b7ca84fad11fc1fbce2e91fd05b2d31d11",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "selected-scope-alias-role-metadata-source-25",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-compiler/src/type_infer.rs",
+          "selector": "type_infer::scope_alias_metadata_tests::original_alias_type_widening_requires_the_actual_invocation_and_input",
+          "status": "linked",
+          "assertion": "The original selectedGlobal aliased call under a genuine Logical source driver reports the selected scope-alias trait. Missing metadata, foreign availability, withdrawn binding or a truncated original structured word vector makes the query unavailable. The separate production Call consumer widens unavailable definitions; this body asserts the query boundary, not a complete type/Native alias result."
+        },
+        {
+          "path": "rust/tcl-compiler/src/type_infer.rs",
+          "selector": "type_infer::scope_alias_metadata_tests::native_jim_alias_metadata_cannot_use_raw_logical_name_eligibility",
+          "status": "linked",
+          "assertion": "A held real Jim software entry supplies no Native name policy, while its raw assistance metadata permits Logical names. The actual global call binding still issues Execution purpose and its unavailable checked alias-metadata query cannot take the Logical path. No physical alias link, current frame/cell/value or external Jim execution is asserted."
+        },
+        {
+          "path": "rust/tcl-compiler/src/var_scoping.rs",
+          "selector": "var_scoping::tests::selected_alias_metadata_keeps_registry_root_fallback_and_source_read_filters",
+          "status": "linked",
+          "assertion": "Authored Registry descriptor lookup accepts ::global and declines :global/::::global without a Native QName claim. Selected upvar source-read filters reject the dynamic source, variable value words do not remove unrelated local declarations, and my variable versus my touch follows the selected alias trait. No Native command lookup or completed link is asserted."
+        },
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "selector": "resolved_invocation::scope_alias_metadata_tests::selected_scope_alias_positions_keep_complete_roles_and_effective_ordinals",
+          "status": "linked",
+          "assertion": "Actual selected authored global/variable/upvar/namespace upvar/my variable/puts descriptors yield the fixed complete effective local VarWrite ordinals and optional preceding VarRead ordinals, including compound offsets. These are selected role positions only; the body supplies no alias-target identity, native link or frame."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "symbol": "authored_source_scope_alias_arguments",
+          "purpose": "Selected complete role/cardinality projection; positions only, no target/link."
+        },
+        {
+          "path": "rust/tcl-compiler/src/var_scoping.rs",
+          "symbol": "scope_alias_declaration_indices",
+          "purpose": "Authored Registry selection followed by lexical static-name filters; no Native lookup."
+        },
+        {
+          "path": "rust/tcl-compiler/src/type_infer.rs",
+          "symbol": "original_scope_alias_call",
+          "purpose": "Actual original vector/input/binding purpose and selected traits; unavailable widens."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "symbol": "original_invocation_source_purpose",
+          "purpose": "Shared request-purpose issuer after complete original binding/input/source checks; no execution grant."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Fixed source-defined software controls permit later owned-executable reconfirmation. No assertion outcome or external C/Jim/BIG-IP process is attached. Retained purpose and metadata do not certify physical namespace/command lookup, callback absence or executable rewrite equivalence."
+      }
+    },
+    {
+      "id": "naming.optimisation.original-source-purpose",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/optimisation-original-source-purpose.md",
+      "problem_statement": "A raw analysis-input Logical naming flag can be true for a held Native Jim entry. Choosing Logical optimisation policy from that flag can bypass the actual retained source purpose, and the same shortcut can appear in an alternate has_logical_source_name_context predicate.",
+      "question": "How do actual inline-frame, substitution/procedure purity, chain layout/constant/rewrite, raise-assistance and method-reachability consumers distinguish the retained original Execution, Logical, Standalone and AuthoredSimulation purposes while preserving separately checked source advice?",
+      "conclusion": "The shared binding query joins the complete original vector, source input, Registry, source instance and frame before projecting purpose; the Module sibling owns implicit entry selection. Inline-frame eligibility reads the actual Module Logical purpose. Procedure-purity fallback, chain selected-layout branch and source lattice constant substitution use the original call purpose. Chain executable advice requires Logical; checked Native and AuthoredSimulation source layouts remain hints. Raise assistance requires same actual function metadata plus the retained Module Logical purpose, while its independent folded and normal-completion proofs remain separate. Method classification uses the actual binding purpose before selecting its source versus checked invocation; unknown purpose widens reachability. Its unprofiled Standalone route remains explicit and refuses supplied Native or unknown entries. Genuine fixed software controls capture and retain a real Jim Vm entry, establish its raw Logical eligibility and actual Execution purpose, and independently build a Logical source driver from the same input. They define checks at each actual consumer. A separate explicit AuthoredSimulation entry defines a checked layout remaining hint-only. No assertions or external provider executions are attached.",
+      "scope": "Finite original-purpose policy ports in inlining/frame, elimination/source_purity, elimination RaiseProof, chain_fold and method_barrier. Source geometry, retained purpose and selected descriptors do not grant Native handler/admission, frame/cell/value, trace absence, splice/erasure, completion or general optimisation soundness. Existing independent value, RHS, source, cell, observer, method-target and rewrite guards remain required. Hierarchy relation resolution and dispatch-world contents/name ledgers are separate owners, not certified by this question.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "External tcl8.4 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "External tcl8.5 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "External tcl8.6 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "External tcl9.0 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "External tcl9.1 results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "External jim results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "No external provider execution is attached to this source contract.",
+          "build": "Selected Registry and original whole-source software producer/control definitions only.",
+          "input_channel": "Source-only selected metadata, actual retained entry/binding/vector and fixed authored or held-VM software controls.",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "External bigip results are not tested here. The source-defined held-Jim software controls and explicit Logical/AuthoredSimulation drivers attach no external provider result, assertion outcome, Native frame/cell/value, dispatch, trace absence or executable rewrite proof. Independently recorded Native naming and BIG-IP/TMM evidence remains separately scoped.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "original-source-purpose-source-0",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "sha256": "eb570751f7f0465ffcbab002f3458533ddcef010fc670e25dee540014fadfb32",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-1",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "sha256": "2aa9e5f263a7e3b4816beb7925dfd8df0e12144f69af66aa7d9df8cea07e115f",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-2",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "sha256": "914ceb69a4e2ab42af4b0ac99ede3a8c3374fc7743090488fe29b7cf0126e181",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-3",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/compilation_unit.rs",
+          "sha256": "812947b77edb4b2f1fcd13b6a7b46f4bf737838abedea5c1f4f1ac1c77324cd7",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-4",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/environment_ingress.rs",
+          "sha256": "bf9d288a2a0f7f5d664a4f6b83b548238f138be994920ee2c47544e1db4310b7",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-5",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/inlining/frame.rs",
+          "sha256": "1134b72f2d9460108479113de8b2b9c91b33fefac410ec1ebb1b438d49a955ff",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-6",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/inlining/mod.rs",
+          "sha256": "d65b2d7f142c6c46beaab76082c0bb523c0362b57bd5ca049500d027742652a7",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-7",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/ir.rs",
+          "sha256": "141881e65e31d98be82d0b384d67a4e6a75da110503351d8c53d53df506c8b5b",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-8",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/lib.rs",
+          "sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-9",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+          "sha256": "37d28f1e1afcf2a981099b668be459eff67356cf084c63f068b370bfd328532a",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-10",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+          "sha256": "a5a2f76dde3ee81e20a76cda3fcb50753736bccbfa1669f8f1b7f198d6490935",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-11",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs",
+          "sha256": "117909b1c52fd15aadb818a693a52534a61f9d72c30cf4212e7e09e4036f94f0",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-12",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs",
+          "sha256": "f6728a143b66ce3eeb5b9b31bf7c5442b2201234e4fced91cf914ffcc11a18d0",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-13",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+          "sha256": "83faed96f49ebc8e385578f2f27d850d68ab389300fabfebb5aaacd2d77f7932",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-14",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation.rs",
+          "sha256": "4c78580ab0c59db1246b98162fb5e44e12559b35c5aaf3d6a134a257583f69f1",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-15",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "sha256": "63d24e95ece5ed55bbb1c1589174b2f71cdd1e17197cdc4e660369a149a48a27",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-16",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+          "sha256": "d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-17",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs",
+          "sha256": "bb50fb19ef6a215cd9e062e08cffdcdbcaa16e42490e847ebdf5d63c0caf0494",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-18",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/type_infer.rs",
+          "sha256": "236668647bc9dfd600de45bd4edb77acc9086c13cde394638370a4a63e239333",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-19",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/var_scoping.rs",
+          "sha256": "136cba927762e19de34f24ce3fd501990712bd4b1cb12412e026e27c632735c4",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-20",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/invocation_words.rs",
+          "sha256": "a29147645f597d20cd3246b75a3d2affa3eb0f82b082d8969230b3920dc0ce5c",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-21",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/lib.rs",
+          "sha256": "51e694f4609dd94828b00d3cac9d9aff73d723d97677e9cb537aa573f5b2e593",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-22",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/registry.rs",
+          "sha256": "e1a5885d0e0e8a312240f35f283f618a32f794a6c4d80490607deaf67fe33d4a",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-23",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "sha256": "a83d715a322d2d1b852d1271c2c1182183117bf5e0b7b5e766d0f1e72065fffd",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-24",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/traits.rs",
+          "sha256": "40770443520ebe20297a4b5aa53990b7ca84fad11fc1fbce2e91fd05b2d31d11",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        },
+        {
+          "id": "original-source-purpose-source-25",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-compiler/src/inlining/frame.rs",
+          "selector": "inlining::frame::tests::actual_jim_module_purpose_cannot_open_a_logical_inline_frame",
+          "status": "linked",
+          "assertion": "A held real Jim software entry has raw Logical eligibility but actual Module Execution purpose and cannot issue SourceContext for the inline-frame walk. An independently retained Logical driver from the same input issues that context and the original parameter-only procedure passes the bound-read walk. No splice or Native activation/external execution is asserted."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+          "selector": "optimiser::chain_fold::tests::actual_jim_chain_advice_cannot_become_a_logical_rewrite",
+          "status": "linked",
+          "assertion": "For the fixed three-write source, any advice emitted from the held real Jim Execution entry stays hint-only; that set may be empty because Jim name/layout purposes are unavailable. The independently retained same-input Logical driver emits nonempty advice with hint_only false. No rewrite execution or Native erasure equivalence is asserted."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+          "selector": "optimiser::chain_fold::tests::retained_authored_simulation_chain_layout_stays_hint_only",
+          "status": "linked",
+          "assertion": "An explicit complete source entry retains its actual authored C naming policy, has no Native entry and issues AuthoredSimulation Module purpose. Its fixed selected chain layout produces nonempty hint-only advice. No raw profile fallback, executable rewrite, Native entry or trace absence is asserted."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+          "selector": "optimiser::elimination::tests::actual_jim_raise_proof_cannot_use_raw_logical_assistance",
+          "status": "linked",
+          "assertion": "RaiseProof for the held real Jim entry keeps metadata_available true and logical_source_assistance false despite raw Logical eligibility. The genuine same-input Logical Module sets that assistance true; withdrawing the actual Module keeps it false. Independent folded/normal-completion proofs and deletion permission are not asserted."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs",
+          "selector": "optimiser::elimination::source_purity::tests::actual_jim_procedure_purity_does_not_borrow_logical_summary",
+          "status": "linked",
+          "assertion": "The original procedure-call tokens under a held real Jim Execution entry cannot use the supplied conditional pure-procedure summary. The same input under its separate genuine Logical source driver passes the original logical_procedure_is_pure query for that original declaration. No physical observer absence, RHS deletion or external execution is asserted."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs",
+          "selector": "optimiser::method_barrier::tests::actual_jim_dispatch_purpose_preserves_unknown_reachability",
+          "status": "linked",
+          "assertion": "The original helper procedure containing dict create has unbounded dispatch facts under the held real Jim Execution entry; the separate same-input Logical driver bounds that source reachability. This is a software source-facts check, not a physical method/component, Native dispatch or external execution proof."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "symbol": "OriginalInvocationSourcePurpose",
+          "purpose": "Shared typed actual original request-purpose query and Module entry sibling; no raw profile classification."
+        },
+        {
+          "path": "rust/tcl-compiler/src/inlining/frame.rs",
+          "symbol": "for_module",
+          "purpose": "Original retained Module Logical purpose before the frame/source eligibility walk."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs",
+          "symbol": "logical_procedure_is_pure",
+          "purpose": "Same actual original call Logical purpose before conditional procedure-purity fallback."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+          "symbol": "classify_write",
+          "purpose": "Checked selected layout and constant fallback use actual original call purpose; executable publication is Logical-only."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+          "symbol": "RaiseProof::new",
+          "purpose": "RaiseProof retains actual function/Module metadata and explicit Logical purpose, independently of raw eligibility."
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs",
+          "symbol": "classify_tokens",
+          "purpose": "Actual purpose branches, unknown reachability and explicit tagged neutral compatibility."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Fixed source-defined software controls permit later owned-executable reconfirmation. No assertion outcome or external C/Jim/BIG-IP process is attached. Retained purpose and metadata do not certify physical namespace/command lookup, callback absence or executable rewrite equivalence."
+      }
     }
   ]
 }
