@@ -57,8 +57,6 @@ impl Interp {
         use tcl_registry::native_dictionary_compilation::NativeDictionaryMutationKind as Kind;
         let operation =
             BodyObjectOperation::capture(self).map_err(|first| self.report_cmd_error(first))?;
-        let actual = self.clone();
-        let variable_stage = || operation.check(&actual);
         let mut values = Vec::with_capacity(dictionary.operands.len());
         let reached = (|| {
             for operand in &dictionary.operands {

@@ -213,10 +213,16 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
 }
 
 pub(crate) fn var_error_using(
-    interp: &mut Interp, name: &[u8], e: VarError,
+    interp: &mut Interp,
+    name: &[u8],
+    e: VarError,
     stage: Option<&dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
 ) -> Code {
-    if let Some(check) = stage { if let Err(first) = check() { return interp.report_cmd_error(first); } }
+    if let Some(check) = stage {
+        if let Err(first) = check() {
+            return interp.report_cmd_error(first);
+        }
+    }
 
     if e == VarError::NameProtocolUnavailable {
         return interp.refuse_native_access(
@@ -1465,7 +1471,7 @@ pub(crate) fn native_jim_wide_expression(
                 NativeScalarGetterKind::Wide,
             );
             arguments.check()?;
-            reached?;
+            let _ = reached?;
         }
         let cached = obj::native_scalar_cache(original);
         arguments.check()?;
@@ -1881,14 +1887,12 @@ mod tests {
                 .expect("explicit logical parsing");
             let dialect = interp.native_invocation_dialect();
             assert!(crate::expr::cached_expr(object.as_ptr(), dialect, None).is_none());
-            assert!(
-                crate::expr::cached_expr(
-                    object.as_ptr(),
-                    dialect,
-                    interp.logical_expression_parse_policy()
-                )
-                .is_some()
-            );
+            assert!(crate::expr::cached_expr(
+                object.as_ptr(),
+                dialect,
+                interp.logical_expression_parse_policy()
+            )
+            .is_some());
             assert_eq!(crate::interp::obj_bytes(object.as_ptr()), b"{\xff\0tail}");
             assert!(dialect.execution_point().is_none());
         });
@@ -1937,11 +1941,9 @@ mod tests {
                 &reparsed,
                 &crate::expr::cached_expr(pointer, dialect, current_policy).unwrap(),
             ));
-            assert!(
-                interp
-                    .native_compiler_cache_epochs(crate::namespace::GLOBAL)
-                    .is_none()
-            );
+            assert!(interp
+                .native_compiler_cache_epochs(crate::namespace::GLOBAL)
+                .is_none());
         });
     }
 
@@ -1965,14 +1967,12 @@ mod tests {
             super::parse_runtime_expr_cached(interp, Some(object.as_ptr()), b"IGNORED")
                 .expect("actual host byte-array materialisation and logical syntax");
             assert_eq!(crate::obj::bytes_of(object.as_ptr()), b"1+2");
-            assert!(
-                crate::expr::cached_expr(
-                    object.as_ptr(),
-                    interp.native_invocation_dialect(),
-                    interp.logical_expression_parse_policy()
-                )
-                .is_some()
-            );
+            assert!(crate::expr::cached_expr(
+                object.as_ptr(),
+                interp.native_invocation_dialect(),
+                interp.logical_expression_parse_policy()
+            )
+            .is_some());
         });
     }
 
@@ -2182,12 +2182,10 @@ mod tests {
                 interp.do_expression_subst(br"\u0000", false),
                 Ok(vec![0xc0, 0x80])
             );
-            assert!(
-                interp
-                    .native_invocation_dialect()
-                    .execution_point()
-                    .is_none()
-            );
+            assert!(interp
+                .native_invocation_dialect()
+                .execution_point()
+                .is_none());
         });
     }
 
