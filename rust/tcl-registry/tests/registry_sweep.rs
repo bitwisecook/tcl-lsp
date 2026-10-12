@@ -1420,21 +1420,37 @@ fn a_spec_outside_the_core_set_declares_no_backing() {
     }
 }
 
-/// A shipped builtin is attested by the command's own name, spelled as the
-/// spec spells it — a leading `::` kept — which is the identity the VM's
-/// builtin table is keyed by, and a body's source is a library file the
-/// runtime embeds.
+/// Shipped identities name registered commands. A method-context spelling
+/// can refer to a qualified helper; Tcl bodies name embedded library files.
 ///
 /// registry-metadata: `runtime_backing` is registry data.
 #[test]
-fn a_shipped_builtin_is_attested_by_the_commands_own_name() {
+fn a_shipped_builtin_names_its_registered_implementation() {
     use tcl_registry::{BodySource, RuntimeBacking};
 
+    let registry = CommandRegistry::build_default();
     let mut shipped = 0;
     for spec in &tcl_registry::commands::tcl::tcl_command_specs() {
         match spec.runtime_backing {
             RuntimeBacking::ShippedBuiltin { identity } => {
-                assert_eq!(identity, spec.name, "{}", spec.name);
+                let registered =
+                    tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
+                let name = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
+                if registered != name {
+                    assert!(
+                        spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT),
+                        "{}",
+                        spec.name
+                    );
+                    let helper = registry
+                        .get(identity)
+                        .expect("registered method helper spec");
+                    assert_eq!(helper.name, registered, "{}", spec.name);
+                    assert!(matches!(
+                        helper.runtime_backing,
+                        RuntimeBacking::ShippedBuiltin { .. }
+                    ));
+                }
                 shipped += 1;
             }
             RuntimeBacking::TclBody {

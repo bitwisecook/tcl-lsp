@@ -127,7 +127,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        runtime_backing: RuntimeBacking::shipped("self"),
+        runtime_backing: RuntimeBacking::shipped("::oo::Helpers::self"),
         traits: Traits::PURE
             | Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_INTROSPECTION

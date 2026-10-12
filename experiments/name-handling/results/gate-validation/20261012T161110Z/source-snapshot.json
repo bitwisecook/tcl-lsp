@@ -1,0 +1,11 @@
+{
+  "head": "8f6e25e5d1200d6a90e2ba92e07ac3bef4fe8683",
+  "branch": "work",
+  "files": {
+    "rust/xtask/src/owner_resolution.rs": "ec2b93c04295a29371ca6f622b668f8c5a740ba45b36c95a26de96d378b81301",
+    "rust/xtask/src/audit_option_dialects.rs": "d31949c821794fc847bed991f286e3f257a2adfb538c2935138b986d009cf39a",
+    "docs/design/contracts/shared-utility-contracts-rust.md": "b0cf13025114aec01d4d551fcec2f77456835dd27ae2f8fd791756305df2d0de",
+    "rust/tcl-cmd-core/src/array.rs": "2a32d66ef65be2a6465c8e951a5d52d499d4d6b17aa406e1de56cc3129b5c107",
+    "rust/xtask/src/command_backing.rs": "b499b902cb901e4ae0f76a428dab702ea9a9496ae1b47a57ce3007fe4d29fb12"
+  }
+}

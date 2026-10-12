@@ -27,7 +27,7 @@ a source audit is not an executed test.
 | Related issue state and reproduction | Issue agent / coordinator | Updated; two defects remain open | #2450 closed from published removal. #2286 positives pass but direct/alias undefined-read controls fail. #2287 namespaced and top-level token controls fail; generic conditional import/path advice needs repair. |
 | Latest Jim oracle | Coordinator | Upstream reference verified and executed | Upstream HEAD matches shared pin `5bac7c99`; revision-bearing 0.84 build passes 339 tests in 12 real Jim naming suites. VM/runtime Jim conformance remains required. |
 | F5 appliance questions/answers | Appliance chat / coordinator | Exact pattern bundle pending | [Pattern bundle](../../../experiments/name-handling/patterns/f5/README.md) has 50 questions across eight contexts, all 400 rows pending. Existing BIG-IP controls are linked separately. Returned documents must bind exact input, release, execution channel and reached event; ingest only matching answers. |
-| Required gates and publication | Gate agent / coordinator | Red; fresh bounded gates executed | AI generation/check and registry shipped-identity control pass. Owner scanner and manifest-column defects, InitAutoPath backing/profile mismatch and a missing OptionSpec.effect test fixture remain. Exact logs: experiments/name-handling/results/gate-validation/20261012T160049Z/. Three bounded repairs assigned. Full Rust/PR gates and reviewed proof bindings remain required. Development pushes are authorised while red. |
+| Required gates and publication | Coordinator | Backing and focused controls pass; full gates red | Selected-release backing gate passes for392 commands; backing12 and owner21 tests pass; AI drift and focused formatting pass. Exact frozen results: experiments/name-handling/results/gate-validation/20261012T161110Z/. Owner gate exposes165 manifest scope/gate obligations; strict visibility is preserved. Full Rust/PR gates and remaining reviewed proof bindings are required. Development pushes remain authorised. |
 
 ## Consumer acceptance census
 
@@ -196,3 +196,12 @@ ownership; use small jobs and update this snapshot before handoff.
   shared provenance, 45 verified hashes. The W210 earliest remaining boundary
   is still a proposed reached-owner metadata join, not an executed diagnosis;
   see evidence-review/w210-missing-read-boundary.md.
+
+- Gate repair is verified: per-spec C9.0/C9.1 reports use actual independent native
+  constructors and retain InitAutoPath absence in9.0/presence in9.1; qualified
+  method helpers use registered implementation identity. No blanket worker
+  waiver or manifest visibility relaxation. Final source inventories match.
+- Clock topology has a passing isolated scalar replacement control but real8.6
+  startup remains refused. Compiled foreach first hit eager indexing of absent
+  locals; lazy storage selection then exposed SIGABRT. Separate iterator
+  ownership remains unresolved; no real-startup or foreach pass is claimed.
